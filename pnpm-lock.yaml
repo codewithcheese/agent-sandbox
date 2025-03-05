@@ -12,7 +12,7 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       handlebars:
-        specifier: ^4.7.8
+        specifier: ^4.7.6
         version: 4.7.8
       nanoid:
         specifier: ^3
@@ -43,8 +43,8 @@ importers:
         specifier: ^1.1.16
         version: 1.1.16(zod@3.24.2)
       '@codewithcheese/vite-plugin-obsidian':
-        specifier: npm:@jsr/codewithcheese__vite-plugin-obsidian@^0.0.1
-        version: '@jsr/codewithcheese__vite-plugin-obsidian@0.0.1(@types/node@22.13.9)(jiti@1.21.7)(svelte@5.22.3)(yaml@2.7.0)'
+        specifier: npm:@jsr/codewithcheese__vite-plugin-obsidian@^0.1.0
+        version: '@jsr/codewithcheese__vite-plugin-obsidian@0.1.0(@types/node@22.13.9)(jiti@1.21.7)(svelte@5.22.3)(yaml@2.7.0)'
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.3
         version: 5.0.3(svelte@5.22.3)(vite@6.2.0(@types/node@22.13.9)(jiti@1.21.7)(yaml@2.7.0))
@@ -496,8 +496,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.25':
     resolution: {integrity: sha512-vNk6aEwybGtawWmy/PzwnGDOjCkLWSD2wqvjGGAgOAwCGWySYXfYoxt00IJkTF+8Lb57DwOb3Aa0o9CApepiYQ==}
 
-  '@jsr/codewithcheese__vite-plugin-obsidian@0.0.1':
-    resolution: {integrity: sha512-tN7nW3Viz6+kns5keo6PB96FI5MoVrW+/yzAVMsb/zZzsNhcyViib8HJ2kKYUYBs5PhGp7BxfBv45PVEclLzSQ==, tarball: https://npm.jsr.io/~/11/@jsr/codewithcheese__vite-plugin-obsidian/0.0.1.tgz}
+  '@jsr/codewithcheese__vite-plugin-obsidian@0.1.0':
+    resolution: {integrity: sha512-FtIH0HSGj5O6oVBnE2PTpVu/+i+ea0RJZRzvH6Bv3Buo87Kjjv5eNPdAAnevHossen+DlW4U1W6TBkqX54G7iQ==, tarball: https://npm.jsr.io/~/11/@jsr/codewithcheese__vite-plugin-obsidian/0.1.0.tgz}
 
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
@@ -2097,7 +2097,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.0
 
-  '@jsr/codewithcheese__vite-plugin-obsidian@0.0.1(@types/node@22.13.9)(jiti@1.21.7)(svelte@5.22.3)(yaml@2.7.0)':
+  '@jsr/codewithcheese__vite-plugin-obsidian@0.1.0(@types/node@22.13.9)(jiti@1.21.7)(svelte@5.22.3)(yaml@2.7.0)':
     dependencies:
       builtin-modules: 3.3.0
       dayjs: 1.11.13
