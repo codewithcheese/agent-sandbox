@@ -1,14 +1,15 @@
 {
   "name": "agent-sandbox",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "",
   "publisher": "codewithcheese",
-  "main": "plugin/main.js",
+  "main": "dist/main.js",
   "scripts": {
     "test:unit": "vitest --testTimeout=1000",
     "code": "code --extensionDevelopmentPath=. --disable-extensions",
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "postversion": "node version-bump.mjs && git add manifest.json versions.json && git commit --amend --no-edit && git push && git push origin v$npm_package_version"
   },
   "keywords": [],
   "author": "",
