@@ -43,15 +43,21 @@ jobs:
           # Create zip directly from dist directory
           cd dist && zip -r ../agent-sandbox-${{ steps.get_version.outputs.VERSION }}.zip .
       
-      - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            agent-sandbox-${{ steps.get_version.outputs.VERSION }}.zip
-          name: Release v${{ steps.get_version.outputs.VERSION }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+      - name: Create GitHub Release and Upload Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create a release with the tag (without 'v' prefix for BRAT compatibility)
+          gh release create ${{ steps.get_version.outputs.VERSION }} \
+            --title "Release v${{ steps.get_version.outputs.VERSION }}" \
+            --generate-notes
+          
+          # Upload the zip file
+          gh release upload ${{ steps.get_version.outputs.VERSION }} \
+            agent-sandbox-${{ steps.get_version.outputs.VERSION }}.zip
+          
+          # Upload individual files for BRAT compatibility
+          gh release upload ${{ steps.get_version.outputs.VERSION }} \
+            dist/main.js \
+            dist/manifest.json \
+            versions.json        
