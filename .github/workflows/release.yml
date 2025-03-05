@@ -37,12 +37,11 @@ jobs:
       
       - name: Create release package
         run: |
-          mkdir -p release
-          cp -r dist release/
-          cp manifest.json release/
-          cp versions.json release/
-          cp README.md release/
-          cd release && zip -r ../agent-sandbox-${{ steps.get_version.outputs.VERSION }}.zip .
+          # Copy versions.json and README.md to dist directory
+          cp versions.json dist/
+          cp README.md dist/
+          # Create zip directly from dist directory
+          cd dist && zip -r ../agent-sandbox-${{ steps.get_version.outputs.VERSION }}.zip .
       
       - name: Create GitHub Release
         id: create_release
