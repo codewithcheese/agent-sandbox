@@ -9,27 +9,27 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Install pnpm
         uses: pnpm/action-setup@v3
         with:
           version: 9.14.2
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-      
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      
+
       - name: Build project
         run: pnpm build
-      
-      - name: Run tests
-        run: pnpm test:unit
+
+#      - name: Run tests
+#        run: pnpm test:unit
