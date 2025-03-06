@@ -1,6 +1,6 @@
 {
   "name": "agent-sandbox",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "",
   "publisher": "codewithcheese",
   "main": "dist/main.js",
