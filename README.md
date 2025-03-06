@@ -2,6 +2,18 @@
 
 Sandbox for developing knowledge agents in Obsidian.
 
+## Installation
+
+This plugin that can be installed using the [BRAT (Beta Reviewer's Auto-update Tool)](https://github.com/TfTHacker/obsidian42-brat) plugin for Obsidian.
+
+1. Install the BRAT plugin from Obsidian's Community Plugins.
+2. Add this plugin to BRAT:
+   - In BRAT settings, click "Add Beta Plugin".
+   - Enter the repository URL: `https://github.com/Companioai/companio-sandbox`
+   - Click "Add Plugin".
+3. Enable the plugin in Obsidian's Community Plugins settings.
+4. BRAT will automatically update the plugin when new releases are published.
+
 ## Development
 
 This project uses pnpm as the package manager.
