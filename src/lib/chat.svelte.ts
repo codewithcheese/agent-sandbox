@@ -7,7 +7,7 @@ import { processEmbeds } from "$lib/utils/embeds";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { wrapTextAttachments } from "$lib/utils/messages";
 import { getAllTools } from "$lib/tools";
-import { showFiles } from "$lib/utils/showFiles";
+import { fileTree } from "$lib/utils/fileTree";
 import { applyStreamPartToMessages } from "$lib/utils/stream";
 import { arrayBufferToBase64 } from "./utils/base64";
 import { extensionToMimeType } from "$lib/utils/mime";
@@ -180,7 +180,7 @@ export class Chat {
 
       system = await processEmbeds(file, system);
       system = await processTemplate(system, {
-        showFiles,
+        fileTree,
       });
       console.log("Using system message", system);
     }

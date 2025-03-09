@@ -1,9 +1,9 @@
-import type { SvelteViteAgentPlugin } from "./plugin/main";
+import type { AgentSandboxPlugin } from "./plugin/main";
 
 declare global {
   interface Window {
     Env: {
-      Plugin: SvelteViteAgentPlugin;
+      Plugin: AgentSandboxPlugin;
     };
   }
 }

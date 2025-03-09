@@ -53,7 +53,11 @@ module.exports = defineConfig(async (env): Promise<UserConfig> => {
       exclude: ["obsidian"], // This is important for the dev server
     },
     plugins: [
-      svelte(),
+      svelte({
+        compilerOptions: {
+          customElement: true
+        }
+      }),
       obsidian({
         extension: {
           plugins: [PostcssPlugin()],

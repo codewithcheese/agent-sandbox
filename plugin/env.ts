@@ -1,5 +1,5 @@
-import SvelteViteAgentPlugin from "./main";
+import AgentSandboxPlugin from "./main";
 
 export interface Env {
-  plugin: SvelteViteAgentPlugin;
+  plugin: AgentSandboxPlugin;
 }

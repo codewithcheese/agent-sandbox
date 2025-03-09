@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { showFiles } from "$lib/utils/showFiles";
+import { fileTree } from "$lib/utils/fileTree";
 
 export const listFilesTool = tool({
   description: "List files in a directory in the Obsidian vault",
@@ -11,7 +11,7 @@ export const listFilesTool = tool({
     try {
       // Coerce '.' into '/' since there's no concept of working directory in Obsidian
       const normalizedPath = path === '.' ? '/' : path;
-      const result = await showFiles(normalizedPath);
+      const result = await fileTree(normalizedPath);
       return { result };
     } catch (error) {
       return { error: `Failed to list files: ${error.message}` };
