@@ -60,8 +60,6 @@
     onDestroy(() => {
         chat.cancel();
     })
-
-    console.log('appCss', appCss);
 </script>
 <div use:insertCss={appCss} class="flex h-full w-full">
     <div class="flex flex-col h-full p-2 w-full">

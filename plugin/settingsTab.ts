@@ -1,5 +1,7 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
+import {App, PluginSettingTab} from "obsidian";
 import AgentSandboxPlugin from "./main";
+import {mountComponent} from "./util/svelte";
+import SettingsPage from "../src/SettingsPage.svelte";
 
 export interface PluginSettings {
     ANTHROPIC_API_KEY: string;
@@ -28,47 +30,49 @@ export class SettingsTab extends PluginSettingTab {
 
         containerEl.empty();
 
-        containerEl.createEl("h2", {text: "Settings for my awesome plugin."});
+        mountComponent(containerEl, 'http://localhost:15173/src/settings-tab.svelte.ts', 'settings-tab', SettingsPage);
 
-        // todo how to create a second view with HMR?
-        new Setting(containerEl).setName("Anthropic API Key").addText((text) =>
-            text
-                .setPlaceholder("Enter your Anthropic API Key")
-                .setValue(this.plugin.settings.ANTHROPIC_API_KEY)
-                .onChange(async (value) => {
-                    this.plugin.settings.ANTHROPIC_API_KEY = value;
-                    await this.plugin.saveSettings();
-                }),
-        );
-
-        new Setting(containerEl).setName("OpenAI API Key").addText((text) =>
-            text
-                .setPlaceholder("Enter your OpenAI API Key")
-                .setValue(this.plugin.settings.OPENAI_API_KEY)
-                .onChange(async (value) => {
-                    this.plugin.settings.OPENAI_API_KEY = value;
-                    await this.plugin.saveSettings();
-                }),
-        );
-
-        new Setting(containerEl).setName("RapidAPI Key").addText((text) =>
-            text
-                .setPlaceholder("Enter your RapidAPI Key")
-                .setValue(this.plugin.settings.RAPIDAPI_KEY)
-                .onChange(async (value) => {
-                    this.plugin.settings.RAPIDAPI_KEY = value;
-                    await this.plugin.saveSettings();
-                }),
-        );
-
-        new Setting(containerEl).setName("Chatbots Directory").addText((text) =>
-            text
-                .setPlaceholder("Enter chatbots directory")
-                .setValue(this.plugin.settings.CHATBOTS_PATH)
-                .onChange(async (value) => {
-                    this.plugin.settings.CHATBOTS_PATH = value;
-                    await this.plugin.saveSettings();
-                }),
-        );
+        // containerEl.createEl("h2", {text: "Settings for my awesome plugin."});
+        //
+        // // todo how to create a second view with HMR?
+        // new Setting(containerEl).setName("Anthropic API Key").addText((text) =>
+        //     text
+        //         .setPlaceholder("Enter your Anthropic API Key")
+        //         .setValue(this.plugin.settings.ANTHROPIC_API_KEY)
+        //         .onChange(async (value) => {
+        //             this.plugin.settings.ANTHROPIC_API_KEY = value;
+        //             await this.plugin.saveSettings();
+        //         }),
+        // );
+        //
+        // new Setting(containerEl).setName("OpenAI API Key").addText((text) =>
+        //     text
+        //         .setPlaceholder("Enter your OpenAI API Key")
+        //         .setValue(this.plugin.settings.OPENAI_API_KEY)
+        //         .onChange(async (value) => {
+        //             this.plugin.settings.OPENAI_API_KEY = value;
+        //             await this.plugin.saveSettings();
+        //         }),
+        // );
+        //
+        // new Setting(containerEl).setName("RapidAPI Key").addText((text) =>
+        //     text
+        //         .setPlaceholder("Enter your RapidAPI Key")
+        //         .setValue(this.plugin.settings.RAPIDAPI_KEY)
+        //         .onChange(async (value) => {
+        //             this.plugin.settings.RAPIDAPI_KEY = value;
+        //             await this.plugin.saveSettings();
+        //         }),
+        // );
+        //
+        // new Setting(containerEl).setName("Chatbots Directory").addText((text) =>
+        //     text
+        //         .setPlaceholder("Enter chatbots directory")
+        //         .setValue(this.plugin.settings.CHATBOTS_PATH)
+        //         .onChange(async (value) => {
+        //             this.plugin.settings.CHATBOTS_PATH = value;
+        //             await this.plugin.saveSettings();
+        //         }),
+        // );
     }
 }

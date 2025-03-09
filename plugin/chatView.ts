@@ -1,6 +1,7 @@
 import {ItemView, Menu, WorkspaceLeaf} from "obsidian";
 import ChatElement from "../src/ChatElement.svelte";
 import AgentSandboxPlugin from "./main";
+import {mountCustomElement} from "./util/svelte";
 
 export const CHAT_VIEW_SLUG = "agent-sandbox-chat-view";
 
@@ -68,30 +69,7 @@ export class ChatView extends ItemView {
         container.empty();
 
         try {
-            const div = document.createElement("div");
-            div.setAttribute("id", "chat-view");
-            div.style.height = "100%";
-            container.appendChild(div);
-
-            if (process.env.NODE_ENV === "development") {
-                // Development mode: Use Vite dev server with HMR
-                const script = document.createElement("script");
-                script.setAttribute("type", "module");
-                script.setAttribute(
-                    "src",
-                    "http://localhost:15173/src/index.svelte.ts?t=" + Date.now(),
-                );
-                container.appendChild(script);
-            } else {
-                // Production mode: Import and mount the component directly
-                // await import("../src/index.svelte.js");
-                if (!customElements.get("chat-view")) {
-                    // @ts-expect-error types incorrect for .element
-                    customElements.define("chat-view", ChatElement.element);
-                }
-
-                container.innerHTML = `<chat-view></chat-view>`;
-            }
+            mountCustomElement(container, 'http://localhost:15173/src/index.svelte.ts', 'chat-view', ChatElement);
         } catch (error) {
             console.error(error);
         }
