@@ -19,7 +19,7 @@
     "@ai-sdk/google": "^1.1.17",
     "@ai-sdk/openai": "^1.1.14",
     "@ai-sdk/ui-utils": "^1.1.16",
-    "@codewithcheese/vite-plugin-obsidian": "npm:@jsr/codewithcheese__vite-plugin-obsidian@^0.1.0",
+    "@codewithcheese/vite-plugin-obsidian": "npm:@jsr/codewithcheese__vite-plugin-obsidian@^0.2.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tailwindcss/typography": "^0.5.16",
     "@tomjs/tsconfig": "^1.7.1",
@@ -40,14 +40,16 @@
     "tailwindcss-animate": "^1.0.7",
     "tslib": "^2.8.1",
     "typescript": "^5.7.3",
-    "vite": "^6.1.1",
+    "vite": "^6.2.0",
     "vitest": "^3.0.7"
   },
   "dependencies": {
+    "esbuild-svelte": "^0.9.0",
     "github-slugger": "^2.0.0",
     "handlebars": "^4.7.6",
     "nanoid": "^3",
     "postcss": "^8.5.3",
+    "prettier": "^3.5.3",
     "rfdc": "^1.4.1",
     "svelte-exmarkdown": "^4.0.3",
     "zod": "^3.24.1"

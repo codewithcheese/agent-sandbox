@@ -4,6 +4,7 @@ import postcss from "postcss";
 import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
 import { readFile } from "node:fs/promises";
+import esbuildSvelte from "esbuild-svelte";
 
 function PostcssPlugin() {
   return {
@@ -27,7 +28,9 @@ function PostcssPlugin() {
 }
 
 module.exports = defineConfig(async (env): Promise<UserConfig> => {
-  const { default: obsidian } = await import("@codewithcheese/vite-plugin-obsidian");
+  const { default: obsidian } = await import(
+    "@codewithcheese/vite-plugin-obsidian"
+  );
   const { svelte } = await import("@sveltejs/vite-plugin-svelte");
   return {
     build: {
@@ -55,16 +58,18 @@ module.exports = defineConfig(async (env): Promise<UserConfig> => {
     plugins: [
       svelte({
         compilerOptions: {
-          customElement: true
-        }
+          customElement: true,
+        },
       }),
       obsidian({
-        extension: {
-          plugins: [PostcssPlugin()],
-          loader: {
-            ".css": "text", // This is needed for CSS inlining
-          },
-        },
+        plugins: [
+          PostcssPlugin(),
+          esbuildSvelte({
+            compilerOptions: {
+              customElement: true,
+            },
+          }),
+        ],
       }),
     ],
     resolve: {

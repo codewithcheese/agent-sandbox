@@ -1,7 +1,7 @@
 import {ItemView, Menu, WorkspaceLeaf} from "obsidian";
 import ChatElement from "../src/ChatElement.svelte";
 import AgentSandboxPlugin from "./main";
-import {mountCustomElement} from "./util/svelte";
+import {mountComponent} from "./svelte";
 
 export const CHAT_VIEW_SLUG = "agent-sandbox-chat-view";
 
@@ -67,9 +67,8 @@ export class ChatView extends ItemView {
     async onOpen() {
         const container = this.containerEl.children[1];
         container.empty();
-
         try {
-            mountCustomElement(container, 'http://localhost:15173/src/index.svelte.ts', 'chat-view', ChatElement);
+            mountComponent(container, ChatElement, 'element');
         } catch (error) {
             console.error(error);
         }

@@ -1,6 +1,6 @@
 import {App, PluginSettingTab} from "obsidian";
 import AgentSandboxPlugin from "./main";
-import {mountComponent} from "./util/svelte";
+import {mountComponent} from "./svelte";
 import SettingsPage from "../src/SettingsPage.svelte";
 
 export interface PluginSettings {
@@ -30,7 +30,7 @@ export class SettingsTab extends PluginSettingTab {
 
         containerEl.empty();
 
-        mountComponent(containerEl, 'http://localhost:15173/src/settings-tab.svelte.ts', 'settings-tab', SettingsPage);
+        mountComponent(containerEl, SettingsPage, 'component');
 
         // containerEl.createEl("h2", {text: "Settings for my awesome plugin."});
         //
