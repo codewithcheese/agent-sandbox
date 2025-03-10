@@ -37,15 +37,6 @@
   <div class="modal-content">
     <div class="setting-item">
       <div class="setting-item-info">
-        <div class="setting-item-name">Name</div>
-        <div class="setting-item-description">Name of your account.</div>
-      </div>
-      <div class="setting-item-control">
-        <input required type="text" bind:value={profile.name} />
-      </div>
-    </div>
-    <div class="setting-item">
-      <div class="setting-item-info">
         <div class="setting-item-name">Provider</div>
         <div class="setting-item-description">Select model provider.</div>
       </div>
@@ -67,6 +58,15 @@
       </div>
     </div>
     {#if profile.provider}
+      <div class="setting-item">
+        <div class="setting-item-info">
+          <div class="setting-item-name">Name</div>
+          <div class="setting-item-description">Name of your account.</div>
+        </div>
+        <div class="setting-item-control">
+          <input required type="text" bind:value={profile.name} />
+        </div>
+      </div>
       {#each ModelProvider[profile.provider].requiredFields as fieldKey}
         {@const field = ModelConfigField[fieldKey]}
         <div class="setting-item">
