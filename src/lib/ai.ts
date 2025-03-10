@@ -1,8 +1,8 @@
-import { AIAccount } from "../../plugin/settings";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOllama } from "ollama-ai-provider";
+import type { AIAccount } from "../../plugin/ai";
 
 export function createAIProvider(account: AIAccount) {
   switch (account.provider) {

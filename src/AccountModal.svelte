@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { ModelConfigField, AIProvider } from "$lib/models";
-  import type { AIAccount } from "../plugin/settings";
   import { nanoid } from "nanoid";
+  import { type AIAccount, AIProvider, ModelConfigField } from "../plugin/ai";
 
   type Props = {
     current?: AIAccount;

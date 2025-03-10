@@ -1,19 +1,19 @@
-import { Attachment, generateId, streamText, UIMessage } from "ai";
+import { type Attachment, generateId, streamText, type UIMessage } from "ai";
 import { nanoid } from "nanoid";
-import { TFile } from "obsidian";
+import type { TFile } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { processTemplate } from "$lib/utils/templates";
 import { processEmbeds } from "$lib/utils/embeds";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { wrapTextAttachments } from "$lib/utils/messages";
 import { getAllTools } from "$lib/tools";
 import { fileTree } from "$lib/utils/fileTree";
 import { applyStreamPartToMessages } from "$lib/utils/stream";
 import { arrayBufferToBase64 } from "./utils/base64";
 import { extensionToMimeType } from "$lib/utils/mime";
-import { ChatModel } from "../../plugin/models";
+import type { ChatModel } from "../../plugin/models";
 import { createAIProvider } from "$lib/ai";
-import { AIAccount } from "../../plugin/settings";
+
+import type { AIAccount } from "../../plugin/ai";
 
 export interface DocumentAttachment {
   id: string;
@@ -110,20 +110,18 @@ export class Chat {
     if (!content && this.#attachments.length === 0) return;
 
     const plugin = usePlugin();
-    
+
     // Find the selected model
     const model = plugin.settings.models.find(
       (model): model is ChatModel =>
-        model.type === "chat" && model.id === modelId
+        model.type === "chat" && model.id === modelId,
     );
     if (!model) {
       throw Error(`Chat model ${modelId} not found`);
     }
 
     // Find the selected account
-    const account = plugin.settings.accounts.find(
-      (a) => a.id === accountId
-    );
+    const account = plugin.settings.accounts.find((a) => a.id === accountId);
     if (!account) {
       throw Error(`AI account ${accountId} not found`);
     }

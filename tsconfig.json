@@ -13,6 +13,7 @@
     "importHelpers": true,
     "isolatedModules": true,
     "strictNullChecks": true,
+    "verbatimModuleSyntax": true,
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "lib": [
       "DOM",

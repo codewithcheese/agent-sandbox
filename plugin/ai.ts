@@ -47,3 +47,12 @@ export const AIProvider: Record<
     optionalFields: ["baseURL"],
   },
 } as const;
+
+export type AIProviderId = keyof typeof AIProvider;
+
+export type AIAccount = {
+  id: string;
+  name: string;
+  provider: AIProviderId;
+  config: ModelConfig;
+};

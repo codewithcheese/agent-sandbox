@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { AIProvider } from "$lib/models";
   import type { ChatModel, EmbeddingModel } from "../plugin/models";
+
+  import { AIProvider } from "../plugin/ai";
 
   type Props = {
     current?: ChatModel | EmbeddingModel;
@@ -17,12 +18,14 @@
         type: "chat",
         inputTokenLimit: 0,
         outputTokenLimit: 0,
-      } as ChatModel | EmbeddingModel),
+      } as
+        | AllowEmpty<ChatModel, "provider" | "id">
+        | AllowEmpty<EmbeddingModel, "provider" | "id">),
   );
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    save($state.snapshot(model));
+    save($state.snapshot(model as ChatModel | EmbeddingModel));
   }
 
   function updateModelType(type: "chat" | "embedding") {
@@ -90,14 +93,7 @@
         <div class="setting-item-description">Select model provider.</div>
       </div>
       <div class="setting-item-control">
-        <select
-          value={model.provider}
-          onchange={(e) => {
-            model.provider = e.currentTarget.value;
-          }}
-          required
-          class="dropdown"
-        >
+        <select bind:value={model.provider} required class="dropdown">
           <option value="">Select provider</option>
           {#each Object.entries(AIProvider) as [key, provider]}
             <option value={key}>{provider.name}</option>

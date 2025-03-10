@@ -2,16 +2,12 @@ import { App, Modal, Notice, Plugin, PluginManifest, TFile } from "obsidian";
 import { FileSelectModal } from "./fileSelect";
 import { CHAT_VIEW_SLUG, ChatView } from "./chatView";
 import { FileTreeModal } from "./fileTreeModal";
-import {
-  DEFAULT_SETTINGS,
-  AIAccount,
-  PluginSettings,
-  Settings,
-} from "./settings";
+import { DEFAULT_SETTINGS, PluginSettings, Settings } from "./settings";
 import { mountComponent } from "./svelte";
 import AccountModal from "../src/AccountModal.svelte";
 import ModelModal from "../src/ModelModal.svelte";
 import type { ChatModel, EmbeddingModel } from "./models";
+import { AIAccount } from "./ai";
 
 export class AgentSandboxPlugin extends Plugin {
   // @ts-ignore

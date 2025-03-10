@@ -18,15 +18,20 @@
   import { onDestroy, onMount } from "svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import Markdown from "$lib/components/Markdown.svelte";
+  import type { AIAccount, AIProviderId } from "../plugin/ai";
 
   let { chat }: { chat: Chat } = $props();
 
-  let submitBtn: HTMLButtonElement | null = $state(null);  
+  let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedModelId: string | undefined = $state(undefined);
   let selectedAccountId: string | undefined = $state(undefined);
 
   onMount(() => {
     chat.loadChatbots();
+  });
+
+  onDestroy(() => {
+    chat.cancel();
   });
 
   function submitOnEnter(e: KeyboardEvent) {
@@ -60,9 +65,31 @@
     }
   }
 
-  onDestroy(() => {
-    chat.cancel();
-  });
+  function getModelAccountOptions() {
+    const accountsByProvider = {} as Record<AIProviderId, AIAccount[]>;
+    plugin.settings.accounts.forEach((account) => {
+      if (!accountsByProvider[account.provider]) {
+        accountsByProvider[account.provider] = [];
+      }
+      accountsByProvider[account.provider].push(account);
+    });
+
+    return plugin.settings.models
+      .filter((model) => model.type === "chat")
+      .flatMap((model) => {
+        const accounts = accountsByProvider[model.provider] || [];
+        if (accounts.length === 0) return [];
+
+        const showAccountName = accounts.length > 1;
+
+        return accounts.map((account) => ({
+          value: `${model.id}:${account.id}`,
+          label: showAccountName ? `${model.id} (${account.name})` : model.id,
+          modelId: model.id,
+          accountId: account.id,
+        }));
+      });
+  }
 </script>
 
 <div use:insertCss={appCss} class="flex h-full w-full">
@@ -196,12 +223,16 @@
       {/if}
     </div>
 
-    <form name="input" class="mt-4" onsubmit={(e) => {
-      if (!selectedModelId || !selectedAccountId) {
-        return;
-      }
-      chat.submit(e, selectedModelId, selectedAccountId)
-    }}>
+    <form
+      name="input"
+      class="mt-4"
+      onsubmit={(e) => {
+        if (!selectedModelId || !selectedAccountId) {
+          return;
+        }
+        chat.submit(e, selectedModelId, selectedAccountId);
+      }}
+    >
       {#if chat.state.type === "loading"}
         <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
           <Loader2Icon class="size-4 animate-spin" />
@@ -265,12 +296,10 @@
               <option value="" disabled selected>Add models in settings.</option
               >
             {:else}
-              {#each plugin.settings.models.filter((m) => m.type === "chat") as model}
-                {#each plugin.settings.accounts.filter((a) => a.provider === model.provider) as account}
-                  <option value={`${model.id}:${account.id}`}>
-                    {model.id} ({account.name})
-                  </option>
-                {/each}
+              {#each getModelAccountOptions() as option}
+                <option value={option.value}>
+                  {option.label}
+                </option>
               {/each}
             {/if}
           </select>

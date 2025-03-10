@@ -1,8 +1,8 @@
-import { AIProvider } from "$lib/models";
+import { AIProviderId } from "./ai";
 
 export type ChatModel = {
   id: string;
-  provider: keyof typeof AIProvider;
+  provider: AIProviderId;
   type: "chat";
   inputTokenLimit: number;
   outputTokenLimit: number;
@@ -10,7 +10,7 @@ export type ChatModel = {
 
 export type EmbeddingModel = {
   id: string;
-  provider: keyof typeof AIProvider;
+  provider: AIProviderId;
   type: "embedding";
   dimensions: number;
 };
