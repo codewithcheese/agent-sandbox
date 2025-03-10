@@ -13,15 +13,17 @@
   } from "lucide-svelte";
   import type { Chat } from "$lib/chat.svelte";
   import { formatDate, usePlugin } from "$lib/utils";
+  const plugin = usePlugin();
   import { insertCss } from "$lib/utils/insertCss";
   import { onDestroy, onMount } from "svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import Markdown from "$lib/components/Markdown.svelte";
-  import Select from "$lib/components/Select.svelte";
 
   let { chat }: { chat: Chat } = $props();
 
-  let submitBtn: HTMLButtonElement | null = $state(null);
+  let submitBtn: HTMLButtonElement | null = $state(null);  
+  let selectedModelId: string | undefined = $state(undefined);
+  let selectedAccountId: string | undefined = $state(undefined);
 
   onMount(() => {
     chat.loadChatbots();
@@ -194,7 +196,12 @@
       {/if}
     </div>
 
-    <form name="input" class="mt-4" onsubmit={(e) => chat.submit(e)}>
+    <form name="input" class="mt-4" onsubmit={(e) => {
+      if (!selectedModelId || !selectedAccountId) {
+        return;
+      }
+      chat.submit(e, selectedModelId, selectedAccountId)
+    }}>
       {#if chat.state.type === "loading"}
         <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
           <Loader2Icon class="size-4 animate-spin" />
@@ -231,17 +238,43 @@
         class="min-h-[80px] rounded"
       />
       <div class="flex items-center justify-between mt-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          class="gap-1.5 rounded"
-          onclick={selectDocument}
-        >
-          <FileTextIcon class="size-3.5" />
-        </Button>
+        <div class="flex flex-row align-middle gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="gap-1.5 rounded"
+            onclick={selectDocument}
+          >
+            <FileTextIcon class="size-3.5" />
+          </Button>
 
-        <Select />
+          <!-- model select -->
+          <select
+            onchange={(e) => {
+              const value = e.currentTarget.value;
+              const [modelId, accountId] = value.split(":");
+              selectedModelId = modelId;
+              selectedAccountId = accountId;
+            }}
+            name="model-account"
+            class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            required
+          >
+            {#if !plugin.settings.models.length || !plugin.settings.accounts.length}
+              <option value="" disabled selected>Add models in settings.</option
+              >
+            {:else}
+              {#each plugin.settings.models.filter((m) => m.type === "chat") as model}
+                {#each plugin.settings.accounts.filter((a) => a.provider === model.provider) as account}
+                  <option value={`${model.id}:${account.id}`}>
+                    {model.id} ({account.name})
+                  </option>
+                {/each}
+              {/each}
+            {/if}
+          </select>
+        </div>
 
         <Button
           type="submit"

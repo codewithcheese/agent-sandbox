@@ -4,12 +4,12 @@ import { CHAT_VIEW_SLUG, ChatView } from "./chatView";
 import { FileTreeModal } from "./fileTreeModal";
 import {
   DEFAULT_SETTINGS,
-  AIProviderAccount,
+  AIAccount,
   PluginSettings,
   Settings,
 } from "./settings";
 import { mountComponent } from "./svelte";
-import AIProviderModal from "../src/AIProviderModal.svelte";
+import AccountModal from "../src/AccountModal.svelte";
 import ModelModal from "../src/ModelModal.svelte";
 import type { ChatModel, EmbeddingModel } from "./models";
 
@@ -73,18 +73,15 @@ export class AgentSandboxPlugin extends Plugin {
     new Notice(message, duration);
   }
 
-  openAddModelProviderModal(
-    onSave: (profile: AIProviderAccount) => void,
-    current?: AIProviderAccount,
-  ) {
+  openAccountModal(onSave: (account: AIAccount) => void, current?: AIAccount) {
     const modal = new (class extends Modal {
       onOpen() {
-        mountComponent(this.contentEl, AIProviderModal, "component", {
+        mountComponent(this.contentEl, AccountModal, "component", {
           current,
           close: () => this.close(),
-          save: (profile: AIProviderAccount) => {
+          save: (account: AIAccount) => {
             this.close();
-            onSave(profile);
+            onSave(account);
           },
         });
       }

@@ -5,8 +5,9 @@ import SettingsPage from "../src/SettingsPage.svelte";
 import type { ModelConfig, AIProvider } from "$lib/models";
 import { ChatModel, EmbeddingModel, models } from "./models";
 
-export type AIProviderAccount = {
-  accountName: string;
+export type AIAccount = {
+  id: string;
+  name: string;
   provider: keyof typeof AIProvider;
   config: ModelConfig;
 };
@@ -19,7 +20,7 @@ export interface PluginSettings {
     };
   };
   chatbotsPath: string;
-  aiProviders: AIProviderAccount[];
+  accounts: AIAccount[];
   models: (ChatModel | EmbeddingModel)[];
 }
 
@@ -31,7 +32,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     },
   },
   chatbotsPath: "chatbots",
-  aiProviders: [],
+  accounts: [],
   models,
 };
 

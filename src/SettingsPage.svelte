@@ -3,7 +3,6 @@
   import { onDestroy, onMount } from "svelte";
   import { PlusCircleIcon, SettingsIcon, Trash2Icon } from "lucide-svelte";
   import { AIProvider } from "$lib/models";
-  import type { ChatModel, EmbeddingModel } from "../plugin/models";
 
   const plugin = usePlugin();
   let settings = $state(plugin.settings);
@@ -42,34 +41,35 @@
 </div>
 <div class="setting-item setting-item-heading">
   <div class="setting-item-info">
-    <div class="setting-item-name">AI Providers</div>
+    <div class="setting-item-name">AI Accounts</div>
   </div>
   <div class="setting-item-control">
     <PlusCircleIcon
       class="clickable-icon extra-setting-button"
       onclick={() =>
-        plugin.openAddModelProviderModal((profile) => {
-          settings.aiProviders.push(profile);
+        plugin.openAccountModal((account) => {
+          settings.accounts.push(account);
+          console.log("pushed account", settings, account);
           save();
         })}
     />
   </div>
 </div>
-{#if settings.aiProviders.length === 0}
+{#if settings.accounts.length === 0}
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">No AI providers accounts.</div>
+      <div class="setting-item-name">No AI accounts.</div>
       <div class="setting-item-description">
-        Add an AI provider account to start using AI.
+        Add an AI account to start using AI.
       </div>
     </div>
     <div class="setting-item-control"></div>
   </div>
 {/if}
-{#each settings.aiProviders as provider, index}
+{#each settings.accounts as provider, index}
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">{provider.accountName}</div>
+      <div class="setting-item-name">{provider.name}</div>
       <div class="setting-item-description">
         Provider: {AIProvider[provider.provider].name}
       </div>
@@ -77,8 +77,8 @@
     <div class="setting-item-control">
       <button
         onclick={() =>
-          plugin.openAddModelProviderModal((profile) => {
-            settings.aiProviders[index] = profile;
+          plugin.openAccountModal((profile) => {
+            settings.accounts[index] = profile;
             save();
           }, $state.snapshot(provider))}
         class="clickable-icon extra-setting-button"
@@ -88,7 +88,7 @@
       </button>
       <button
         onclick={() => {
-          settings.aiProviders.splice(index, 1);
+          settings.accounts.splice(index, 1);
           save();
         }}
         class="clickable-icon extra-setting-button"

@@ -16,7 +16,7 @@
   "license": "ISC",
   "devDependencies": {
     "@ai-sdk/anthropic": "^1.1.10",
-    "@ai-sdk/google": "^1.1.17",
+    "@ai-sdk/google": "^1.1.19",
     "@ai-sdk/openai": "^1.1.14",
     "@ai-sdk/ui-utils": "^1.1.16",
     "@codewithcheese/vite-plugin-obsidian": "npm:@jsr/codewithcheese__vite-plugin-obsidian@^0.2.0",
@@ -50,6 +50,7 @@
     "github-slugger": "^2.0.0",
     "handlebars": "^4.7.6",
     "nanoid": "^3",
+    "ollama-ai-provider": "^1.2.0",
     "postcss": "^8.5.3",
     "rfdc": "^1.4.1",
     "svelte-exmarkdown": "^4.0.3",

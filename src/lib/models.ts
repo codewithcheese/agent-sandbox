@@ -1,5 +1,3 @@
-import { anthropic } from "@ai-sdk/anthropic";
-
 export type ModelConfig = {
   baseURL?: string;
   apiKey?: string;
@@ -21,7 +19,7 @@ export const ModelConfigField = {
 } as const;
 
 export const AIProvider: Record<
-  string,
+  "ollama" | "openai" | "anthropic" | "gemini",
   {
     name: string;
     requiredFields: (keyof typeof ModelConfigField)[];

@@ -1,16 +1,18 @@
 <script lang="ts">
   import { ModelConfigField, AIProvider } from "$lib/models";
-  import type { AIProviderAccount } from "../plugin/settings";
+  import type { AIAccount } from "../plugin/settings";
+  import { nanoid } from "nanoid";
 
   type Props = {
-    current?: AIProviderAccount;
+    current?: AIAccount;
     close: () => void;
-    save: (profile: AIProviderAccount) => void;
+    save: (profile: AIAccount) => void;
   };
   let { current, close, save }: Props = $props();
 
-  let profile = $state(
+  let account: AllowEmpty<AIAccount, "provider"> = $state(
     current ?? {
+      id: nanoid(),
       name: "",
       provider: "",
       config: {},
@@ -19,37 +21,29 @@
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    Object.entries(profile.config).forEach(([key, value]) => {
+    Object.entries(account.config).forEach(([key, value]) => {
       if (value === "") {
         //@ts-expect-error key type not inferred
-        profile.config[key] = undefined;
+        account.config[key] = undefined;
       }
     });
-    save($state.snapshot(profile));
+    save($state.snapshot(account as AIAccount));
   }
 </script>
 
 <button aria-label="escape" onclick={close} class="modal-close-button"></button>
 <div class="modal-header">
-  <div class="modal-title">AI Provider</div>
+  <div class="modal-title">AI Account</div>
 </div>
 <form onsubmit={handleSubmit}>
   <div class="modal-content">
     <div class="setting-item">
       <div class="setting-item-info">
         <div class="setting-item-name">Provider</div>
-        <div class="setting-item-description">Select model provider.</div>
+        <div class="setting-item-description">Select AI provider.</div>
       </div>
       <div class="setting-item-control">
-        <select
-          value={profile.provider}
-          onchange={(e) => {
-            console.log(e.currentTarget.value);
-            profile.provider = e.currentTarget.value;
-          }}
-          required
-          class="dropdown"
-        >
+        <select bind:value={account.provider} required class="dropdown">
           <option value="">Select provider</option>
           {#each Object.entries(AIProvider) as [key, provider]}
             <option value={key}>{provider.name}</option>
@@ -57,17 +51,17 @@
         </select>
       </div>
     </div>
-    {#if profile.provider}
+    {#if account.provider}
       <div class="setting-item">
         <div class="setting-item-info">
           <div class="setting-item-name">Account name</div>
           <div class="setting-item-description">Name of your account.</div>
         </div>
         <div class="setting-item-control">
-          <input required type="text" bind:value={profile.accountName} />
+          <input required type="text" bind:value={account.name} />
         </div>
       </div>
-      {#each AIProvider[profile.provider].requiredFields as fieldKey}
+      {#each AIProvider[account.provider].requiredFields as fieldKey}
         {@const field = ModelConfigField[fieldKey]}
         <div class="setting-item">
           <div class="setting-item-info">
@@ -79,12 +73,12 @@
               required
               type="text"
               placeholder={field.placeholder}
-              bind:value={profile.config[fieldKey]}
+              bind:value={account.config[fieldKey]}
             />
           </div>
         </div>
       {/each}
-      {#each AIProvider[profile.provider].optionalFields as fieldKey}
+      {#each AIProvider[account.provider].optionalFields as fieldKey}
         {@const field = ModelConfigField[fieldKey]}
         <div class="setting-item">
           <div class="setting-item-info">
@@ -97,7 +91,7 @@
             <input
               type="text"
               placeholder={field.placeholder}
-              bind:value={profile.config[fieldKey]}
+              bind:value={account.config[fieldKey]}
             />
           </div>
         </div>
