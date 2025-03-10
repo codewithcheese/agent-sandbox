@@ -2,7 +2,7 @@
   import { usePlugin } from "$lib/utils";
   import { onDestroy, onMount } from "svelte";
   import { PlusCircleIcon, SettingsIcon, Trash2Icon } from "lucide-svelte";
-  import { ModelProvider } from "$lib/models";
+  import { AIProvider } from "$lib/models";
   import type { ChatModel, EmbeddingModel } from "../plugin/models";
 
   const plugin = usePlugin();
@@ -43,43 +43,42 @@
 <div class="setting-item setting-item-heading">
   <div class="setting-item-info">
     <div class="setting-item-name">AI Providers</div>
-    <div class="setting-item-description"></div>
   </div>
   <div class="setting-item-control">
     <PlusCircleIcon
       class="clickable-icon extra-setting-button"
       onclick={() =>
         plugin.openAddModelProviderModal((profile) => {
-          settings.modelProviders.push(profile);
+          settings.aiProviders.push(profile);
           save();
         })}
     />
   </div>
 </div>
-{#if settings.modelProviders.length === 0}
+{#if settings.aiProviders.length === 0}
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">No model providers setup</div>
+      <div class="setting-item-name">No AI providers accounts.</div>
       <div class="setting-item-description">
-        Add a model provider to start using AI.
+        Add an AI provider account to start using AI.
       </div>
     </div>
     <div class="setting-item-control"></div>
   </div>
 {/if}
-{#each settings.modelProviders as provider, index}
+{#each settings.aiProviders as provider, index}
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">{provider.name}</div>
+      <div class="setting-item-name">{provider.accountName}</div>
       <div class="setting-item-description">
-        Provider: {ModelProvider[provider.provider].name}
+        Provider: {AIProvider[provider.provider].name}
       </div>
     </div>
     <div class="setting-item-control">
       <button
         onclick={() =>
           plugin.openAddModelProviderModal((profile) => {
-            settings.modelProviders[index] = profile;
+            settings.aiProviders[index] = profile;
             save();
           }, $state.snapshot(provider))}
         class="clickable-icon extra-setting-button"
@@ -89,7 +88,7 @@
       </button>
       <button
         onclick={() => {
-          settings.modelProviders.splice(index, 1);
+          settings.aiProviders.splice(index, 1);
           save();
         }}
         class="clickable-icon extra-setting-button"
@@ -104,9 +103,6 @@
 <div class="setting-item setting-item-heading">
   <div class="setting-item-info">
     <div class="setting-item-name">Models</div>
-    <div class="setting-item-description">
-      Configure AI models for your chatbots
-    </div>
   </div>
   <div class="setting-item-control">
     <PlusCircleIcon
@@ -135,10 +131,9 @@
     <div class="setting-item-info">
       <div class="setting-item-name">{model.id}</div>
       <div class="setting-item-description">
-        {ModelProvider[model.provider]?.name || model.provider} | {model.type ===
-        "chat"
-          ? `Input: ${(model as ChatModel).inputTokenLimit.toLocaleString()} tokens, Output: ${(model as ChatModel).outputTokenLimit.toLocaleString()} tokens`
-          : `Dimensions: ${(model as EmbeddingModel).dimensions}`}
+        Provider: {AIProvider[model.provider].name}, {model.type === "chat"
+          ? `Input: ${model.inputTokenLimit.toLocaleString()} tokens, Output: ${model.outputTokenLimit.toLocaleString()} tokens`
+          : `Dimensions: ${model.dimensions}`}
       </div>
     </div>
     <div class="setting-item-control">

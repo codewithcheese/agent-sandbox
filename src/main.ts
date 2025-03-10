@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import ChatElement from "./ChatElement.svelte";
 import SettingsPage from "./SettingsPage.svelte";
-import ModelProviderModal from "./ModelProviderModal.svelte";
+import AIProviderModal from "./AIProviderModal.svelte";
 import ModelModal from "./ModelModal.svelte";
 
 const url = new URL(import.meta.url);
@@ -20,7 +20,7 @@ if (!(mountId in window.Mounts)) {
 window.Mounts[mountId]({
   ChatElement,
   SettingsPage,
-  ModelProviderModal,
+  AIProviderModal,
   ModelModal,
 });
 

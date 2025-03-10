@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ModelProvider } from "$lib/models";
+  import { AIProvider } from "$lib/models";
   import type { ChatModel, EmbeddingModel } from "../plugin/models";
 
   type Props = {
@@ -20,15 +20,12 @@
       } as ChatModel | EmbeddingModel),
   );
 
-  let modelType = $state(current?.type || "chat");
-
   function handleSubmit(e: Event) {
     e.preventDefault();
     save($state.snapshot(model));
   }
 
   function updateModelType(type: "chat" | "embedding") {
-    modelType = type;
     if (type === "chat") {
       model = {
         id: model.id,
@@ -61,7 +58,7 @@
       </div>
       <div class="setting-item-control">
         <select
-          value={modelType}
+          value={model.type}
           onchange={(e) => {
             // @ts-expect-error value not inferred
             updateModelType(e.currentTarget.value);
@@ -102,14 +99,14 @@
           class="dropdown"
         >
           <option value="">Select provider</option>
-          {#each Object.entries(ModelProvider) as [key, provider]}
+          {#each Object.entries(AIProvider) as [key, provider]}
             <option value={key}>{provider.name}</option>
           {/each}
         </select>
       </div>
     </div>
 
-    {#if modelType === "chat"}
+    {#if model.type === "chat"}
       <div class="setting-item">
         <div class="setting-item-info">
           <div class="setting-item-name">Input Token Limit</div>

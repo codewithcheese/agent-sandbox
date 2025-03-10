@@ -20,7 +20,7 @@ export const ModelConfigField = {
   },
 } as const;
 
-export const ModelProvider: Record<
+export const AIProvider: Record<
   string,
   {
     name: string;

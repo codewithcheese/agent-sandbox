@@ -2,34 +2,36 @@ import { App, PluginSettingTab } from "obsidian";
 import AgentSandboxPlugin from "./main";
 import { mountComponent } from "./svelte";
 import SettingsPage from "../src/SettingsPage.svelte";
-import type { ModelConfig, ModelProvider } from "$lib/models";
+import type { ModelConfig, AIProvider } from "$lib/models";
 import { ChatModel, EmbeddingModel, models } from "./models";
 
-export type ModelProviderProfile = {
-  name: string;
-  provider: keyof typeof ModelProvider;
+export type AIProviderAccount = {
+  accountName: string;
+  provider: keyof typeof AIProvider;
   config: ModelConfig;
 };
 
 export interface PluginSettings {
   services: {
     rapidapi: {
+      name: string;
       apiKey: string;
     };
   };
   chatbotsPath: string;
-  modelProviders: ModelProviderProfile[];
+  aiProviders: AIProviderAccount[];
   models: (ChatModel | EmbeddingModel)[];
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   services: {
     rapidapi: {
+      name: "RapidAPI",
       apiKey: "",
     },
   },
   chatbotsPath: "chatbots",
-  modelProviders: [],
+  aiProviders: [],
   models,
 };
 

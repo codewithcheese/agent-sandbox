@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { ModelConfigField, ModelProvider } from "$lib/models";
-  import type { ModelProviderProfile } from "../plugin/settings";
+  import { ModelConfigField, AIProvider } from "$lib/models";
+  import type { AIProviderAccount } from "../plugin/settings";
 
   type Props = {
-    current?: ModelProviderProfile;
+    current?: AIProviderAccount;
     close: () => void;
-    save: (profile: ModelProviderProfile) => void;
+    save: (profile: AIProviderAccount) => void;
   };
   let { current, close, save }: Props = $props();
 
@@ -51,7 +51,7 @@
           class="dropdown"
         >
           <option value="">Select provider</option>
-          {#each Object.entries(ModelProvider) as [key, provider]}
+          {#each Object.entries(AIProvider) as [key, provider]}
             <option value={key}>{provider.name}</option>
           {/each}
         </select>
@@ -64,10 +64,10 @@
           <div class="setting-item-description">Name of your account.</div>
         </div>
         <div class="setting-item-control">
-          <input required type="text" bind:value={profile.name} />
+          <input required type="text" bind:value={profile.accountName} />
         </div>
       </div>
-      {#each ModelProvider[profile.provider].requiredFields as fieldKey}
+      {#each AIProvider[profile.provider].requiredFields as fieldKey}
         {@const field = ModelConfigField[fieldKey]}
         <div class="setting-item">
           <div class="setting-item-info">
@@ -84,7 +84,7 @@
           </div>
         </div>
       {/each}
-      {#each ModelProvider[profile.provider].optionalFields as fieldKey}
+      {#each AIProvider[profile.provider].optionalFields as fieldKey}
         {@const field = ModelConfigField[fieldKey]}
         <div class="setting-item">
           <div class="setting-item-info">
