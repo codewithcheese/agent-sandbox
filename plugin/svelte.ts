@@ -1,4 +1,4 @@
-import { Component, mount } from "svelte";
+import { type Component, mount } from "svelte";
 import { slug } from "github-slugger";
 import { nanoid } from "nanoid";
 

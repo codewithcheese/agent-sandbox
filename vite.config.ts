@@ -1,4 +1,4 @@
-import { defineConfig, UserConfig } from "vite";
+import { defineConfig, type UserConfig } from "vite";
 import * as path from "node:path";
 import postcss from "postcss";
 import tailwindcss from "tailwindcss";
@@ -34,6 +34,7 @@ module.exports = defineConfig(async (env): Promise<UserConfig> => {
   const { svelte } = await import("@sveltejs/vite-plugin-svelte");
   return {
     build: {
+      emptyOutDir: false,
       rollupOptions: {
         external: [
           "obsidian",

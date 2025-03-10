@@ -2,8 +2,8 @@ import { App, PluginSettingTab } from "obsidian";
 import AgentSandboxPlugin from "./main";
 import { mountComponent } from "./svelte";
 import SettingsPage from "../src/SettingsPage.svelte";
-import { ChatModel, EmbeddingModel, models } from "./models";
-import { AIAccount } from "./ai";
+import { type ChatModel, type EmbeddingModel, models } from "./models";
+import type { AIAccount } from "./ai";
 
 export interface PluginSettings {
   services: {

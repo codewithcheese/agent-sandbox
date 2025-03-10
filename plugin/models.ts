@@ -1,4 +1,4 @@
-import { AIProviderId } from "./ai";
+import type { AIProviderId } from "./ai";
 
 export type ChatModel = {
   id: string;

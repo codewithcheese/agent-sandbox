@@ -1,13 +1,20 @@
-import { App, Modal, Notice, Plugin, PluginManifest, TFile } from "obsidian";
+import {
+  App,
+  Modal,
+  Notice,
+  Plugin,
+  type PluginManifest,
+  TFile,
+} from "obsidian";
 import { FileSelectModal } from "./fileSelect";
 import { CHAT_VIEW_SLUG, ChatView } from "./chatView";
 import { FileTreeModal } from "./fileTreeModal";
-import { DEFAULT_SETTINGS, PluginSettings, Settings } from "./settings";
+import { DEFAULT_SETTINGS, type PluginSettings, Settings } from "./settings";
 import { mountComponent } from "./svelte";
 import AccountModal from "../src/AccountModal.svelte";
 import ModelModal from "../src/ModelModal.svelte";
 import type { ChatModel, EmbeddingModel } from "./models";
-import { AIAccount } from "./ai";
+import type { AIAccount } from "./ai";
 
 export class AgentSandboxPlugin extends Plugin {
   // @ts-ignore
@@ -58,10 +65,13 @@ export class AgentSandboxPlugin extends Plugin {
   onunload() {}
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const settings = await this.loadData();
+    console.log("Loading settings", settings);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
   }
 
   async saveSettings() {
+    console.log("Saving settings", this.settings);
     await this.saveData(this.settings);
   }
 

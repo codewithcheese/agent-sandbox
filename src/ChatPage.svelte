@@ -26,6 +26,8 @@
   let selectedModelId: string | undefined = $state(undefined);
   let selectedAccountId: string | undefined = $state(undefined);
 
+  $inspect("chat", selectedModelId, selectedAccountId);
+
   onMount(() => {
     chat.loadChatbots();
   });
@@ -227,6 +229,7 @@
       name="input"
       class="mt-4"
       onsubmit={(e) => {
+        e.preventDefault();
         if (!selectedModelId || !selectedAccountId) {
           return;
         }
@@ -282,26 +285,24 @@
 
           <!-- model select -->
           <select
-            onchange={(e) => {
-              const value = e.currentTarget.value;
-              const [modelId, accountId] = value.split(":");
-              selectedModelId = modelId;
-              selectedAccountId = accountId;
-            }}
+            bind:value={
+              null,
+              (v) => {
+                const [modelId, accountId] = v.split(":");
+                selectedModelId = modelId;
+                selectedAccountId = accountId;
+              }
+            }
             name="model-account"
             class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             required
           >
-            {#if !plugin.settings.models.length || !plugin.settings.accounts.length}
-              <option value="" disabled selected>Add models in settings.</option
-              >
-            {:else}
-              {#each getModelAccountOptions() as option}
-                <option value={option.value}>
-                  {option.label}
-                </option>
-              {/each}
-            {/if}
+            <option value=""> Select model </option>
+            {#each getModelAccountOptions() as option}
+              <option value={option.value}>
+                {option.label}
+              </option>
+            {/each}
           </select>
         </div>
 
