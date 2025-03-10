@@ -1,8 +1,15 @@
-import {App, Notice, Plugin, PluginManifest, TFile,} from "obsidian";
-import {FileSelectModal} from "./fileSelect";
-import {CHAT_VIEW_SLUG, ChatView} from "./chatView";
-import {FileTreeModal} from "./fileTreeModal";
-import {DEFAULT_SETTINGS, PluginSettings, SettingsTab} from "./settingsTab";
+import { App, Modal, Notice, Plugin, PluginManifest, TFile } from "obsidian";
+import { FileSelectModal } from "./fileSelect";
+import { CHAT_VIEW_SLUG, ChatView } from "./chatView";
+import { FileTreeModal } from "./fileTreeModal";
+import {
+  DEFAULT_SETTINGS,
+  ModelProviderProfile,
+  PluginSettings,
+  Settings,
+} from "./settings";
+import { mountComponent } from "./svelte";
+import ModelProviderModal from "../src/ModelProviderModal.svelte";
 
 export class AgentSandboxPlugin extends Plugin {
   // @ts-ignore
@@ -34,10 +41,7 @@ export class AgentSandboxPlugin extends Plugin {
     await this.loadSettings();
 
     // Register custom view
-    this.registerView(
-      CHAT_VIEW_SLUG,
-      (leaf) => new ChatView(leaf, this),
-    );
+    this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf, this));
 
     // Add ribbon icon for custom view
     this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {
@@ -50,7 +54,7 @@ export class AgentSandboxPlugin extends Plugin {
     });
 
     // This adds a settings tab so the user can configure various aspects of the plugin
-    this.addSettingTab(new SettingsTab(this.app, this));
+    this.addSettingTab(new Settings(this.app, this));
   }
 
   onunload() {}
@@ -65,6 +69,28 @@ export class AgentSandboxPlugin extends Plugin {
 
   showNotice(message: string, duration?: number) {
     new Notice(message, duration);
+  }
+
+  openAddModelProviderModal(
+    onSave: (profile: ModelProviderProfile) => void,
+    current?: ModelProviderProfile,
+  ) {
+    const modal = new (class extends Modal {
+      onOpen() {
+        mountComponent(this.contentEl, ModelProviderModal, "component", {
+          current,
+          close: () => this.close(),
+          save: (profile: ModelProviderProfile) => {
+            this.close();
+            onSave(profile);
+          },
+        });
+      }
+      onClose() {
+        this.contentEl.empty();
+      }
+    })(this.app);
+    modal.open();
   }
 }
 

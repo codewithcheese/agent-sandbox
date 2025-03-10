@@ -88,7 +88,7 @@ export class Chat {
 
   async loadChatbots() {
     const plugin = usePlugin();
-    const directoryPath = plugin.settings.CHATBOTS_PATH;
+    const directoryPath = plugin.settings.chatbotsPath;
     const files = plugin.app.vault.getFiles();
     const normalizedPath = directoryPath.startsWith("/")
       ? directoryPath.slice(1)
