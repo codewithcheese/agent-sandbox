@@ -31,7 +31,7 @@
 
 <button aria-label="escape" onclick={close} class="modal-close-button"></button>
 <div class="modal-header">
-  <div class="modal-title">Model Provider</div>
+  <div class="modal-title">AI Provider</div>
 </div>
 <form onsubmit={handleSubmit}>
   <div class="modal-content">
@@ -60,7 +60,7 @@
     {#if profile.provider}
       <div class="setting-item">
         <div class="setting-item-info">
-          <div class="setting-item-name">Name</div>
+          <div class="setting-item-name">Account name</div>
           <div class="setting-item-description">Name of your account.</div>
         </div>
         <div class="setting-item-control">

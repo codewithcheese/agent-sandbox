@@ -10,6 +10,8 @@ import {
 } from "./settings";
 import { mountComponent } from "./svelte";
 import ModelProviderModal from "../src/ModelProviderModal.svelte";
+import ModelModal from "../src/ModelModal.svelte";
+import type { ChatModel, EmbeddingModel } from "./models";
 
 export class AgentSandboxPlugin extends Plugin {
   // @ts-ignore
@@ -83,6 +85,28 @@ export class AgentSandboxPlugin extends Plugin {
           save: (profile: ModelProviderProfile) => {
             this.close();
             onSave(profile);
+          },
+        });
+      }
+      onClose() {
+        this.contentEl.empty();
+      }
+    })(this.app);
+    modal.open();
+  }
+
+  openModelModal(
+    onSave: (model: ChatModel | EmbeddingModel) => void,
+    current?: ChatModel | EmbeddingModel,
+  ) {
+    const modal = new (class extends Modal {
+      onOpen() {
+        mountComponent(this.contentEl, ModelModal, "component", {
+          current,
+          close: () => this.close(),
+          save: (model: ChatModel | EmbeddingModel) => {
+            this.close();
+            onSave(model);
           },
         });
       }

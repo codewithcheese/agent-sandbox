@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       esbuild-svelte:
-        specifier: ^0.9.0
-        version: 0.9.0(esbuild@0.17.3)(svelte@5.22.3)
+        specifier: 0.9.1
+        version: 0.9.1(esbuild@0.17.3)(svelte@5.22.3)
       github-slugger:
         specifier: ^2.0.0
         version: 2.0.0
@@ -67,8 +67,8 @@ importers:
         specifier: ^10.4.20
         version: 10.4.20(postcss@8.5.3)
       bits-ui:
-        specifier: 1.0.0-next.91
-        version: 1.0.0-next.91(svelte@5.22.3)
+        specifier: 1.2.1
+        version: 1.2.1(svelte@5.22.3)
       builtin-modules:
         specifier: 3.3.0
         version: 3.3.0
@@ -796,8 +796,8 @@ packages:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
     engines: {node: '>=8'}
 
-  bits-ui@1.0.0-next.91:
-    resolution: {integrity: sha512-TEsucylfPkWS2yoj7g4JbqJ9+TcqdICv11MvqysN+pAGimNcbDnG3Fu6d+AQbsKZaNUkf/nx2A+6WYTNctlAdg==}
+  bits-ui@1.2.1:
+    resolution: {integrity: sha512-lKL/Ajv+fOwy7xpaCscSkPpD/3L+RufQJQTZHlJkB8JNFbssTZ5lCS5mFp3s5gCvUdrhWBTkowAxMoEuo6VEIw==}
     engines: {node: '>=18', pnpm: '>=8.7.0'}
     peerDependencies:
       svelte: ^5.11.0
@@ -942,8 +942,8 @@ packages:
     peerDependencies:
       esbuild: '>= 0.14.0'
 
-  esbuild-svelte@0.9.0:
-    resolution: {integrity: sha512-ebGQYTuM4U1Tfx9HdkNtfBjaxY7t7LirlD1yylpSIkhRW+zLzff1wOK1jhuM7ZCnBVCGpt6sGZqiPb5c99KzJg==}
+  esbuild-svelte@0.9.1:
+    resolution: {integrity: sha512-IZ8tDXl6XaC/oA3fwFTEUcFr4axs0jcJ+UpIvHKvMdpl77ssV+ICRHrMJFsDMXWP6TfvZPU/0+3j7YD4g6NHKA==}
     engines: {node: '>=18'}
     peerDependencies:
       esbuild: '>=0.17.0'
@@ -2386,7 +2386,7 @@ snapshots:
 
   binary-extensions@2.3.0: {}
 
-  bits-ui@1.0.0-next.91(svelte@5.22.3):
+  bits-ui@1.2.1(svelte@5.22.3):
     dependencies:
       '@floating-ui/core': 1.6.9
       '@floating-ui/dom': 1.6.13
@@ -2519,7 +2519,7 @@ snapshots:
       fs-extra: 10.1.0
       globby: 11.1.0
 
-  esbuild-svelte@0.9.0(esbuild@0.17.3)(svelte@5.22.3):
+  esbuild-svelte@0.9.1(esbuild@0.17.3)(svelte@5.22.3):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.25
       esbuild: 0.17.3

@@ -34,6 +34,15 @@ export class Chat {
   #selectedChatbot = $state<string | undefined>();
   #chatbots = $state<TFile[]>([]);
   #attachments = $state<DocumentAttachment[]>([]);
+  #models = $state([
+    {
+      name: "gpt-3.5-turbo",
+      label: "GPT-3.5",
+      maxTokens: 4096,
+      temperature: 1,
+      topP: 1,
+    },
+  ]);
   #state = $state<LoadingState>({ type: "idle" });
 
   #abortController?: AbortController;
@@ -60,6 +69,10 @@ export class Chat {
 
   set selectedChatbot(value: string | undefined) {
     this.#selectedChatbot = value;
+  }
+
+  get models() {
+    return this.#models;
   }
 
   addAttachment(file: TFile) {

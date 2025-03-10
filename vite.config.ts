@@ -68,8 +68,12 @@ module.exports = defineConfig(async (env): Promise<UserConfig> => {
             compilerOptions: {
               customElement: true,
             },
+            filterWarnings: (warning) => {
+              return !warning.filename?.includes("node_modules");
+            },
           }),
         ],
+        conditions: ["svelte"],
       }),
     ],
     resolve: {

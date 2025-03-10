@@ -1,3 +1,5 @@
+import { anthropic } from "@ai-sdk/anthropic";
+
 export type ModelConfig = {
   baseURL?: string;
   apiKey?: string;
@@ -36,26 +38,14 @@ export const ModelProvider: Record<
     requiredFields: ["apiKey"],
     optionalFields: ["baseURL"],
   },
+  anthropic: {
+    name: "Anthropic",
+    requiredFields: ["apiKey"],
+    optionalFields: ["baseURL"],
+  },
+  gemini: {
+    name: "Google Gemini",
+    requiredFields: ["apiKey"],
+    optionalFields: ["baseURL"],
+  },
 } as const;
-
-export function validateProviderConfig(
-  provider: keyof typeof ModelProvider,
-  config: ModelConfig,
-): string[] {
-  const entry = ModelProvider[provider];
-  if (!entry) {
-    return [`Unsupported provider: ${provider}`];
-  }
-
-  const errors: string[] = [];
-
-  // Check that all required fields are present
-  for (const fieldKey of entry.requiredFields) {
-    const fieldValue = config[fieldKey];
-    if (!fieldValue) {
-      errors.push(`${ModelConfigField[fieldKey].name} is required`);
-    }
-  }
-
-  return errors;
-}

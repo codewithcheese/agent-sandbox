@@ -17,6 +17,7 @@
   import { onDestroy, onMount } from "svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import Markdown from "$lib/components/Markdown.svelte";
+  import Select from "$lib/components/Select.svelte";
 
   let { chat }: { chat: Chat } = $props();
 
@@ -237,9 +238,10 @@
           class="gap-1.5 rounded"
           onclick={selectDocument}
         >
-          Attach Document
           <FileTextIcon class="size-3.5" />
         </Button>
+
+        <Select />
 
         <Button
           type="submit"

@@ -2,6 +2,7 @@
 import ChatElement from "./ChatElement.svelte";
 import SettingsPage from "./SettingsPage.svelte";
 import ModelProviderModal from "./ModelProviderModal.svelte";
+import ModelModal from "./ModelModal.svelte";
 
 const url = new URL(import.meta.url);
 const params = url.searchParams;
@@ -20,6 +21,7 @@ window.Mounts[mountId]({
   ChatElement,
   SettingsPage,
   ModelProviderModal,
+  ModelModal,
 });
 
 if (import.meta.hot) {
