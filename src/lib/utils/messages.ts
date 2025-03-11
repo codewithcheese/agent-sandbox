@@ -1,4 +1,4 @@
-import { Attachment, UIMessage } from "ai";
+import type { Attachment, UIMessage } from "ai";
 import { extractDataFromDataUrl } from "$lib/utils/dataUrl";
 
 function attachmentIsText(attachment: Attachment) {

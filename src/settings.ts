@@ -1,9 +1,9 @@
 import { App, PluginSettingTab } from "obsidian";
 import AgentSandboxPlugin from "./main";
-import { mountComponent } from "./svelte";
-import SettingsPage from "../src/SettingsPage.svelte";
+import SettingsPage from "./SettingsPage.svelte";
 import { type ChatModel, type EmbeddingModel, models } from "./models";
 import type { AIAccount } from "./ai";
+import { mount, unmount } from "svelte";
 
 export interface PluginSettings {
   services: {
@@ -30,16 +30,21 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 };
 
 export class Settings extends PluginSettingTab {
-  plugin: AgentSandboxPlugin;
+  protected component: any;
 
   constructor(app: App, plugin: AgentSandboxPlugin) {
     super(app, plugin);
-    this.plugin = plugin;
   }
 
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    mountComponent(containerEl, SettingsPage, "component");
+    this.component = mount(SettingsPage, { target: containerEl });
+  }
+
+  hide() {
+    if (this.component) {
+      unmount(this.component);
+    }
   }
 }

@@ -1,5 +1,5 @@
 import { usePlugin } from "$lib/utils/index";
-import type { TFile, TFolder } from "obsidian";
+import type { TFile, TFolder } from "../../obsidian";
 
 export async function fileTree(path: string = "/") {
   const plugin = usePlugin();

@@ -1,31 +1,138 @@
-/// <reference types="vite/client" />
-import ChatElement from "./ChatElement.svelte";
-import SettingsPage from "./SettingsPage.svelte";
+import {
+  App,
+  Modal,
+  Notice,
+  Plugin,
+  type PluginManifest,
+  TFile,
+} from "obsidian";
+import { FileSelectModal } from "./fileSelect";
+import { CHAT_VIEW_SLUG, ChatView } from "./chatView";
+import { FileTreeModal } from "./fileTreeModal";
+import { DEFAULT_SETTINGS, type PluginSettings, Settings } from "./settings";
 import AccountModal from "./AccountModal.svelte";
 import ModelModal from "./ModelModal.svelte";
+import type { ChatModel, EmbeddingModel } from "./models";
+import type { AIAccount } from "./ai";
+import { mount, unmount } from "svelte";
 
-const url = new URL(import.meta.url);
-const params = url.searchParams;
-const mountId = params.get("mountId");
+export class AgentSandboxPlugin extends Plugin {
+  // @ts-ignore
+  settings: PluginSettings;
 
-if (!mountId) {
-  throw new Error("mountId not set");
+  constructor(app: App, manifest: PluginManifest) {
+    super(app, manifest);
+    window.Env = {
+      Plugin: this,
+    };
+  }
+
+  async openFileSelect(onSelect: (file: TFile) => void) {
+    const modal = new FileSelectModal(this.app, onSelect);
+    modal.open();
+  }
+
+  async activateChatView() {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(CHAT_VIEW_SLUG)[0];
+    if (!leaf) {
+      leaf = workspace.getRightLeaf(false)!;
+      await leaf.setViewState({ type: CHAT_VIEW_SLUG });
+    }
+    await workspace.revealLeaf(leaf);
+  }
+
+  async onload() {
+    await this.loadSettings();
+
+    // Register custom view
+    this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf, this));
+
+    // Add ribbon icon for custom view
+    this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {
+      await this.activateChatView();
+    });
+
+    // Add ribbon icon for library tree
+    this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
+      new FileTreeModal(this.app).open();
+    });
+
+    // This adds a settings tab so the user can configure various aspects of the plugin
+    this.addSettingTab(new Settings(this.app, this));
+  }
+
+  onunload() {}
+
+  async loadSettings() {
+    const settings = await this.loadData();
+    console.log("Loading settings", settings);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
+  }
+
+  async saveSettings() {
+    console.log("Saving settings", this.settings);
+    await this.saveData(this.settings);
+  }
+
+  showNotice(message: string, duration?: number) {
+    new Notice(message, duration);
+  }
+
+  openAccountModal(onSave: (account: AIAccount) => void, current?: AIAccount) {
+    const modal = new (class extends Modal {
+      private component?: any;
+      onOpen() {
+        this.component = mount(AccountModal, {
+          target: this.contentEl,
+          props: {
+            current,
+            close: () => this.close(),
+            save: (account: AIAccount) => {
+              this.close();
+              onSave(account);
+            },
+          },
+        });
+      }
+      onClose() {
+        if (this.component) {
+          unmount(this.component);
+        }
+        this.contentEl.empty();
+      }
+    })(this.app);
+    modal.open();
+  }
+
+  openModelModal(
+    onSave: (model: ChatModel | EmbeddingModel) => void,
+    current?: ChatModel | EmbeddingModel,
+  ) {
+    const modal = new (class extends Modal {
+      private component?: any;
+      onOpen() {
+        this.component = mount(ModelModal, {
+          target: this.contentEl,
+          props: {
+            current,
+            close: () => this.close(),
+            save: (model: ChatModel | EmbeddingModel) => {
+              this.close();
+              onSave(model);
+            },
+          },
+        });
+      }
+      async onClose() {
+        if (this.component) {
+          await unmount(this.component);
+        }
+        this.contentEl.empty();
+      }
+    })(this.app);
+    modal.open();
+  }
 }
 
-if (!(mountId in window.Mounts)) {
-  throw new Error(`Mount ${mountId} not found`);
-}
-
-// map of components imported via vite dev server, no HMR if imported in plugin
-window.Mounts[mountId]({
-  ChatElement,
-  SettingsPage,
-  AccountModal,
-  ModelModal,
-});
-
-if (import.meta.hot) {
-  import.meta.hot.accept(() => {
-    console.log("Reload accepted");
-  });
-}
+export default AgentSandboxPlugin;

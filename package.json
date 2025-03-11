@@ -4,6 +4,7 @@
   "description": "",
   "publisher": "codewithcheese",
   "main": "dist/main.js",
+  "type": "module",
   "scripts": {
     "test:unit": "vitest --testTimeout=1000",
     "code": "code --extensionDevelopmentPath=. --disable-extensions",

@@ -13,12 +13,13 @@
   } from "lucide-svelte";
   import type { Chat } from "$lib/chat.svelte";
   import { formatDate, usePlugin } from "$lib/utils";
-  const plugin = usePlugin();
   import { insertCss } from "$lib/utils/insertCss";
   import { onDestroy, onMount } from "svelte";
-  import RetryAlert from "$lib/components/RetryAlert.svelte";
   import Markdown from "$lib/components/Markdown.svelte";
-  import type { AIAccount, AIProviderId } from "../plugin/ai";
+  import RetryAlert from "$lib/components/RetryAlert.svelte";
+  import type { AIAccount, AIProviderId } from "./ai";
+
+  const plugin = usePlugin();
 
   let { chat }: { chat: Chat } = $props();
 

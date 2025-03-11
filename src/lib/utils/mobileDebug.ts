@@ -1,5 +1,5 @@
 // Copied from: https://gist.github.com/liamcain/3f21f1ee820cb30f18050d2f3ad85f3f
-import { Plugin, Platform } from "obsidian";
+import { Plugin, Platform } from "../../obsidian";
 
 // Call this method inside your plugin's
 // `onload` function like so:

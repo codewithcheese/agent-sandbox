@@ -1,32 +1,30 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "inlineSourceMap": true,
-    "inlineSources": true,
+    "target": "ES2020",
+    "useDefineForClassFields": true,
     "module": "ESNext",
-    "target": "ES6",
-    "allowJs": true,
-    "noImplicitAny": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
     "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true,
-    "noUncheckedIndexedAccess": false,
-    "importHelpers": true,
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
-    "strictNullChecks": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
     "verbatimModuleSyntax": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "lib": [
-      "DOM",
-      "ES5",
-      "ES6",
-      "ES7"
-    ],
+
     "paths": {
       "$lib": ["./src/lib"],
       "$lib/*": ["./src/lib/*"]
     }
   },
-  "include": [
-    "**/*.ts", "src/**/*.svelte"
-  ]
+  "include": ["src"]
 }

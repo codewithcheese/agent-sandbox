@@ -3,7 +3,7 @@
   import { onDestroy, onMount } from "svelte";
   import { PlusCircleIcon, SettingsIcon, Trash2Icon } from "lucide-svelte";
 
-  import { AIProvider } from "../plugin/ai";
+  import { AIProvider } from "./ai";
 
   const plugin = usePlugin();
   let settings = $state(plugin.settings);
