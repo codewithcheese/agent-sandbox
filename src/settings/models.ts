@@ -1,4 +1,4 @@
-import type { AIProviderId } from "./ai";
+import type { AIProviderId } from "./providers.ts";
 
 export type ChatModel = {
   id: string;

@@ -1,22 +1,26 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { usePlugin } from "$lib/utils";
-import cursorMap from "$lib/utils/cursorMap";
+import cursorMap from "$lib/utils/cursor-map.ts";
 
-export const redditSearchSubredditsTool = tool({
-  description: "Search for subreddits on a specific topic using RapidAPI",
+export const redditGetPostsTool = tool({
+  description: "Get posts from a specific subreddit using RapidAPI",
   parameters: z.object({
-    query: z.string().describe("The search query for subreddits"),
-    nsfw: z
-      .enum(["0", "1"])
-      .default("0")
-      .describe("Whether to include NSFW subreddits (0 for no, 1 for yes)"),
+    sub: z.string().describe("The subreddit name (without 'r/')"),
+    sort: z
+      .enum(["HOT", "NEW", "TOP", "RISING"])
+      .default("HOT")
+      .describe("Sort method for the posts"),
+    time: z
+      .enum(["HOUR", "DAY", "WEEK", "MONTH", "YEAR", "ALL"])
+      .default("ALL")
+      .describe("Time range for the posts when using TOP sort"),
     cursor: z
       .string()
       .optional()
-      .describe("Pagination cursor ID for fetching more results"),
+      .describe("Pagination cursor ID for fetching more posts"),
   }),
-  execute: async ({ query, nsfw, cursor }) => {
+  execute: async ({ sub, sort, time, cursor }) => {
     try {
       const plugin = usePlugin();
 
@@ -26,7 +30,7 @@ export const redditSearchSubredditsTool = tool({
       }
 
       // Prepare request URL
-      let url = `https://reddit-scraper2.p.rapidapi.com/search_subs?query=${encodeURIComponent(query)}&nsfw=${nsfw}`;
+      let url = `https://reddit-scraper2.p.rapidapi.com/sub_posts?sub=${encodeURIComponent(sub)}&sort=${sort}&time=${time}`;
 
       // Add cursor parameter if provided for pagination
       if (cursor) {
@@ -62,7 +66,6 @@ export const redditSearchSubredditsTool = tool({
       // Parse the results
       const result = await response.json();
 
-      // Return the subreddits with pagination info
       // Add pagination cursor to the result
       if (result.pageInfo?.hasNextPage) {
         result.pageInfo.endCursor = cursorMap.store(result.pageInfo.endCursor);
@@ -71,7 +74,7 @@ export const redditSearchSubredditsTool = tool({
       // Return the API response directly
       return result;
     } catch (error) {
-      return { error: `Failed to search subreddits: ${error.message}` };
+      return { error: `Failed to get subreddit posts: ${error.message}` };
     }
   },
 });

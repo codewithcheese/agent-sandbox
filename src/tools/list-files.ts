@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { fileTree } from "$lib/utils/fileTree";
+import { fileTree } from "$lib/utils/file-tree.ts";
 
 export const listFilesTool = tool({
   description: "List files in a directory in the Obsidian vault",
@@ -10,7 +10,7 @@ export const listFilesTool = tool({
   execute: async ({ path }) => {
     try {
       // Coerce '.' into '/' since there's no concept of working directory in Obsidian
-      const normalizedPath = path === '.' ? '/' : path;
+      const normalizedPath = path === "." ? "/" : path;
       const result = await fileTree(normalizedPath);
       return { result };
     } catch (error) {

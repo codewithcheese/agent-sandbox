@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { usePlugin } from "$lib/utils";
-import cursorMap from "$lib/utils/cursorMap";
+import cursorMap from "$lib/utils/cursor-map.ts";
 
 export const redditGetPostCommentsTool = tool({
   description: "Get comments for a specific Reddit post using RapidAPI",

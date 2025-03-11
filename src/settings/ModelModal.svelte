@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { ChatModel, EmbeddingModel } from "./models";
+  import type { ChatModel, EmbeddingModel } from "./models.ts";
 
-  import { AIProvider } from "./ai";
+  import { AIProvider } from "./providers.ts";
+  import type { AllowEmpty } from "$lib/types/allow-empty.ts";
 
   type Props = {
     current?: ChatModel | EmbeddingModel;

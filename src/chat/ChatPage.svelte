@@ -1,5 +1,6 @@
 <script lang="ts">
-  import appCss from "./app.css?inline";
+  // @ts-expect-error css import type issue
+  import chatCss from "./chat.css?inline";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Button } from "$lib/components/ui/button";
   import {
@@ -11,13 +12,13 @@
     TerminalIcon,
     XIcon,
   } from "lucide-svelte";
-  import type { Chat } from "$lib/chat.svelte";
+  import type { Chat } from "./chat.svelte.ts";
   import { formatDate, usePlugin } from "$lib/utils";
-  import { insertCss } from "$lib/utils/insertCss";
+  import { insertCss } from "$lib/utils/insert-css.ts";
   import { onDestroy, onMount } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
-  import type { AIAccount, AIProviderId } from "./ai";
+  import type { AIAccount, AIProviderId } from "../settings/providers.ts";
 
   const plugin = usePlugin();
 
@@ -95,7 +96,7 @@
   }
 </script>
 
-<div use:insertCss={appCss} class="flex h-full w-full">
+<div use:insertCss={chatCss} class="flex h-full w-full">
   <div class="flex flex-col h-full p-2 w-full">
     <div class="mb-4 flex items-center gap-2">
       <select

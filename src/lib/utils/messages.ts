@@ -1,5 +1,5 @@
 import type { Attachment, UIMessage } from "ai";
-import { extractDataFromDataUrl } from "$lib/utils/dataUrl";
+import { extractDataFromDataUrl } from "$lib/utils/data-url.ts";
 
 function attachmentIsText(attachment: Attachment) {
   return attachment.contentType?.startsWith("text/");

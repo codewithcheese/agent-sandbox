@@ -1,26 +1,36 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { usePlugin } from "$lib/utils";
-import cursorMap from "$lib/utils/cursorMap";
+import cursorMap from "$lib/utils/cursor-map.ts";
 
-export const redditGetPostsTool = tool({
-  description: "Get posts from a specific subreddit using RapidAPI",
+export const redditSearchTool = tool({
+  description: "Search Reddit posts on a specific topic using RapidAPI",
   parameters: z.object({
-    sub: z.string().describe("The subreddit name (without 'r/')"),
+    query: z.string().describe("The search query for Reddit posts"),
     sort: z
-      .enum(["HOT", "NEW", "TOP", "RISING"])
-      .default("HOT")
-      .describe("Sort method for the posts"),
+      .enum(["RELEVANCE", "HOT", "TOP", "NEW", "COMMENTS"])
+      .default("RELEVANCE")
+      .describe("Sort method for the results"),
     time: z
-      .enum(["HOUR", "DAY", "WEEK", "MONTH", "YEAR", "ALL"])
-      .default("ALL")
-      .describe("Time range for the posts when using TOP sort"),
+      .enum(["hour", "day", "week", "month", "year", "all"])
+      .default("all")
+      .describe("Time range for the results"),
+    nsfw: z
+      .enum(["0", "1"])
+      .default("0")
+      .describe("Whether to include NSFW content (0 for no, 1 for yes)"),
+    limit: z
+      .number()
+      .min(1)
+      .max(100)
+      .default(10)
+      .describe("Maximum number of results to return"),
     cursor: z
       .string()
       .optional()
-      .describe("Pagination cursor ID for fetching more posts"),
+      .describe("Pagination cursor for fetching the next page of results"),
   }),
-  execute: async ({ sub, sort, time, cursor }) => {
+  execute: async ({ query, sort, time, nsfw, limit, cursor }) => {
     try {
       const plugin = usePlugin();
 
@@ -29,8 +39,8 @@ export const redditGetPostsTool = tool({
         return { error: "RapidAPI key is not configured in settings" };
       }
 
-      // Prepare request URL
-      let url = `https://reddit-scraper2.p.rapidapi.com/sub_posts?sub=${encodeURIComponent(sub)}&sort=${sort}&time=${time}`;
+      // Construct the URL with query parameters
+      let url = `https://reddit-scraper2.p.rapidapi.com/search_posts?query=${encodeURIComponent(query)}&sort=${sort}&time=${time}&nsfw=${nsfw}&limit=${limit}`;
 
       // Add cursor parameter if provided for pagination
       if (cursor) {
@@ -74,7 +84,7 @@ export const redditGetPostsTool = tool({
       // Return the API response directly
       return result;
     } catch (error) {
-      return { error: `Failed to get subreddit posts: ${error.message}` };
+      return { error: `Failed to search Reddit: ${error.message}` };
     }
   },
 });

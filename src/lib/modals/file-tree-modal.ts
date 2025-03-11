@@ -1,5 +1,5 @@
 import { App, Modal } from "obsidian";
-import { fileTree } from "$lib/utils/fileTree";
+import { fileTree } from "$lib/utils/file-tree.ts";
 
 export class FileTreeModal extends Modal {
   constructor(app: App) {

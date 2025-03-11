@@ -1,33 +1,35 @@
-import type { TemplateDelegate } from 'handlebars';
+import type { TemplateDelegate } from "handlebars";
 
-type HandlebarsStatic = typeof import('handlebars');
+type HandlebarsStatic = typeof import("handlebars");
 
-declare module 'handlebars-async-helpers' {
+declare module "./handlebars-async-helpers" {
   /**
    * Creates an async-enabled version of Handlebars that can handle Promise-based helpers
    * @param hbs The Handlebars instance to enhance with async capabilities
    * @returns A new Handlebars instance with async support
    */
-  export default function asyncHelpers(hbs: HandlebarsStatic): HandlebarsStatic & {
+  export default function asyncHelpers(
+    hbs: HandlebarsStatic,
+  ): HandlebarsStatic & {
     /**
      * The version of handlebars-async-helpers
      */
     ASYNC_VERSION: string;
-    
+
     /**
      * Compiles the template with async support
      */
     compile(
       template: string,
-      options?: CompileOptions
+      options?: CompileOptions,
     ): (context?: any, options?: RuntimeOptions) => Promise<string>;
-    
+
     /**
      * Creates a new template with async support
      */
     template(
       precompiled: TemplateSpecification,
-      options?: RuntimeOptions
+      options?: RuntimeOptions,
     ): (context?: any, options?: RuntimeOptions) => Promise<string>;
   };
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { nanoid } from "nanoid";
-  import { type AIAccount, AIProvider, ModelConfigField } from "./ai";
+  import { type AIAccount, AIProvider, ModelConfigField } from "./providers.ts";
+  import type { AllowEmpty } from "$lib/types/allow-empty.ts";
 
   type Props = {
     current?: AIAccount;
@@ -22,7 +23,6 @@
     e.preventDefault();
     Object.entries(account.config).forEach(([key, value]) => {
       if (value === "") {
-        //@ts-expect-error key type not inferred
         account.config[key] = undefined;
       }
     });

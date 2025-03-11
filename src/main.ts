@@ -6,18 +6,21 @@ import {
   type PluginManifest,
   TFile,
 } from "obsidian";
-import { FileSelectModal } from "./fileSelect";
-import { CHAT_VIEW_SLUG, ChatView } from "./chatView";
-import { FileTreeModal } from "./fileTreeModal";
-import { DEFAULT_SETTINGS, type PluginSettings, Settings } from "./settings";
-import AccountModal from "./AccountModal.svelte";
-import ModelModal from "./ModelModal.svelte";
-import type { ChatModel, EmbeddingModel } from "./models";
-import type { AIAccount } from "./ai";
+import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
+import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.ts";
+import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
+import {
+  DEFAULT_SETTINGS,
+  type PluginSettings,
+  Settings,
+} from "./settings/settings.ts";
+import AccountModal from "./settings/AccountModal.svelte";
+import ModelModal from "./settings/ModelModal.svelte";
+import type { ChatModel, EmbeddingModel } from "./settings/models.ts";
+import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
 
 export class AgentSandboxPlugin extends Plugin {
-  // @ts-ignore
   settings: PluginSettings;
 
   constructor(app: App, manifest: PluginManifest) {
