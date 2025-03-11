@@ -72,6 +72,26 @@ export default defineConfig(({ command }) => {
           });
         },
       },
+      // Copy manifest.json to dist directory during build
+      {
+        name: "copy-manifest",
+        apply: "build", // Only apply during build
+        closeBundle() {
+          // This hook runs after the bundle is generated
+          if (fs.existsSync("./manifest.json")) {
+            // Create dist directory if it doesn't exist
+            if (!fs.existsSync("./dist")) {
+              fs.mkdirSync("./dist", { recursive: true });
+            }
+            
+            // Copy manifest.json to dist directory
+            fs.copyFileSync("./manifest.json", "./dist/manifest.json");
+            console.log("manifest.json copied to dist directory");
+          } else {
+            console.warn("manifest.json not found in project root");
+          }
+        },
+      },
     ],
     optimizeDeps: {
       exclude: ["obsidian"],
