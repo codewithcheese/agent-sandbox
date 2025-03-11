@@ -4,6 +4,22 @@ import { resolve } from "path";
 import fs from "fs";
 import * as path from "node:path";
 
+// Helper function to copy manifest.json to dist directory
+function copyManifestToDist() {
+  if (fs.existsSync("./manifest.json")) {
+    // Create dist directory if it doesn't exist
+    if (!fs.existsSync("./dist")) {
+      fs.mkdirSync("./dist", { recursive: true });
+    }
+
+    // Copy manifest.json to dist directory
+    fs.copyFileSync("./manifest.json", "./dist/manifest.json");
+    console.log("manifest.json copied to dist directory");
+  } else {
+    console.warn("manifest.json not found in project root");
+  }
+}
+
 export default defineConfig(({ command }) => {
   const isDev = command === "serve";
 
@@ -34,7 +50,11 @@ export default defineConfig(({ command }) => {
       },
     },
     plugins: [
-      svelte(),
+      svelte({
+        compilerOptions: {
+          customElement: true,
+        },
+      }),
       // Copy dev-proxy.js to dist/main.js during development
       isDev && {
         name: "copy-dev-proxy",
@@ -72,24 +92,29 @@ export default defineConfig(({ command }) => {
           });
         },
       },
-      // Copy manifest.json to dist directory during build
+      // Copy manifest.json to dist directory in both dev and build modes
       {
         name: "copy-manifest",
-        apply: "build", // Only apply during build
-        closeBundle() {
-          // This hook runs after the bundle is generated
+        configureServer(server) {
+          // For development mode
+          copyManifestToDist();
+
+          // Watch for changes to manifest.json in dev mode
           if (fs.existsSync("./manifest.json")) {
-            // Create dist directory if it doesn't exist
-            if (!fs.existsSync("./dist")) {
-              fs.mkdirSync("./dist", { recursive: true });
-            }
-            
-            // Copy manifest.json to dist directory
-            fs.copyFileSync("./manifest.json", "./dist/manifest.json");
-            console.log("manifest.json copied to dist directory");
-          } else {
-            console.warn("manifest.json not found in project root");
+            server.watcher.add("./manifest.json");
+            server.watcher.on("change", (path) => {
+              if (
+                path.endsWith("manifest.json") &&
+                !path.endsWith("dist/manifest.json")
+              ) {
+                copyManifestToDist();
+              }
+            });
           }
+        },
+        closeBundle() {
+          // For production build
+          copyManifestToDist();
         },
       },
     ],

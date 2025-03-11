@@ -3,7 +3,7 @@
 	"name": "Agent Sandbox",
 	"version": "0.3.0",
 	"minAppVersion": "0.15.0",
-	"description": "Sandbox for developing knowledge agents in Obsidian",
+	"description": "Sandbox for developing knowledge agents in Obsidian.",
 	"author": "codewithcheese",
 	"authorUrl": "https://codewithcheese.com",
 	"fundingUrl": "https://codewithcheese.com",
