@@ -46,7 +46,7 @@ export class AgentSandboxPlugin extends Plugin {
     await this.loadSettings();
 
     // Register custom view
-    this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf, this));
+    this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf));
 
     // Add ribbon icon for custom view
     this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {

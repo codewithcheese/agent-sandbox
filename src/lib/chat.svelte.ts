@@ -1,7 +1,8 @@
 import { type Attachment, generateId, streamText, type UIMessage } from "ai";
+import { type AIAccount, createAIProvider } from "../ai";
 import { nanoid } from "nanoid";
-import type { TFile } from "../obsidian";
-import { usePlugin } from "$lib/utils";
+import type { TFile } from "obsidian";
+
 import { processTemplate } from "$lib/utils/templates";
 import { processEmbeds } from "$lib/utils/embeds";
 import { wrapTextAttachments } from "$lib/utils/messages";
@@ -11,9 +12,7 @@ import { applyStreamPartToMessages } from "$lib/utils/stream";
 import { arrayBufferToBase64 } from "./utils/base64";
 import { extensionToMimeType } from "$lib/utils/mime";
 import type { ChatModel } from "../models";
-import { createAIProvider } from "$lib/ai";
-
-import type { AIAccount } from "../ai";
+import { usePlugin } from "$lib/utils";
 
 export interface DocumentAttachment {
   id: string;
