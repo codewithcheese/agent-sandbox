@@ -67,7 +67,7 @@ This project includes a version bumping script that automates the release proces
 - [x] Fix 429 handling
 - [x] Show loading indicator
 - [x] Markdown message rendering
-- [ ] Allow selection in message content
+- [x] Allow selection in message content
 - [ ] Remove front matter from system
 - [x] Fix reasoning details handling
 - [x] Display error responses

@@ -137,7 +137,7 @@
           {/if}
 
           <div
-            class="whitespace-pre-wrap prose leading-none
+            class="whitespace-pre-wrap prose leading-none select-text
                           prose-h1:my-2
                           prose-h2:mt-2 prose-h2:mb-1
                           prose-h3:mt-2 prose-h3:mb-1
