@@ -95,6 +95,7 @@ export class Chat {
     const normalizedPath = directoryPath.startsWith("/")
       ? directoryPath.slice(1)
       : directoryPath;
+    console.log("loadChatbots", directoryPath, normalizedPath);
 
     this.#chatbots = files.filter((file) =>
       file.path.startsWith(normalizedPath),

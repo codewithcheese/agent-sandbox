@@ -83,7 +83,11 @@ export class AgentSandboxPlugin extends Plugin {
   async loadSettings() {
     const settings = await this.loadData();
     console.log("Loading settings", settings);
+    const shouldSave = !settings;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
+    if (shouldSave) {
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {

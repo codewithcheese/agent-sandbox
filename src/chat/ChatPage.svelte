@@ -28,8 +28,6 @@
   let selectedModelId: string | undefined = $state(undefined);
   let selectedAccountId: string | undefined = $state(undefined);
 
-  $inspect("chat", selectedModelId, selectedAccountId);
-
   onMount(() => {
     chat.loadChatbots();
   });
@@ -287,14 +285,11 @@
 
           <!-- model select -->
           <select
-            bind:value={
-              null,
-              (v) => {
-                const [modelId, accountId] = v.split(":");
-                selectedModelId = modelId;
-                selectedAccountId = accountId;
-              }
-            }
+            onchange={(e) => {
+              const [modelId, accountId] = e.currentTarget.value.split(":");
+              selectedModelId = modelId;
+              selectedAccountId = accountId;
+            }}
             name="model-account"
             class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             required
