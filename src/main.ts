@@ -19,15 +19,18 @@ import ModelModal from "./settings/ModelModal.svelte";
 import type { ChatModel, EmbeddingModel } from "./settings/models.ts";
 import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
+import { PGliteProvider } from "./pglite/provider.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
+  pglite: PGliteProvider;
 
   constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
     window.Env = {
       Plugin: this,
     };
+    this.pglite = new PGliteProvider(this);
   }
 
   async openFileSelect(onSelect: (file: TFile) => void) {
@@ -47,6 +50,7 @@ export class AgentSandboxPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    await this.initializePGlite();
 
     // Register custom view
     this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf));
@@ -66,6 +70,15 @@ export class AgentSandboxPlugin extends Plugin {
   }
 
   onunload() {}
+
+  async initializePGlite() {
+    try {
+      await this.pglite.initialize();
+    } catch (error) {
+      console.error("Failed to initialize PGlite:", error);
+      new Notice("Failed to initialize PGlite: " + (error as Error).message);
+    }
+  }
 
   async loadSettings() {
     const settings = await this.loadData();

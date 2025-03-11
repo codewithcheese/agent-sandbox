@@ -51,3 +51,4 @@ export const parseFrontMatterAliases = obsidian.parseFrontMatterAliases;
 export const parseFrontMatterTags = obsidian.parseFrontMatterTags;
 export const resolveSubpath = obsidian.resolveSubpath;
 export const normalizePath = obsidian.normalizePath;
+export const requestUrl = obsidian.requestUrl;

@@ -68,6 +68,7 @@ This project includes a version bumping script that automates the release proces
 - [x] Show loading indicator
 - [x] Markdown message rendering
 - [x] Allow selection in message content
+- [ ] Default model setting
 - [ ] Remove front matter from system
 - [x] Fix reasoning details handling
 - [x] Display error responses

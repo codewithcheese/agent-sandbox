@@ -8,6 +8,12 @@ export default defineConfig(({ command }) => {
   const isDev = command === "serve";
 
   return {
+    define: {
+      // Workaround of Pglite extension loading, if process detected will try
+      // to use fs instead of fetch to load extension
+      // https://github.com/electric-sql/pglite/blob/main/packages/pglite/src/extensionUtils.ts#L10
+      process: undefined,
+    },
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),
@@ -79,9 +85,17 @@ export default defineConfig(({ command }) => {
       rollupOptions: {
         external: ["obsidian"],
         output: {
+          format: "cjs",
+          exports: "named",
           globals: {
             obsidian: "obsidian",
           },
+          // Prevent code-splitting
+          inlineDynamicImports: true,
+          // Ensure consistent exports format
+          preserveModules: false,
+          // Ensure a single chunk is generated
+          chunkFileNames: "main.js",
         },
       },
       outDir: "dist",
