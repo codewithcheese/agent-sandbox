@@ -25,8 +25,15 @@
   let { chat }: { chat: Chat } = $props();
 
   let submitBtn: HTMLButtonElement | null = $state(null);
-  let selectedModelId: string | undefined = $state(undefined);
-  let selectedAccountId: string | undefined = $state(undefined);
+  let selectedModelId: string | undefined = $state(
+    plugin.settings.defaults.modelId,
+  );
+  let selectedAccountId: string | undefined = $state(
+    plugin.settings.defaults.accountId,
+  );
+
+  $inspect("selectedModelId", selectedModelId);
+  $inspect("selectedAccountId", selectedAccountId);
 
   onMount(() => {
     chat.loadChatbots();
@@ -41,6 +48,28 @@
       e.preventDefault();
       submitBtn!.click();
     }
+  }
+
+  function handleSubmit(e: Event) {
+    e.preventDefault();
+    if (!selectedModelId || !selectedAccountId) {
+      return;
+    }
+    chat.submit(e, selectedModelId, selectedAccountId);
+  }
+
+  function handleModelChange(
+    e: Event & {
+      currentTarget: EventTarget & HTMLSelectElement;
+    },
+  ) {
+    const [modelId, accountId] = e.currentTarget.value.split(":");
+    selectedModelId = modelId;
+    selectedAccountId = accountId;
+    const plugin = usePlugin();
+    plugin.settings.defaults.modelId = modelId;
+    plugin.settings.defaults.accountId = accountId;
+    plugin.saveSettings();
   }
 
   function selectDocument() {
@@ -225,17 +254,7 @@
       {/if}
     </div>
 
-    <form
-      name="input"
-      class="mt-4"
-      onsubmit={(e) => {
-        e.preventDefault();
-        if (!selectedModelId || !selectedAccountId) {
-          return;
-        }
-        chat.submit(e, selectedModelId, selectedAccountId);
-      }}
-    >
+    <form name="input" class="mt-4" onsubmit={handleSubmit}>
       {#if chat.state.type === "loading"}
         <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
           <Loader2Icon class="size-4 animate-spin" />
@@ -285,18 +304,18 @@
 
           <!-- model select -->
           <select
-            onchange={(e) => {
-              const [modelId, accountId] = e.currentTarget.value.split(":");
-              selectedModelId = modelId;
-              selectedAccountId = accountId;
-            }}
+            onchange={handleModelChange}
             name="model-account"
             class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             required
           >
             <option value=""> Select model </option>
             {#each getModelAccountOptions() as option}
-              <option value={option.value}>
+              <option
+                value={option.value}
+                selected={option.value ===
+                  `${selectedModelId}:${selectedAccountId}`}
+              >
                 {option.label}
               </option>
             {/each}

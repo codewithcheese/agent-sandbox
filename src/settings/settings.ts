@@ -12,6 +12,10 @@ export interface PluginSettings {
       apiKey: string;
     };
   };
+  defaults: {
+    modelId: string;
+    accountId: string;
+  };
   chatbotsPath: string;
   accounts: AIAccount[];
   models: (ChatModel | EmbeddingModel)[];
@@ -23,6 +27,10 @@ export const DEFAULT_SETTINGS: PluginSettings = {
       name: "RapidAPI",
       apiKey: "",
     },
+  },
+  defaults: {
+    modelId: "",
+    accountId: "",
   },
   chatbotsPath: "chatbots",
   accounts: [],
