@@ -21,10 +21,8 @@
     "@ai-sdk/google": "^1.1.19",
     "@ai-sdk/openai": "^1.1.14",
     "@ai-sdk/ui-utils": "^1.1.16",
-    "@codewithcheese/vite-plugin-obsidian": "npm:@jsr/codewithcheese__vite-plugin-obsidian@^0.2.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tailwindcss/typography": "^0.5.16",
-    "@tomjs/tsconfig": "^1.7.1",
     "@types/node": "^22.13.9",
     "ai": "^4.1.46",
     "autoprefixer": "^10.4.20",
@@ -49,7 +47,6 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",
-    "esbuild-svelte": "0.9.1",
     "github-slugger": "^2.0.0",
     "handlebars": "^4.7.6",
     "nanoid": "^3",
