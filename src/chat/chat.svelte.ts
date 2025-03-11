@@ -36,58 +36,33 @@ export type LoadingState =
     };
 
 export class Chat {
-  #messages = $state<UIMessage[]>([]);
-  #selectedChatbot = $state<string | undefined>();
-  #chatbots = $state<TFile[]>([]);
-  #attachments = $state<DocumentAttachment[]>([]);
-  #state = $state<LoadingState>({ type: "idle" });
-
+  messages = $state<UIMessage[]>([]);
+  selectedChatbot = $state<string | undefined>();
+  chatbots = $state<TFile[]>([]);
+  attachments = $state<DocumentAttachment[]>([]);
+  state = $state<LoadingState>({ type: "idle" });
   #abortController?: AbortController;
 
-  get messages() {
-    return this.#messages;
-  }
-
-  get chatbots() {
-    return this.#chatbots;
-  }
-
-  get selectedChatbot() {
-    return this.#selectedChatbot;
-  }
-
-  get attachments() {
-    return this.#attachments;
-  }
-
-  get state() {
-    return this.#state;
-  }
-
-  set selectedChatbot(value: string | undefined) {
-    this.#selectedChatbot = value;
-  }
-
   addAttachment(file: TFile) {
-    this.#attachments.push({
+    this.attachments.push({
       id: nanoid(),
       file,
     });
   }
 
   removeAttachment(attachmentId: string) {
-    const index = this.#attachments.findIndex((a) => a.id === attachmentId);
+    const index = this.attachments.findIndex((a) => a.id === attachmentId);
     if (index !== -1) {
-      this.#attachments.splice(index, 1);
+      this.attachments.splice(index, 1);
     }
   }
 
   clearAttachments() {
-    this.#attachments = [];
+    this.attachments = [];
   }
 
   reset() {
-    this.#messages = [];
+    this.messages = [];
     this.#abortController?.abort("reset");
     this.#abortController = undefined;
   }
@@ -101,7 +76,7 @@ export class Chat {
       : directoryPath;
     console.log("loadChatbots", directoryPath, normalizedPath);
 
-    this.#chatbots = files.filter((file) =>
+    this.chatbots = files.filter((file) =>
       file.path.startsWith(normalizedPath),
     );
   }
@@ -111,7 +86,7 @@ export class Chat {
 
     const formData = new FormData(event.target as HTMLFormElement);
     const content = formData.get("content")?.toString() ?? "";
-    if (!content && this.#attachments.length === 0) return;
+    if (!content && this.attachments.length === 0) return;
 
     const plugin = usePlugin();
 
@@ -135,8 +110,8 @@ export class Chat {
     let messageContent = content;
 
     // Process attachments
-    if (this.#attachments.length > 0) {
-      for (const attachment of this.#attachments) {
+    if (this.attachments.length > 0) {
+      for (const attachment of this.attachments) {
         try {
           // Read the file data
           const data = await plugin.app.vault.readBinary(attachment.file);
@@ -154,7 +129,7 @@ export class Chat {
       }
     }
 
-    this.#messages.push({
+    this.messages.push({
       id: nanoid(),
       role: "user",
       content: messageContent,
@@ -171,7 +146,7 @@ export class Chat {
   }
 
   async callModel(model: ChatModel, account: AIAccount) {
-    this.#state = {
+    this.state = {
       type: "loading",
     };
 
@@ -181,10 +156,10 @@ export class Chat {
     let system: string | null = null;
     let requestedTools: string[] = [];
 
-    if (this.#selectedChatbot) {
-      const file = plugin.app.vault.getFileByPath(this.#selectedChatbot);
+    if (this.selectedChatbot) {
+      const file = plugin.app.vault.getFileByPath(this.selectedChatbot);
       if (!file) {
-        throw Error(`Chatbot at ${this.#selectedChatbot} not found`);
+        throw Error(`Chatbot at ${this.selectedChatbot} not found`);
       }
       system = await plugin.app.vault.read(file);
 
@@ -228,7 +203,7 @@ export class Chat {
 
     const messages = wrapTextAttachments([
       ...prepend,
-      ...$state.snapshot(this.#messages),
+      ...$state.snapshot(this.messages),
     ]);
 
     const tools = getAllTools();
@@ -255,7 +230,7 @@ export class Chat {
       while (true) {
         try {
           // Reset retry state at the beginning of each attempt
-          this.#state = { type: "loading" };
+          this.state = { type: "loading" };
 
           // Make the API call
           const stream = streamText({
@@ -283,7 +258,7 @@ export class Chat {
           });
 
           for await (const chunk of stream.fullStream) {
-            applyStreamPartToMessages(this.#messages, chunk);
+            applyStreamPartToMessages(this.messages, chunk);
           }
 
           // If we get here, the call was successful, so break out of the retry loop
@@ -316,7 +291,7 @@ export class Chat {
       console.error("Error calling model:", error);
       this.handleModelError(error);
     } finally {
-      this.#state = { type: "idle" };
+      this.state = { type: "idle" };
     }
   }
 
@@ -327,12 +302,9 @@ export class Chat {
     if (this.#abortController) {
       this.#abortController.abort("cancelled");
     }
-    this.#state = { type: "idle" };
+    this.state = { type: "idle" };
   }
 
-  /**
-   * Handles model errors by showing an Obsidian notice with appropriate error messages
-   */
   private handleModelError(error: any): void {
     // Format a user-friendly error message based on the error type
     let errorMessage = "An error occurred while generating the response.";
@@ -352,10 +324,6 @@ export class Chat {
     plugin.showNotice(errorMessage);
   }
 
-  /**
-   * Handles rate limit errors by setting up retry state and waiting for the appropriate time
-   * @returns true if retry is possible, false if max attempts exceeded
-   */
   private async handleRateLimit(
     attempt: number,
     maxAttempts: number,
@@ -375,7 +343,7 @@ export class Chat {
     }
 
     // Set retry state for UI
-    this.#state = {
+    this.state = {
       type: "retrying",
       attempt,
       maxAttempts,

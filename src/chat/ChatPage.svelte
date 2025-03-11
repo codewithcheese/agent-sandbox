@@ -9,6 +9,7 @@
     FileTextIcon,
     Loader2Icon,
     PlusIcon,
+    RefreshCwIcon,
     TerminalIcon,
     XIcon,
   } from "lucide-svelte";
@@ -125,16 +126,28 @@
 
 <div use:insertCss={chatCss} class="flex h-full w-full">
   <div class="flex flex-col h-full p-2 w-full">
-    <div class="mb-4 flex items-center gap-2">
-      <select
-        class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-        bind:value={chat.selectedChatbot}
-      >
-        <option value={undefined}>Select a chatbot...</option>
-        {#each chat.chatbots as chatbot}
-          <option value={chatbot.path}>{chatbot.basename}</option>
-        {/each}
-      </select>
+    <div class="mb-4 flex gap-2 justify-between">
+      <div class="flex flex-row items-center gap-1">
+        <select
+          class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          bind:value={chat.selectedChatbot}
+        >
+          <option value={undefined}>Select a chatbot...</option>
+          {#each chat.chatbots as chatbot}
+            <option value={chatbot.path}>{chatbot.basename}</option>
+          {/each}
+        </select>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="gap-1.5 rounded"
+          onclick={() => chat.loadChatbots()}
+        >
+          <RefreshCwIcon class="size-3.5" />
+        </Button>
+      </div>
 
       <Button
         type="button"
