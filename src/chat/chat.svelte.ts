@@ -4,7 +4,11 @@ import { nanoid } from "nanoid";
 import type { TFile } from "obsidian";
 
 import { processTemplate } from "$lib/utils/templates.ts";
-import { processEmbeds } from "$lib/utils/embeds.ts";
+import {
+  processEmbeds,
+  processLinks,
+  stripFrontMatter,
+} from "$lib/utils/embeds.ts";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { getAllTools } from "../tools";
 import { fileTree } from "$lib/utils/file-tree.ts";
@@ -197,11 +201,18 @@ export class Chat {
         console.log("Chatbot requested tools:", requestedTools);
       }
 
+      // Strip frontmatter from the system message
+      system = stripFrontMatter(system);
+
+      // Process embeds and links
       system = await processEmbeds(file, system);
+      system = await processLinks(file, system);
+
+      // Process template
       system = await processTemplate(system, {
         fileTree,
       });
-      console.log("Using system message", system);
+      console.log("SYSTEM MESSAGE\n-----\n", system);
     }
 
     let prepend: UIMessage[] = system
