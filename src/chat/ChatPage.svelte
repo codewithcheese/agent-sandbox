@@ -14,7 +14,7 @@
     XIcon,
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
-  import { formatDate, usePlugin } from "$lib/utils";
+  import { cn, formatDate, usePlugin } from "$lib/utils";
   import { insertCss } from "$lib/utils/insert-css.ts";
   import { onDestroy, onMount } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
@@ -204,7 +204,7 @@
                           prose-strong:font-semibold
                           prose-img:my-1
                           prose-video:my-1
-                          prose-a:decoration-1 text-foreground"
+                          prose-a:decoration-1 text-foreground max-w-full"
           >
             <Markdown md={message.content} />
           </div>
