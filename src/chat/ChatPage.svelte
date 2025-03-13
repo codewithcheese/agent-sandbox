@@ -10,6 +10,7 @@
     Loader2Icon,
     PlusIcon,
     RefreshCwIcon,
+    StopCircleIcon,
     TerminalIcon,
     XIcon,
   } from "lucide-svelte";
@@ -334,26 +335,27 @@
             {/each}
           </select>
         </div>
-
-        <Button
-          type="submit"
-          size="sm"
-          class="gap-1.5 rounded"
-          bind:ref={submitBtn}
-          disabled={chat.state.type !== "idle"}
-        >
-          {#if chat.state.type !== "idle"}
-            <Loader2Icon class="size-3.5 animate-spin mr-1" />
-            {#if chat.state.type === "retrying"}
-              Retrying...
-            {:else}
-              Processing...
-            {/if}
-          {:else}
+        {#if chat.state.type === "idle"}
+          <Button
+            type="submit"
+            size="sm"
+            class="gap-1.5 rounded"
+            bind:ref={submitBtn}
+          >
             Send Message
             <CornerDownLeftIcon class="size-3.5" />
-          {/if}
-        </Button>
+          </Button>
+        {:else}
+          <Button
+            type="button"
+            size="sm"
+            class="gap-1.5 rounded bg-background border text-black"
+            onclick={() => chat.cancel()}
+          >
+            <StopCircleIcon class="size-3.5" />
+            Cancel
+          </Button>
+        {/if}
       </div>
     </form>
   </div>
