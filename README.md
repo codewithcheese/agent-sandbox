@@ -64,7 +64,8 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
-- [ ] Stop generation button
+- [x] Stop generation button
+- [x] Catch errors in call model and reset state
 - [ ] Action button prompts
 - [ ] Read file image support
 - [x] Fix 429 handling

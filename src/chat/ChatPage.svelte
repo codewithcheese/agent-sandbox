@@ -342,7 +342,7 @@
             class="gap-1.5 rounded"
             bind:ref={submitBtn}
           >
-            Send Message
+            Send
             <CornerDownLeftIcon class="size-3.5" />
           </Button>
         {:else}

@@ -146,87 +146,87 @@ export class Chat {
   }
 
   async callModel(model: ChatModel, account: AIAccount) {
-    this.state = {
-      type: "loading",
-    };
-
-    const plugin = usePlugin();
-    await plugin.loadSettings();
-
-    let system: string | null = null;
-    let requestedTools: string[] = [];
-
-    if (this.selectedChatbot) {
-      const file = plugin.app.vault.getFileByPath(this.selectedChatbot);
-      if (!file) {
-        throw Error(`Chatbot at ${this.selectedChatbot} not found`);
-      }
-      system = await plugin.app.vault.read(file);
-
-      // Get file metadata to check for frontmatter
-      const metadata = plugin.app.metadataCache.getFileCache(file);
-      // Check if there's a Tools property in the frontmatter
-      if (metadata?.frontmatter && metadata.frontmatter.Tools) {
-        // Tools can be specified as a string or an array
-        if (typeof metadata.frontmatter.Tools === "string") {
-          requestedTools = [metadata.frontmatter.Tools];
-        } else if (Array.isArray(metadata.frontmatter.Tools)) {
-          requestedTools = metadata.frontmatter.Tools;
-        }
-        console.log("Chatbot requested tools:", requestedTools);
-      }
-
-      // Strip frontmatter from the system message
-      system = stripFrontMatter(system);
-
-      // Process embeds and links
-      system = await processEmbeds(file, system);
-      system = await processLinks(file, system);
-
-      // Process template
-      system = await processTemplate(system, {
-        fileTree,
-      });
-      console.log("SYSTEM MESSAGE\n-----\n", system);
-    }
-
-    let prepend: UIMessage[] = system
-      ? [
-          {
-            id: generateId(),
-            role: "system",
-            content: system,
-            parts: [{ type: "text", text: system }],
-          },
-        ]
-      : [];
-
-    const messages = wrapTextAttachments([
-      ...prepend,
-      ...$state.snapshot(this.messages),
-    ]);
-
-    const tools = getAllTools();
-
-    // Filter tools based on requested tools in frontmatter
-    const activeTools =
-      requestedTools.length > 0
-        ? Object.fromEntries(
-            Object.entries(tools).filter(([name]) =>
-              requestedTools.includes(name),
-            ),
-          )
-        : {}; // If no tools specified, don't use any tools
-
-    this.#abortController = new AbortController();
-
-    // Retry configuration
-    const MAX_RETRY_ATTEMPTS = 3;
-    const DEFAULT_RETRY_DELAY = 1000;
-    let attempt = 0;
-
-    const provider = createAIProvider(account);
     try {
+      this.state = {
+        type: "loading",
+      };
+      const plugin = usePlugin();
+      await plugin.loadSettings();
+
+      let system: string | null = null;
+      let requestedTools: string[] = [];
+
+      if (this.selectedChatbot) {
+        const file = plugin.app.vault.getFileByPath(this.selectedChatbot);
+        if (!file) {
+          throw Error(`Chatbot at ${this.selectedChatbot} not found`);
+        }
+        system = await plugin.app.vault.read(file);
+
+        // Get file metadata to check for frontmatter
+        const metadata = plugin.app.metadataCache.getFileCache(file);
+        // Check if there's a Tools property in the frontmatter
+        if (metadata?.frontmatter && metadata.frontmatter.Tools) {
+          // Tools can be specified as a string or an array
+          if (typeof metadata.frontmatter.Tools === "string") {
+            requestedTools = [metadata.frontmatter.Tools];
+          } else if (Array.isArray(metadata.frontmatter.Tools)) {
+            requestedTools = metadata.frontmatter.Tools;
+          }
+          console.log("Chatbot requested tools:", requestedTools);
+        }
+
+        // Strip frontmatter from the system message
+        system = stripFrontMatter(system);
+
+        // Process embeds and links
+        system = await processEmbeds(file, system);
+        system = await processLinks(file, system);
+
+        // Process template
+        system = await processTemplate(system, {
+          fileTree,
+        });
+        console.log("SYSTEM MESSAGE\n-----\n", system);
+      }
+
+      let prepend: UIMessage[] = system
+        ? [
+            {
+              id: generateId(),
+              role: "system",
+              content: system,
+              parts: [{ type: "text", text: system }],
+            },
+          ]
+        : [];
+
+      const messages = wrapTextAttachments([
+        ...prepend,
+        ...$state.snapshot(this.messages),
+      ]);
+
+      const tools = getAllTools();
+
+      // Filter tools based on requested tools in frontmatter
+      const activeTools =
+        requestedTools.length > 0
+          ? Object.fromEntries(
+              Object.entries(tools).filter(([name]) =>
+                requestedTools.includes(name),
+              ),
+            )
+          : {}; // If no tools specified, don't use any tools
+
+      this.#abortController = new AbortController();
+
+      // Retry configuration
+      const MAX_RETRY_ATTEMPTS = 3;
+      const DEFAULT_RETRY_DELAY = 1000;
+      let attempt = 0;
+
+      const provider = createAIProvider(account);
+
       while (true) {
         try {
           // Reset retry state at the beginning of each attempt
@@ -289,8 +289,24 @@ export class Chat {
       }
     } catch (error) {
       console.error("Error calling model:", error);
-      this.handleModelError(error);
+      let errorMessage = "An error occurred while generating the response.";
+
+      if (error.statusCode === 429) {
+        errorMessage = "Rate limit exceeded. Please try again later.";
+      } else if (error.statusCode === 401 || error.statusCode === 403) {
+        errorMessage = "Authentication error. Please check your API key.";
+      } else if (error.statusCode >= 500) {
+        errorMessage =
+          "Server error. The AI service may be experiencing issues.";
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+
+      // Show an Obsidian notice with the error message
+      const plugin = usePlugin();
+      plugin.showNotice(errorMessage);
     } finally {
+      this.#abortController = undefined;
       this.state = { type: "idle" };
     }
   }
@@ -303,25 +319,6 @@ export class Chat {
       this.#abortController.abort("cancelled");
     }
     this.state = { type: "idle" };
-  }
-
-  private handleModelError(error: any): void {
-    // Format a user-friendly error message based on the error type
-    let errorMessage = "An error occurred while generating the response.";
-
-    if (error.statusCode === 429) {
-      errorMessage = "Rate limit exceeded. Please try again later.";
-    } else if (error.statusCode === 401 || error.statusCode === 403) {
-      errorMessage = "Authentication error. Please check your API key.";
-    } else if (error.statusCode >= 500) {
-      errorMessage = "Server error. The AI service may be experiencing issues.";
-    } else if (error.message) {
-      errorMessage = `Error: ${error.message}`;
-    }
-
-    // Show an Obsidian notice with the error message
-    const plugin = usePlugin();
-    plugin.showNotice(errorMessage);
   }
 
   private async handleRateLimit(
