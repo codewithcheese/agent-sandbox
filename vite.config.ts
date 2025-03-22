@@ -1,7 +1,7 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import fs from "fs";
+import * as fs from "fs";
 import * as path from "node:path";
 import { configDefaults } from "vitest/config";
 
