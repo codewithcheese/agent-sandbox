@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { PyodideExecutor } from '../src/pyodide-executor';
+import { PyodideExecutor } from '../../src/lib/pyodide/pyodide-executor';
 
 describe('PyodideExecutor Tests', () => {
   let executor: PyodideExecutor;
