@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import { resolve } from "path";
 import fs from "fs";
 import * as path from "node:path";
+import { configDefaults } from "vitest/config";
 
 // Helper function to copy manifest.json to dist directory
 function copyManifestToDist() {
@@ -120,6 +121,22 @@ export default defineConfig(({ command }) => {
     ],
     optimizeDeps: {
       exclude: ["obsidian"],
+    },
+    test: {
+      environment: "jsdom",
+      browser: {
+        enabled: true,
+        provider: 'playwright',
+        instances: [
+          {
+            name: 'chromium',
+            headless: false,
+            browser: 'chromium'
+          }
+        ]
+      },
+      exclude: [...configDefaults.exclude, 'e2e/*'],
+      include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}']
     },
     build: {
       lib: {
