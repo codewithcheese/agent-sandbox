@@ -126,17 +126,17 @@ export default defineConfig(({ command }) => {
       environment: "jsdom",
       browser: {
         enabled: true,
-        provider: 'playwright',
+        headless: false,
+        provider: "playwright",
         instances: [
           {
-            name: 'chromium',
-            headless: false,
-            browser: 'chromium'
-          }
-        ]
+            name: "chromium",
+            browser: "chromium",
+          },
+        ],
       },
-      exclude: [...configDefaults.exclude, 'e2e/*'],
-      include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}']
+      exclude: [...configDefaults.exclude, "e2e/*"],
+      include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
     },
     build: {
       lib: {

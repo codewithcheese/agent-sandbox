@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PyodideExecutor } from '../../src/pyodide-executor';
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { PyodideExecutor } from "../../src/lib/pyodide/executor";
 
-describe('Pyodide HTTP Request Tests', () => {
+describe("Pyodide HTTP Request Tests", () => {
   let executor: PyodideExecutor;
 
   beforeAll(async () => {
     // Create a new executor instance
     executor = new PyodideExecutor();
-    
+
     // Load Pyodide in web worker (this might take some time)
     await executor.load();
-    
-    // Set up HTTP requests
-    await executor.setupHttpRequests();
-  }, 60000); // Increase timeout for Pyodide loading and setup
-  
+
+    // Set up HTTP requests by installing the requests package
+    await executor.installPackage("requests");
+  }, 5000); // Increase timeout for Pyodide loading and setup
+
   afterAll(() => {
     // Clean up by terminating the web worker
     if (executor) {
@@ -22,7 +22,7 @@ describe('Pyodide HTTP Request Tests', () => {
     }
   });
 
-  it('should be able to make GET requests using the requests library directly', async () => {
+  it("should be able to make GET requests using the requests library directly", async () => {
     const code = `
       import requests
       
@@ -32,14 +32,14 @@ describe('Pyodide HTTP Request Tests', () => {
       # Check if the request was successful
       response.status_code == 200 and response.json()['id'] == 1
     `;
-    
+
     const result = await executor.execute(code);
-    
+
     expect(result.success).toBe(true);
     expect(result.result).toBe(true);
   });
 
-  it('should handle request errors gracefully', async () => {
+  it("should handle request errors gracefully", async () => {
     const code = `
       import requests
       
@@ -50,14 +50,14 @@ describe('Pyodide HTTP Request Tests', () => {
       except Exception as e:
           print(f"Error caught: {str(e)}")
     `;
-    
+
     const result = await executor.execute(code);
-    
+
     expect(result.success).toBe(true);
-    expect(result.stdout).toContain('Error caught:');
+    expect(result.stdout).toContain("Error caught:");
   });
 
-  it('should be able to make POST requests with JSON data', async () => {
+  it("should be able to make POST requests with JSON data", async () => {
     const code = `
       import requests
       import json
@@ -80,14 +80,14 @@ describe('Pyodide HTTP Request Tests', () => {
       response_json = response.json()
       response.status_code == 201 and response_json['title'] == 'foo'
     `;
-    
+
     const result = await executor.execute(code);
-    
+
     expect(result.success).toBe(true);
     expect(result.result).toBe(true);
   });
 
-  it('should be able to extract and process data from API responses', async () => {
+  it("should be able to extract and process data from API responses", async () => {
     const code = `
       import requests
       
@@ -102,15 +102,15 @@ describe('Pyodide HTTP Request Tests', () => {
       # Return a formatted result
       f"User: {user_name}, Email: {user_email}"
     `;
-    
+
     const result = await executor.execute(code);
-    
+
     expect(result.success).toBe(true);
-    expect(result.result).toContain('User:');
-    expect(result.result).toContain('Email:');
+    expect(result.result).toContain("User:");
+    expect(result.result).toContain("Email:");
   });
 
-  it('should handle query parameters correctly', async () => {
+  it("should handle query parameters correctly", async () => {
     const code = `
       import requests
       
@@ -124,9 +124,9 @@ describe('Pyodide HTTP Request Tests', () => {
       posts = response.json()
       all(post['userId'] == 1 for post in posts)
     `;
-    
+
     const result = await executor.execute(code);
-    
+
     expect(result.success).toBe(true);
     expect(result.result).toBe(true);
   });
