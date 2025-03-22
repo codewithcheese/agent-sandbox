@@ -1,21 +1,16 @@
-import type * as ComlinkDef from "comlink";
+// Using JavaScript instead of Typescript since Vite must bundle this worker into main.js
+// simple solution was to use ?raw, but raw import does not transpile TypeScript
 
-// using node pyodide for types only
-import type { loadPyodide as loadPyodideDef, PyodideInterface } from "pyodide";
-import type { PyProxy } from "pyodide/ffi";
-
-declare const Comlink: typeof ComlinkDef;
-
-declare const loadPyodide: typeof loadPyodideDef;
-
-declare function importScripts(...urls: string[]): void;
+// force pyodide to detect browser environment, so it doesn't try to load node modules
+self.process = undefined;
+self.Deno = undefined;
 
 importScripts("https://unpkg.com/comlink/dist/umd/comlink.js");
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js");
 
 class Worker {
-  private pyodide: PyodideInterface | null = null;
-  private stdout: string = "";
+  pyodide = null;
+  stdout = "";
 
   async init() {
     this.pyodide = await loadPyodide({
@@ -38,17 +33,13 @@ class Worker {
   `);
   }
 
-  async execute(code: string, globals?: Record<string, any>) {
+  async execute(code, globals) {
     // Reset stdout for each new execution
     this.stdout = "";
 
     await this.pyodide.loadPackagesFromImports(code);
 
-    const options: {
-      globals?: PyProxy;
-      locals?: PyProxy;
-      filename?: string;
-    } = {};
+    const options = {};
 
     // globals creates a namespace, do not set if wish to share variables across execute calls
     if (globals) {
@@ -92,7 +83,7 @@ class Worker {
     };
   }
 
-  async installPackage(packageName: string) {
+  async installPackage(packageName) {
     await this.pyodide.loadPackage("micropip");
     const micropip = this.pyodide.pyimport("micropip");
     await micropip.install(packageName);

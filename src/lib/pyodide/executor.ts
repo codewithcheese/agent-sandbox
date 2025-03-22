@@ -1,5 +1,6 @@
 import * as Comlink from "comlink";
 import type { PyodideWorkerAPI } from "./api";
+import workerCode from "./worker.js?raw";
 
 export class PyodideExecutor {
   private worker: Worker | null = null;
@@ -11,23 +12,28 @@ export class PyodideExecutor {
       return;
     }
     this.isLoading = true;
-    
+
     return new Promise<void>(async (resolve, reject) => {
       try {
-        this.worker = new Worker(new URL("./worker.ts", import.meta.url));
-        
+        // Use Vite's worker import syntax which will be properly bundled
+        const blob = new Blob([workerCode], { type: "application/javascript" });
+        const workerUrl = URL.createObjectURL(blob);
+        this.worker = new Worker(workerUrl);
+        // this.worker = new PyodideWorker();
+
         // Add error listener for top-level worker errors
         this.worker.addEventListener("error", (event) => {
-          console.error("Worker error:", event.error);
+          console.error("Worker error:", event);
           this.isLoading = false;
           reject(event.error);
         });
-        
+
         this.workerLink = Comlink.wrap<PyodideWorkerAPI>(this.worker);
         await this.workerLink.init();
         this.isLoading = false;
         resolve();
       } catch (error) {
+        console.error("Error loading worker:", error);
         this.isLoading = false;
         reject(error);
       }
