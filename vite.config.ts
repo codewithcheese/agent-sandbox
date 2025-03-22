@@ -126,7 +126,7 @@ export default defineConfig(({ command }) => {
       environment: "jsdom",
       browser: {
         enabled: true,
-        headless: false,
+        headless: true,
         provider: "playwright",
         instances: [
           {
