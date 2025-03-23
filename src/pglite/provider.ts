@@ -1,7 +1,8 @@
-import { Plugin, requestUrl, normalizePath } from "obsidian";
-import { PGlite } from "@electric-sql/pglite";
+import { type Plugin, normalizePath } from "obsidian";
+import type { PGlite } from "@electric-sql/pglite";
 
 const PGLITE_VERSION = "0.2.17";
+const CDN_URL = `https://cdn.jsdelivr.net/npm/@electric-sql/pglite@${PGLITE_VERSION}/dist/index.js`;
 
 export class PGliteProvider {
   private plugin: Plugin;
@@ -30,9 +31,6 @@ export class PGliteProvider {
 
   async initialize(): Promise<void> {
     try {
-      const { fsBundle, wasmModule, vectorExtensionBundlePath } =
-        await this.loadPGliteResources();
-
       // Check if we have a saved database file
       const databaseFileExists = await this.plugin.app.vault.adapter.exists(
         this.dbPath,
@@ -49,18 +47,11 @@ export class PGliteProvider {
         // Create PGlite instance with existing data
         this.pgClient = await this.createPGliteInstance({
           loadDataDir: fileBlob,
-          fsBundle,
-          wasmModule,
-          vectorExtensionBundlePath,
         });
       } else {
         // Create new database
         console.log("Creating new database");
-        this.pgClient = await this.createPGliteInstance({
-          fsBundle,
-          wasmModule,
-          vectorExtensionBundlePath,
-        });
+        this.pgClient = await this.createPGliteInstance({});
       }
 
       this.isInitialized = true;
@@ -127,50 +118,26 @@ export class PGliteProvider {
 
   private async createPGliteInstance(options: {
     loadDataDir?: Blob;
-    fsBundle: Blob;
-    wasmModule: WebAssembly.Module;
-    vectorExtensionBundlePath: URL;
   }): Promise<PGlite> {
+    // Replace process object to prevent Node.js detection
+    window.process = {
+      ...window.process,
+      // Override versions to remove node property
+      // @ts-expect-error
+      versions: {},
+    };
+
     // Create PGlite instance with options
-    return await PGlite.create({
+    const module = await import(/* @vite-ignore */ CDN_URL);
+    const PGliteClass: typeof PGlite = module.PGlite;
+    return await PGliteClass.create({
       ...options,
       relaxedDurability: this.relaxedDurability,
       extensions: {
-        vector: options.vectorExtensionBundlePath,
+        vector: new URL(
+          `https://unpkg.com/@electric-sql/pglite@${PGLITE_VERSION}/dist/vector.tar.gz`,
+        ),
       },
     });
-  }
-
-  private async loadPGliteResources(): Promise<{
-    fsBundle: Blob;
-    wasmModule: WebAssembly.Module;
-    vectorExtensionBundlePath: URL;
-  }> {
-    try {
-      const [fsBundleResponse, wasmResponse] = await Promise.all([
-        requestUrl(
-          `https://unpkg.com/@electric-sql/pglite@${PGLITE_VERSION}/dist/postgres.data`,
-        ),
-        requestUrl(
-          `https://unpkg.com/@electric-sql/pglite@${PGLITE_VERSION}/dist/postgres.wasm`,
-        ),
-      ]);
-
-      const fsBundle = new Blob([fsBundleResponse.arrayBuffer], {
-        type: "application/octet-stream",
-      });
-
-      const wasmModule = await WebAssembly.compile(wasmResponse.arrayBuffer);
-
-      // Add vector extension bundle path
-      const vectorExtensionBundlePath = new URL(
-        `https://unpkg.com/@electric-sql/pglite@${PGLITE_VERSION}/dist/vector.tar.gz`,
-      );
-
-      return { fsBundle, wasmModule, vectorExtensionBundlePath };
-    } catch (error) {
-      console.error("Error loading PGlite resources:", error);
-      throw error;
-    }
   }
 }
