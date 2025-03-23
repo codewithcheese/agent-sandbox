@@ -36,3 +36,5 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+        env:
+          CI: true
