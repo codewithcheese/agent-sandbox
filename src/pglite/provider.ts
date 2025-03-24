@@ -119,25 +119,29 @@ export class PGliteProvider {
   private async createPGliteInstance(options: {
     loadDataDir?: Blob;
   }): Promise<PGlite> {
-    // Replace process object to prevent Node.js detection
-    window.process = {
-      ...window.process,
-      // Override versions to remove node property
-      // @ts-expect-error
-      versions: {},
-    };
+    const originalProcess = window.process;
+    try {
+      // Set process.version to undefined so pglite resolve IN_NODE=false
+      window.process = {
+        ...window.process,
+        versions: undefined,
+      };
 
-    // Create PGlite instance with options
-    const module = await import(/* @vite-ignore */ CDN_URL);
-    const PGliteClass: typeof PGlite = module.PGlite;
-    return await PGliteClass.create({
-      ...options,
-      relaxedDurability: this.relaxedDurability,
-      extensions: {
-        vector: new URL(
-          `https://unpkg.com/@electric-sql/pglite@${PGLITE_VERSION}/dist/vector.tar.gz`,
-        ),
-      },
-    });
+      // Create PGlite instance with options
+      const module = await import(/* @vite-ignore */ CDN_URL);
+      const PGliteClass: typeof PGlite = module.PGlite;
+      return await PGliteClass.create({
+        ...options,
+        relaxedDurability: this.relaxedDurability,
+        extensions: {
+          vector: new URL(
+            `https://unpkg.com/@electric-sql/pglite@${PGLITE_VERSION}/dist/vector.tar.gz`,
+          ),
+        },
+      });
+    } finally {
+      // Restore process object
+      window.process = originalProcess;
+    }
   }
 }
