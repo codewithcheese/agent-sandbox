@@ -1,34 +1,34 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { usePlugin } from "$lib/utils";
-import cursorMap from "$lib/utils/cursor-map.ts";
+import cursorMap from "$lib/utils/cursor-map";
 
 export const redditSearchTool = tool({
   description: "Search Reddit posts on a specific topic using RapidAPI",
   parameters: z.object({
     query: z.string().describe("The search query for Reddit posts"),
     sort: z
-      .enum(["RELEVANCE", "HOT", "TOP", "NEW", "COMMENTS"])
-      .default("RELEVANCE")
-      .describe("Sort method for the results"),
+        .enum(["RELEVANCE", "HOT", "TOP", "NEW", "COMMENTS"])
+        .default("RELEVANCE")
+        .describe("Sort method for the results"),
     time: z
-      .enum(["hour", "day", "week", "month", "year", "all"])
-      .default("all")
-      .describe("Time range for the results"),
+        .enum(["hour", "day", "week", "month", "year", "all"])
+        .default("all")
+        .describe("Time range for the results"),
     nsfw: z
-      .enum(["0", "1"])
-      .default("0")
-      .describe("Whether to include NSFW content (0 for no, 1 for yes)"),
+        .enum(["0", "1"])
+        .default("0")
+        .describe("Whether to include NSFW content (0 for no, 1 for yes)"),
     limit: z
-      .number()
-      .min(1)
-      .max(100)
-      .default(10)
-      .describe("Maximum number of results to return"),
+        .number()
+        .min(1)
+        .max(100)
+        .default(10)
+        .describe("Maximum number of results to return"),
     cursor: z
-      .string()
-      .optional()
-      .describe("Pagination cursor for fetching the next page of results"),
+        .string()
+        .optional()
+        .describe("Pagination cursor for fetching the next page of results"),
   }),
   execute: async ({ query, sort, time, nsfw, limit, cursor }) => {
     try {
@@ -40,7 +40,7 @@ export const redditSearchTool = tool({
       }
 
       // Construct the URL with query parameters
-      let url = `https://reddit-scraper2.p.rapidapi.com/search_posts?query=${encodeURIComponent(query)}&sort=${sort}&time=${time}&nsfw=${nsfw}&limit=${limit}`;
+      let url = `https://reddit-scraper2.p.rapidapi.com/search_posts_v3?query=${encodeURIComponent(query)}&sort=${sort}&time=${time}&nsfw=${nsfw}&limit=${limit}`;
 
       // Add cursor parameter if provided for pagination
       if (cursor) {

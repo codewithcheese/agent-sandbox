@@ -1,20 +1,20 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { usePlugin } from "$lib/utils";
-import cursorMap from "$lib/utils/cursor-map.ts";
+import cursorMap from "$lib/utils/cursor-map";
 
 export const redditSearchSubredditsTool = tool({
   description: "Search for subreddits on a specific topic using RapidAPI",
   parameters: z.object({
     query: z.string().describe("The search query for subreddits"),
     nsfw: z
-      .enum(["0", "1"])
-      .default("0")
-      .describe("Whether to include NSFW subreddits (0 for no, 1 for yes)"),
+        .enum(["0", "1"])
+        .default("0")
+        .describe("Whether to include NSFW subreddits (0 for no, 1 for yes)"),
     cursor: z
-      .string()
-      .optional()
-      .describe("Pagination cursor ID for fetching more results"),
+        .string()
+        .optional()
+        .describe("Pagination cursor ID for fetching more results"),
   }),
   execute: async ({ query, nsfw, cursor }) => {
     try {
@@ -26,7 +26,7 @@ export const redditSearchSubredditsTool = tool({
       }
 
       // Prepare request URL
-      let url = `https://reddit-scraper2.p.rapidapi.com/search_subs?query=${encodeURIComponent(query)}&nsfw=${nsfw}`;
+      let url = `https://reddit-scraper2.p.rapidapi.com/search_subs_v3?query=${encodeURIComponent(query)}&nsfw=${nsfw}`;
 
       // Add cursor parameter if provided for pagination
       if (cursor) {

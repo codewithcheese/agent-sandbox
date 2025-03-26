@@ -1,24 +1,24 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { usePlugin } from "$lib/utils";
-import cursorMap from "$lib/utils/cursor-map.ts";
+import cursorMap from "$lib/utils/cursor-map";
 
 export const redditGetPostsTool = tool({
   description: "Get posts from a specific subreddit using RapidAPI",
   parameters: z.object({
     sub: z.string().describe("The subreddit name (without 'r/')"),
     sort: z
-      .enum(["HOT", "NEW", "TOP", "RISING"])
-      .default("HOT")
-      .describe("Sort method for the posts"),
+        .enum(["HOT", "NEW", "TOP", "RISING"])
+        .default("HOT")
+        .describe("Sort method for the posts"),
     time: z
-      .enum(["HOUR", "DAY", "WEEK", "MONTH", "YEAR", "ALL"])
-      .default("ALL")
-      .describe("Time range for the posts when using TOP sort"),
+        .enum(["HOUR", "DAY", "WEEK", "MONTH", "YEAR", "ALL"])
+        .default("ALL")
+        .describe("Time range for the posts when using TOP sort"),
     cursor: z
-      .string()
-      .optional()
-      .describe("Pagination cursor ID for fetching more posts"),
+        .string()
+        .optional()
+        .describe("Pagination cursor ID for fetching more posts"),
   }),
   execute: async ({ sub, sort, time, cursor }) => {
     try {
@@ -30,7 +30,7 @@ export const redditGetPostsTool = tool({
       }
 
       // Prepare request URL
-      let url = `https://reddit-scraper2.p.rapidapi.com/sub_posts?sub=${encodeURIComponent(sub)}&sort=${sort}&time=${time}`;
+      let url = `https://reddit-scraper2.p.rapidapi.com/sub_posts_v3?sub=${encodeURIComponent(sub)}&sort=${sort}&time=${time}`;
 
       // Add cursor parameter if provided for pagination
       if (cursor) {
