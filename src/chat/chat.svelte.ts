@@ -1,4 +1,11 @@
-import { type Attachment, generateId, streamText, type UIMessage } from "ai";
+import {
+  type Attachment,
+  convertToCoreMessages,
+  type CoreMessage,
+  generateId,
+  streamText,
+  type UIMessage,
+} from "ai";
 import { type AIAccount, createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
 import type { TFile } from "obsidian";
@@ -166,12 +173,12 @@ export class Chat {
         // Get file metadata to check for frontmatter
         const metadata = plugin.app.metadataCache.getFileCache(file);
         // Check if there's a Tools property in the frontmatter
-        if (metadata?.frontmatter && metadata.frontmatter.Tools) {
+        if (metadata?.frontmatter && metadata.frontmatter["tools"]) {
           // Tools can be specified as a string or an array
-          if (typeof metadata.frontmatter.Tools === "string") {
-            requestedTools = [metadata.frontmatter.Tools];
-          } else if (Array.isArray(metadata.frontmatter.Tools)) {
-            requestedTools = metadata.frontmatter.Tools;
+          if (typeof metadata.frontmatter["tools"] === "string") {
+            requestedTools = [metadata.frontmatter["tools"]];
+          } else if (Array.isArray(metadata.frontmatter["tools"])) {
+            requestedTools = metadata.frontmatter["tools"];
           }
           console.log("Chatbot requested tools:", requestedTools);
         }
@@ -190,21 +197,18 @@ export class Chat {
         console.log("SYSTEM MESSAGE\n-----\n", system);
       }
 
-      let prepend: UIMessage[] = system
-        ? [
-            {
-              id: generateId(),
-              role: "system",
-              content: system,
-              parts: [{ type: "text", text: system }],
-            },
-          ]
-        : [];
-
-      const messages = wrapTextAttachments([
-        ...prepend,
-        ...$state.snapshot(this.messages),
-      ]);
+      const messages: CoreMessage[] = [
+        {
+          role: "system",
+          content: system,
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+          },
+        },
+        ...convertToCoreMessages(
+          wrapTextAttachments($state.snapshot(this.messages)),
+        ),
+      ];
 
       const tools = getAllTools();
 

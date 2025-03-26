@@ -171,8 +171,10 @@ export function applyStreamPartToMessages(
       break;
     }
     case "finish":
+      console.log("finish", part);
       break;
     case "step-finish":
+      console.log("step-finish", part);
       break;
     default: {
       const exhaustiveCheck: never = part;
