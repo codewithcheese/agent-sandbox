@@ -95,8 +95,15 @@ export function applyStreamPartToMessages(
       });
       break;
     case "error":
+      console.error("Stream error:", part);
       if (part.error instanceof Error) {
         throw part.error;
+      } else if (
+        part.error &&
+        typeof part.error === "object" &&
+        "message" in part.error
+      ) {
+        throw new Error(part.error.message as string);
       } else {
         throw new Error(
           typeof part.error === "string" ? part.error : "Unknown stream error",
