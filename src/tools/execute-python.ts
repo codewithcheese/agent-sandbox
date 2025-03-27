@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { PyodideExecutor } from "$lib/pyodide/executor";
+import { PyodideExecutor } from "$lib/pyodide/executor.ts";
 
 export const executePythonTool = tool({
   description: "Execute Python code using Pyodide",

@@ -20,6 +20,7 @@ import type { ChatModel, EmbeddingModel } from "./settings/models.ts";
 import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
 import { PGliteProvider } from "./pglite/provider.ts";
+import { installTools } from "./tools/install-tools.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -63,6 +64,15 @@ export class AgentSandboxPlugin extends Plugin {
     // Add ribbon icon for library tree
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();
+    });
+
+    // Add command to install tools
+    this.addCommand({
+      id: "install-tools",
+      name: "Install Built-in Tools",
+      callback: async () => {
+        await installTools();
+      },
     });
 
     // This adds a settings tab so the user can configure various aspects of the plugin

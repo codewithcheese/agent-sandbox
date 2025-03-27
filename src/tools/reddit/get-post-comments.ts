@@ -1,28 +1,28 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { usePlugin } from "$lib/utils";
-import cursorMap from "$lib/utils/cursor-map";
+import cursorMap from "$lib/utils/cursor-map.ts";
 
 export const redditGetPostCommentsTool = tool({
   description: "Get comments for a specific Reddit post using RapidAPI",
   parameters: z.object({
     post_id: z.string().describe("The Reddit post ID (e.g., 't3_1furwc7')"),
     sort: z
-        .enum([
-          "CONFIDENCE",
-          "TOP",
-          "NEW",
-          "CONTROVERSIAL",
-          "OLD",
-          "RANDOM",
-          "QA",
-        ])
-        .optional()
-        .describe("Sort method for the comments"),
+      .enum([
+        "CONFIDENCE",
+        "TOP",
+        "NEW",
+        "CONTROVERSIAL",
+        "OLD",
+        "RANDOM",
+        "QA",
+      ])
+      .optional()
+      .describe("Sort method for the comments"),
     cursor_id: z
-        .string()
-        .optional()
-        .describe("Pagination cursor ID for fetching more comments"),
+      .string()
+      .optional()
+      .describe("Pagination cursor ID for fetching more comments"),
   }),
   execute: async ({ post_id, sort, cursor_id }) => {
     try {

@@ -116,7 +116,9 @@ export default defineConfig(({ command }) => {
     optimizeDeps: {
       exclude: ["obsidian"],
     },
+    assetsInclude: ["**/*.md"],
     test: {
+      // Default environment is jsdom for browser tests
       environment: "jsdom",
       browser: {
         enabled: true,

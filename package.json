@@ -8,6 +8,7 @@
   "scripts": {
     "test": "vitest run",
     "test:browser": "vitest run --browser",
+    "test:node": "vitest run --environment node",
     "code": "code --extensionDevelopmentPath=. --disable-extensions",
     "build": "vite build",
     "dev": "vite",

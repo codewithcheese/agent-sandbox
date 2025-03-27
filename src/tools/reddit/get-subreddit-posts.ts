@@ -1,24 +1,24 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { usePlugin } from "$lib/utils";
-import cursorMap from "$lib/utils/cursor-map";
+import cursorMap from "$lib/utils/cursor-map.ts";
 
 export const redditGetPostsTool = tool({
   description: "Get posts from a specific subreddit using RapidAPI",
   parameters: z.object({
     sub: z.string().describe("The subreddit name (without 'r/')"),
     sort: z
-        .enum(["HOT", "NEW", "TOP", "RISING"])
-        .default("HOT")
-        .describe("Sort method for the posts"),
+      .enum(["HOT", "NEW", "TOP", "RISING"])
+      .default("HOT")
+      .describe("Sort method for the posts"),
     time: z
-        .enum(["HOUR", "DAY", "WEEK", "MONTH", "YEAR", "ALL"])
-        .default("ALL")
-        .describe("Time range for the posts when using TOP sort"),
+      .enum(["HOUR", "DAY", "WEEK", "MONTH", "YEAR", "ALL"])
+      .default("ALL")
+      .describe("Time range for the posts when using TOP sort"),
     cursor: z
-        .string()
-        .optional()
-        .describe("Pagination cursor ID for fetching more posts"),
+      .string()
+      .optional()
+      .describe("Pagination cursor ID for fetching more posts"),
   }),
   execute: async ({ sub, sort, time, cursor }) => {
     try {
