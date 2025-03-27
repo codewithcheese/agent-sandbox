@@ -1,19 +1,13 @@
 import { Notice, Modal, Setting } from "obsidian";
 import { usePlugin } from "$lib/utils";
 
-// Import the tool markdown files
+// Import all tool markdown files using Vite's glob import
 // Note: For this to work, you need to add the following to your vite.config.js:
 // assetsInclude: ['**/*.md']
-// @ts-expect-error
-import readFileTool from "./Read file.md?raw";
-// @ts-expect-error
-import listFilesTool from "./List files.md?raw";
 
-// Map of tool names to their markdown content
-const BUILT_IN_TOOLS = {
-  "Read file": readFileTool,
-  "List files": listFilesTool,
-};
+// Use Vite's glob import to get all markdown files
+// @ts-expect-error - Vite-specific feature
+const toolModules: Record<string, string> = import.meta.glob("./*.md", { as: "raw", eager: true });
 
 /**
  * Modal for confirming file overwrite
@@ -64,6 +58,7 @@ class ConfirmOverwriteModal extends Modal {
  */
 export async function installTools() {
   const plugin = usePlugin();
+  // Path where tools should be installed in the Obsidian vault
   const toolsFolderPath = "tools";
 
   // Create tools folder if it doesn't exist
@@ -82,30 +77,24 @@ export async function installTools() {
   let skipped = 0;
 
   // Install each tool
-  for (const [toolId, content] of Object.entries(BUILT_IN_TOOLS)) {
-    const fileName = `${toolsFolderPath}/${toolId}.md`;
-    console.log(`Installing tool ${toolId} to ${fileName}`);
+  for (const [path, content] of Object.entries(toolModules)) {
+    // Extract the tool name from the path
+    const baseName = path.split('/').pop() || '';
+    const toolId = baseName.replace(/\.md$/, '');
+    const targetPath = `${toolsFolderPath}/${toolId}.md`;
     
     // Check if file exists
-    const existingFile = plugin.app.vault.getAbstractFileByPath(fileName);
-    console.log(`Checking if file exists: ${fileName}`, existingFile ? 'exists' : 'does not exist');
+    const existingFile = plugin.app.vault.getAbstractFileByPath(targetPath);
 
     if (existingFile) {
-      console.log(`File ${fileName} exists, prompting for overwrite`);
       // If file exists, confirm overwrite
       const confirmOverwrite = () => {
         return new Promise<boolean>((resolve) => {
           new ConfirmOverwriteModal(
             plugin.app,
-            fileName,
-            () => {
-              console.log(`User confirmed overwrite for ${fileName}`);
-              resolve(true);
-            },
-            () => {
-              console.log(`User cancelled overwrite for ${fileName}`);
-              resolve(false);
-            },
+            targetPath,
+            () => resolve(true),
+            () => resolve(false),
           ).open();
         });
       };
@@ -113,16 +102,13 @@ export async function installTools() {
       try {
         const shouldOverwrite = await confirmOverwrite();
         if (!shouldOverwrite) {
-          console.log(`Skipping ${fileName} as user declined overwrite`);
           skipped++;
           continue;
         }
 
         // Delete existing file
-        console.log(`Deleting existing file ${fileName}`);
         await plugin.app.vault.delete(existingFile);
       } catch (error) {
-        console.error(`Error during overwrite confirmation for ${fileName}:`, error);
         new Notice(`Error handling file overwrite: ${error.message}`);
         skipped++;
         continue;
@@ -131,13 +117,10 @@ export async function installTools() {
 
     // Create the tool file
     try {
-      console.log(`Creating file ${fileName}`);
-      await plugin.app.vault.create(fileName, content);
-      console.log(`Successfully created ${fileName}`);
+      await plugin.app.vault.create(targetPath, content as string);
       installed++;
       new Notice(`Installed tool "${toolId}"`);
     } catch (error) {
-      console.error(`Failed to install tool "${toolId}":`, error);
       new Notice(`Failed to install tool "${toolId}": ${error.message}`);
     }
   }
