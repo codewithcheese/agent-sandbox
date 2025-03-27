@@ -1,33 +1,11 @@
-export { readFileTool } from "./read-file.ts";
-export { listFilesTool } from "./list-files.ts";
-export { executePythonTool } from "./execute-python.ts";
-export { redditSearchTool } from "./reddit/search-reddit.ts";
-export { redditGetPostCommentsTool } from "./reddit/get-post-comments.ts";
-export { redditSearchSubredditsTool } from "./reddit/search-subreddits.ts";
-export { redditGetPostsTool } from "./reddit/get-subreddit-posts.ts";
-export { thinkTool } from "./think.ts";
-
-import { readFileTool } from "./read-file.ts";
-import { listFilesTool } from "./list-files.ts";
-import { executePythonTool } from "./execute-python.ts";
-import { redditSearchTool } from "./reddit/search-reddit.ts";
-import { redditGetPostCommentsTool } from "./reddit/get-post-comments.ts";
-import { redditSearchSubredditsTool } from "./reddit/search-subreddits.ts";
-import { redditGetPostsTool } from "./reddit/get-subreddit-posts.ts";
-import { thinkTool } from "./think.ts";
+import { PyodideExecutor } from "$lib/pyodide/executor";
 import { usePlugin } from "$lib/utils";
 
-export const getAllTools = () => ({
-  readFile: readFileTool,
-  listFiles: listFilesTool,
-  executePython: executePythonTool,
-  redditSearch: redditSearchTool,
-  redditGetPostComments: redditGetPostCommentsTool,
-  redditSearchSubreddits: redditSearchSubredditsTool,
-  redditGetPosts: redditGetPostsTool,
-  think: thinkTool,
-});
+export * from "./reddit.ts";
 
+/**
+ * Read a file from the Obsidian vault
+ */
 export async function readFile({ path }) {
   try {
     const plugin = usePlugin();
@@ -44,6 +22,9 @@ export async function readFile({ path }) {
   }
 }
 
+/**
+ * List files in a directory in the Obsidian vault
+ */
 export async function listFiles({ path }) {
   try {
     // Coerce '.' into '/' since there's no concept of working directory in Obsidian
@@ -54,4 +35,47 @@ export async function listFiles({ path }) {
   } catch (error) {
     return { error: `Failed to list files: ${error.message}` };
   }
+}
+
+/**
+ * Execute Python code using Pyodide
+ */
+export async function executePython({ code, installPackages = [] }) {
+  try {
+    const pyodide = new PyodideExecutor();
+    await pyodide.load();
+
+    // Install any requested packages
+    if (installPackages.length > 0) {
+      for (const pkg of installPackages) {
+        await pyodide.installPackage(pkg);
+      }
+    }
+
+    // Execute the Python code
+    const result = await pyodide.execute(code);
+
+    return {
+      success: result.success,
+      result: result.result,
+      stdout: result.stdout,
+      error: result.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      result: null,
+      stdout: "",
+      error: error?.message || String(error),
+    };
+  }
+}
+
+/**
+ * Think tool for structured reasoning
+ */
+export function think({ thought }) {
+  // This is a no-op tool - it simply returns the thought that was passed in
+  // The value comes from giving the AI space to think in a structured way
+  return thought;
 }

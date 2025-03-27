@@ -20,7 +20,7 @@ import type { ChatModel, EmbeddingModel } from "./settings/models.ts";
 import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
 import { PGliteProvider } from "./pglite/provider.ts";
-import { installTools } from "./tools/install-tools.ts";
+import { installTools } from "./tools/command.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
