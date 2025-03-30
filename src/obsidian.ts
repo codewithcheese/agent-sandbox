@@ -4,7 +4,7 @@ if (typeof window !== "undefined" && window.obsidianAPI) {
   // Development mode - use the global API
   obsidian = window.obsidianAPI;
 } else {
-  obsidian = await import("./obsidian");
+  obsidian = await import("obsidian");
 }
 
 // Default export
