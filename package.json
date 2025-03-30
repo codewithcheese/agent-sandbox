@@ -51,8 +51,10 @@
   "dependencies": {
     "@dmitryrechkin/json-schema-to-zod": "^1.0.1",
     "@electric-sql/pglite": "^0.2.17",
+    "buffer": "^6.0.3",
     "comlink": "^4.4.2",
     "github-slugger": "^2.0.0",
+    "gray-matter": "^4.0.3",
     "handlebars": "^4.7.6",
     "nanoid": "^3",
     "ollama-ai-provider": "^1.2.0",

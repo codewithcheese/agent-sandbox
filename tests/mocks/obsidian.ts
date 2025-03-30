@@ -2,6 +2,17 @@ console.log("loading mock obsidian");
 
 import { vi } from "vitest";
 
+// Import Buffer polyfill for browser environments
+import { Buffer } from 'buffer';
+
+// Add Buffer to global scope if it doesn't exist
+if (typeof window !== 'undefined' && typeof window.Buffer === 'undefined') {
+  // @ts-ignore - Add Buffer to the global scope
+  window.Buffer = Buffer;
+}
+
+import matter from "gray-matter";
+
 const fileSystem = new Map<string, { content: string; metadata?: any }>();
 const fileCache = new Map<string, any>();
 
@@ -161,12 +172,22 @@ export default {
   plugin: plugin,
   // Helper methods for tests
   helpers: {
-    // Add a file to the mock vault with optional metadata
-    addFile: (path: string, content: string, metadata?: any) => {
+    // Add a file to the mock vault and parse frontmatter from content
+    addFile: (path: string, content: string) => {
       fileSystem.set(path, { content });
-      if (metadata) {
-        fileCache.set(path, metadata);
+      
+      // Parse frontmatter from content
+      if (content) {
+        try {
+          const { data } = matter(content);
+          if (Object.keys(data).length > 0) {
+            fileCache.set(path, { frontmatter: data });
+          }
+        } catch (error) {
+          console.warn(`Failed to parse frontmatter for ${path}:`, error);
+        }
       }
+      
       return new MockTFile(path);
     },
     // Get the in-memory file system for inspection

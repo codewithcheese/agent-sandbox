@@ -118,9 +118,9 @@ async function execute({ message }) {
 \`\`\`
 `;
 
-    // Add the file to the vault
+    // Add the file to the vault - frontmatter will be parsed automatically
     const file = helpers.addFile(filePath, content);
-
+    
     // Calculate the code block positions for the metadata cache
     const jsonBlockStart = content.indexOf("```json");
     const jsonBlockEnd = content.indexOf("```", jsonBlockStart + 7) + 3;
@@ -128,29 +128,25 @@ async function execute({ message }) {
     const jsBlockStart = content.indexOf("```javascript");
     const jsBlockEnd = content.indexOf("```", jsBlockStart + 14) + 3;
 
-    // Set up the metadata cache for this file
-    helpers.getFileCache().set(filePath, {
-      frontmatter: {
-        name: "TestTool",
-        description: "A test tool for testing purposes",
+    // Add the code sections to the metadata cache
+    const fileCache = helpers.getFileCache().get(filePath) || {};
+    fileCache.sections = [
+      {
+        type: "code",
+        position: {
+          start: { offset: jsonBlockStart },
+          end: { offset: jsonBlockEnd },
+        },
       },
-      sections: [
-        {
-          type: "code",
-          position: {
-            start: { offset: jsonBlockStart },
-            end: { offset: jsonBlockEnd },
-          },
+      {
+        type: "code",
+        position: {
+          start: { offset: jsBlockStart },
+          end: { offset: jsBlockEnd },
         },
-        {
-          type: "code",
-          position: {
-            start: { offset: jsBlockStart },
-            end: { offset: jsBlockEnd },
-          },
-        },
-      ],
-    });
+      },
+    ];
+    helpers.getFileCache().set(filePath, fileCache);
 
     // Parse the tool definition using the file we just created
     const toolDef = await parseToolDefinition(file as unknown as TFile);
@@ -197,30 +193,25 @@ This is a test tool using import.
 \`\`\`
 `;
 
-    // Add the file to the vault
+    // Add the file to the vault - frontmatter will be parsed automatically
     const file = helpers.addFile(filePath, content);
 
     // Calculate the code block positions for the metadata cache
     const jsonBlockStart = content.indexOf("```json");
     const jsonBlockEnd = content.indexOf("```", jsonBlockStart + 7) + 3;
 
-    // Set up the metadata cache for this file
-    helpers.getFileCache().set(filePath, {
-      frontmatter: {
-        name: "ImportTool",
-        description: "A test tool that uses import",
-        import: "think",
-      },
-      sections: [
-        {
-          type: "code",
-          position: {
-            start: { offset: jsonBlockStart },
-            end: { offset: jsonBlockEnd },
-          },
+    // Add the code sections to the metadata cache
+    const fileCache = helpers.getFileCache().get(filePath) || {};
+    fileCache.sections = [
+      {
+        type: "code",
+        position: {
+          start: { offset: jsonBlockStart },
+          end: { offset: jsonBlockEnd },
         },
-      ],
-    });
+      },
+    ];
+    helpers.getFileCache().set(filePath, fileCache);
 
     // Parse the tool definition using the file we just created
     const toolDef = await parseToolDefinition(file as unknown as TFile);

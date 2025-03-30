@@ -75,9 +75,11 @@ export async function parseToolDefinition(
     !metadata.frontmatter.name ||
     !metadata.frontmatter.description
   ) {
-    return null;
+    throw Error(
+      `Invalid tool definition in ${file.path}. Missing frontmatter fields: name, description`,
+    );
   }
-  
+
   // Special case for str_replace_editor (Anthropic's text editor tool)
   // This tool doesn't require a schema, code block, or import function
   if (metadata.frontmatter.name === "str_replace_editor") {
@@ -217,7 +219,6 @@ export async function parseToolDefinition(
  * @returns An object containing the tool name and the tool implementation
  */
 export function createVaultTool(toolDef: VaultToolDefinition) {
-
   // Special case for Anthropic text editor tool
   if (toolDef.name === "str_replace_editor") {
     // Use the Anthropic text editor tool constructor
@@ -238,11 +239,11 @@ export function createVaultTool(toolDef: VaultToolDefinition) {
           insert_line,
           new_str,
           old_str,
-          view_range
+          view_range,
         });
       },
-    })
-    
+    });
+
     return { name: toolDef.name, tool: textEditorTool };
   }
 
@@ -316,12 +317,12 @@ export function createVaultTool(toolDef: VaultToolDefinition) {
           params,
         };
       }
-    }
+    },
   };
-  
+
   // For all other tools, use the AI SDK tool constructor
   const vaultTool = tool(toolConfig);
-  
+
   // Return the tool name and implementation
   return { name: toolDef.name, tool: vaultTool };
 }

@@ -2,15 +2,29 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import obsidian from "../mocks/obsidian";
 import "../mocks/ai-sdk";
 
+import type { ToolExecutionOptions } from "ai";
 import type { TFile } from "obsidian";
-import { textEditor } from "../../src/tools";
+
+// @ts-expect-error raw import not recognized by TypeScript
+import textEditorMd from "../../src/tools/Text Editor.md?raw";
+import { createVaultTool, parseToolDefinition } from "$lib/utils/tools.ts";
 
 const { vault, helpers } = obsidian;
 
 describe("Text Editor Tool", () => {
   let testFile: TFile;
+  let toolFile: TFile;
+
+  const toolFilePath = "Text Editor.md";
+
   const testFilePath = "test-file.txt";
   const testFileContent = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+
+  const callOptions: ToolExecutionOptions = {
+    toolCallId: "test-tool-call-id",
+    messages: [],
+    abortSignal: undefined,
+  };
 
   beforeEach(() => {
     // Reset all mocks
@@ -19,21 +33,31 @@ describe("Text Editor Tool", () => {
     // Clear the in-memory file system
     helpers.clear();
 
+    // Create a tool file
+    helpers.addFile(toolFilePath, textEditorMd);
+    toolFile = vault.getFileByPath(toolFilePath) as TFile;
+
     // Create a test file
     helpers.addFile(testFilePath, testFileContent);
     testFile = vault.getFileByPath(testFilePath) as TFile;
   });
 
   it("should view a file", async () => {
-    const result = await textEditor({
-      command: "view",
-      path: testFilePath,
-      file_text: undefined,
-      insert_line: undefined,
-      new_str: undefined,
-      old_str: undefined,
-      view_range: undefined,
-    });
+    const toolDef = await parseToolDefinition(toolFile);
+    const { tool } = createVaultTool(toolDef);
+
+    const result = await tool.execute(
+      {
+        command: "view",
+        path: testFilePath,
+        file_text: undefined,
+        insert_line: undefined,
+        new_str: undefined,
+        old_str: undefined,
+        view_range: undefined,
+      },
+      callOptions,
+    );
 
     expect(result).toHaveProperty("content");
     expect(result.content).toContain("1: Line 1");
@@ -41,15 +65,21 @@ describe("Text Editor Tool", () => {
   });
 
   it("should view a specific range of lines", async () => {
-    const result = await textEditor({
-      command: "view",
-      path: testFilePath,
-      file_text: undefined,
-      insert_line: undefined,
-      new_str: undefined,
-      old_str: undefined,
-      view_range: [2, 4],
-    });
+    const toolDef = await parseToolDefinition(toolFile);
+    const { tool } = createVaultTool(toolDef);
+
+    const result = await tool.execute(
+      {
+        command: "view",
+        path: testFilePath,
+        file_text: undefined,
+        insert_line: undefined,
+        new_str: undefined,
+        old_str: undefined,
+        view_range: [2, 4],
+      },
+      callOptions,
+    );
 
     expect(result).toHaveProperty("content");
     expect(result.content).toContain("2: Line 2");
@@ -59,18 +89,24 @@ describe("Text Editor Tool", () => {
   });
 
   it("should create a new file", async () => {
+    const toolDef = await parseToolDefinition(toolFile);
+    const { tool } = createVaultTool(toolDef);
+
     const newFilePath = "new-file.txt";
     const newFileContent = "This is a new file";
 
-    const result = await textEditor({
-      command: "create",
-      path: newFilePath,
-      file_text: newFileContent,
-      insert_line: undefined,
-      new_str: undefined,
-      old_str: undefined,
-      view_range: undefined,
-    });
+    const result = await tool.execute(
+      {
+        command: "create",
+        path: newFilePath,
+        file_text: newFileContent,
+        insert_line: undefined,
+        new_str: undefined,
+        old_str: undefined,
+        view_range: undefined,
+      },
+      callOptions,
+    );
 
     expect(result).toHaveProperty("content");
     expect(result.content).toContain("Successfully created file");
@@ -85,15 +121,21 @@ describe("Text Editor Tool", () => {
   });
 
   it("should replace text in a file", async () => {
-    const result = await textEditor({
-      command: "str_replace",
-      path: testFilePath,
-      file_text: undefined,
-      insert_line: undefined,
-      new_str: "Modified Line 3",
-      old_str: "Line 3",
-      view_range: undefined,
-    });
+    const toolDef = await parseToolDefinition(toolFile);
+    const { tool } = createVaultTool(toolDef);
+
+    const result = await tool.execute(
+      {
+        command: "str_replace",
+        path: testFilePath,
+        file_text: undefined,
+        insert_line: undefined,
+        new_str: "Modified Line 3",
+        old_str: "Line 3",
+        view_range: undefined,
+      },
+      callOptions,
+    );
 
     expect(result).toHaveProperty("content");
     expect(result.content).toContain("Successfully replaced text");
@@ -109,15 +151,21 @@ describe("Text Editor Tool", () => {
   });
 
   it("should insert text at a specific line", async () => {
-    const result = await textEditor({
-      command: "insert",
-      path: testFilePath,
-      file_text: undefined,
-      insert_line: 3,
-      new_str: "Inserted Line",
-      old_str: undefined,
-      view_range: undefined,
-    });
+    const toolDef = await parseToolDefinition(toolFile);
+    const { tool } = createVaultTool(toolDef);
+
+    const result = await tool.execute(
+      {
+        command: "insert",
+        path: testFilePath,
+        file_text: undefined,
+        insert_line: 3,
+        new_str: "Inserted Line",
+        old_str: undefined,
+        view_range: undefined,
+      },
+      callOptions,
+    );
 
     expect(result).toHaveProperty("content");
     expect(result.content).toContain("Successfully inserted text");
@@ -130,27 +178,36 @@ describe("Text Editor Tool", () => {
   });
 
   it("should undo the last edit", async () => {
+    const toolDef = await parseToolDefinition(toolFile);
+    const { tool } = createVaultTool(toolDef);
+
     // First make an edit
-    await textEditor({
-      command: "str_replace",
-      path: testFilePath,
-      file_text: undefined,
-      insert_line: undefined,
-      new_str: "Modified Line 3",
-      old_str: "Line 3",
-      view_range: undefined,
-    });
+    await tool.execute(
+      {
+        command: "str_replace",
+        path: testFilePath,
+        file_text: undefined,
+        insert_line: undefined,
+        new_str: "Modified Line 3",
+        old_str: "Line 3",
+        view_range: undefined,
+      },
+      callOptions,
+    );
 
     // Then undo it
-    const result = await textEditor({
-      command: "undo_edit",
-      path: testFilePath,
-      file_text: undefined,
-      insert_line: undefined,
-      new_str: undefined,
-      old_str: undefined,
-      view_range: undefined,
-    });
+    const result = await tool.execute(
+      {
+        command: "undo_edit",
+        path: testFilePath,
+        file_text: undefined,
+        insert_line: undefined,
+        new_str: undefined,
+        old_str: undefined,
+        view_range: undefined,
+      },
+      callOptions,
+    );
 
     expect(result).toHaveProperty("content");
     expect(result.content).toContain("Successfully undid last edit");
@@ -162,35 +219,47 @@ describe("Text Editor Tool", () => {
   });
 
   it("should return an error for non-existent file", async () => {
-    const result = await textEditor({
-      command: "view",
-      path: "non-existent-file.txt",
-      file_text: undefined,
-      insert_line: undefined,
-      new_str: undefined,
-      old_str: undefined,
-      view_range: undefined,
-    });
+    const toolDef = await parseToolDefinition(toolFile);
+    const { tool } = createVaultTool(toolDef);
+
+    const result = await tool.execute(
+      {
+        command: "view",
+        path: "non-existent-file.txt",
+        file_text: undefined,
+        insert_line: undefined,
+        new_str: undefined,
+        old_str: undefined,
+        view_range: undefined,
+      },
+      callOptions,
+    );
 
     expect(result).toHaveProperty("error");
     expect(result.error).toContain("not found");
   });
 
   it("should return an error for multiple occurrences of text to replace", async () => {
+    const toolDef = await parseToolDefinition(toolFile);
+    const { tool } = createVaultTool(toolDef);
+
     // Create a file with duplicate lines
     const duplicateFilePath = "duplicate-lines.txt";
     const duplicateContent = "Line 1\nLine 2\nLine 2\nLine 3";
     helpers.addFile(duplicateFilePath, duplicateContent);
 
-    const result = await textEditor({
-      command: "str_replace",
-      path: duplicateFilePath,
-      file_text: undefined,
-      insert_line: undefined,
-      new_str: "Modified Line 2",
-      old_str: "Line 2",
-      view_range: undefined,
-    });
+    const result = await tool.execute(
+      {
+        command: "str_replace",
+        path: duplicateFilePath,
+        file_text: undefined,
+        insert_line: undefined,
+        new_str: "Modified Line 2",
+        old_str: "Line 2",
+        view_range: undefined,
+      },
+      callOptions,
+    );
 
     expect(result).toHaveProperty("error");
     expect(result.error).toContain("Multiple occurrences");
