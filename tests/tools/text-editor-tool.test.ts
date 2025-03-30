@@ -1,0 +1,198 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import obsidian from "../mocks/obsidian";
+import "../mocks/ai-sdk";
+
+import type { TFile } from "obsidian";
+import { textEditor } from "../../src/tools";
+
+const { vault, helpers } = obsidian;
+
+describe("Text Editor Tool", () => {
+  let testFile: TFile;
+  const testFilePath = "test-file.txt";
+  const testFileContent = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+
+  beforeEach(() => {
+    // Reset all mocks
+    vi.clearAllMocks();
+
+    // Clear the in-memory file system
+    helpers.clear();
+
+    // Create a test file
+    helpers.addFile(testFilePath, testFileContent);
+    testFile = vault.getFileByPath(testFilePath) as TFile;
+  });
+
+  it("should view a file", async () => {
+    const result = await textEditor({
+      command: "view",
+      path: testFilePath,
+      file_text: undefined,
+      insert_line: undefined,
+      new_str: undefined,
+      old_str: undefined,
+      view_range: undefined,
+    });
+
+    expect(result).toHaveProperty("content");
+    expect(result.content).toContain("1: Line 1");
+    expect(result.content).toContain("5: Line 5");
+  });
+
+  it("should view a specific range of lines", async () => {
+    const result = await textEditor({
+      command: "view",
+      path: testFilePath,
+      file_text: undefined,
+      insert_line: undefined,
+      new_str: undefined,
+      old_str: undefined,
+      view_range: [2, 4],
+    });
+
+    expect(result).toHaveProperty("content");
+    expect(result.content).toContain("2: Line 2");
+    expect(result.content).toContain("4: Line 4");
+    expect(result.content).not.toContain("1: Line 1");
+    expect(result.content).not.toContain("5: Line 5");
+  });
+
+  it("should create a new file", async () => {
+    const newFilePath = "new-file.txt";
+    const newFileContent = "This is a new file";
+
+    const result = await textEditor({
+      command: "create",
+      path: newFilePath,
+      file_text: newFileContent,
+      insert_line: undefined,
+      new_str: undefined,
+      old_str: undefined,
+      view_range: undefined,
+    });
+
+    expect(result).toHaveProperty("content");
+    expect(result.content).toContain("Successfully created file");
+
+    // Verify the file was created
+    const file = vault.getFileByPath(newFilePath);
+    expect(file).not.toBeNull();
+
+    // Verify the content
+    const content = await vault.read(file);
+    expect(content).toBe(newFileContent);
+  });
+
+  it("should replace text in a file", async () => {
+    const result = await textEditor({
+      command: "str_replace",
+      path: testFilePath,
+      file_text: undefined,
+      insert_line: undefined,
+      new_str: "Modified Line 3",
+      old_str: "Line 3",
+      view_range: undefined,
+    });
+
+    expect(result).toHaveProperty("content");
+    expect(result.content).toContain("Successfully replaced text");
+
+    // Verify the content was updated
+    const content = await vault.read(testFile);
+    expect(content).toContain("Modified Line 3");
+    // We can't use a simple not.toContain check because the replacement
+    // changes "Line 3" to "Modified Line 3" which still contains "Line 3"
+    // Instead, check that the exact standalone line "Line 3" is not present
+    const lines = content.split("\n");
+    expect(lines).not.toContain("Line 3");
+  });
+
+  it("should insert text at a specific line", async () => {
+    const result = await textEditor({
+      command: "insert",
+      path: testFilePath,
+      file_text: undefined,
+      insert_line: 3,
+      new_str: "Inserted Line",
+      old_str: undefined,
+      view_range: undefined,
+    });
+
+    expect(result).toHaveProperty("content");
+    expect(result.content).toContain("Successfully inserted text");
+
+    // Verify the content was updated
+    const content = await vault.read(testFile);
+    const lines = content.split("\n");
+    expect(lines.length).toBe(6); // Original 5 lines + 1 inserted
+    expect(lines[3]).toBe("Inserted Line");
+  });
+
+  it("should undo the last edit", async () => {
+    // First make an edit
+    await textEditor({
+      command: "str_replace",
+      path: testFilePath,
+      file_text: undefined,
+      insert_line: undefined,
+      new_str: "Modified Line 3",
+      old_str: "Line 3",
+      view_range: undefined,
+    });
+
+    // Then undo it
+    const result = await textEditor({
+      command: "undo_edit",
+      path: testFilePath,
+      file_text: undefined,
+      insert_line: undefined,
+      new_str: undefined,
+      old_str: undefined,
+      view_range: undefined,
+    });
+
+    expect(result).toHaveProperty("content");
+    expect(result.content).toContain("Successfully undid last edit");
+
+    // Verify the content was restored
+    const content = await vault.read(testFile);
+    expect(content).toContain("Line 3");
+    expect(content).not.toContain("Modified Line 3");
+  });
+
+  it("should return an error for non-existent file", async () => {
+    const result = await textEditor({
+      command: "view",
+      path: "non-existent-file.txt",
+      file_text: undefined,
+      insert_line: undefined,
+      new_str: undefined,
+      old_str: undefined,
+      view_range: undefined,
+    });
+
+    expect(result).toHaveProperty("error");
+    expect(result.error).toContain("not found");
+  });
+
+  it("should return an error for multiple occurrences of text to replace", async () => {
+    // Create a file with duplicate lines
+    const duplicateFilePath = "duplicate-lines.txt";
+    const duplicateContent = "Line 1\nLine 2\nLine 2\nLine 3";
+    helpers.addFile(duplicateFilePath, duplicateContent);
+
+    const result = await textEditor({
+      command: "str_replace",
+      path: duplicateFilePath,
+      file_text: undefined,
+      insert_line: undefined,
+      new_str: "Modified Line 2",
+      old_str: "Line 2",
+      view_range: undefined,
+    });
+
+    expect(result).toHaveProperty("error");
+    expect(result.error).toContain("Multiple occurrences");
+  });
+});

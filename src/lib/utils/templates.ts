@@ -31,8 +31,7 @@ export async function processTemplate(
       // Remove the Handlebars options object from the end of args
       const helperArgs = args.slice(0, -1);
       console.log("Args", args, helperArgs);
-      const result = await helper(...helperArgs);
-      return new Handlebars.SafeString(result);
+      return helper(...helperArgs);
     });
   });
 

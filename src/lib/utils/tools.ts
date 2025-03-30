@@ -4,6 +4,8 @@ import type { TFile } from "obsidian";
 import { usePlugin } from "./index.ts";
 import { tool } from "ai";
 import { JSONSchemaToZod } from "@dmitryrechkin/json-schema-to-zod";
+import { anthropic } from "@ai-sdk/anthropic";
+import { textEditor } from "../../../src/tools/index.ts";
 
 export function updateToolInvocationPart(
   message: UIMessage,
@@ -74,6 +76,18 @@ export async function parseToolDefinition(
     !metadata.frontmatter.description
   ) {
     return null;
+  }
+  
+  // Special case for str_replace_editor (Anthropic's text editor tool)
+  // This tool doesn't require a schema, code block, or import function
+  if (metadata.frontmatter.name === "str_replace_editor") {
+    return {
+      name: metadata.frontmatter.name,
+      description: metadata.frontmatter.description,
+      schema: {}, // Empty schema for str_replace_editor
+      code: null,
+      file,
+    };
   }
 
   // Check if there's an import field in the frontmatter
@@ -203,11 +217,40 @@ export async function parseToolDefinition(
  * @returns An object containing the tool name and the tool implementation
  */
 export function createVaultTool(toolDef: VaultToolDefinition) {
+
+  // Special case for Anthropic text editor tool
+  if (toolDef.name === "str_replace_editor") {
+    // Use the Anthropic text editor tool constructor
+    const textEditorTool = anthropic.tools.textEditor_20250124({
+      execute: async ({
+        command,
+        path,
+        file_text,
+        insert_line,
+        new_str,
+        old_str,
+        view_range,
+      }) => {
+        return textEditor({
+          command,
+          path,
+          file_text,
+          insert_line,
+          new_str,
+          old_str,
+          view_range
+        });
+      },
+    })
+    
+    return { name: toolDef.name, tool: textEditorTool };
+  }
+
   // Convert JSON schema to Zod schema
   const zodSchema = JSONSchemaToZod.convert(toolDef.schema);
 
   // Create a tool with the schema from the vault definition
-  const vaultTool = tool({
+  const toolConfig = {
     description: toolDef.description,
     parameters: zodSchema,
     execute: async (params) => {
@@ -273,9 +316,12 @@ export function createVaultTool(toolDef: VaultToolDefinition) {
           params,
         };
       }
-    },
-  });
-
+    }
+  };
+  
+  // For all other tools, use the AI SDK tool constructor
+  const vaultTool = tool(toolConfig);
+  
   // Return the tool name and implementation
   return { name: toolDef.name, tool: vaultTool };
 }

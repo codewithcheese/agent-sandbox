@@ -38,9 +38,24 @@ const vault = {
     }
     return null;
   }),
+  getAbstractFileByPath: vi.fn((path: string) => {
+    if (fileSystem.has(path)) {
+      return new MockTFile(path);
+    }
+    return null;
+  }),
   create: vi.fn(async (path: string, content: string) => {
     fileSystem.set(path, { content });
     return new MockTFile(path);
+  }),
+  createFolder: vi.fn(async (path: string) => {
+    // Mark that the directory exists by adding an empty file
+    fileSystem.set(path + "/.dir", { content: "" });
+    return true;
+  }),
+  modify: vi.fn(async (file: MockTFile, content: string) => {
+    fileSystem.set(file.path, { content });
+    return file;
   }),
   delete: vi.fn(async (file: MockTFile) => {
     fileSystem.delete(file.path);
