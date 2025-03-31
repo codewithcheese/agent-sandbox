@@ -1,13 +1,11 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import obsidian from "../mocks/obsidian";
+import { vault, helpers, fileCache } from "../mocks/obsidian";
 import "../mocks/ai-sdk";
 
 // Import after mocking - we can access the mocked objects directly
 import type { TFile } from "obsidian";
 import { parseToolDefinition, createVaultTool } from "$lib/utils/tools.ts";
-
-const { vault, helpers } = obsidian;
 
 describe("Markdown Tool Execution", () => {
   // Define the options required by the AI SDK tool execute method
@@ -25,7 +23,7 @@ describe("Markdown Tool Execution", () => {
     vi.clearAllMocks();
 
     // Clear the in-memory file system
-    helpers.clear();
+    helpers.reset();
 
     // Create mock content for a tool definition with code block
     mockContent = `---
@@ -120,7 +118,7 @@ async function execute({ message }) {
 
     // Add the file to the vault - frontmatter will be parsed automatically
     const file = helpers.addFile(filePath, content);
-    
+
     // Calculate the code block positions for the metadata cache
     const jsonBlockStart = content.indexOf("```json");
     const jsonBlockEnd = content.indexOf("```", jsonBlockStart + 7) + 3;
@@ -129,8 +127,8 @@ async function execute({ message }) {
     const jsBlockEnd = content.indexOf("```", jsBlockStart + 14) + 3;
 
     // Add the code sections to the metadata cache
-    const fileCache = helpers.getFileCache().get(filePath) || {};
-    fileCache.sections = [
+    const fileCacheItem = fileCache.get(filePath) || {};
+    fileCacheItem.sections = [
       {
         type: "code",
         position: {
@@ -146,7 +144,7 @@ async function execute({ message }) {
         },
       },
     ];
-    helpers.getFileCache().set(filePath, fileCache);
+    fileCache.set(filePath, fileCacheItem);
 
     // Parse the tool definition using the file we just created
     const toolDef = await parseToolDefinition(file as unknown as TFile);
@@ -201,8 +199,8 @@ This is a test tool using import.
     const jsonBlockEnd = content.indexOf("```", jsonBlockStart + 7) + 3;
 
     // Add the code sections to the metadata cache
-    const fileCache = helpers.getFileCache().get(filePath) || {};
-    fileCache.sections = [
+    const fileCacheItem = fileCache.get(filePath) || {};
+    fileCacheItem.sections = [
       {
         type: "code",
         position: {
@@ -211,7 +209,7 @@ This is a test tool using import.
         },
       },
     ];
-    helpers.getFileCache().set(filePath, fileCache);
+    fileCache.set(filePath, fileCacheItem);
 
     // Parse the tool definition using the file we just created
     const toolDef = await parseToolDefinition(file as unknown as TFile);

@@ -1,11 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-import obsidian from "./mocks/obsidian";
-
-// Import after mocking
 import { PGliteProvider } from "../src/pglite/provider";
-
-const { plugin } = obsidian;
+import { plugin } from "./mocks/obsidian";
 
 // Define the interface for PGlite result
 interface PGliteResult {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import obsidian from "../mocks/obsidian";
+import { vault, helpers } from "../mocks/obsidian";
 import "../mocks/ai-sdk";
 
 import type { ToolExecutionOptions } from "ai";
@@ -8,8 +8,6 @@ import type { TFile } from "obsidian";
 // @ts-expect-error raw import not recognized by TypeScript
 import textEditorMd from "../../src/tools/Text Editor.md?raw";
 import { createVaultTool, parseToolDefinition } from "$lib/utils/tools.ts";
-
-const { vault, helpers } = obsidian;
 
 describe("Text Editor Tool", () => {
   let testFile: TFile;
@@ -31,7 +29,7 @@ describe("Text Editor Tool", () => {
     vi.clearAllMocks();
 
     // Clear the in-memory file system
-    helpers.clear();
+    helpers.reset();
 
     // Create a tool file
     helpers.addFile(toolFilePath, textEditorMd);

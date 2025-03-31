@@ -1,7 +1,14 @@
 let obsidian: any;
 
-if (typeof window !== "undefined" && window.obsidianAPI) {
-  // Development mode - use the global API
+if (
+  typeof window !== "undefined" &&
+  "__vitest_browser__" in window &&
+  window.__vitest_browser__ === true
+) {
+  // Test mode - mock obsidian
+  obsidian = (await import("../tests/mocks/obsidian.ts")).default;
+} else if (typeof window !== "undefined" && window.obsidianAPI) {
+  // Development mode - use global bridge provided by dev-proxy
   obsidian = window.obsidianAPI;
 } else {
   obsidian = await import("obsidian");

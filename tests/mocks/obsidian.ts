@@ -1,20 +1,18 @@
-console.log("loading mock obsidian");
-
 import { vi } from "vitest";
 
-// Import Buffer polyfill for browser environments
-import { Buffer } from 'buffer';
-
-// Add Buffer to global scope if it doesn't exist
-if (typeof window !== 'undefined' && typeof window.Buffer === 'undefined') {
-  // @ts-ignore - Add Buffer to the global scope
+// polyfill for grey-matter
+import { Buffer } from "buffer";
+if (typeof window !== "undefined" && typeof window.Buffer === "undefined") {
   window.Buffer = Buffer;
 }
 
 import matter from "gray-matter";
 
-const fileSystem = new Map<string, { content: string; metadata?: any }>();
-const fileCache = new Map<string, any>();
+export const fileSystem = new Map<
+  string,
+  { content: string; metadata?: any }
+>();
+export const fileCache = new Map<string, any>();
 
 class MockTFile {
   path: string;
@@ -31,11 +29,7 @@ class MockTFile {
   }
 }
 
-// Clear any existing data
-fileSystem.clear();
-fileCache.clear();
-
-const vault = {
+export const vault = {
   read: vi.fn(async (file: MockTFile) => {
     const fileData = fileSystem.get(file.path);
     if (!fileData) {
@@ -112,7 +106,7 @@ const vault = {
   },
 };
 
-const metadataCache = {
+export const metadataCache = {
   getFileCache: vi.fn((file: MockTFile) => {
     return fileCache.get(file.path);
   }),
@@ -126,78 +120,49 @@ const metadataCache = {
   on: vi.fn(),
 };
 
-const app = {
+export const app = {
   vault,
   metadataCache,
 };
 
-const plugin = {
+export const plugin = {
   app,
   manifest: { dir: "test-dir" },
 };
 
-const obsidian = {
+export const helpers = {
+  addFile(path: string, content: string) {
+    fileSystem.set(path, { content });
+
+    if (content) {
+      try {
+        const { data } = matter(content);
+        if (Object.keys(data).length > 0) {
+          fileCache.set(path, { frontmatter: data });
+        }
+      } catch (error) {
+        console.warn(`Failed to parse frontmatter for ${path}:`, error);
+      }
+    }
+
+    return new MockTFile(path);
+  },
+  reset() {
+    fileSystem.clear();
+    fileCache.clear();
+  },
+};
+
+// mock useProxy in src/utils/index.ts
+window.Env = {
+  Plugin: plugin,
+};
+
+export default {
   normalizePath: (path: string) => path,
 
   Plugin: class {
     app = app;
     manifest = { dir: "test-dir" };
-  },
-
-  get app() {
-    return app;
-  },
-  get vault() {
-    return vault;
-  },
-  get metadataCache() {
-    return metadataCache;
-  },
-};
-
-// @ts-expect-error see `./src/obsidian.ts` usage in vite.config.ts, its an obsidian module proxy for loading via vite dev server
-window.obsidianAPI = obsidian;
-
-vi.mock("obsidian", () => obsidian);
-
-window.Env = {
-  Plugin: plugin,
-};
-
-// Return the mock environment for tests to use
-export default {
-  vault: vault,
-  metadataCache: metadataCache,
-  app: app,
-  plugin: plugin,
-  // Helper methods for tests
-  helpers: {
-    // Add a file to the mock vault and parse frontmatter from content
-    addFile: (path: string, content: string) => {
-      fileSystem.set(path, { content });
-      
-      // Parse frontmatter from content
-      if (content) {
-        try {
-          const { data } = matter(content);
-          if (Object.keys(data).length > 0) {
-            fileCache.set(path, { frontmatter: data });
-          }
-        } catch (error) {
-          console.warn(`Failed to parse frontmatter for ${path}:`, error);
-        }
-      }
-      
-      return new MockTFile(path);
-    },
-    // Get the in-memory file system for inspection
-    getFileSystem: () => fileSystem,
-    // Get the in-memory file cache for inspection
-    getFileCache: () => fileCache,
-    // Clear all files and cache
-    clear: () => {
-      fileSystem.clear();
-      fileCache.clear();
-    },
   },
 };
