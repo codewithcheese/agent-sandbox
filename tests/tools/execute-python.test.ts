@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { executePythonTool } from "../../src/tools/execute-python";
+import { executePython } from "../../src/tools";
 
 describe("Execute Python Tool Tests", () => {
-
   const options = {
     toolCallId: "test-tool-call-id",
     messages: [],
@@ -10,9 +9,7 @@ describe("Execute Python Tool Tests", () => {
   };
 
   it("should execute basic Python code", async () => {
-    const result = await executePythonTool.execute({
-      code: "1 + 2",
-    }, options);
+    const result = await executePython({ code: "1 + 2" });
 
     expect(result.success).toBe(true);
     expect(result.result).toBe(3);
@@ -20,13 +17,13 @@ describe("Execute Python Tool Tests", () => {
   });
 
   it("should handle print statements and capture stdout", async () => {
-    const result = await executePythonTool.execute({
+    const result = await executePython({
       code: `
         print("Hello from Python!")
         print("Multiple lines")
         print("of output")
       `,
-    }, options);
+    });
 
     expect(result.success).toBe(true);
     expect(result.stdout).toContain("Hello from Python!");
@@ -35,12 +32,12 @@ describe("Execute Python Tool Tests", () => {
   });
 
   it("should handle errors gracefully", async () => {
-    const result = await executePythonTool.execute({
+    const result = await executePython({
       code: `
         # This will raise a NameError
         undefined_variable
       `,
-    }, options);
+    });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("NameError");
@@ -48,7 +45,7 @@ describe("Execute Python Tool Tests", () => {
 
   it("should install and use packages", async () => {
     // This test uses numpy, a common Python package
-    const result = await executePythonTool.execute({
+    const result = await executePython({
       code: `
         import numpy as np
         
@@ -58,10 +55,9 @@ describe("Execute Python Tool Tests", () => {
         mean
       `,
       installPackages: ["numpy"],
-    }, options);
+    });
 
     expect(result.success).toBe(true);
     expect(result.result).toBe(3);
   });
-
 });

@@ -1,7 +1,6 @@
 import { usePlugin } from "$lib/utils/index";
-import type { TFile, TFolder } from "../../obsidian";
 
-export async function fileTree(path: string = "/") {
+export async function fileTree(path: string = "/"): Promise<string> {
   const plugin = usePlugin();
   const vault = plugin.app.vault;
   const files = vault.getFiles();

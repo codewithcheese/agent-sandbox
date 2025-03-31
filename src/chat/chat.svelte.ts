@@ -2,7 +2,6 @@ import {
   type Attachment,
   convertToCoreMessages,
   type CoreMessage,
-  generateId,
   streamText,
   type UIMessage,
 } from "ai";
@@ -17,8 +16,8 @@ import {
   stripFrontMatter,
 } from "$lib/utils/embeds.ts";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
-import { getAllTools } from "../tools";
 import { fileTree } from "$lib/utils/file-tree.ts";
+import { loadToolsFromFrontmatter } from "$lib/utils/tools.ts";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
 import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
@@ -161,7 +160,7 @@ export class Chat {
       await plugin.loadSettings();
 
       let system: string | null = null;
-      let requestedTools: string[] = [];
+      let metadata = null;
 
       if (this.selectedChatbot) {
         const file = plugin.app.vault.getFileByPath(this.selectedChatbot);
@@ -171,17 +170,7 @@ export class Chat {
         system = await plugin.app.vault.read(file);
 
         // Get file metadata to check for frontmatter
-        const metadata = plugin.app.metadataCache.getFileCache(file);
-        // Check if there's a Tools property in the frontmatter
-        if (metadata?.frontmatter && metadata.frontmatter["tools"]) {
-          // Tools can be specified as a string or an array
-          if (typeof metadata.frontmatter["tools"] === "string") {
-            requestedTools = [metadata.frontmatter["tools"]];
-          } else if (Array.isArray(metadata.frontmatter["tools"])) {
-            requestedTools = metadata.frontmatter["tools"];
-          }
-          console.log("Chatbot requested tools:", requestedTools);
-        }
+        metadata = plugin.app.metadataCache.getFileCache(file);
 
         // Strip frontmatter from the system message
         system = stripFrontMatter(system);
@@ -197,30 +186,24 @@ export class Chat {
         console.log("SYSTEM MESSAGE\n-----\n", system);
       }
 
-      const messages: CoreMessage[] = [
-        {
+      const messages: CoreMessage[] = [];
+      if (system) {
+        messages.push({
           role: "system",
           content: system,
           providerOptions: {
             anthropic: { cacheControl: { type: "ephemeral" } },
           },
-        },
+        });
+      }
+      messages.push(
         ...convertToCoreMessages(
           wrapTextAttachments($state.snapshot(this.messages)),
         ),
-      ];
+      );
 
-      const tools = getAllTools();
-
-      // Filter tools based on requested tools in frontmatter
-      const activeTools =
-        requestedTools.length > 0
-          ? Object.fromEntries(
-              Object.entries(tools).filter(([name]) =>
-                requestedTools.includes(name),
-              ),
-            )
-          : {}; // If no tools specified, don't use any tools
+      // Load tools from frontmatter
+      const activeTools = await loadToolsFromFrontmatter(metadata);
 
       this.#abortController = new AbortController();
 

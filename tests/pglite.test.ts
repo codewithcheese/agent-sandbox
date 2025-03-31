@@ -1,15 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-
-// Mock Obsidian modules
-vi.mock("obsidian", () => {
-  return {
-    normalizePath: (path: string) => path,
-  };
-});
-
-// Import after mocking
 import { PGliteProvider } from "../src/pglite/provider";
+import { plugin } from "./mocks/obsidian";
 
 // Define the interface for PGlite result
 interface PGliteResult {
@@ -23,24 +15,7 @@ describe("PGlite CDN Tests", () => {
   let provider: PGliteProvider;
 
   beforeAll(async () => {
-    // This runs in a real browser environment, so we can directly test the CDN implementation
-    // Create a mock plugin object
-    const mockPlugin = {
-      manifest: { dir: "test-dir" },
-      app: {
-        vault: {
-          adapter: {
-            exists: async (path: string) => false,
-            mkdir: async (path: string) => {},
-            writeBinary: async (path: string, data: Buffer) => {},
-            readBinary: async (path: string) => new ArrayBuffer(0),
-          },
-        },
-      },
-    };
-
-    // Create a provider instance
-    provider = new PGliteProvider(mockPlugin as any, "test-db");
+    provider = new PGliteProvider(plugin as any, "test-db");
     await provider.initialize();
     pglite = provider.getClient();
   }, 60000);
