@@ -1,23 +1,38 @@
-import type * as CodeMirrorStateType from "@codemirror/state";
+import { bridge } from "./util.ts";
+import type * as moduleType from "@codemirror/state";
 
-let codemirrorState: typeof CodeMirrorStateType;
+const module = (await bridge("@codemirror/state")) as typeof moduleType;
 
-if (
-  typeof window !== "undefined" &&
-  window.bridge &&
-  window.bridge["@codemirror/state"]
-) {
-  // Development mode - use global bridge provided by dev-proxy
-  codemirrorState = window.bridge["@codemirror/state"];
-} else {
-  codemirrorState = await import("@codemirror/state");
-}
+export default module;
 
-export default codemirrorState;
-
-// Named exports
-export const RangeSetBuilder = codemirrorState.RangeSetBuilder;
-export const StateField = codemirrorState.StateField;
-export const StateEffect = codemirrorState.StateEffect;
-export const Transaction = codemirrorState.Transaction;
-export const Text = codemirrorState.Text;
+export const {
+  Annotation,
+  AnnotationType,
+  ChangeDesc,
+  ChangeSet,
+  CharCategory,
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Facet,
+  Line,
+  MapMode,
+  Prec,
+  Range,
+  RangeSet,
+  RangeSetBuilder,
+  RangeValue,
+  SelectionRange,
+  StateEffect,
+  StateEffectType,
+  StateField,
+  Text,
+  Transaction,
+  codePointAt,
+  codePointSize,
+  combineConfig,
+  countColumn,
+  findClusterBreak,
+  findColumn,
+  fromCodePoint,
+} = module;

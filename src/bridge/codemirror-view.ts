@@ -1,21 +1,54 @@
-import type * as CodeMirrorStateType from "@codemirror/view";
+import { bridge } from "./util.ts";
+import type * as moduleType from "@codemirror/view";
 
-let codemirrorView: typeof CodeMirrorStateType;
+const module = (await bridge("@codemirror/view")) as typeof moduleType;
 
-if (
-  typeof window !== "undefined" &&
-  window.bridge &&
-  window.bridge["@codemirror/view"]
-) {
-  // Development mode - use global bridge provided by dev-proxy
-  codemirrorView = window.bridge["@codemirror/view"];
-} else {
-  codemirrorView = await import("@codemirror/view");
-}
+export default module;
 
-export default codemirrorView;
-
-// Named exports
-export const EditorView = codemirrorView.EditorView;
-export const Decoration = codemirrorView.Decoration;
-export const WidgetType = codemirrorView.WidgetType;
+export const {
+  BidiSpan,
+  BlockInfo,
+  BlockType,
+  Decoration,
+  Direction,
+  EditorView,
+  GutterMarker,
+  MatchDecorator,
+  RectangleMarker,
+  ViewPlugin,
+  ViewUpdate,
+  WidgetType,
+  closeHoverTooltips,
+  crosshairCursor,
+  drawSelection,
+  dropCursor,
+  getDrawSelectionConfig,
+  getPanel,
+  getTooltip,
+  gutter,
+  gutterLineClass,
+  gutterWidgetClass,
+  gutters,
+  hasHoverTooltips,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
+  highlightTrailingWhitespace,
+  highlightWhitespace,
+  hoverTooltip,
+  keymap,
+  layer,
+  lineNumberMarkers,
+  lineNumberWidgetMarker,
+  lineNumbers,
+  logException,
+  panels,
+  placeholder,
+  rectangularSelection,
+  repositionTooltips,
+  runScopeHandlers,
+  scrollPastEnd,
+  showPanel,
+  showTooltip,
+  tooltips,
+} = module;

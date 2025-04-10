@@ -5,8 +5,10 @@ import {
   Plugin,
   type PluginManifest,
   TFile,
+  WorkspaceLeaf,
 } from "obsidian";
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
+import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/MergeView.ts";
 import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
 import {
@@ -53,8 +55,12 @@ export class AgentSandboxPlugin extends Plugin {
     await this.loadSettings();
     await this.initializePGlite();
 
-    // Register custom view
+    // Register custom views
     this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf));
+    this.registerView(MERGE_VIEW_TYPE, (leaf) => {
+      // This is a placeholder - actual content will be set later
+      return new MergeView(leaf);
+    });
 
     // Add ribbon icon for custom view
     this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {
@@ -64,6 +70,11 @@ export class AgentSandboxPlugin extends Plugin {
     // Add ribbon icon for library tree
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();
+    });
+    
+    // Add ribbon icon for merge view
+    this.addRibbonIcon("git-merge", "Merge Documents", async () => {
+      await this.openMergeView();
     });
 
     // Add command to install tools
@@ -103,6 +114,44 @@ export class AgentSandboxPlugin extends Plugin {
   async saveSettings() {
     console.log("Saving settings", this.settings);
     await this.saveData(this.settings);
+  }
+
+  async openMergeView() {
+    const activeFile = this.app.workspace.getActiveFile();
+    
+    if (!activeFile) {
+      this.showNotice("No active file to merge with", 3000);
+      return;
+    }
+    
+    const currentContent = await this.app.vault.read(activeFile);
+    
+    this.openFileSelect(async (selectedFile: TFile) => {
+      if (selectedFile.path === activeFile.path) {
+        this.showNotice("Cannot merge a file with itself", 3000);
+        return;
+      }
+      
+      try {
+        const selectedContent = await this.app.vault.read(selectedFile);
+        
+        const leaf = this.app.workspace.getLeaf(true);
+        await leaf.setViewState({
+          type: MERGE_VIEW_TYPE,
+          state: {}
+        });
+        
+        // Get the view and initialize it with the content
+        const view = leaf.view as MergeView;
+        view.setContent(currentContent, selectedContent);
+        
+        await this.app.workspace.revealLeaf(leaf);
+        this.showNotice(`Merging ${activeFile.name} with ${selectedFile.name}`, 3000);
+      } catch (error) {
+        console.error("Error opening merge view:", error);
+        this.showNotice(`Error: ${(error as Error).message}`, 3000);
+      }
+    });
   }
 
   showNotice(message: string, duration?: number) {
