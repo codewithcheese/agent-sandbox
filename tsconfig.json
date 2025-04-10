@@ -18,7 +18,7 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "verbatimModuleSyntax": true,
+    "verbatimModuleSyntax": true, // important to mark import of external module types
     "typeRoots": ["./node_modules/@types", "./types"],
     "paths": {
       "$lib": ["./src/lib"],

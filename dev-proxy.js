@@ -3,8 +3,12 @@ const { Plugin, Notice } = require("obsidian");
 // dev-proxy.js
 const DEV_SERVER_URL = "http://localhost:5173";
 
-window.obsidianAPI = require("obsidian");
-console.log("Obsidian API loaded", window.obsidianAPI);
+window.bridge = {
+  obsidian: require("obsidian"),
+  "@codemirror/state": require("@codemirror/state"),
+  "@codemirror/view": require("@codemirror/view"),
+};
+console.log("Bridge loaded", window.bridge);
 
 class ProxyPlugin extends Plugin {
   // Class properties

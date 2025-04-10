@@ -29,7 +29,12 @@ export default defineConfig(({ command }) => {
       alias: {
         $lib: path.resolve("./src/lib"),
         // Redirect 'obsidian' imports to our proxy file
-        obsidian: resolve(__dirname, "src/obsidian.ts"),
+        obsidian: resolve(__dirname, "src/bridge/obsidian.ts"),
+        "@codemirror/state": resolve(
+          __dirname,
+          "src/bridge/codemirror-state.ts",
+        ),
+        "@codemirror/view": resolve(__dirname, "src/bridge/codemirror-view.ts"),
       },
     },
     server: {
