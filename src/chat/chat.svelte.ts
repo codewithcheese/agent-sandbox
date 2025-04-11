@@ -23,6 +23,7 @@ import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
 import type { ChatModel } from "../settings/models.ts";
 import { usePlugin } from "$lib/utils";
+import { ChatSerializer, type ChatFileData } from "./chat-serializer.ts";
 
 export interface DocumentAttachment {
   id: string;
@@ -49,28 +50,52 @@ export class Chat {
   state = $state<LoadingState>({ type: "idle" });
   #abortController?: AbortController;
 
+  constructor(
+    initialData: string | null,
+    private onSave: (data: string) => void,
+  ) {
+    // Initialize with data if provided
+    if (initialData) {
+      try {
+        const parsedData = ChatSerializer.parse(initialData);
+        const chatData = ChatSerializer.deserialize(parsedData);
+
+        if (chatData.chat) {
+          this.messages = chatData.chat.messages || [];
+          this.attachments = chatData.chat.attachments || [];
+        }
+      } catch (error) {
+        console.error("Error parsing initial chat data:", error);
+      }
+    }
+  }
+
   addAttachment(file: TFile) {
     this.attachments.push({
       id: nanoid(),
       file,
     });
+    this.save();
   }
 
   removeAttachment(attachmentId: string) {
     const index = this.attachments.findIndex((a) => a.id === attachmentId);
     if (index !== -1) {
       this.attachments.splice(index, 1);
+      this.save();
     }
   }
 
   clearAttachments() {
     this.attachments = [];
+    this.save();
   }
 
   reset() {
     this.messages = [];
     this.#abortController?.abort("reset");
     this.#abortController = undefined;
+    this.save();
   }
 
   async loadChatbots() {
@@ -241,7 +266,10 @@ export class Chat {
                 console.log("Tool results:", toolResults);
               }
             },
-            onFinish: () => {},
+            onFinish: () => {
+              // Save after stream completes
+              this.save();
+            },
           });
 
           for await (const chunk of stream.fullStream) {
@@ -306,6 +334,18 @@ export class Chat {
       this.#abortController.abort("cancelled");
     }
     this.state = { type: "idle" };
+  }
+
+  /**
+   * Trigger save callback with serialized data
+   */
+  private save() {
+    const serializedData = ChatSerializer.serialize({
+      messages: this.messages,
+      attachments: this.attachments,
+    });
+    const data = ChatSerializer.stringify(serializedData);
+    this.onSave(data);
   }
 
   private async handleRateLimit(

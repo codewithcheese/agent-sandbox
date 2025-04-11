@@ -6,7 +6,7 @@ export default {
   darkMode: ["class"],
   content: ["./src/**/*.{html,js,svelte,ts,tsx}"],
   corePlugins: {
-    // preflight: false, // Uncomment if you want to disable Tailwind’s base resets
+    preflight: false, // Uncomment if you want to disable Tailwind’s base resets
   },
   safelist: ["dark"],
   theme: {

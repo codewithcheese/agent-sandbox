@@ -42,13 +42,29 @@ export class AgentSandboxPlugin extends Plugin {
   }
 
   async activateChatView() {
-    const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(CHAT_VIEW_SLUG)[0];
-    if (!leaf) {
-      leaf = workspace.getRightLeaf(false)!;
-      await leaf.setViewState({ type: CHAT_VIEW_SLUG });
+    // Create a new chat file with an incremented name if needed
+    const baseName = "Untitled";
+    let fileName = baseName;
+    let counter = 1;
+
+    // Find an available filename
+    while (this.app.vault.getAbstractFileByPath(`${fileName}.chat`)) {
+      fileName = `${baseName} ${counter}`;
+      counter++;
     }
-    await workspace.revealLeaf(leaf);
+
+    // Create the file
+    const filePath = `${fileName}.chat`;
+    const file = await this.app.vault.create(filePath, "");
+
+    // Open the file in the chat view
+    const leaf = this.app.workspace.getLeaf();
+    await leaf.openFile(file, {
+      active: true,
+      state: { mode: CHAT_VIEW_SLUG },
+    });
+
+    await this.app.workspace.revealLeaf(leaf);
   }
 
   async onload() {
@@ -61,6 +77,9 @@ export class AgentSandboxPlugin extends Plugin {
       // This is a placeholder - actual content will be set later
       return new MergeView(leaf);
     });
+
+    // Register the chat file extension
+    this.registerExtensions(["chat"], CHAT_VIEW_SLUG);
 
     // Add ribbon icon for custom view
     this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {
@@ -144,7 +163,11 @@ export class AgentSandboxPlugin extends Plugin {
         // Get the view and initialize it with the content
         if (leaf.view instanceof MergeView) {
           const view = leaf.view as MergeView;
-          await view.setContent(currentContent, selectedContent, activeFile.path);
+          await view.setContent(
+            currentContent,
+            selectedContent,
+            activeFile.path,
+          );
         } else {
           this.showNotice("Failed to create merge view", 3000);
         }

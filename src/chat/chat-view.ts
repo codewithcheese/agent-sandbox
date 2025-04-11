@@ -1,19 +1,23 @@
-import { ItemView, Menu, WorkspaceLeaf } from "obsidian";
+import { FileView, Menu, TFile, WorkspaceLeaf } from "obsidian";
+import { mount, unmount } from "svelte";
 import ChatElement from "./ChatElement.svelte";
 
 export const CHAT_VIEW_SLUG = "agent-sandbox-chat-view";
 
-export class ChatView extends ItemView {
-  constructor(leaf: WorkspaceLeaf) {
-    super(leaf);
-  }
+export class ChatView extends FileView {
+  allowNoFile: boolean = true;
+  private component: any = null;
 
   getViewType(): string {
     return CHAT_VIEW_SLUG;
   }
 
   getDisplayText(): string {
-    return "Agent Sandbox Chat";
+    return this.file ? `${this.file.basename}` : "Chat";
+  }
+
+  getIcon(): string {
+    return "message-square";
   }
 
   onPaneMenu(menu: Menu, source: "more-options" | "tab-header" | string): void {
@@ -30,23 +34,40 @@ export class ChatView extends ItemView {
     }
   }
 
-  async onOpen() {
-    const container = this.containerEl.children[1];
-    container.empty();
-    try {
-      const tag = `svelte-chat-element`;
-      if (!customElements.get(tag)) {
-        //@ts-expect-error
-        customElements.define(tag, ChatElement.element);
-      }
-      container.innerHTML = `<${tag}></${tag}>`;
-    } catch (error) {
-      console.error(error);
+  async onClose() {
+    console.log("ChatView onClose");
+
+    if (this.component) {
+      await unmount(this.component);
+      this.component = null;
     }
+
+    await super.onClose();
   }
 
-  async onClose() {
-    const container = this.containerEl.children[1];
-    container.empty();
+  async onLoadFile(file: TFile) {
+    await super.onLoadFile(file);
+    console.log("onLoadFile", file);
+    await this.mount(file);
+  }
+
+  async mount(file: TFile) {
+    if (this.component) {
+      await unmount(this.component);
+      this.component = null;
+    }
+
+    // Mount the Svelte component with props
+    this.component = mount(ChatElement, {
+      target: this.containerEl.children[1],
+      props: {
+        data: await this.app.vault.read(file),
+        onSave: (data: string) => this.app.vault.modify(this.file, data),
+      },
+    });
+  }
+
+  canAcceptExtension(extension: string): boolean {
+    return extension === "chat";
   }
 }
