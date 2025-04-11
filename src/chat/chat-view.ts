@@ -5,7 +5,7 @@ import ChatElement from "./ChatElement.svelte";
 export const CHAT_VIEW_SLUG = "agent-sandbox-chat-view";
 
 export class ChatView extends FileView {
-  allowNoFile: boolean = true;
+  allowNoFile: boolean = false;
   private component: any = null;
 
   getViewType(): string {

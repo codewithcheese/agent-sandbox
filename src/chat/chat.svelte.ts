@@ -176,6 +176,25 @@ export class Chat {
     await this.callModel(model, account);
   }
 
+  async resume(modelId: string, accountId: string) {
+    const plugin = usePlugin();
+    // Find the selected model
+    const model = plugin.settings.models.find(
+      (model): model is ChatModel =>
+        model.type === "chat" && model.id === modelId,
+    );
+    if (!model) {
+      throw Error(`Chat model ${modelId} not found`);
+    }
+
+    // Find the selected account
+    const account = plugin.settings.accounts.find((a) => a.id === accountId);
+    if (!account) {
+      throw Error(`AI account ${accountId} not found`);
+    }
+    await this.callModel(model, account);
+  }
+
   async callModel(model: ChatModel, account: AIAccount) {
     try {
       this.state = {
@@ -323,6 +342,44 @@ export class Chat {
     } finally {
       this.#abortController = undefined;
       this.state = { type: "idle" };
+    }
+  }
+
+  addToolResult({ toolCallId, result }: { toolCallId: string; result: any }) {
+    // Find the message with the tool call
+    const messageIndex = this.messages.findIndex((m) =>
+      m.parts?.some(
+        (p) =>
+          p.type === "tool-invocation" &&
+          p.toolInvocation.toolCallId === toolCallId,
+      ),
+    );
+
+    if (messageIndex === -1) {
+      throw new Error("Tool call not found");
+    }
+
+    // Update the tool invocation state
+    const message = this.messages[messageIndex];
+    const partIndex = message.parts?.findIndex(
+      (p) =>
+        p.type === "tool-invocation" &&
+        p.toolInvocation.toolCallId === toolCallId,
+    );
+
+    if (partIndex === -1) {
+      throw new Error("Tool call part not found");
+    }
+
+    if (partIndex !== -1 && message.parts) {
+      const part = message.parts[partIndex];
+      if (part.type === "tool-invocation") {
+        part.toolInvocation = {
+          ...part.toolInvocation,
+          state: "result",
+          result,
+        };
+      }
     }
   }
 

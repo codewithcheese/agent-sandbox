@@ -21,6 +21,7 @@
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
+  import { Notice } from "obsidian";
 
   const plugin = usePlugin();
 
@@ -123,6 +124,80 @@
         }));
       });
   }
+
+  async function reviewTextEditorChanges(toolCallId: string, args: any) {
+    try {
+      const plugin = usePlugin();
+
+      // Get the file path
+      const normalizedPath = args.path.startsWith("/") ? args.path.substring(1) : args.path;
+
+      // Get the file
+      const file = plugin.app.vault.getFileByPath(normalizedPath);
+      if (!file) {
+        new Notice(`File not found: ${args.path}`, 3000);
+        return;
+      }
+
+      // Read the original content
+      const originalContent = await plugin.app.vault.read(file);
+
+      // Generate the proposed content based on the command
+      let proposedContent = originalContent;
+
+      if (args.command === "str_replace") {
+        proposedContent = originalContent.replace(args.old_str, args.new_str);
+      } else if (args.command === "insert") {
+        const lines = originalContent.split("\n");
+        lines.splice(args.insert_line, 0, args.new_str);
+        proposedContent = lines.join("\n");
+      }
+
+      // Open a new leaf for the merge view
+      const leaf = plugin.app.workspace.getRightLeaf(false);
+      await leaf.setViewState({
+        type: "merge-view",
+        state: {
+          originalContent,
+          proposedContent,
+          originalFilePath: normalizedPath,
+          toolCallId,
+          args
+        }
+      });
+
+      // Focus the new leaf
+      plugin.app.workspace.setActiveLeaf(leaf, { focus: true });
+
+      // Get the view
+      // const view = leaf.view as any;
+
+      // // Set up event handler for when changes are saved
+      // if (view && view.on) {
+      //   view.on("changes-saved", async (savedContent: string) => {
+      //     // Add the result to the chat
+      //     chat.addToolResult({
+      //       toolCallId,
+      //       result: { content: `Changes to ${args.path} were applied successfully.` },
+      //     });
+
+      //     // Resume the chat
+      //     await chat.resume(selectedModelId, selectedAccountId);
+      //   });
+
+      //   view.on("changes-rejected", async () => {
+      //     // Add a result indicating rejection
+      //     chat.addToolResult({
+      //       toolCallId,
+      //       result: { content: "Changes were rejected by the user." },
+      //     });
+      //   });
+      // }
+    } catch (error) {
+      console.error("Error opening merge view:", error);
+      new Notice(`Error: ${error.message}`, 3000);
+    }
+  }
 </script>
 
 <div use:insertCss={chatCss} class="flex h-full w-full">
@@ -214,28 +289,111 @@
             {#each message.parts as part}
               {#if part.type === "tool-invocation"}
                 <div class="bg-gray-50 rounded border border-gray-200 p-2 my-2">
-                  <div class="flex items-center gap-2 mb-1.5">
-                    <TerminalIcon size={14} class="text-gray-600" />
-                    <span class="font-medium text-gray-700"
-                      >{part.toolInvocation.toolName}</span
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs font-medium">
+                      Tool: {part.toolInvocation.toolName}
+                    </span>
+                  </div>
+
+                  <!-- Handle text editor tool in 'result' state for commands that need review -->
+                  {#if part.toolInvocation.toolName === "str_replace_editor" && 
+                       part.toolInvocation.state === "result" && 
+                       part.toolInvocation.result?.status === "pending_review"}
+                    <div
+                      class="bg-yellow-50 rounded border border-yellow-200 p-2 my-2"
                     >
-                    {#if part.toolInvocation.state === "result"}
-                      <CheckCircle2Icon
-                        size={14}
-                        class="text-green-500 ml-auto"
-                      />
-                    {:else if part.toolInvocation.state === "partial-call"}
-                      <Loader2Icon
-                        size={14}
-                        class="text-blue-500 ml-auto animate-spin"
-                      />
-                    {/if}
-                  </div>
-                  <div
-                    class="text-xs font-mono bg-gray-100 rounded p-1.5 overflow-x-auto"
-                  >
-                    {JSON.stringify(part.toolInvocation.args, null, 2)}
-                  </div>
+                      <h3 class="text-sm font-medium mb-2">
+                        Proposed File Changes
+                      </h3>
+                      <p class="text-sm mb-2">
+                        File: {part.toolInvocation.args.path}
+                      </p>
+
+                      {#if part.toolInvocation.args.command === "str_replace"}
+                        <p class="text-sm mb-2">
+                          Replace: <code class="bg-gray-100 px-1 rounded"
+                            >{part.toolInvocation.args.old_str}</code
+                          >
+                        </p>
+                        <p class="text-sm mb-2">
+                          With: <code class="bg-gray-100 px-1 rounded"
+                            >{part.toolInvocation.args.new_str}</code
+                          >
+                        </p>
+                      {:else if part.toolInvocation.args.command === "insert"}
+                        <p class="text-sm mb-2">
+                          Insert at line {part.toolInvocation.args.insert_line}:
+                        </p>
+                        <pre class="text-sm bg-gray-100 p-2 rounded mb-2">{part
+                            .toolInvocation.args.new_str}</pre>
+                      {/if}
+
+                      <div class="flex gap-2 mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="gap-1.5 rounded bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                          onclick={() =>
+                            reviewTextEditorChanges(
+                              part.toolInvocation.toolCallId,
+                              part.toolInvocation.args
+                            )}
+                        >
+                          <FileTextIcon class="size-3.5" />
+                          Review Changes
+                        </Button>
+                      </div>
+                    </div>
+                    <!-- Handle text editor tool in 'call' state for commands that don't need review -->
+                  {:else if part.toolInvocation.toolName === "str_replace_editor" && part.toolInvocation.state === "call" && ["view", "create"].includes(part.toolInvocation.args.command)}
+                    <div
+                      class="bg-blue-50 rounded border border-blue-200 p-2 my-2"
+                    >
+                      <h3 class="text-sm font-medium mb-2">File Operation</h3>
+                      <p class="text-sm mb-2">
+                        Command: {part.toolInvocation.args.command}
+                      </p>
+                      <p class="text-sm mb-2">
+                        Path: {part.toolInvocation.args.path}
+                      </p>
+
+                      {#if part.toolInvocation.args.command === "create" && part.toolInvocation.args.file_text}
+                        <details>
+                          <summary
+                            class="text-sm cursor-pointer hover:text-blue-600"
+                            >View file content</summary
+                          >
+                          <pre
+                            class="text-xs mt-2 bg-gray-100 p-2 rounded max-h-40 overflow-auto">{part
+                              .toolInvocation.args.file_text}</pre>
+                        </details>
+                      {/if}
+
+                      <div class="flex gap-2 mt-4">
+                        <Button
+                          onclick={() =>
+                            executeTextEditorTool(
+                              part.toolInvocation.toolCallId,
+                              part.toolInvocation.args,
+                              true,
+                            )}
+                          variant="outline"
+                          size="sm"
+                          class="gap-1.5 rounded bg-blue-100 border-blue-300 text-blue-700 hover:bg-blue-200"
+                        >
+                          <TerminalIcon class="size-3.5" />
+                          Execute
+                        </Button>
+                      </div>
+                    </div>
+                    <!-- Handle other tool invocations normally -->
+                  {:else}
+                    <div
+                      class="text-xs bg-gray-100 p-2 rounded font-mono whitespace-pre-wrap"
+                    >
+                      {JSON.stringify(part.toolInvocation.args, null, 2)}
+                    </div>
+                  {/if}
                 </div>
               {/if}
             {/each}

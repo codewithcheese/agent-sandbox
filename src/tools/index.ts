@@ -188,17 +188,11 @@ export async function textEditor({ command, path, file_text, insert_line, new_st
           return { error: `Multiple occurrences (${occurrences}) of text to replace found in file: ${path}` };
         }
         
-        // Save current content for undo
-        if (!fileEditHistory.has(normalizedPath)) {
-          fileEditHistory.set(normalizedPath, []);
-        }
-        fileEditHistory.get(normalizedPath)?.push(content);
-        
-        // Replace the text
-        const newContent = content.replace(old_str, new_str);
-        await plugin.app.vault.modify(file, newContent);
-        
-        return { content: "Successfully replaced text at exactly one location." };
+        // Instead of applying the change, return a confirmation
+        return { 
+          content: `Proposed to replace "${old_str}" with "${new_str}" in ${path}. Changes require review.`,
+          status: "pending_review",
+        };
       }
       
       case "insert": {
@@ -224,18 +218,11 @@ export async function textEditor({ command, path, file_text, insert_line, new_st
           return { error: `Invalid insert_line: ${insert_line}. File has ${lines.length} lines.` };
         }
         
-        // Save current content for undo
-        if (!fileEditHistory.has(normalizedPath)) {
-          fileEditHistory.set(normalizedPath, []);
-        }
-        fileEditHistory.get(normalizedPath)?.push(content);
-        
-        // Insert the text
-        lines.splice(insert_line, 0, new_str);
-        const newContent = lines.join("\n");
-        await plugin.app.vault.modify(file, newContent);
-        
-        return { content: `Successfully inserted text after line ${insert_line}.` };
+        // Instead of applying the change, return a confirmation
+        return { 
+          content: `Proposed to insert text at line ${insert_line} in ${path}. Changes require review.`,
+          status: "pending_review"
+        };
       }
       
       case "undo_edit": {
