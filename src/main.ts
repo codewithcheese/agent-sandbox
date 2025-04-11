@@ -2,6 +2,7 @@ import {
   App,
   Modal,
   Notice,
+  Platform,
   Plugin,
   type PluginManifest,
   TFile,
@@ -42,23 +43,22 @@ export class AgentSandboxPlugin extends Plugin {
   }
 
   async activateChatView() {
-    // Create a new chat file with an incremented name if needed
     const baseName = "Untitled";
     let fileName = baseName;
     let counter = 1;
 
-    // Find an available filename
     while (this.app.vault.getAbstractFileByPath(`${fileName}.chat`)) {
       fileName = `${baseName} ${counter}`;
       counter++;
     }
 
-    // Create the file
     const filePath = `${fileName}.chat`;
     const file = await this.app.vault.create(filePath, "");
 
-    // Open the file in the chat view
-    const leaf = this.app.workspace.getLeaf();
+    const leaf = Platform.isMobile
+      ? this.app.workspace.getLeaf()
+      : this.app.workspace.getRightLeaf(false);
+
     await leaf.openFile(file, {
       active: true,
       state: { mode: CHAT_VIEW_SLUG },

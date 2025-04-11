@@ -10,8 +10,6 @@
 
   const { data, onSave }: Props = $props();
 
-  $inspect("data", data);
-
   const chat = new Chat(data, onSave);
 
   onMount(() => {
