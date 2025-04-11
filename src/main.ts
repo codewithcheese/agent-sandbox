@@ -71,7 +71,7 @@ export class AgentSandboxPlugin extends Plugin {
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();
     });
-    
+
     // Add ribbon icon for merge view
     this.addRibbonIcon("git-merge", "Merge Documents", async () => {
       await this.openMergeView();
@@ -118,35 +118,42 @@ export class AgentSandboxPlugin extends Plugin {
 
   async openMergeView() {
     const activeFile = this.app.workspace.getActiveFile();
-    
+
     if (!activeFile) {
       this.showNotice("No active file to merge with", 3000);
       return;
     }
-    
+
     const currentContent = await this.app.vault.read(activeFile);
-    
+
     this.openFileSelect(async (selectedFile: TFile) => {
       if (selectedFile.path === activeFile.path) {
         this.showNotice("Cannot merge a file with itself", 3000);
         return;
       }
-      
+
       try {
         const selectedContent = await this.app.vault.read(selectedFile);
-        
+
         const leaf = this.app.workspace.getLeaf(true);
         await leaf.setViewState({
           type: MERGE_VIEW_TYPE,
-          state: {}
+          state: {},
         });
-        
+
         // Get the view and initialize it with the content
-        const view = leaf.view as MergeView;
-        view.setContent(currentContent, selectedContent);
-        
+        if (leaf.view instanceof MergeView) {
+          const view = leaf.view as MergeView;
+          await view.setContent(currentContent, selectedContent, activeFile.path);
+        } else {
+          this.showNotice("Failed to create merge view", 3000);
+        }
+
         await this.app.workspace.revealLeaf(leaf);
-        this.showNotice(`Merging ${activeFile.name} with ${selectedFile.name}`, 3000);
+        this.showNotice(
+          `Merging ${activeFile.name} with ${selectedFile.name}`,
+          3000,
+        );
       } catch (error) {
         console.error("Error opening merge view:", error);
         this.showNotice(`Error: ${(error as Error).message}`, 3000);
