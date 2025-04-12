@@ -245,44 +245,41 @@
     </div>
     <div class="flex flex-col flex-1 overflow-y-auto gap-1">
       {#each chat.messages as message}
-        <div
-          class={message.role === "user"
-            ? "bg-gray-50 rounded"
-            : "text text-gray-800"}
-        >
+        <div class={message.role === "user" ? "" : "text text-gray-800"}>
           {#if message.content}
             <div
               class="whitespace-pre-wrap prose leading-none select-text
-                          prose-h1:my-2
-                          prose-h2:mt-2 prose-h2:mb-1
-                          prose-h3:mt-2 prose-h3:mb-1
-                          prose-h4:mt-2 prose-h4:mb-1
-                          prose-h5:mt-2 prose-h5:mb-1
-                          prose-h6:my-1
-                          prose-p:my-1
-                          prose-blockquote:my-1
-                          prose-figure:my-1
-                          prose-figcaption:mt-1
-                          prose-ul:my-0
-                          prose-ol:my-0
-                          prose-li:my-0
-                          prose-table:my-1
-                          prose-thead:my-1
-                          prose-tbody:my-1
-                          prose-dl:my-1
-                          prose-dt:my-1
-                          prose-dd:my-1
+                          prose-h1:m-0
+                          prose-h2:m-0
+                          prose-h3:m-0
+                          prose-h4:m-0
+                          prose-h5:m-0
+                          prose-h6:m-0
+                          prose-p:m-0
+                          prose-blockquote:m-0
+                          prose-figure:m-0
+                          prose-figcaption:m-0
+                          prose-ul:m-0
+                          prose-ol:m-0
+                          prose-li:m-0
+                          prose-table:m-0
+                          prose-thead:m-0
+                          prose-tbody:m-0
+                          prose-dl:m-0
+                          prose-dt:m-0
+                          prose-dd:m-0
                           prose-hr:my-2
-                          prose-pre:my-1
+                          prose-pre:m-0
                           prose-code:px-1
-                          prose-lead:my-1
+                          prose-lead:m-0
                           prose-strong:font-semibold
-                          prose-img:my-1
-                          prose-video:my-1
+                          prose-img:m-0
+                          prose-video:m-0
+
                           prose-a:decoration-1 text-foreground max-w-full {message.role ===
               'user'
-                ? 'p-2'
-                : 'py-2'}"
+                ? 'bg-violet-50 rounded p-4'
+                : 'py-4'}"
             >
               <Markdown md={message.content} />
             </div>
@@ -293,9 +290,7 @@
               <div class="flex flex-wrap gap-2">
                 {#each message.experimental_attachments as attachment}
                   <button
-                    class={message.role === "user"
-                      ? "flex items-center gap-1.5 py-1 px-2 bg-purple-400/20 rounded text-sm hover:bg-purple-400/30 transition-colors"
-                      : "flex items-center gap-1.5 py-1 px-2 bg-gray-100 rounded text-sm hover:bg-gray-200 transition-colors"}
+                    class="clickable-icon gap-1"
                     onclick={() => openFile(attachment.name)}
                   >
                     <FileTextIcon class="size-3.5" />
@@ -336,7 +331,7 @@
       {/if}
     </div>
 
-    <form name="input" class="mt-4" onsubmit={handleSubmit}>
+    <form name="input" class="mt-2" onsubmit={handleSubmit}>
       {#if chat.state.type === "loading"}
         <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
           <Loader2Icon class="size-4 animate-spin" />
@@ -346,21 +341,25 @@
       {#if chat.attachments.length > 0}
         <div class="flex flex-wrap gap-2 mb-2">
           {#each chat.attachments as attachment}
-            <div
-              class="flex items-center gap-1.5 py-1 px-2 bg-gray-100 rounded text-sm"
+            <button
+              type="button"
+              onclick={() => openFile(normalizePath(attachment.file.path))}
+              class="clickable-icon items-center gap-1"
             >
               <FileTextIcon class="size-3.5 text-gray-600" />
               <span class="max-w-[200px] truncate"
                 >{getBaseName(attachment.file.path)}</span
               >
-              <button
-                type="button"
-                class="text-gray-500 hover:text-gray-700"
-                onclick={() => chat.removeAttachment(attachment.id)}
+              <span
+                class="text-gray-500 hover:text-gray-700 hover:bg-gray-100 flex items-center"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  chat.removeAttachment(attachment.id);
+                }}
               >
                 <XIcon class="size-3.5" />
-              </button>
-            </div>
+              </span>
+            </button>
           {/each}
         </div>
       {/if}

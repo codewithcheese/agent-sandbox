@@ -64,6 +64,11 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Merge view tweaks
+  - [ ] Open in main leaf
+  - [ ] Add margins
+  - [ ] Add title
+- [ ] Add pending edits indicator
 - [x] Stop generation button
 - [x] Catch errors in call model and reset state
 - [ ] Action button prompts
