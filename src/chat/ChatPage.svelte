@@ -22,6 +22,7 @@
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { normalizePath, Notice } from "obsidian";
+  import TextEditorToolView from "./TextEditorToolView.svelte";
 
   const plugin = usePlugin();
 
@@ -91,14 +92,6 @@
     return path.split("/").pop() || path;
   }
 
-  function openAttachment(path: string) {
-    const plugin = usePlugin();
-    const file = plugin.app.vault.getFileByPath(path);
-    if (file) {
-      plugin.app.workspace.openLinkText(file.path, "", true);
-    }
-  }
-
   function openFile(path: string) {
     const plugin = usePlugin();
     const normalizedPath = normalizePath(path);
@@ -107,7 +100,7 @@
       new Notice(`File not found: ${normalizedPath}`, 3000);
       return;
     }
-    const centerLeaf = plugin.app.workspace.getLeaf('tab');
+    const centerLeaf = plugin.app.workspace.getLeaf("tab");
     centerLeaf.openFile(file, { active: true });
   }
 
@@ -214,7 +207,7 @@
   }
 </script>
 
-<div use:insertCss={chatCss} class="flex h-full w-full">
+<div use:insertCss={chatCss} class="flex h-full chat-margin">
   <div class="flex flex-col h-full p-2 w-full">
     <div class="mb-4 flex gap-2 justify-between">
       <div class="flex flex-row items-center gap-1">
@@ -250,24 +243,16 @@
         <PlusIcon class="size-3.5" />
       </Button>
     </div>
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex flex-col flex-1 overflow-y-auto gap-1">
       {#each chat.messages as message}
         <div
           class={message.role === "user"
-            ? "border border-gray-rgb rounded p-2 my-2"
-            : "text text-gray-800 my-4"}
+            ? "bg-gray-50 rounded"
+            : "text text-gray-800"}
         >
-          {#if message.role === "user"}
-            <div class="flex justify-between items-center mb-0.5 text-xs">
-              <span class="font-medium">You</span>
-              {#if message.createdAt}
-                <span class="opacity-80">{formatDate(message.createdAt)}</span>
-              {/if}
-            </div>
-          {/if}
-
-          <div
-            class="whitespace-pre-wrap prose leading-none select-text
+          {#if message.content}
+            <div
+              class="whitespace-pre-wrap prose leading-none select-text
                           prose-h1:my-2
                           prose-h2:mt-2 prose-h2:mb-1
                           prose-h3:mt-2 prose-h3:mb-1
@@ -294,107 +279,13 @@
                           prose-strong:font-semibold
                           prose-img:my-1
                           prose-video:my-1
-                          prose-a:decoration-1 text-foreground max-w-full"
-          >
-            <Markdown md={message.content} />
-          </div>
-
-          {#if message.parts?.some((part) => part.type === "tool-invocation")}
-            {#each message.parts as part}
-              {#if part.type === "tool-invocation"}
-                <div class="bg-gray-50 rounded border border-gray-200 p-2 my-2">
-                  <div class="flex justify-between items-center mb-1">
-                    <span class="text-xs font-medium">
-                      Tool: {part.toolInvocation.toolName}
-                    </span>
-                  </div>
-
-                  <!-- Handle text editor tool in 'result' state for commands that need review -->
-                  {#if part.toolInvocation.toolName === "str_replace_editor" && part.toolInvocation.state === "result" && part.toolInvocation.result?.status === "pending_review"}
-                    <div
-                      class="bg-yellow-50 rounded border border-yellow-200 p-2 my-2"
-                    >
-                      <h3 class="text-sm font-medium mb-2">
-                        Proposed File Changes
-                      </h3>
-                      <p class="text-sm mb-2">
-                        File: {part.toolInvocation.args.path}
-                      </p>
-
-                      {#if part.toolInvocation.args.command === "str_replace"}
-                        <p class="text-sm mb-2">
-                          Replace: <code class="bg-gray-100 px-1 rounded"
-                            >{part.toolInvocation.args.old_str}</code
-                          >
-                        </p>
-                        <p class="text-sm mb-2">
-                          With: <code class="bg-gray-100 px-1 rounded"
-                            >{part.toolInvocation.args.new_str}</code
-                          >
-                        </p>
-                      {:else if part.toolInvocation.args.command === "insert"}
-                        <p class="text-sm mb-2">
-                          Insert at line {part.toolInvocation.args.insert_line}:
-                        </p>
-                        <pre class="text-sm bg-gray-100 p-2 rounded mb-2">{part
-                            .toolInvocation.args.new_str}</pre>
-                      {/if}
-
-                      <div class="flex gap-2 mt-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          class="gap-1.5 rounded bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-                          onclick={() =>
-                            reviewTextEditorChanges(
-                              part.toolInvocation.toolCallId,
-                              part.toolInvocation.args,
-                            )}
-                        >
-                          <FileTextIcon class="size-3.5" />
-                          Review Changes
-                        </Button>
-                      </div>
-                    </div>
-                  {:else if part.toolInvocation.toolName === "str_replace_editor" && ["view", "create"].includes(part.toolInvocation.args.command)}
-                    <div
-                      class="bg-blue-50 rounded border border-blue-200 p-2 my-2"
-                    >
-                      <h3 class="text-sm font-medium mb-2">File Operation</h3>
-                      <p class="text-sm mb-2">
-                        Command: {part.toolInvocation.args.command}
-                      </p>
-                      <p class="text-sm mb-2">
-                        <button
-                          class="text-blue-600 hover:underline"
-                          onclick={() =>
-                            openFile(part.toolInvocation.args.path)}
-                          >{part.toolInvocation.args.path}</button
-                        >
-                      </p>
-
-                      {#if part.toolInvocation.args.command === "create" && part.toolInvocation.args.file_text}
-                        <details>
-                          <summary
-                            class="text-sm cursor-pointer hover:text-blue-600"
-                            >View file content</summary
-                          >
-                          <pre
-                            class="text-xs mt-2 bg-gray-100 p-2 rounded max-h-40 overflow-auto">{part
-                              .toolInvocation.args.file_text}</pre>
-                        </details>
-                      {/if}
-                    </div>
-                  {:else}
-                    <div
-                      class="text-xs bg-gray-100 p-2 rounded font-mono whitespace-pre-wrap"
-                    >
-                      {JSON.stringify(part.toolInvocation.args, null, 2)}
-                    </div>
-                  {/if}
-                </div>
-              {/if}
-            {/each}
+                          prose-a:decoration-1 text-foreground max-w-full {message.role ===
+              'user'
+                ? 'p-2'
+                : 'py-2'}"
+            >
+              <Markdown md={message.content} />
+            </div>
           {/if}
 
           {#if message.experimental_attachments && message.experimental_attachments.length > 0}
@@ -405,11 +296,11 @@
                     class={message.role === "user"
                       ? "flex items-center gap-1.5 py-1 px-2 bg-purple-400/20 rounded text-sm hover:bg-purple-400/30 transition-colors"
                       : "flex items-center gap-1.5 py-1 px-2 bg-gray-100 rounded text-sm hover:bg-gray-200 transition-colors"}
-                    onclick={() => openAttachment(attachment.name || "")}
+                    onclick={() => openFile(attachment.name)}
                   >
                     <FileTextIcon class="size-3.5" />
                     <span class="max-w-[200px] truncate"
-                      >{getBaseName(attachment.name || "")}</span
+                      >{getBaseName(attachment.name)}</span
                     >
                   </button>
                 {/each}
@@ -417,6 +308,27 @@
             </div>
           {/if}
         </div>
+        {#if message.parts?.some((part) => part.type === "tool-invocation")}
+          {#each message.parts as part}
+            {#if part.type === "tool-invocation"}
+              <div class="rounded border border-gray-200">
+                <!-- Handle tool invocations -->
+                {#if part.toolInvocation.toolName === "str_replace_editor"}
+                  <TextEditorToolView
+                    toolInvocation={part.toolInvocation}
+                    {reviewTextEditorChanges}
+                  />
+                {:else}
+                  <div
+                    class="text-xs bg-gray-100 p-2 rounded font-mono whitespace-pre-wrap"
+                  >
+                    {JSON.stringify(part.toolInvocation.args, null, 2)}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          {/each}
+        {/if}
       {/each}
 
       {#if chat.state.type === "retrying"}
@@ -516,3 +428,11 @@
     </form>
   </div>
 </div>
+
+<style>
+  .chat-margin {
+    max-width: var(--file-line-width);
+    margin-left: auto;
+    margin-right: auto;
+  }
+</style>
