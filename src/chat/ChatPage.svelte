@@ -21,7 +21,7 @@
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
-  import { Notice } from "obsidian";
+  import { normalizePath, Notice } from "obsidian";
 
   const plugin = usePlugin();
 
@@ -99,6 +99,18 @@
     }
   }
 
+  function openFile(path: string) {
+    const plugin = usePlugin();
+    const normalizedPath = normalizePath(path);
+    const file = plugin.app.vault.getFileByPath(normalizedPath);
+    if (!file) {
+      new Notice(`File not found: ${normalizedPath}`, 3000);
+      return;
+    }
+    const centerLeaf = plugin.app.workspace.getLeaf('tab');
+    centerLeaf.openFile(file, { active: true });
+  }
+
   function getModelAccountOptions() {
     const accountsByProvider = {} as Record<AIProviderId, AIAccount[]>;
     plugin.settings.accounts.forEach((account) => {
@@ -130,7 +142,9 @@
       const plugin = usePlugin();
 
       // Get the file path
-      const normalizedPath = args.path.startsWith("/") ? args.path.substring(1) : args.path;
+      const normalizedPath = args.path.startsWith("/")
+        ? args.path.substring(1)
+        : args.path;
 
       // Get the file
       const file = plugin.app.vault.getFileByPath(normalizedPath);
@@ -162,8 +176,8 @@
           proposedContent,
           originalFilePath: normalizedPath,
           toolCallId,
-          args
-        }
+          args,
+        },
       });
 
       // Focus the new leaf
@@ -296,9 +310,7 @@
                   </div>
 
                   <!-- Handle text editor tool in 'result' state for commands that need review -->
-                  {#if part.toolInvocation.toolName === "str_replace_editor" && 
-                       part.toolInvocation.state === "result" && 
-                       part.toolInvocation.result?.status === "pending_review"}
+                  {#if part.toolInvocation.toolName === "str_replace_editor" && part.toolInvocation.state === "result" && part.toolInvocation.result?.status === "pending_review"}
                     <div
                       class="bg-yellow-50 rounded border border-yellow-200 p-2 my-2"
                     >
@@ -336,7 +348,7 @@
                           onclick={() =>
                             reviewTextEditorChanges(
                               part.toolInvocation.toolCallId,
-                              part.toolInvocation.args
+                              part.toolInvocation.args,
                             )}
                         >
                           <FileTextIcon class="size-3.5" />
@@ -344,8 +356,7 @@
                         </Button>
                       </div>
                     </div>
-                    <!-- Handle text editor tool in 'call' state for commands that don't need review -->
-                  {:else if part.toolInvocation.toolName === "str_replace_editor" && part.toolInvocation.state === "call" && ["view", "create"].includes(part.toolInvocation.args.command)}
+                  {:else if part.toolInvocation.toolName === "str_replace_editor" && ["view", "create"].includes(part.toolInvocation.args.command)}
                     <div
                       class="bg-blue-50 rounded border border-blue-200 p-2 my-2"
                     >
@@ -354,7 +365,12 @@
                         Command: {part.toolInvocation.args.command}
                       </p>
                       <p class="text-sm mb-2">
-                        Path: {part.toolInvocation.args.path}
+                        <button
+                          class="text-blue-600 hover:underline"
+                          onclick={() =>
+                            openFile(part.toolInvocation.args.path)}
+                          >{part.toolInvocation.args.path}</button
+                        >
                       </p>
 
                       {#if part.toolInvocation.args.command === "create" && part.toolInvocation.args.file_text}
@@ -368,25 +384,7 @@
                               .toolInvocation.args.file_text}</pre>
                         </details>
                       {/if}
-
-                      <div class="flex gap-2 mt-4">
-                        <Button
-                          onclick={() =>
-                            executeTextEditorTool(
-                              part.toolInvocation.toolCallId,
-                              part.toolInvocation.args,
-                              true,
-                            )}
-                          variant="outline"
-                          size="sm"
-                          class="gap-1.5 rounded bg-blue-100 border-blue-300 text-blue-700 hover:bg-blue-200"
-                        >
-                          <TerminalIcon class="size-3.5" />
-                          Execute
-                        </Button>
-                      </div>
                     </div>
-                    <!-- Handle other tool invocations normally -->
                   {:else}
                     <div
                       class="text-xs bg-gray-100 p-2 rounded font-mono whitespace-pre-wrap"
