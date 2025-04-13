@@ -90,7 +90,8 @@
   }
 
   function startNewChat() {
-    chat.reset();
+    const plugin = usePlugin();
+    plugin.activateChatView();
   }
 
   function getBaseName(path: string): string {

@@ -91,13 +91,6 @@ export class Chat {
     this.save();
   }
 
-  reset() {
-    this.messages = [];
-    this.#abortController?.abort("reset");
-    this.#abortController = undefined;
-    this.save();
-  }
-
   async loadChatbots() {
     const plugin = usePlugin();
     const directoryPath = plugin.settings.chatbotsPath;
