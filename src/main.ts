@@ -10,7 +10,7 @@ import {
 } from "obsidian";
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
 import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/MergeView.ts";
-import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.ts";
+import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.svelte.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
 import {
   DEFAULT_SETTINGS,

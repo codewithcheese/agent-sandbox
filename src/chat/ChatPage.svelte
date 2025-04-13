@@ -1,6 +1,7 @@
 <script lang="ts">
   // @ts-expect-error css import type issue
   import chatCss from "./chat.css?inline";
+
   import { Textarea } from "$lib/components/ui/textarea";
   import { Button } from "$lib/components/ui/button";
   import {
@@ -17,16 +18,21 @@
   import type { Chat } from "./chat.svelte.ts";
   import { cn, formatDate, usePlugin } from "$lib/utils";
   import { insertCss } from "$lib/utils/insert-css.ts";
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, getContext } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { normalizePath, Notice } from "obsidian";
   import TextEditorToolView from "./TextEditorToolView.svelte";
+  import { VIEW_CTX, type ViewContext } from "$lib/obsidian/view.ts";
 
   const plugin = usePlugin();
 
   let { chat }: { chat: Chat } = $props();
+
+  const view = getContext<ViewContext>(VIEW_CTX);
+
+  $inspect("view", view);
 
   let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedModelId: string | undefined = $state(
@@ -209,10 +215,12 @@
 
 <div
   use:insertCss={chatCss}
-  class="bg-inherit"
-  style="padding: 0 var(--size-4-3) 0"
+  style="padding: 0 var(--size-4-3) 0; background-color: var(--background-primary)"
 >
-  <div class="sticky top-0 w-full z-10 pb-4 pt-3">
+  <div
+    class="sticky top-0 w-full z-10 pb-4 pt-3"
+    style="background-color: var(--background-primary)"
+  >
     <div class="w-full flex flex-row justify-between items-center">
       <div class="flex flex-row items-center gap-1">
         <select
@@ -250,7 +258,7 @@
   </div>
 
   <div class="flex h-full chat-margin">
-    <div class="flex flex-col flex-1 gap-1 pb-[140px]">
+    <div class="flex flex-col flex-1 gap-1 pb-[40px]">
       {#each chat.messages as message}
         <div class={message.role === "user" ? "" : "text text-gray-800"}>
           {#if message.content}
@@ -341,8 +349,9 @@
 
   <form
     name="input"
-    style="background-color: var(--background)"
-    class="sticky bottom-0 left-0 z-10 p-4 w-full"
+    class="sticky bottom-0 left-0 z-10 p-2 pt-4 w-full z-10 {view.position ===
+      'right' && 'pb-8'}"
+    style="background-color: var(--background-primary)"
     onsubmit={handleSubmit}
   >
     <div class="chat-margin">

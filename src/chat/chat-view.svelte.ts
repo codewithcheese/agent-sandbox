@@ -1,12 +1,16 @@
 import { FileView, Menu, TFile, WorkspaceLeaf } from "obsidian";
 import { mount, unmount } from "svelte";
 import ChatElement from "./ChatElement.svelte";
+import type { ViewContext } from "$lib/obsidian/view.ts";
 
 export const CHAT_VIEW_SLUG = "agent-sandbox-chat-view";
 
 export class ChatView extends FileView {
   allowNoFile: boolean = false;
   private component: any = null;
+  view = $state<ViewContext>({
+    position: "center",
+  });
 
   getViewType(): string {
     return CHAT_VIEW_SLUG;
@@ -18,6 +22,23 @@ export class ChatView extends FileView {
 
   getIcon(): string {
     return "message-square";
+  }
+
+  setPosition() {
+    // @ts-expect-error containerEl is set but not typed
+    if (this.leaf.containerEl.closest(".mod-right-split")) {
+      this.view.position = "right";
+      // @ts-expect-error containerEl is set but not typed
+    } else if (this.leaf.containerEl.closest(".mod-left-split")) {
+      this.view.position = "left";
+    } else {
+      this.view.position = "center";
+    }
+  }
+
+  onResize() {
+    super.onResize();
+    this.setPosition();
   }
 
   onPaneMenu(menu: Menu, source: "more-options" | "tab-header" | string): void {
@@ -32,6 +53,11 @@ export class ChatView extends FileView {
           });
       });
     }
+  }
+
+  async onOpen() {
+    await super.onOpen();
+    this.setPosition();
   }
 
   async onClose() {
@@ -58,6 +84,7 @@ export class ChatView extends FileView {
     }
 
     const viewContent = this.containerEl.children[1] as HTMLDivElement;
+    // Reset padding
     viewContent.style.padding = "0px";
 
     // Mount the Svelte component with props
@@ -66,6 +93,7 @@ export class ChatView extends FileView {
       props: {
         data: await this.app.vault.read(file),
         onSave: (data: string) => this.app.vault.modify(this.file, data),
+        view: this.view,
       },
     });
   }
