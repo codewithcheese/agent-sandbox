@@ -11,6 +11,7 @@ import {
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
 import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/MergeView.ts";
 import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.svelte.ts";
+import { ARTIFACT_VIEW_TYPE, ArtifactView } from "./artifacts/ArtifactView.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
 import {
   DEFAULT_SETTINGS,
@@ -71,32 +72,28 @@ export class AgentSandboxPlugin extends Plugin {
     await this.loadSettings();
     await this.initializePGlite();
 
-    // Register custom views
     this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf));
-    this.registerView(MERGE_VIEW_TYPE, (leaf) => {
-      // This is a placeholder - actual content will be set later
-      return new MergeView(leaf);
-    });
+    this.registerView(MERGE_VIEW_TYPE, (leaf) => new MergeView(leaf));
+    this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
 
-    // Register the chat file extension
     this.registerExtensions(["chat"], CHAT_VIEW_SLUG);
 
-    // Add ribbon icon for custom view
     this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {
       await this.activateChatView();
     });
 
-    // Add ribbon icon for library tree
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();
     });
 
-    // Add ribbon icon for merge view
     this.addRibbonIcon("git-merge", "Merge Documents", async () => {
       await this.openMergeView();
     });
 
-    // Add command to install tools
+    this.addRibbonIcon("code-block", "Open Artifact View", async () => {
+      await this.openArtifactView("");
+    });
+
     this.addCommand({
       id: "install-tools",
       name: "Install Built-in Tools",
@@ -105,7 +102,6 @@ export class AgentSandboxPlugin extends Plugin {
       },
     });
 
-    // This adds a settings tab so the user can configure various aspects of the plugin
     this.addSettingTab(new Settings(this.app, this));
   }
 
@@ -182,6 +178,28 @@ export class AgentSandboxPlugin extends Plugin {
         this.showNotice(`Error: ${(error as Error).message}`, 3000);
       }
     });
+  }
+
+  async openArtifactView(html: string) {
+    // Find or create a leaf in Obsidian's workspace
+    let leaf = this.app.workspace.getLeavesOfType(ARTIFACT_VIEW_TYPE)[0];
+    if (!leaf) {
+      leaf = this.app.workspace.getLeaf(false);
+      await leaf.setViewState({
+        type: ARTIFACT_VIEW_TYPE,
+        active: true,
+      });
+    } else {
+      this.app.workspace.revealLeaf(leaf);
+    }
+
+    // Load the content
+    if (leaf.view instanceof ArtifactView) {
+      const artifactView = leaf.view;
+      artifactView.loadHtml(html);
+    }
+
+    return leaf;
   }
 
   showNotice(message: string, duration?: number) {

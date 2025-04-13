@@ -17,7 +17,7 @@ import {
 } from "$lib/utils/embeds.ts";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { fileTree } from "$lib/utils/file-tree.ts";
-import { loadToolsFromFrontmatter } from "$lib/utils/tools.ts";
+import { loadToolsFromFrontmatter } from "../tools";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
 import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";

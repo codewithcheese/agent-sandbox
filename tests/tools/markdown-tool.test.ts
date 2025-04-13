@@ -5,7 +5,7 @@ import "../mocks/ai-sdk";
 
 // Import after mocking - we can access the mocked objects directly
 import type { TFile } from "obsidian";
-import { parseToolDefinition, createVaultTool } from "$lib/utils/tools.ts";
+import { parseToolDefinition, createVaultTool } from "../../src/tools";
 
 describe("Markdown Tool Execution", () => {
   // Define the options required by the AI SDK tool execute method
@@ -363,6 +363,6 @@ This is a test tool using import.
 
     // Check the result contains the error about the nonexistent function
     expect(result).toHaveProperty("error");
-    expect(result.error).toContain("not found in tools/index.ts");
+    expect(result.error).toContain("not found in tools/execute.ts");
   });
 });

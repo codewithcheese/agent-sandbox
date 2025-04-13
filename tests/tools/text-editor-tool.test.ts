@@ -7,7 +7,7 @@ import type { TFile } from "obsidian";
 
 // @ts-expect-error raw import not recognized by TypeScript
 import textEditorMd from "../../src/tools/Text Editor.md?raw";
-import { createVaultTool, parseToolDefinition } from "$lib/utils/tools.ts";
+import { createVaultTool, parseToolDefinition } from "../../src/tools";
 
 describe("Text Editor Tool", () => {
   let testFile: TFile;

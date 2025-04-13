@@ -260,7 +260,7 @@
   </div>
 
   <div class="flex chat-margin flex-1">
-    <div class="flex flex-col flex-1 gap-1 pb-[40px]">
+    <div class="flex flex-col w-full flex-1 gap-1 pb-[40px]">
       {#each chat.messages as message}
         <div class={message.role === "user" ? "" : "text text-gray-800"}>
           {#if message.content}
@@ -455,6 +455,7 @@
 
 <style>
   .chat-margin {
+    width: 100%;
     max-width: var(--file-line-width);
     margin-left: auto;
     margin-right: auto;
