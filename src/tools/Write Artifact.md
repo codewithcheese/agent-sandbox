@@ -10,11 +10,15 @@ This tool allows you to display AI-generated HTML and JavaScript content in an i
 {
   "type": "object",
   "properties": {
+    "name": {
+        "type": "string",
+        "description": "Unique human readable name for the artifact, 2-3 words at most."
+    }, 
     "html": {
       "type": "string",
       "description": "The HTML content to display, which can include CSS and JavaScript. This content will be loaded into an iframe with sandbox attributes."
     }
   },
-  "required": ["html"]
+  "required": ["name", "html"]
 }
 ```

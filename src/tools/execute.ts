@@ -1,6 +1,7 @@
 import { PyodideExecutor } from "$lib/pyodide/executor";
 import { usePlugin } from "$lib/utils";
 import { fileTree } from "$lib/utils/file-tree.ts";
+import type { Artifact } from "../artifacts/artifact-vew.svelte.ts";
 
 // Keep track of file edits for undo functionality
 const fileEditHistory = new Map<string, string[]>();
@@ -10,19 +11,20 @@ export * from "./reddit.ts";
 /**
  * Opens AI-generated HTML content in the ArtifactView
  */
-export async function writeArtifact({ html }) {
+export async function writeArtifact(artifact: Artifact) {
   try {
+    console.log("Writing artifact:", artifact);
     const plugin = usePlugin();
-    const leaf = await plugin.openArtifactView(html);
-    
-    return { 
-      success: true, 
-      message: "Successfully opened content in ArtifactView" 
+    await plugin.openArtifactView(artifact);
+
+    return {
+      success: true,
+      message: "Successfully opened content in ArtifactView",
     };
   } catch (error) {
-    return { 
-      success: false, 
-      error: `Failed to open content in ArtifactView: ${error.message}` 
+    return {
+      success: false,
+      error: `Failed to open content in ArtifactView: ${error.message}`,
     };
   }
 }

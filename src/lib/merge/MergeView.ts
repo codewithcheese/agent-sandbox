@@ -1,7 +1,7 @@
-import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
+import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import { EditorState, Transaction } from "@codemirror/state";
 import { drawSelection, EditorView, keymap } from "@codemirror/view";
-import { unifiedMergeView, getOriginalDoc } from "@codemirror/merge";
+import { getOriginalDoc, unifiedMergeView } from "@codemirror/merge";
 import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
 
 /**
@@ -24,10 +24,6 @@ export class MergeView extends ItemView {
   private initialized: boolean = false;
   private hasUnsavedChanges: boolean = false;
 
-  constructor(leaf: WorkspaceLeaf) {
-    super(leaf);
-  }
-
   getViewType(): string {
     return MERGE_VIEW_TYPE;
   }
@@ -47,7 +43,7 @@ export class MergeView extends ItemView {
     container.empty();
     container.addClass("markdown-source-view");
     container.addClass("mod-cm6");
-    
+
     // Add unsaved changes indicator
     this.createUnsavedIndicator(container as HTMLElement);
 
@@ -86,15 +82,19 @@ export class MergeView extends ItemView {
               // Save the layout
               this.app.workspace.requestSaveLayout();
             }
-            
+
             // Check for accept/reject actions
-            if (v.transactions.some(tr => 
-                tr.annotation(Transaction.userEvent) === "accept" || 
-                tr.annotation(Transaction.userEvent) === "revert")) {
+            if (
+              v.transactions.some(
+                (tr) =>
+                  tr.annotation(Transaction.userEvent) === "accept" ||
+                  tr.annotation(Transaction.userEvent) === "revert",
+              )
+            ) {
               console.log("Accept or reject action detected");
               this.hasUnsavedChanges = true;
               this.updateUnsavedIndicator();
-              
+
               // Auto-save changes
               await this.saveChanges();
             }
@@ -128,8 +128,9 @@ export class MergeView extends ItemView {
       this.editorView.destroy();
       this.editorView = null;
     }
+    await super.onClose();
   }
-  
+
   /**
    * Create unsaved changes indicator
    */
@@ -147,37 +148,42 @@ export class MergeView extends ItemView {
     indicator.style.fontSize = "12px";
     indicator.style.zIndex = "10";
   }
-  
+
   /**
    * Update the unsaved changes indicator visibility
    */
   private updateUnsavedIndicator(): void {
-    const indicator = this.containerEl.querySelector(".merge-unsaved-indicator") as HTMLElement;
+    const indicator = this.containerEl.querySelector(
+      ".merge-unsaved-indicator",
+    ) as HTMLElement;
     if (indicator) {
       indicator.style.display = this.hasUnsavedChanges ? "block" : "none";
     }
   }
-  
+
   /**
    * Save changes to the original file
    */
   private async saveChanges(): Promise<void> {
     if (!this.editorView) return;
-    
+
     try {
       // Get the original document (which includes all accepted changes)
       const state = this.editorView.state;
       const originalDocText = getOriginalDoc(state).toString();
-      
+
       // Write back to the original file
-      await this.app.vault.adapter.write(this.originalFilePath, originalDocText);
-      
+      await this.app.vault.adapter.write(
+        this.originalFilePath,
+        originalDocText,
+      );
+
       // Reset unsaved changes flag
       this.hasUnsavedChanges = false;
       this.updateUnsavedIndicator();
-      
+
       // Show success notification
-      new Notice(`Changes saved to ${this.originalFilePath.split('/').pop()}`);
+      new Notice(`Changes saved to ${this.originalFilePath.split("/").pop()}`);
     } catch (error) {
       console.error("Error saving changes:", error);
       new Notice(`Error saving changes: ${(error as Error).message}`);
@@ -220,9 +226,6 @@ export class MergeView extends ItemView {
     };
   }
 
-  /**
-   * Restore state when Obsidian loads the view
-   */
   async setState(state: any, result: any): Promise<void> {
     console.log("Setting state", state);
 
@@ -231,10 +234,9 @@ export class MergeView extends ItemView {
 
       try {
         // Load the original content from the file
-        const originalContent = await this.app.vault.adapter.read(
+        this.originalContent = await this.app.vault.adapter.read(
           this.originalFilePath,
         );
-        this.originalContent = originalContent;
 
         // Set the proposed content directly from state
         if (state.proposedContent) {
@@ -249,7 +251,5 @@ export class MergeView extends ItemView {
         console.error("Error loading original file content:", error);
       }
     }
-
-    return Promise.resolve();
   }
 }

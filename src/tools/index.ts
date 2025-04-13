@@ -1,4 +1,4 @@
-import type { UIMessage } from "ai";
+import type { UIMessage, Tool } from "ai";
 import type { ToolInvocation, ToolInvocationUIPart } from "@ai-sdk/ui-utils";
 import type { TFile } from "obsidian";
 import { usePlugin } from "$lib/utils";
@@ -41,14 +41,14 @@ export function getToolCall(message: UIMessage, toolCallId: string) {
 /**
  * Interface representing a tool definition from a vault note
  */
-export interface VaultToolDefinition {
+export type VaultToolDefinition = {
   name: string;
   description: string;
   schema: any;
   code: string | null;
   import?: string; // Just the function name from tools/execute.ts
   file: TFile;
-}
+};
 
 /**
  * Cache of loaded vault tools to avoid reloading
@@ -218,7 +218,10 @@ export async function parseToolDefinition(
  * @param toolDef The tool definition from the vault
  * @returns An object containing the tool name and the tool implementation
  */
-export function createVaultTool(toolDef: VaultToolDefinition) {
+export function createVaultTool(toolDef: VaultToolDefinition): {
+  name: string;
+  tool: Tool;
+} {
   // Special case for Anthropic text editor tool
   if (toolDef.name === "str_replace_editor") {
     // Use the Anthropic text editor tool constructor
@@ -325,19 +328,10 @@ export function createVaultTool(toolDef: VaultToolDefinition) {
   return { name: toolDef.name, tool: vaultTool };
 }
 
-/**
- * Loads all tool definitions from the vault
- *
- * @param toolsPath The path to the directory containing tool definitions
- * @returns A map of tool names to tool implementations
- */
-export async function loadVaultTools(
-  toolsPath: string,
-): Promise<Record<string, any>> {
+export async function loadAllTools(toolsPath: string) {
   const plugin = usePlugin();
-  const tools: Record<string, any> = {};
+  const tools: Record<string, Tool> = {};
 
-  // Get all files in the tools directory
   const files = plugin.app.vault.getFiles();
   const normalizedPath = toolsPath.startsWith("/")
     ? toolsPath.slice(1)
@@ -348,79 +342,23 @@ export async function loadVaultTools(
   );
 
   for (const file of toolFiles) {
-    // Check if we've already loaded this tool
-    if (vaultToolsCache.has(file.path)) {
-      tools[vaultToolsCache.get(file.path).name] = vaultToolsCache.get(
-        file.path,
-      ).tool;
-      continue;
-    }
-
-    // Parse the tool definition
     const toolDef = await parseToolDefinition(file);
     if (!toolDef) {
       continue;
     }
 
-    // Create the tool
-    const toolImpl = createVaultTool(toolDef);
-
-    // Add to the tools map
-    tools[toolDef.name] = toolImpl;
-
-    // Cache the tool
-    vaultToolsCache.set(file.path, { name: toolDef.name, tool: toolImpl });
+    const { name, tool } = createVaultTool(toolDef);
+    tools[name] = tool;
   }
 
   return tools;
 }
 
-/**
- * Resolves tool references from a chatbot's frontmatter
- *
- * @param requestedTools Array of tool names or paths to tool definition files
- * @param builtInTools Map of built-in tools
- * @param vaultTools Map of vault-defined tools
- * @returns A map of resolved tools
- */
-export function resolveTools(
-  requestedTools: string[],
-  builtInTools: Record<string, any>,
-  vaultTools: Record<string, any>,
-): Record<string, any> {
-  const resolvedTools: Record<string, any> = {};
-
-  for (const toolRef of requestedTools) {
-    // Check if it's a built-in tool
-    if (builtInTools[toolRef]) {
-      resolvedTools[toolRef] = builtInTools[toolRef];
-      continue;
-    }
-
-    // Check if it's a vault-defined tool
-    if (vaultTools[toolRef]) {
-      resolvedTools[toolRef] = vaultTools[toolRef];
-      continue;
-    }
-
-    // If we get here, the tool wasn't found
-    console.warn(`Tool not found: ${toolRef}`);
-  }
-
-  return resolvedTools;
-}
-
-/**
- * Loads tools from frontmatter
- *
- * @param metadata The file metadata containing frontmatter
- * @returns Record of tool name to tool implementation
- */
 export async function loadToolsFromFrontmatter(
   metadata: any,
 ): Promise<Record<string, any>> {
   const plugin = usePlugin();
-  const activeTools: Record<string, any> = {};
+  const activeTools: Record<string, Tool> = {};
 
   // If no tools in frontmatter, return empty object
   if (!metadata?.frontmatter || !metadata.frontmatter["tools"]) {
@@ -472,4 +410,35 @@ export async function loadToolsFromFrontmatter(
   }
 
   return activeTools;
+}
+
+export async function executeToolInvocation(toolInvocation: ToolInvocation) {
+  try {
+    const plugin = usePlugin();
+
+    // Get the tools directory from the plugin
+    const toolsDir = plugin.app.vault.getAbstractFileByPath("tools");
+    if (!toolsDir) {
+      throw new Error("Tools directory not found");
+    }
+
+    console.log(toolInvocation);
+
+    const availableTools = await loadAllTools(toolsDir.path);
+
+    const tool = availableTools[toolInvocation.toolName];
+
+    if (!tool) {
+      throw new Error(`Tool not found: ${toolInvocation.toolName}`);
+    }
+    return await tool.execute(toolInvocation.args, {
+      toolCallId: toolInvocation.toolCallId,
+      messages: [],
+    });
+  } catch (error) {
+    console.error("Error executing tool:", error);
+    return {
+      error: `Failed to execute tool: ${error.message || String(error)}`,
+    };
+  }
 }

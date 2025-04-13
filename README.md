@@ -69,6 +69,7 @@ This project includes a version bumping script that automates the release proces
   - [ ] Add margins
   - [ ] Add title
 - [ ] Add pending edits indicator
+- [ ] Fix code-block display
 - [x] Stop generation button
 - [x] Catch errors in call model and reset state
 - [ ] Action button prompts

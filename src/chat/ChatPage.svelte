@@ -25,14 +25,14 @@
   import { normalizePath, Notice } from "obsidian";
   import TextEditorToolView from "./TextEditorToolView.svelte";
   import { VIEW_CTX, type ViewContext } from "$lib/obsidian/view.ts";
+  import type { ToolInvocation } from "@ai-sdk/ui-utils";
+  import { executeToolInvocation } from "../tools";
 
   const plugin = usePlugin();
 
   let { chat }: { chat: Chat } = $props();
 
   const view = getContext<ViewContext>(VIEW_CTX);
-
-  $inspect("view", view);
 
   let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedModelId: string | undefined = $state(
@@ -41,9 +41,6 @@
   let selectedAccountId: string | undefined = $state(
     plugin.settings.defaults.accountId,
   );
-
-  $inspect("selectedModelId", selectedModelId);
-  $inspect("selectedAccountId", selectedAccountId);
 
   onMount(() => {
     chat.loadChatbots();
@@ -91,7 +88,7 @@
 
   function startNewChat() {
     const plugin = usePlugin();
-    plugin.activateChatView();
+    plugin.openChatView();
   }
 
   function getBaseName(path: string): string {
@@ -182,31 +179,6 @@
 
       // Focus the new leaf
       plugin.app.workspace.setActiveLeaf(leaf, { focus: true });
-
-      // Get the view
-      // const view = leaf.view as any;
-
-      // // Set up event handler for when changes are saved
-      // if (view && view.on) {
-      //   view.on("changes-saved", async (savedContent: string) => {
-      //     // Add the result to the chat
-      //     chat.addToolResult({
-      //       toolCallId,
-      //       result: { content: `Changes to ${args.path} were applied successfully.` },
-      //     });
-
-      //     // Resume the chat
-      //     await chat.resume(selectedModelId, selectedAccountId);
-      //   });
-
-      //   view.on("changes-rejected", async () => {
-      //     // Add a result indicating rejection
-      //     chat.addToolResult({
-      //       toolCallId,
-      //       result: { content: "Changes were rejected by the user." },
-      //     });
-      //   });
-      // }
     } catch (error) {
       console.error("Error opening merge view:", error);
       new Notice(`Error: ${error.message}`, 3000);
@@ -334,7 +306,16 @@
                   <div
                     class="text-xs bg-gray-100 p-2 rounded font-mono whitespace-pre-wrap"
                   >
-                    {JSON.stringify(part.toolInvocation.args, null, 2)}
+                    <p>
+                      {JSON.stringify(part.toolInvocation.args, null, 2)}
+                    </p>
+                    <button
+                      onclick={() =>
+                        executeToolInvocation(
+                          $state.snapshot(part.toolInvocation),
+                        )}
+                      class="clickable-icon">Execute</button
+                    >
                   </div>
                 {/if}
               </div>

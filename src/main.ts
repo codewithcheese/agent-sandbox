@@ -6,12 +6,15 @@ import {
   Plugin,
   type PluginManifest,
   TFile,
-  WorkspaceLeaf,
 } from "obsidian";
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
 import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/MergeView.ts";
 import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.svelte.ts";
-import { ARTIFACT_VIEW_TYPE, ArtifactView } from "./artifacts/ArtifactView.ts";
+import {
+  type Artifact,
+  ARTIFACT_VIEW_TYPE,
+  ArtifactView,
+} from "./artifacts/artifact-vew.svelte.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
 import {
   DEFAULT_SETTINGS,
@@ -43,7 +46,7 @@ export class AgentSandboxPlugin extends Plugin {
     modal.open();
   }
 
-  async activateChatView() {
+  async openChatView() {
     const baseName = "Untitled";
     let fileName = baseName;
     let counter = 1;
@@ -73,13 +76,12 @@ export class AgentSandboxPlugin extends Plugin {
     await this.initializePGlite();
 
     this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf));
-    this.registerView(MERGE_VIEW_TYPE, (leaf) => new MergeView(leaf));
     this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
 
     this.registerExtensions(["chat"], CHAT_VIEW_SLUG);
 
     this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {
-      await this.activateChatView();
+      await this.openChatView();
     });
 
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
@@ -91,7 +93,7 @@ export class AgentSandboxPlugin extends Plugin {
     });
 
     this.addRibbonIcon("code-block", "Open Artifact View", async () => {
-      await this.openArtifactView("");
+      await this.openArtifactView({ name: "Empty", html: "" });
     });
 
     this.addCommand({
@@ -118,7 +120,6 @@ export class AgentSandboxPlugin extends Plugin {
 
   async loadSettings() {
     const settings = await this.loadData();
-    console.log("Loading settings", settings);
     const shouldSave = !settings;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
     if (shouldSave) {
@@ -127,7 +128,6 @@ export class AgentSandboxPlugin extends Plugin {
   }
 
   async saveSettings() {
-    console.log("Saving settings", this.settings);
     await this.saveData(this.settings);
   }
 
@@ -180,23 +180,33 @@ export class AgentSandboxPlugin extends Plugin {
     });
   }
 
-  async openArtifactView(html: string) {
+  async openArtifactView(artifact: Artifact) {
     // Find or create a leaf in Obsidian's workspace
-    let leaf = this.app.workspace.getLeavesOfType(ARTIFACT_VIEW_TYPE)[0];
+    let leaf = this.app.workspace
+      .getLeavesOfType(ARTIFACT_VIEW_TYPE)
+      .find((leaf) => {
+        return (
+          leaf.view instanceof ArtifactView &&
+          leaf.view.artifact.name === artifact.name
+        );
+      });
+
+    console.log("openArtifactView", leaf);
+
     if (!leaf) {
-      leaf = this.app.workspace.getLeaf(false);
+      leaf = this.app.workspace.getLeaf(true);
       await leaf.setViewState({
         type: ARTIFACT_VIEW_TYPE,
         active: true,
       });
     } else {
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
     }
 
     // Load the content
     if (leaf.view instanceof ArtifactView) {
       const artifactView = leaf.view;
-      artifactView.loadHtml(html);
+      artifactView.loadArtifact(artifact);
     }
 
     return leaf;

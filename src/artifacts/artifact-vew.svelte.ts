@@ -2,13 +2,17 @@ import { ItemView, WorkspaceLeaf } from "obsidian";
 
 export const ARTIFACT_VIEW_TYPE = "artifact-view";
 
+export type Artifact = {
+  name: string;
+  html: string;
+};
+
 export class ArtifactView extends ItemView {
   private iframeEl: HTMLIFrameElement | null = null;
-  private html: string = "";
-
-  constructor(leaf: WorkspaceLeaf) {
-    super(leaf);
-  }
+  public artifact = $state<Artifact>({
+    name: "",
+    html: "",
+  });
 
   // Required: unique view type
   getViewType(): string {
@@ -29,6 +33,7 @@ export class ArtifactView extends ItemView {
    * Called when the view is first opened
    */
   async onOpen(): Promise<void> {
+    await super.onOpen();
     console.log("ArtifactView onOpen");
 
     // 1) Get the container element for the content area
@@ -56,8 +61,8 @@ export class ArtifactView extends ItemView {
     );
 
     // If we have stored content, load it
-    if (this.html) {
-      this.loadHtml(this.html);
+    if (this.artifact) {
+      // this.loadArtifact(this.artifact);
     }
   }
 
@@ -70,23 +75,13 @@ export class ArtifactView extends ItemView {
       this.iframeEl.remove();
       this.iframeEl = null;
     }
+    await super.onClose();
   }
 
-  /**
-   * Custom method that can be called to load AI-generated content
-   * into the iframe. You might call this from a command, or from
-   * another part of your plugin where the AI is returning HTML.
-   */
-  loadHtml(generatedHtml: string): void {
+  loadArtifact(artifact: Artifact): void {
+    this.artifact = artifact;
     if (!this.iframeEl) return;
-
-    // Store the content for potential state restoration
-    this.html = generatedHtml;
-
-    // Use srcdoc to directly provide the HTML for the iframe
-    this.iframeEl.srcdoc = generatedHtml;
-
-    // Request that Obsidian save the layout
+    this.iframeEl.srcdoc = artifact.html;
     this.app.workspace.requestSaveLayout();
   }
 
@@ -95,7 +90,7 @@ export class ArtifactView extends ItemView {
    */
   getState(): Record<string, unknown> {
     return {
-      lastHtmlContent: this.html,
+      artifact: this.artifact,
     };
   }
 
@@ -104,11 +99,11 @@ export class ArtifactView extends ItemView {
    */
   async setState(state: any): Promise<void> {
     if (state?.html) {
-      this.html = state.html;
+      this.artifact = state.artifact;
 
       // If the view is already open, load the content
       if (this.iframeEl) {
-        this.loadHtml(this.html);
+        this.loadArtifact(this.artifact);
       }
     }
     return Promise.resolve();
