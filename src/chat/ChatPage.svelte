@@ -216,7 +216,8 @@
 
 <div
   use:insertCss={chatCss}
-  style="padding: 0 var(--size-4-3) 0; background-color: var(--background-primary)"
+  class="min-h-full h-full flex flex-col"
+  style="padding: 0 var(--size-4-3) 0;"
 >
   <div
     class="sticky top-0 w-full z-10 pb-4 pt-3"
@@ -258,7 +259,7 @@
     </div>
   </div>
 
-  <div class="flex h-full chat-margin">
+  <div class="flex chat-margin flex-1">
     <div class="flex flex-col flex-1 gap-1 pb-[40px]">
       {#each chat.messages as message}
         <div class={message.role === "user" ? "" : "text text-gray-800"}>

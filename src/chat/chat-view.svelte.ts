@@ -10,6 +10,7 @@ export class ChatView extends FileView {
   private component: any = null;
   view = $state<ViewContext>({
     position: "center",
+    name: "",
   });
 
   getViewType(): string {
@@ -24,7 +25,9 @@ export class ChatView extends FileView {
     return "message-square";
   }
 
-  setPosition() {
+  updateView() {
+    this.view.name = this.file ? `${this.file.basename}` : "Chat";
+
     // @ts-expect-error containerEl is set but not typed
     if (this.leaf.containerEl.closest(".mod-right-split")) {
       this.view.position = "right";
@@ -34,14 +37,16 @@ export class ChatView extends FileView {
     } else {
       this.view.position = "center";
     }
+    console.log("updateView", this, this.view);
   }
 
   onResize() {
     super.onResize();
-    this.setPosition();
+    this.updateView();
   }
 
   onPaneMenu(menu: Menu, source: "more-options" | "tab-header" | string): void {
+    super.onPaneMenu(menu, source);
     if (source === "tab-header") {
       menu.addItem((item) => {
         item
@@ -57,7 +62,12 @@ export class ChatView extends FileView {
 
   async onOpen() {
     await super.onOpen();
-    this.setPosition();
+    this.updateView();
+  }
+
+  async onRename(file: TFile) {
+    await super.onRename(file);
+    this.updateView();
   }
 
   async onClose() {
@@ -73,6 +83,7 @@ export class ChatView extends FileView {
 
   async onLoadFile(file: TFile) {
     await super.onLoadFile(file);
+    this.updateView();
     console.log("onLoadFile", file);
     await this.mount(file);
   }
@@ -83,9 +94,13 @@ export class ChatView extends FileView {
       this.component = null;
     }
 
+    const viewHeader = this.containerEl.children[0] as HTMLDivElement;
+    viewHeader.style.display = "flex";
+
     const viewContent = this.containerEl.children[1] as HTMLDivElement;
     // Reset padding
     viewContent.style.padding = "0px";
+    viewContent.style.backgroundColor = "var(--background-primary)";
 
     // Mount the Svelte component with props
     this.component = mount(ChatElement, {
