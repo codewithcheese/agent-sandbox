@@ -37,7 +37,6 @@ export class ChatView extends FileView {
     } else {
       this.view.position = "center";
     }
-    console.log("updateView", this, this.view);
   }
 
   onResize() {
@@ -71,8 +70,6 @@ export class ChatView extends FileView {
   }
 
   async onClose() {
-    console.log("ChatView onClose");
-
     if (this.component) {
       await unmount(this.component);
       this.component = null;
@@ -84,7 +81,6 @@ export class ChatView extends FileView {
   async onLoadFile(file: TFile) {
     await super.onLoadFile(file);
     this.updateView();
-    console.log("onLoadFile", file);
     await this.mount(file);
   }
 

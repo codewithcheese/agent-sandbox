@@ -98,7 +98,6 @@ export class Chat {
     const normalizedPath = directoryPath.startsWith("/")
       ? directoryPath.slice(1)
       : directoryPath;
-    console.log("loadChatbots", directoryPath, normalizedPath);
 
     this.chatbots = files.filter((file) =>
       file.path.startsWith(normalizedPath),
@@ -239,8 +238,8 @@ export class Chat {
         ),
       );
 
-      // Load tools from frontmatter
       const activeTools = await loadToolsFromFrontmatter(metadata);
+      console.log("Active tools", activeTools);
 
       this.#abortController = new AbortController();
 
@@ -336,6 +335,8 @@ export class Chat {
       this.#abortController = undefined;
       this.state = { type: "idle" };
     }
+
+    console.log("COMPLETED\n-----\n", this.messages);
   }
 
   addToolResult({ toolCallId, result }: { toolCallId: string; result: any }) {
