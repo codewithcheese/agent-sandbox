@@ -207,12 +207,16 @@
   }
 </script>
 
-<div use:insertCss={chatCss} class="flex h-full chat-margin">
-  <div class="flex flex-col h-full p-2 w-full">
-    <div class="mb-4 flex gap-2 justify-between">
+<div
+  use:insertCss={chatCss}
+  class="bg-inherit"
+  style="padding: 0 var(--size-4-3) 0"
+>
+  <div class="sticky top-0 w-full z-10 pb-4 pt-3">
+    <div class="w-full flex flex-row justify-between items-center">
       <div class="flex flex-row items-center gap-1">
         <select
-          class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          class="w-[150px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           bind:value={chat.selectedChatbot}
         >
           <option value={undefined}>Select a chatbot...</option>
@@ -243,7 +247,10 @@
         <PlusIcon class="size-3.5" />
       </Button>
     </div>
-    <div class="flex flex-col flex-1 overflow-y-auto gap-1">
+  </div>
+
+  <div class="flex h-full chat-margin">
+    <div class="flex flex-col flex-1 gap-1 pb-[140px]">
       {#each chat.messages as message}
         <div class={message.role === "user" ? "" : "text text-gray-800"}>
           {#if message.content}
@@ -330,8 +337,15 @@
         <RetryAlert retryState={chat.state} />
       {/if}
     </div>
+  </div>
 
-    <form name="input" class="mt-2" onsubmit={handleSubmit}>
+  <form
+    name="input"
+    style="background-color: var(--background)"
+    class="sticky bottom-0 left-0 z-10 p-4 w-full"
+    onsubmit={handleSubmit}
+  >
+    <div class="chat-margin">
       {#if chat.state.type === "loading"}
         <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
           <Loader2Icon class="size-4 animate-spin" />
@@ -424,8 +438,8 @@
           </Button>
         {/if}
       </div>
-    </form>
-  </div>
+    </div>
+  </form>
 </div>
 
 <style>

@@ -57,6 +57,9 @@ export class ChatView extends FileView {
       this.component = null;
     }
 
+    const viewContent = this.containerEl.children[1] as HTMLDivElement;
+    viewContent.style.padding = "0px";
+
     // Mount the Svelte component with props
     this.component = mount(ChatElement, {
       target: this.containerEl.children[1],
