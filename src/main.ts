@@ -9,7 +9,7 @@ import {
 } from "obsidian";
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
 import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.ts";
-import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.svelte.ts";
+import { CHAT_VIEW_TYPE, ChatView } from "./chat/chat-view.svelte.ts";
 import {
   type Artifact,
   ARTIFACT_VIEW_TYPE,
@@ -50,11 +50,13 @@ export class AgentSandboxPlugin extends Plugin {
     const baseName = "Untitled";
     let fileName = baseName;
     let counter = 1;
-    
+
     // Get the chats path from settings
     const chatsPath = this.settings.vault.chatsPath;
-    const normalizedPath = chatsPath.startsWith("/") ? chatsPath.slice(1) : chatsPath;
-    
+    const normalizedPath = chatsPath.startsWith("/")
+      ? chatsPath.slice(1)
+      : chatsPath;
+
     // Ensure the directory exists
     try {
       const folderExists = this.app.vault.getAbstractFileByPath(normalizedPath);
@@ -65,9 +67,11 @@ export class AgentSandboxPlugin extends Plugin {
       console.error("Error creating chats directory:", error);
       this.showNotice("Failed to create chats directory", 3000);
     }
-    
+
     // Create a unique filename
-    while (this.app.vault.getAbstractFileByPath(`${normalizedPath}/${fileName}.chat`)) {
+    while (
+      this.app.vault.getAbstractFileByPath(`${normalizedPath}/${fileName}.chat`)
+    ) {
       fileName = `${baseName} ${counter}`;
       counter++;
     }
@@ -81,7 +85,7 @@ export class AgentSandboxPlugin extends Plugin {
 
     await leaf.openFile(file, {
       active: true,
-      state: { mode: CHAT_VIEW_SLUG },
+      state: { mode: CHAT_VIEW_TYPE },
     });
 
     await this.app.workspace.revealLeaf(leaf);
@@ -91,14 +95,19 @@ export class AgentSandboxPlugin extends Plugin {
     await this.loadSettings();
     await this.initializePGlite();
 
-    this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf));
+    this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
     this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
+    this.registerView(MERGE_VIEW_TYPE, (leaf) => new MergeView(leaf));
 
-    this.registerExtensions(["chat"], CHAT_VIEW_SLUG);
+    this.registerExtensions(["chat"], CHAT_VIEW_TYPE);
 
-    this.addRibbonIcon("message-square", "Open Agent Sandbox Chat", async () => {
-      await this.openChatView();
-    });
+    this.addRibbonIcon(
+      "message-square",
+      "Open Agent Sandbox Chat",
+      async () => {
+        await this.openChatView();
+      },
+    );
 
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();

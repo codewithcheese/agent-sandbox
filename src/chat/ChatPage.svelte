@@ -27,6 +27,7 @@
   import { VIEW_CTX, type ViewContext } from "$lib/obsidian/view.ts";
   import type { ToolInvocation } from "@ai-sdk/ui-utils";
   import { executeToolInvocation } from "../tools";
+  import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
 
   const plugin = usePlugin();
 
@@ -165,9 +166,9 @@
       }
 
       // Open a new leaf for the merge view
-      const leaf = plugin.app.workspace.getRightLeaf(false);
+      const leaf = plugin.app.workspace.getLeaf(true);
       await leaf.setViewState({
-        type: "merge-view",
+        type: MERGE_VIEW_TYPE,
         state: {
           originalContent,
           proposedContent,

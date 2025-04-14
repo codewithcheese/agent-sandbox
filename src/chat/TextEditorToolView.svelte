@@ -8,11 +8,13 @@
     FileSearch2Icon,
   } from "lucide-svelte";
   import ToolRow from "./ToolRow.svelte";
+  import type { ToolInvocation } from "@ai-sdk/ui-utils";
 
-  export let toolInvocation: any;
-  export let reviewTextEditorChanges: (toolCallId: string, args: any) => void;
-
-  // openFile function is now in ToolRow component
+  type Props = {
+    toolInvocation: ToolInvocation;
+    reviewTextEditorChanges: (toolCallId: string, args: any) => void;
+  };
+  let { toolInvocation, reviewTextEditorChanges }: Props = $props();
 </script>
 
 {#if toolInvocation.args.command === "str_replace"}
@@ -77,7 +79,6 @@
     {#snippet icon()}
       <FileTextIcon class="size-3.5 text-gray-400" />
     {/snippet}
-    {#snippet controls()}{/snippet}
   </ToolRow>
 {/if}
 
