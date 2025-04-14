@@ -18,6 +18,7 @@ export interface PluginSettings {
   };
   vault: {
     chatbotsPath: string;
+    chatsPath: string;
   };
   accounts: AIAccount[];
   models: (ChatModel | EmbeddingModel)[];
@@ -36,6 +37,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   },
   vault: {
     chatbotsPath: "chatbots",
+    chatsPath: "chats",
   },
   accounts: [],
   models,

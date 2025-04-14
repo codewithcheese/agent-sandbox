@@ -50,13 +50,29 @@ export class AgentSandboxPlugin extends Plugin {
     const baseName = "Untitled";
     let fileName = baseName;
     let counter = 1;
-
-    while (this.app.vault.getAbstractFileByPath(`${fileName}.chat`)) {
+    
+    // Get the chats path from settings
+    const chatsPath = this.settings.vault.chatsPath;
+    const normalizedPath = chatsPath.startsWith("/") ? chatsPath.slice(1) : chatsPath;
+    
+    // Ensure the directory exists
+    try {
+      const folderExists = this.app.vault.getAbstractFileByPath(normalizedPath);
+      if (!folderExists) {
+        await this.app.vault.createFolder(normalizedPath);
+      }
+    } catch (error) {
+      console.error("Error creating chats directory:", error);
+      this.showNotice("Failed to create chats directory", 3000);
+    }
+    
+    // Create a unique filename
+    while (this.app.vault.getAbstractFileByPath(`${normalizedPath}/${fileName}.chat`)) {
       fileName = `${baseName} ${counter}`;
       counter++;
     }
 
-    const filePath = `${fileName}.chat`;
+    const filePath = `${normalizedPath}/${fileName}.chat`;
     const file = await this.app.vault.create(filePath, "");
 
     const leaf = Platform.isMobile
