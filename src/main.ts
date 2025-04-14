@@ -80,7 +80,7 @@ export class AgentSandboxPlugin extends Plugin {
 
     this.registerExtensions(["chat"], CHAT_VIEW_SLUG);
 
-    this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {
+    this.addRibbonIcon("message-square", "Open Agent Sandbox Chat", async () => {
       await this.openChatView();
     });
 
