@@ -3,7 +3,7 @@ import { mount, unmount } from "svelte";
 import ChatElement from "./ChatElement.svelte";
 import type { ViewContext } from "$lib/obsidian/view.ts";
 
-export const CHAT_VIEW_SLUG = "agent-sandbox-chat-view";
+export const CHAT_VIEW_SLUG = "sandbox-chat-view";
 
 export class ChatView extends FileView {
   allowNoFile: boolean = false;

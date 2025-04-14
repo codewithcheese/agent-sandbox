@@ -8,13 +8,13 @@ import {
   TFile,
 } from "obsidian";
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
-import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/MergeView.ts";
+import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.ts";
 import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.svelte.ts";
 import {
   type Artifact,
   ARTIFACT_VIEW_TYPE,
   ArtifactView,
-} from "./artifacts/artifact-vew.svelte.ts";
+} from "$lib/artifacts/artifact-vew.svelte.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
 import {
   DEFAULT_SETTINGS,

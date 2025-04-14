@@ -1,6 +1,6 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView } from "obsidian";
 
-export const ARTIFACT_VIEW_TYPE = "artifact-view";
+export const ARTIFACT_VIEW_TYPE = "sandbox-artifact-view";
 
 export type Artifact = {
   name: string;

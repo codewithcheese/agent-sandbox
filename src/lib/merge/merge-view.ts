@@ -1,4 +1,4 @@
-import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice } from "obsidian";
 import { EditorState, Transaction } from "@codemirror/state";
 import { drawSelection, EditorView, keymap } from "@codemirror/view";
 import { getOriginalDoc, unifiedMergeView } from "@codemirror/merge";
@@ -9,7 +9,7 @@ import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
  * todo: add margins (sizer)
  */
 
-export const MERGE_VIEW_TYPE = "merge-view";
+export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
 export interface MergeViewState {
   originalFilePath?: string;

@@ -1,7 +1,7 @@
 import { PyodideExecutor } from "$lib/pyodide/executor";
 import { usePlugin } from "$lib/utils";
 import { fileTree } from "$lib/utils/file-tree.ts";
-import type { Artifact } from "../artifacts/artifact-vew.svelte.ts";
+import type { Artifact } from "$lib/artifacts/artifact-vew.svelte.ts";
 
 // Keep track of file edits for undo functionality
 const fileEditHistory = new Map<string, string[]>();
