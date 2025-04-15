@@ -23,7 +23,11 @@ import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
 import type { ChatModel } from "../settings/models.ts";
 import { usePlugin } from "$lib/utils";
-import { ChatSerializer, type ChatFileData } from "./chat-serializer.ts";
+import {
+  ChatSerializer,
+  type ChatFile,
+  type ChatFileV1,
+} from "./chat-serializer.ts";
 import type { ToolInvocationUIPart } from "@ai-sdk/ui-utils";
 
 export interface DocumentAttachment {
@@ -47,30 +51,30 @@ export class Chat {
   chatbots = $state<TFile[]>([]);
   attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
-  options = $state<{ maxSteps: number }>({ maxSteps: 10 });
+  createdAt: Date;
+  updatedAt: Date;
 
   #abortController?: AbortController;
 
   constructor(
-    initialData: string | null,
-    private onSave: (data: string) => void,
-    options: { maxSteps: number } = { maxSteps: 10 },
+    initialData: ChatFileV1 = {
+      version: 1,
+      chat: {
+        messages: [],
+        attachments: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    },
+    private onSave: () => void,
+    private options: { maxSteps: number } = {
+      maxSteps: 10,
+    },
   ) {
-    // Initialize with data if provided
-    if (initialData) {
-      try {
-        const parsedData = ChatSerializer.parse(initialData);
-        const chatData = ChatSerializer.deserialize(parsedData);
-
-        if (chatData.chat) {
-          this.messages = chatData.chat.messages || [];
-          this.attachments = chatData.chat.attachments || [];
-        }
-      } catch (error) {
-        console.error("Error parsing initial chat data:", error);
-      }
-    }
-    this.options = options;
+    this.messages = initialData.chat.messages;
+    this.attachments = initialData.chat.attachments;
+    this.createdAt = initialData.chat.createdAt;
+    this.updatedAt = initialData.chat.updatedAt;
   }
 
   addAttachment(file: TFile) {
@@ -200,7 +204,8 @@ export class Chat {
       }
 
       // Load frontmatter-specified tools and their executors
-      const { tools: activeTools, executors: toolExecutors } = await loadToolsFromFrontmatter(metadata);
+      const { tools: activeTools, executors: toolExecutors } =
+        await loadToolsFromFrontmatter(metadata);
       console.log("Active tools", activeTools);
 
       // We'll allow multiple steps. If the model calls a tool, we handle it, then call the model again.
@@ -246,7 +251,10 @@ export class Chat {
           for (const part of assistantMessage.parts.filter(
             (p): p is ToolInvocationUIPart => p.type === "tool-invocation",
           )) {
-            const result = await this.executeTool(part.toolInvocation, toolExecutors);
+            const result = await this.executeTool(
+              part.toolInvocation,
+              toolExecutors,
+            );
             part.toolInvocation.state = "result";
             // @ts-expect-error result prop not inferred from state change above
             part.toolInvocation.result = result;
@@ -354,7 +362,7 @@ export class Chat {
    */
   private async executeTool(
     invocation: ToolInvocation,
-    toolExecutors: Record<string, (params: any) => Promise<any>>
+    toolExecutors: Record<string, (params: any) => Promise<any>>,
   ) {
     console.log(
       "Manually executing tool:",
@@ -366,7 +374,7 @@ export class Chat {
       if (!toolExecutors[invocation.toolName]) {
         throw new Error(`Tool executor not found for: ${invocation.toolName}`);
       }
-      
+
       // Execute the tool using the corresponding executor
       const result = await toolExecutors[invocation.toolName](invocation.args);
       return result;
@@ -390,12 +398,7 @@ export class Chat {
    * Persist the conversation state by serializing the data
    */
   private save() {
-    const serializedData = ChatSerializer.serialize({
-      messages: this.messages,
-      attachments: this.attachments,
-    });
-    const data = ChatSerializer.stringify(serializedData);
-    this.onSave(data);
+    this.onSave();
   }
 
   /**

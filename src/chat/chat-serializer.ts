@@ -1,89 +1,64 @@
 import type { UIMessage } from "ai";
-import type { DocumentAttachment } from "./chat.svelte";
+import { Chat, type DocumentAttachment } from "./chat.svelte";
 import superjson from "superjson";
 
-export interface ChatFileData {
-  version: number;
+export type ChatFileV1 = {
+  version: 1;
   chat: {
     messages: UIMessage[];
     attachments: DocumentAttachment[];
-    title?: string;
-    createdAt?: number;
-    updatedAt?: number;
-    metadata?: Record<string, any>;
+    createdAt: Date;
+    updatedAt: Date;
   };
-}
+};
 
-export interface ChatSchemaVersion {
+export type ChatFile = ChatFileV1;
+
+export type ChatFileMigrator = {
   version: number;
   migrate: (data: any) => any;
-}
+};
+
+const CURRENT_VERSION = 1 as const;
 
 export class ChatSerializer {
-  // Current schema version
   static readonly CURRENT_VERSION = 1;
 
-  // Schema migration definitions
-  private static readonly SCHEMA_VERSIONS: ChatSchemaVersion[] = [
+  private static readonly VERSION_MIGRATORS: ChatFileMigrator[] = [
     {
       version: 1,
-      migrate: (data: any) => data, // Identity migration for first version
+      migrate: (data: ChatFileV1): ChatFileV1 => data, // Identity migration for first version
     },
   ];
 
-  /**
-   * Serialize chat data to the current version format
-   */
-  static serialize(chat: any): ChatFileData {
-    return {
+  static stringify(chat: Chat): string {
+    return superjson.stringify({
       version: this.CURRENT_VERSION,
       chat: {
-        messages: chat.messages || [],
-        attachments: chat.attachments || [],
-        title: chat.title || `Chat ${new Date().toLocaleString()}`,
-        createdAt: chat.createdAt || Date.now(),
-        updatedAt: Date.now(),
-        metadata: chat.metadata || {},
+        messages: chat.messages,
+        attachments: chat.attachments,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
       },
-    };
+    } satisfies ChatFile & { version: typeof CURRENT_VERSION });
   }
 
-  /**
-   * Convert serialized format to string
-   */
-  static stringify(data: ChatFileData): string {
-    return superjson.stringify(data);
-  }
-
-  /**
-   * Parse string to raw data format
-   */
-  static parse(jsonString: string): any {
-    try {
-      return superjson.parse(jsonString);
-    } catch (error) {
-      console.error("Error parsing chat data:", error);
-      return { version: 0, chat: { messages: [], attachments: [] } };
-    }
-  }
-
-  /**
-   * Deserialize with migration support
-   */
-  static deserialize(data: any): ChatFileData {
+  static parse(
+    jsonString: string,
+  ): ChatFile & { version: typeof CURRENT_VERSION } {
+    const data = superjson.parse(jsonString);
     return this.migrateToLatest(data);
   }
 
-  /**
-   * Apply migrations to bring data to latest schema version
-   */
-  private static migrateToLatest(data: any): ChatFileData {
+  private static migrateToLatest(
+    data: any,
+  ): ChatFile & { version: typeof CURRENT_VERSION } {
     let currentData = data;
     const sourceVersion = currentData.version || 0;
 
     // Apply each migration in sequence
     for (let v = sourceVersion + 1; v <= this.CURRENT_VERSION; v++) {
-      const migration = this.SCHEMA_VERSIONS.find(
+      const migration = this.VERSION_MIGRATORS.find(
         (schema) => schema.version === v,
       );
       if (migration) {
@@ -93,6 +68,6 @@ export class ChatSerializer {
       }
     }
 
-    return currentData as ChatFileData;
+    return currentData as ChatFile;
   }
 }
