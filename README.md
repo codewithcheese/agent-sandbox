@@ -74,6 +74,8 @@ This project includes a version bumping script that automates the release proces
 - [x] Catch errors in call model and reset state
 - [ ] Action button prompts
 - [ ] Read file image support
+- [ ] Delete message
+- [ ] Edit message
 - [x] Fix 429 handling
 - [x] Show loading indicator
 - [x] Markdown message rendering

@@ -120,40 +120,8 @@
         <div class="inline-title">{getBaseName(originalFilePath)}</div>
         <div
           bind:this={editorContainer}
-          class="merge-editor-container"
-          style="height: 100%;"
         ></div>
       </div>
     </div>
   </div>
 </div>
-
-<style>
-  .merge-unsaved-indicator {
-    position: absolute;
-    top: 5px;
-    right: 10px;
-    background-color: var(--background-modifier-error);
-    color: var(--text-on-accent);
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    z-index: 10;
-  }
-
-  .merge-editor-container {
-    height: 100%;
-    width: 100%;
-  }
-
-  .sizer {
-    width: 100%;
-    max-width: var(--file-line-width);
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  :global(.sizer .cm-gutters) {
-    margin-inline-end: 0 !important;
-  }
-</style>
