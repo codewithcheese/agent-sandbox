@@ -1,6 +1,6 @@
 import type { UIMessage, Tool } from "ai";
 import type { ToolInvocation, ToolInvocationUIPart } from "@ai-sdk/ui-utils";
-import type { TFile } from "obsidian";
+import { Notice, type TFile } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { tool } from "ai";
 import { JSONSchemaToZod } from "@dmitryrechkin/json-schema-to-zod";
@@ -216,121 +216,121 @@ export async function parseToolDefinition(
  * Creates an AI SDK tool from a vault tool definition
  *
  * @param toolDef The tool definition from the vault
- * @returns An object containing the tool name and the tool implementation
+ * @returns An object containing the tool name, schema-only tool for the AI, and the executor function
  */
 export function createVaultTool(toolDef: VaultToolDefinition): {
   name: string;
   tool: Tool;
+  executor: (params: any) => Promise<any>;
 } {
+  // Create the executor function that will be used for manual execution
+  const executor = async (params: any) => {
+    // Log the tool execution
+    console.log(`Executing vault tool ${toolDef.name} with params:`, params);
+
+    try {
+      // Check if we're using an imported function or inline code
+      if (toolDef.import) {
+        console.log(`Using imported function: ${toolDef.import}`);
+
+        try {
+          // Import from tools/execute.ts
+          const toolsModule = await import(/* @vite-ignore */ "./execute.ts");
+          const importedFunction =
+            toolsModule[toolDef.import as keyof typeof toolsModule];
+
+          if (typeof importedFunction !== "function") {
+            throw new Error(
+              `Imported function '${toolDef.import}' not found in tools/index.ts`,
+            );
+          }
+
+          // Execute the imported function
+          // The imported function should only take the params object
+          return await importedFunction(params);
+        } catch (importError) {
+          console.error(
+            `Error importing function for ${toolDef.name}:`,
+            importError,
+          );
+          return {
+            error: `Error importing function: ${importError.message}`,
+            params,
+          };
+        }
+      } else if (toolDef.code) {
+        // Use inline code execution
+        console.log(`Using inline code for ${toolDef.name}`);
+
+        const AsyncFunction = Object.getPrototypeOf(
+          async function () {},
+        ).constructor;
+        const executeFunction = new AsyncFunction(
+          "params",
+          "usePlugin",
+          toolDef.code,
+        );
+
+        // Execute the function with the parameters
+        return await executeFunction(params, usePlugin);
+      } else {
+        throw new Error(
+          `Tool ${toolDef.name} has neither code nor import specified`,
+        );
+      }
+    } catch (error) {
+      console.error(`Error executing code for ${toolDef.name}:`, error);
+      return {
+        error: `Error executing tool: ${error.message}`,
+        params,
+      };
+    }
+  };
+
   // Special case for Anthropic text editor tool
   if (toolDef.name === "str_replace_editor") {
-    // Use the Anthropic text editor tool constructor
-    const textEditorTool = anthropic.tools.textEditor_20250124({
-      execute: async ({
-        command,
-        path,
-        file_text,
-        insert_line,
-        new_str,
-        old_str,
-        view_range,
-      }) => {
-        return textEditor({
-          command,
-          path,
-          file_text,
-          insert_line,
-          new_str,
-          old_str,
-          view_range,
-        });
-      },
-    });
+    // Use the Anthropic text editor tool constructor - but omit execute property
+    const textEditorTool = anthropic.tools.textEditor_20250124();
 
-    return { name: toolDef.name, tool: textEditorTool };
+    // Create a custom executor for the text editor
+    const textEditorExecutor = async (params: any) => {
+      return textEditor(params);
+    };
+
+    return {
+      name: toolDef.name,
+      tool: textEditorTool,
+      executor: textEditorExecutor,
+    };
   }
 
   // Convert JSON schema to Zod schema
   const zodSchema = JSONSchemaToZod.convert(toolDef.schema);
 
-  // Create a tool with the schema from the vault definition
+  // Create a tool with just the schema from the vault definition (no execute property)
   const toolConfig = {
     description: toolDef.description,
     parameters: zodSchema,
-    execute: async (params) => {
-      // Log the tool execution
-      console.log(`Executing vault tool ${toolDef.name} with params:`, params);
-
-      try {
-        // Check if we're using an imported function or inline code
-        if (toolDef.import) {
-          console.log(`Using imported function: ${toolDef.import}`);
-
-          try {
-            // Import from tools/execute.ts
-            const toolsModule = await import(/* @vite-ignore */ "./execute.ts");
-            const importedFunction =
-              toolsModule[toolDef.import as keyof typeof toolsModule];
-
-            if (typeof importedFunction !== "function") {
-              throw new Error(
-                `Imported function '${toolDef.import}' not found in tools/index.ts`,
-              );
-            }
-
-            // Execute the imported function
-            // The imported function should only take the params object
-            return await importedFunction(params);
-          } catch (importError) {
-            console.error(
-              `Error importing function for ${toolDef.name}:`,
-              importError,
-            );
-            return {
-              error: `Error importing function: ${importError.message}`,
-              params,
-            };
-          }
-        } else if (toolDef.code) {
-          // Use inline code execution
-          console.log(`Using inline code for ${toolDef.name}`);
-
-          const AsyncFunction = Object.getPrototypeOf(
-            async function () {},
-          ).constructor;
-          const executeFunction = new AsyncFunction(
-            "params",
-            "usePlugin",
-            toolDef.code,
-          );
-
-          // Execute the function with the parameters
-          return await executeFunction(params, usePlugin);
-        } else {
-          throw new Error(
-            `Tool ${toolDef.name} has neither code nor import specified`,
-          );
-        }
-      } catch (error) {
-        console.error(`Error executing code for ${toolDef.name}:`, error);
-        return {
-          error: `Error executing tool: ${error.message}`,
-          params,
-        };
-      }
-    },
+    // No execute property here - this is intentional
   };
 
-  // For all other tools, use the AI SDK tool constructor
+  // Create the tool without the execute property
   const vaultTool = tool(toolConfig);
 
-  // Return the tool name and implementation
-  return { name: toolDef.name, tool: vaultTool };
+  // Return the tool name, schema-only tool, and separate executor function
+  return {
+    name: toolDef.name,
+    tool: vaultTool,
+    executor,
+  };
 }
 
 export async function loadAllTools(toolsPath: string) {
   const plugin = usePlugin();
-  const tools: Record<string, Tool> = {};
+  const tools: Record<
+    string,
+    { tool: Tool; executor: (params: any) => Promise<any> }
+  > = {};
 
   const files = plugin.app.vault.getFiles();
   const normalizedPath = toolsPath.startsWith("/")
@@ -347,22 +347,24 @@ export async function loadAllTools(toolsPath: string) {
       continue;
     }
 
-    const { name, tool } = createVaultTool(toolDef);
-    tools[name] = tool;
+    const { name, tool, executor } = createVaultTool(toolDef);
+    tools[name] = { tool, executor };
   }
 
   return tools;
 }
 
-export async function loadToolsFromFrontmatter(
-  metadata: any,
-): Promise<Record<string, any>> {
+export async function loadToolsFromFrontmatter(metadata: any): Promise<{
+  tools: Record<string, Tool>;
+  executors: Record<string, (params: any) => Promise<any>>;
+}> {
   const plugin = usePlugin();
   const activeTools: Record<string, Tool> = {};
+  const toolExecutors: Record<string, (params: any) => Promise<any>> = {};
 
-  // If no tools in frontmatter, return empty object
+  // If no tools in frontmatter, return empty objects
   if (!metadata?.frontmatter || !metadata.frontmatter["tools"]) {
-    return activeTools;
+    return { tools: activeTools, executors: toolExecutors };
   }
 
   // Get tool links from frontmatter (can be string or array)
@@ -404,41 +406,34 @@ export async function loadToolsFromFrontmatter(
     }
 
     // Create the tool and add it to active tools
-    const { name, tool } = createVaultTool(toolDef);
+    const { name, tool, executor } = createVaultTool(toolDef);
 
     activeTools[name] = tool;
+    toolExecutors[name] = executor;
   }
 
-  return activeTools;
+  return { tools: activeTools, executors: toolExecutors };
 }
 
 export async function executeToolInvocation(toolInvocation: ToolInvocation) {
-  try {
-    const plugin = usePlugin();
+  const plugin = usePlugin();
 
-    // Get the tools directory from the plugin
-    const toolsDir = plugin.app.vault.getAbstractFileByPath("tools");
-    if (!toolsDir) {
-      throw new Error("Tools directory not found");
-    }
-
-    console.log(toolInvocation);
-
-    const availableTools = await loadAllTools(toolsDir.path);
-
-    const tool = availableTools[toolInvocation.toolName];
-
-    if (!tool) {
-      throw new Error(`Tool not found: ${toolInvocation.toolName}`);
-    }
-    return await tool.execute(toolInvocation.args, {
-      toolCallId: toolInvocation.toolCallId,
-      messages: [],
-    });
-  } catch (error) {
-    console.error("Error executing tool:", error);
-    return {
-      error: `Failed to execute tool: ${error.message || String(error)}`,
-    };
+  // Get the tools directory from the plugin
+  const toolsDir = plugin.app.vault.getAbstractFileByPath("tools");
+  if (!toolsDir) {
+    throw new Error("Tools directory not found");
   }
+
+  // Load all tools
+  const allTools = await loadAllTools(toolsDir.path);
+
+  // Get the tool by name
+  const { tool, executor } = allTools[toolInvocation.toolName];
+
+  if (!tool) {
+    throw new Error(`Tool not found: ${toolInvocation.toolName}`);
+  }
+
+  // Execute the tool using its execute method
+  return await executor(toolInvocation.args);
 }

@@ -185,6 +185,16 @@
       new Notice(`Error: ${error.message}`, 3000);
     }
   }
+
+  async function executeTool(toolInvocation: ToolInvocation) {
+    try {
+      const result = await executeToolInvocation(toolInvocation);
+      console.log("Tool result:", result);
+    } catch (error) {
+      console.error("Error executing tool:", error);
+      new Notice(`Error: ${error.message}`, 3000);
+    }
+  }
 </script>
 
 <div
@@ -312,9 +322,7 @@
                     </p>
                     <button
                       onclick={() =>
-                        executeToolInvocation(
-                          $state.snapshot(part.toolInvocation),
-                        )}
+                        executeTool($state.snapshot(part.toolInvocation))}
                       class="clickable-icon">Execute</button
                     >
                   </div>
