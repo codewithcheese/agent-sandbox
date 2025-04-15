@@ -47,12 +47,14 @@ export class Chat {
   chatbots = $state<TFile[]>([]);
   attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
+  options = $state<{ maxSteps: number }>({ maxSteps: 10 });
 
   #abortController?: AbortController;
 
   constructor(
     initialData: string | null,
     private onSave: (data: string) => void,
+    options: { maxSteps: number } = { maxSteps: 10 },
   ) {
     // Initialize with data if provided
     if (initialData) {
@@ -68,6 +70,7 @@ export class Chat {
         console.error("Error parsing initial chat data:", error);
       }
     }
+    this.options = options;
   }
 
   addAttachment(file: TFile) {
@@ -201,14 +204,13 @@ export class Chat {
       console.log("Active tools", activeTools);
 
       // We'll allow multiple steps. If the model calls a tool, we handle it, then call the model again.
-      const MAX_STEPS = 10;
       let stepCount = 0;
 
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
 
       // We'll keep calling the model until no more steps
-      while (stepCount < MAX_STEPS) {
+      while (stepCount < this.options.maxSteps) {
         try {
           const messages: CoreMessage[] = [];
           if (system) {
