@@ -33,6 +33,8 @@
 
   let { chat }: { chat: Chat } = $props();
 
+  $inspect("toolRequests", chat.toolRequests);
+
   const view = getContext<ViewContext>(VIEW_CTX);
 
   let submitBtn: HTMLButtonElement | null = $state(null);

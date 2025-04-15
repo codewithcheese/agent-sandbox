@@ -13,7 +13,7 @@
 
   const { data, onSave, view }: Props = $props();
 
-  const chat = new Chat(ChatSerializer.parse(data), () => {
+  const chat = new Chat(data ? ChatSerializer.parse(data) : undefined, () => {
     onSave(ChatSerializer.stringify(chat));
   });
 

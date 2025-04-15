@@ -5,7 +5,7 @@ import "../mocks/ai-sdk";
 
 // Import after mocking - we can access the mocked objects directly
 import type { TFile } from "obsidian";
-import { parseToolDefinition, createVaultTool } from "../../src/tools";
+import { parseToolDefinition, createTool } from "../../src/tools";
 
 describe("Markdown Tool Execution", () => {
   // Define the options required by the AI SDK tool execute method
@@ -253,7 +253,7 @@ This is a test tool using import.
     };
 
     // Create the tool
-    const { name, tool: echoTool } = createVaultTool(mockToolDef);
+    const { name, tool: echoTool } = createTool(mockToolDef);
 
     // Execute the tool
     const result = await echoTool.execute(
@@ -289,7 +289,7 @@ This is a test tool using import.
     };
 
     // Create the tool
-    const { name, tool: thinkTool } = createVaultTool(mockToolDef);
+    const { name, tool: thinkTool } = createTool(mockToolDef);
 
     // Execute the tool
     const testThought = "This is a test thought";
@@ -321,7 +321,7 @@ This is a test tool using import.
     };
 
     // Create the tool
-    const { tool: errorTool } = createVaultTool(mockToolDef);
+    const { tool: errorTool } = createTool(mockToolDef);
 
     // Execute the tool
     const result = await errorTool.execute(
@@ -353,7 +353,7 @@ This is a test tool using import.
     };
 
     // Create the tool
-    const { tool: errorTool } = createVaultTool(mockToolDef);
+    const { tool: errorTool } = createTool(mockToolDef);
 
     // Execute the tool
     const result = await errorTool.execute(

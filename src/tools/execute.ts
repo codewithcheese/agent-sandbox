@@ -2,11 +2,14 @@ import { PyodideExecutor } from "$lib/pyodide/executor";
 import { usePlugin } from "$lib/utils";
 import { fileTree } from "$lib/utils/file-tree.ts";
 import type { Artifact } from "$lib/artifacts/artifact-vew.svelte.ts";
-
-// Keep track of file edits for undo functionality
-const fileEditHistory = new Map<string, string[]>();
+import type { ToolExecutionOptions } from "ai";
+import type { Vault } from "obsidian";
+import { errorToString } from "$lib/utils/error.ts";
 
 export * from "./reddit.ts";
+
+// todo: move to chat context
+const fileEditHistory = new Map<string, string[]>();
 
 /**
  * Opens AI-generated HTML content in the ArtifactView
@@ -24,7 +27,7 @@ export async function writeArtifact(artifact: Artifact) {
   } catch (error) {
     return {
       success: false,
-      error: `Failed to open content in ArtifactView: ${error.message}`,
+      error: `Failed to open content in ArtifactView: ${errorToString(error)}`,
     };
   }
 }
@@ -44,7 +47,7 @@ export async function readFile({ path }) {
     const content = await plugin.app.vault.read(file);
     return { content };
   } catch (error) {
-    return { error: `Failed to read file: ${error.message}` };
+    return { error: `Failed to read file: ${errorToString(error)}` };
   }
 }
 
@@ -58,7 +61,7 @@ export async function listFiles({ path }) {
     const result = await fileTree(normalizedPath);
     return { result };
   } catch (error) {
-    return { error: `Failed to list files: ${error.message}` };
+    return { error: `Failed to list files: ${errorToString(error)}` };
   }
 }
 
@@ -91,7 +94,7 @@ export async function executePython({ code, installPackages = [] }) {
       success: false,
       result: null,
       stdout: "",
-      error: error?.message || String(error),
+      error: errorToString(error),
     };
   }
 }
@@ -99,7 +102,7 @@ export async function executePython({ code, installPackages = [] }) {
 /**
  * Think tool for structured reasoning
  */
-export function think({ thought }) {
+export function think(thought, options) {
   // This is a no-op tool - it simply returns the thought that was passed in
   // The value comes from giving the AI space to think in a structured way
   return thought;
@@ -109,31 +112,25 @@ export function think({ thought }) {
  * Text Editor tool for viewing and editing files in the Obsidian vault
  * Compatible with Anthropic's text editor tool
  */
-export async function textEditor({
-  command,
-  path,
-  file_text,
-  insert_line,
-  new_str,
-  old_str,
-  view_range,
-}) {
+export async function textEditor(
+  { command, path, file_text, insert_line, new_str, old_str, view_range },
+  { vault }: ToolExecutionOptions & { vault: Vault },
+) {
   try {
-    const plugin = usePlugin();
     // Remove leading slash if present as Obsidian doesn't support root path syntax
     const normalizedPath = path.startsWith("/") ? path.substring(1) : path;
 
     switch (command) {
       case "view": {
         // View a file or directory
-        const abstractFile =
-          plugin.app.vault.getAbstractFileByPath(normalizedPath);
+        const abstractFile = vault.getAbstractFileByPath(normalizedPath);
 
         if (!abstractFile) {
           return { error: `File or directory not found: ${path}` };
         }
 
         // If it's a directory, list its contents
+        // @ts-expect-error children not on type
         if (abstractFile.children) {
           const { fileTree } = await import("$lib/utils/file-tree.ts");
           const result = await fileTree(normalizedPath);
@@ -141,12 +138,12 @@ export async function textEditor({
         }
 
         // It's a file, read its contents
-        const file = plugin.app.vault.getFileByPath(normalizedPath);
+        const file = vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
 
-        const content = await plugin.app.vault.read(file);
+        const content = await vault.read(file);
 
         // If view_range is specified, return only the specified lines
         if (
@@ -184,8 +181,7 @@ export async function textEditor({
         }
 
         // Check if file already exists
-        const existingFile =
-          plugin.app.vault.getAbstractFileByPath(normalizedPath);
+        const existingFile = vault.getAbstractFileByPath(normalizedPath);
         if (existingFile) {
           return { error: `File already exists: ${path}` };
         }
@@ -195,12 +191,12 @@ export async function textEditor({
           0,
           normalizedPath.lastIndexOf("/"),
         );
-        if (dirPath && !plugin.app.vault.getAbstractFileByPath(dirPath)) {
-          await plugin.app.vault.createFolder(dirPath);
+        if (dirPath && !vault.getAbstractFileByPath(dirPath)) {
+          await vault.createFolder(dirPath);
         }
 
         // Create the file
-        await plugin.app.vault.create(normalizedPath, file_text);
+        await vault.create(normalizedPath, file_text);
         return { content: `Successfully created file: ${path}` };
       }
 
@@ -214,12 +210,12 @@ export async function textEditor({
           return { error: "new_str is required for str_replace command" };
         }
 
-        const file = plugin.app.vault.getFileByPath(normalizedPath);
+        const file = vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
 
-        const content = await plugin.app.vault.read(file);
+        const content = await vault.read(file);
 
         // Check if old_str exists in the file
         if (!content.includes(old_str)) {
@@ -239,6 +235,8 @@ export async function textEditor({
           };
         }
 
+        await vault.modify(file, content.replace(old_str, new_str));
+
         return {
           content: "Successfully replaced text at exactly one location.",
         };
@@ -254,12 +252,12 @@ export async function textEditor({
           return { error: "new_str is required for insert command" };
         }
 
-        const file = plugin.app.vault.getFileByPath(normalizedPath);
+        const file = vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
 
-        const content = await plugin.app.vault.read(file);
+        const content = await vault.read(file);
         const lines = content.split("\n");
 
         // Validate insert_line
@@ -278,7 +276,7 @@ export async function textEditor({
 
       case "undo_edit": {
         // Undo the last edit
-        const file = plugin.app.vault.getFileByPath(normalizedPath);
+        const file = vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
@@ -300,7 +298,7 @@ export async function textEditor({
         }
 
         // Restore the previous content
-        await plugin.app.vault.modify(file, previousContent);
+        await vault.modify(file, previousContent);
 
         return { content: `Successfully undid last edit to file: ${path}` };
       }
@@ -309,6 +307,6 @@ export async function textEditor({
         return { error: `Unknown command: ${command}` };
     }
   } catch (error) {
-    return { error: `Failed to execute ${command}: ${error.message}` };
+    return { error: `Failed to execute ${command}: ${errorToString(error)}` };
   }
 }

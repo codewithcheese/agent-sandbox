@@ -5,10 +5,11 @@ import {
   streamText,
   type UIMessage,
   type ToolInvocation,
+  type Tool,
 } from "ai";
 import { type AIAccount, createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
-import type { TFile } from "obsidian";
+import type { CachedMetadata, TFile } from "obsidian";
 import { processTemplate } from "$lib/utils/templates.ts";
 import {
   processEmbeds,
@@ -29,6 +30,7 @@ import {
   type ChatFileV1,
 } from "./chat-serializer.ts";
 import type { ToolInvocationUIPart } from "@ai-sdk/ui-utils";
+import type { ToolRequest } from "../tools/request.ts";
 
 export interface DocumentAttachment {
   id: string;
@@ -51,6 +53,7 @@ export class Chat {
   chatbots = $state<TFile[]>([]);
   attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
+  toolRequests = $state<ToolRequest[]>([]);
   createdAt: Date;
   updatedAt: Date;
 
@@ -169,10 +172,6 @@ export class Chat {
     await this.runConversation(model, account);
   }
 
-  /**
-   * The main conversation loop: calls the LLM in steps, manually executes tools,
-   * and keeps going until there's no more steps or a max step count is reached.
-   */
   private async runConversation(model: ChatModel, account: AIAccount) {
     try {
       this.state = { type: "loading" };
@@ -180,33 +179,26 @@ export class Chat {
       const plugin = usePlugin();
       await plugin.loadSettings();
 
-      // Prepare system prompt if selected
       let system: string | null = null;
-      let metadata = null;
+      let metadata: CachedMetadata | null = null;
+      let activeTools: Record<string, Tool> = {};
+      const context = {};
 
       if (this.selectedChatbot) {
-        const file = plugin.app.vault.getFileByPath(this.selectedChatbot);
-        if (!file) {
+        const chatbotFile = plugin.app.vault.getFileByPath(
+          this.selectedChatbot,
+        );
+
+        if (!chatbotFile) {
           throw Error(`Chatbot at ${this.selectedChatbot} not found`);
         }
-        // Read file
-        system = await plugin.app.vault.read(file);
 
-        // Grab metadata to see if there's frontmatter (for tools, etc.)
-        metadata = plugin.app.metadataCache.getFileCache(file);
-
-        // Clean the file contents
-        system = stripFrontMatter(system);
-        system = await processEmbeds(file, system);
-        system = await processLinks(file, system);
-        system = await processTemplate(system, { fileTree });
+        metadata = plugin.app.metadataCache.getFileCache(chatbotFile);
+        system = await this.createSystemPrompt(chatbotFile);
+        activeTools = await loadToolsFromFrontmatter(metadata!, this);
         console.log("SYSTEM MESSAGE\n-----\n", system);
+        console.log("Active tools", activeTools);
       }
-
-      // Load frontmatter-specified tools and their executors
-      const { tools: activeTools, executors: toolExecutors } =
-        await loadToolsFromFrontmatter(metadata);
-      console.log("Active tools", activeTools);
 
       // We'll allow multiple steps. If the model calls a tool, we handle it, then call the model again.
       let stepCount = 0;
@@ -214,63 +206,29 @@ export class Chat {
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
 
-      // We'll keep calling the model until no more steps
-      while (stepCount < this.options.maxSteps) {
-        try {
-          const messages: CoreMessage[] = [];
-          if (system) {
-            messages.push({
-              role: "system",
-              content: system,
-              providerOptions: {
-                anthropic: { cacheControl: { type: "ephemeral" } },
-              },
-            });
-          }
-          messages.push(
-            ...convertToCoreMessages(
-              wrapTextAttachments($state.snapshot(this.messages)),
-            ),
-          );
-
-          await this.callModel(messages, model.id, account, activeTools);
-
-          stepCount++;
-
-          const assistantMessage = this.messages[this.messages.length - 1];
-
-          if (
-            assistantMessage.parts.filter((p) => p.type === "tool-invocation")
-              .length === 0
-          ) {
-            // exit if no tool invocations
-            break;
-          }
-
-          // Manually execute each tool call, store results, add them to messages
-          for (const part of assistantMessage.parts.filter(
-            (p): p is ToolInvocationUIPart => p.type === "tool-invocation",
-          )) {
-            const result = await this.executeTool(
-              part.toolInvocation,
-              toolExecutors,
-            );
-            part.toolInvocation.state = "result";
-            // @ts-expect-error result prop not inferred from state change above
-            part.toolInvocation.result = result;
-          }
-
-          // We'll continue the outer loop to let the model see the new tool results
-        } catch (error: any) {
-          // Handle user abort
-          if (error instanceof DOMException && error.name === "AbortError") {
-            console.log("Request aborted by user");
-            return;
-          }
-          // Any other errors are passed up
-          throw error;
-        }
+      const messages: CoreMessage[] = [];
+      if (system) {
+        messages.push({
+          role: "system",
+          content: system,
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+          },
+        });
       }
+      messages.push(
+        ...convertToCoreMessages(
+          wrapTextAttachments($state.snapshot(this.messages)),
+        ),
+      );
+
+      await this.callModel(
+        messages,
+        model.id,
+        account,
+        activeTools,
+        this.#abortController?.signal,
+      );
     } catch (error: any) {
       // Global error handling
       console.error("Error in runConversation:", error);
@@ -305,6 +263,7 @@ export class Chat {
     modelId: string,
     account: AIAccount,
     activeTools: Record<string, any>,
+    abortSignal: AbortSignal,
   ) {
     const provider = createAIProvider(account);
 
@@ -321,9 +280,9 @@ export class Chat {
           model: provider.languageModel(modelId),
           messages,
           tools: Object.keys(activeTools).length > 0 ? activeTools : undefined,
-          maxRetries: 0, // We handle retries ourselves
-          maxSteps: 1, // 1 step => if a tool is invoked, we'll handle manually
-          abortSignal: this.#abortController.signal,
+          maxRetries: 0,
+          maxSteps: this.options.maxSteps,
+          abortSignal,
         });
 
         // As we receive partial tokens, we apply them to `this.messages`
@@ -353,34 +312,6 @@ export class Chat {
         // Not a rate limit => rethrow
         throw error;
       }
-    }
-  }
-
-  /**
-   * Manual execution of a tool.
-   * You can customize it to store or return additional metadata as needed.
-   */
-  private async executeTool(
-    invocation: ToolInvocation,
-    toolExecutors: Record<string, (params: any) => Promise<any>>,
-  ) {
-    console.log(
-      "Manually executing tool:",
-      invocation.toolName,
-      invocation.args,
-    );
-
-    try {
-      if (!toolExecutors[invocation.toolName]) {
-        throw new Error(`Tool executor not found for: ${invocation.toolName}`);
-      }
-
-      // Execute the tool using the corresponding executor
-      const result = await toolExecutors[invocation.toolName](invocation.args);
-      return result;
-    } catch (err: any) {
-      console.error("Manual tool execution failed:", err);
-      return { error: err.message || String(err) };
     }
   }
 
@@ -432,5 +363,18 @@ export class Chat {
     );
 
     await new Promise((resolve) => setTimeout(resolve, retryDelay));
+  }
+
+  async createSystemPrompt(file: TFile) {
+    const plugin = usePlugin();
+    let system = await plugin.app.vault.read(file)!;
+
+    // Clean the file contents
+    system = stripFrontMatter(system);
+    system = await processEmbeds(file, system);
+    system = await processLinks(file, system);
+    system = await processTemplate(system, { fileTree });
+    console.log("SYSTEM MESSAGE\n-----\n", system);
+    return system;
   }
 }

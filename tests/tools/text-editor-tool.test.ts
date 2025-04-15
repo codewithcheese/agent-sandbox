@@ -7,7 +7,7 @@ import type { TFile } from "obsidian";
 
 // @ts-expect-error raw import not recognized by TypeScript
 import textEditorMd from "../../src/tools/Text Editor.md?raw";
-import { createVaultTool, parseToolDefinition } from "../../src/tools";
+import { createTool, parseToolDefinition } from "../../src/tools";
 
 describe("Text Editor Tool", () => {
   let testFile: TFile;
@@ -42,7 +42,7 @@ describe("Text Editor Tool", () => {
 
   it("should view a file", async () => {
     const toolDef = await parseToolDefinition(toolFile);
-    const { tool } = createVaultTool(toolDef);
+    const { tool } = createTool(toolDef);
 
     const result = await tool.execute(
       {
@@ -64,7 +64,7 @@ describe("Text Editor Tool", () => {
 
   it("should view a specific range of lines", async () => {
     const toolDef = await parseToolDefinition(toolFile);
-    const { tool } = createVaultTool(toolDef);
+    const { tool } = createTool(toolDef);
 
     const result = await tool.execute(
       {
@@ -88,7 +88,7 @@ describe("Text Editor Tool", () => {
 
   it("should create a new file", async () => {
     const toolDef = await parseToolDefinition(toolFile);
-    const { tool } = createVaultTool(toolDef);
+    const { tool } = createTool(toolDef);
 
     const newFilePath = "new-file.txt";
     const newFileContent = "This is a new file";
@@ -120,7 +120,7 @@ describe("Text Editor Tool", () => {
 
   it("should replace text in a file", async () => {
     const toolDef = await parseToolDefinition(toolFile);
-    const { tool } = createVaultTool(toolDef);
+    const { tool } = createTool(toolDef);
 
     const result = await tool.execute(
       {
@@ -150,7 +150,7 @@ describe("Text Editor Tool", () => {
 
   it("should insert text at a specific line", async () => {
     const toolDef = await parseToolDefinition(toolFile);
-    const { tool } = createVaultTool(toolDef);
+    const { tool } = createTool(toolDef);
 
     const result = await tool.execute(
       {
@@ -177,7 +177,7 @@ describe("Text Editor Tool", () => {
 
   it("should undo the last edit", async () => {
     const toolDef = await parseToolDefinition(toolFile);
-    const { tool } = createVaultTool(toolDef);
+    const { tool } = createTool(toolDef);
 
     // First make an edit
     await tool.execute(
@@ -218,7 +218,7 @@ describe("Text Editor Tool", () => {
 
   it("should return an error for non-existent file", async () => {
     const toolDef = await parseToolDefinition(toolFile);
-    const { tool } = createVaultTool(toolDef);
+    const { tool } = createTool(toolDef);
 
     const result = await tool.execute(
       {
@@ -239,7 +239,7 @@ describe("Text Editor Tool", () => {
 
   it("should return an error for multiple occurrences of text to replace", async () => {
     const toolDef = await parseToolDefinition(toolFile);
-    const { tool } = createVaultTool(toolDef);
+    const { tool } = createTool(toolDef);
 
     // Create a file with duplicate lines
     const duplicateFilePath = "duplicate-lines.txt";
