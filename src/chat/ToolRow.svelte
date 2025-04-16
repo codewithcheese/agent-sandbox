@@ -1,14 +1,16 @@
 <script lang="ts">
   import { normalizePath, Notice } from "obsidian";
   import { usePlugin } from "$lib/utils";
+  import { number } from "zod";
 
   type Props = {
     icon?: () => any;
     label: string;
     path?: string;
+    stats?: { added: number; removed: number };
     controls?: () => any;
   };
-  let { icon, label, path, controls = undefined } = $props();
+  let { icon, label, stats, path, controls = undefined } = $props();
 
   function openFile(path) {
     const plugin = usePlugin();
@@ -31,6 +33,14 @@
       <button class="clickable-icon" onclick={() => openFile(path)}
         >{normalizePath(path)}</button
       >
+    {/if}
+    {#if stats && (stats.added || stats.removed)}
+      <div class="text-green-600 font-semibold text-sm">
+        +{stats.added}
+      </div>
+      <div class="text-red-600 font-semibold text-sm">
+        -{stats.removed}
+      </div>
     {/if}
   </div>
   <div>

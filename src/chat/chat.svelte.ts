@@ -65,6 +65,7 @@ export class Chat {
       chat: {
         messages: [],
         attachments: [],
+        toolRequests: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -76,6 +77,7 @@ export class Chat {
   ) {
     this.messages = initialData.chat.messages;
     this.attachments = initialData.chat.attachments;
+    this.toolRequests = initialData.chat.toolRequests ?? [];
     this.createdAt = initialData.chat.createdAt;
     this.updatedAt = initialData.chat.updatedAt;
   }

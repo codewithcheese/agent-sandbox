@@ -313,6 +313,9 @@
                 {#if part.toolInvocation.toolName === "str_replace_editor"}
                   <TextEditorToolView
                     toolInvocation={part.toolInvocation}
+                    requests={chat.toolRequests.filter(
+                      (r) => r.toolCallId === part.toolInvocation.toolCallId,
+                    )}
                     {reviewTextEditorChanges}
                   />
                 {:else}

@@ -1,12 +1,14 @@
 import type { UIMessage } from "ai";
 import { Chat, type DocumentAttachment } from "./chat.svelte";
 import superjson from "superjson";
+import type { ToolRequest } from "../tools/request.ts";
 
 export type ChatFileV1 = {
   version: 1;
   chat: {
     messages: UIMessage[];
     attachments: DocumentAttachment[];
+    toolRequests: ToolRequest[];
     createdAt: Date;
     updatedAt: Date;
   };
@@ -37,6 +39,7 @@ export class ChatSerializer {
       chat: {
         messages: chat.messages,
         attachments: chat.attachments,
+        toolRequests: chat.toolRequests,
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       },

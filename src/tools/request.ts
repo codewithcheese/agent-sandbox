@@ -1,4 +1,3 @@
-import type { TFile } from "obsidian";
 import * as diff from "diff";
 
 export type ToolRequest =
@@ -18,7 +17,7 @@ export type CreateRequest = {
 export type ModifyRequest = {
   toolCallId: string;
   type: "modify";
-  file: TFile;
+  path: string;
   patch: string;
 };
 
@@ -34,25 +33,27 @@ export type TrashRequest = {
   path: string;
 };
 
-function getPatchStats(patchString: string) {
+export function getRequestStats(requests: ToolRequest[]) {
   const stats = {
     added: 0,
     removed: 0,
   };
 
-  // parsePatch returns an array of patch objects
-  const parsedPatches = diff.parsePatch(patchString);
-
-  for (const patchInfo of parsedPatches) {
-    for (const hunk of patchInfo.hunks) {
-      for (const line of hunk.lines) {
-        if (line.startsWith("+")) {
-          stats.added++;
-        } else if (line.startsWith("-")) {
-          stats.removed++;
+  for (const request of requests) {
+    if ("patch" in request) {
+      const parsedPatches = diff.parsePatch(request.patch);
+      for (const patchInfo of parsedPatches) {
+        for (const hunk of patchInfo.hunks) {
+          for (const line of hunk.lines) {
+            if (line.startsWith("+")) {
+              stats.added++;
+            } else if (line.startsWith("-")) {
+              stats.removed++;
+            }
+            // Ignore context lines (starting with ' ')
+            // Ignore '\ No newline at end of file' lines
+          }
         }
-        // Ignore context lines (starting with ' ')
-        // Ignore '\ No newline at end of file' lines
       }
     }
   }

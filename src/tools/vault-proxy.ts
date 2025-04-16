@@ -1,5 +1,4 @@
 import { type DataWriteOptions, type TFile, Vault } from "obsidian";
-import type { Change } from "@codemirror/merge";
 import * as diff from "diff";
 import type { Chat } from "../chat/chat.svelte.ts";
 
@@ -38,7 +37,7 @@ export function createVaultProxy(vault: Vault, toolCallId: string, chat: Chat) {
           chat.toolRequests.push({
             toolCallId,
             type: "modify",
-            file,
+            path: file.path,
             patch,
           });
 
