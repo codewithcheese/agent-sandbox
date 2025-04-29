@@ -33,24 +33,29 @@ export class MergeView extends ItemView {
     return "git-pull-request";
   }
 
+  canResume(): boolean {
+    return false;
+  }
+
   async onOpen(): Promise<void> {
     await super.onOpen();
-    console.log("MergeView state", this.getState());
+
+    console.log("merge view onOpen", this);
 
     const container = this.containerEl.children[1];
     container.empty();
 
     // Mount the Svelte component
-    this.mountComponent();
+    await this.mountComponent();
     this.initialized = true;
   }
 
   /**
    * Mount the Svelte component
    */
-  private mountComponent(): void {
+  private async mountComponent(): Promise<void> {
     if (this.component) {
-      unmount(this.component);
+      await unmount(this.component);
       this.component = null;
     }
 
@@ -118,13 +123,13 @@ export class MergeView extends ItemView {
   /**
    * Get the state to be persisted in the workspace
    */
-  getState(): Record<string, unknown> {
-    console.log("Getting state", this.originalFilePath, this.proposedContent);
-    return {
-      originalFilePath: this.originalFilePath,
-      proposedContent: this.proposedContent,
-    };
-  }
+  // getState(): Record<string, unknown> {
+  //   console.log("Getting state", this.originalFilePath, this.proposedContent);
+  //   return {
+  //     originalFilePath: this.originalFilePath,
+  //     proposedContent: this.proposedContent,
+  //   };
+  // }
 
   async setState(state: any, result: any): Promise<void> {
     console.log("Setting state", state);

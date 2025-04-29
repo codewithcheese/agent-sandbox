@@ -5,6 +5,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { Button } from "$lib/components/ui/button";
   import {
+    ArrowLeft,
     CheckCircle2Icon,
     CornerDownLeftIcon,
     FileTextIcon,
@@ -28,14 +29,15 @@
   import type { ToolInvocation } from "@ai-sdk/ui-utils";
   import { executeToolInvocation } from "../tools";
   import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
+  import { findCenterLeaf } from "$lib/utils/obsidian.ts";
 
   const plugin = usePlugin();
 
-  let { chat }: { chat: Chat } = $props();
+  let { chat, view }: { chat: Chat; view: ViewContext } = $props();
 
   $inspect("toolRequests", chat.toolRequests);
 
-  const view = getContext<ViewContext>(VIEW_CTX);
+  console.log(findCenterLeaf());
 
   let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedModelId: string | undefined = $state(
@@ -43,6 +45,10 @@
   );
   let selectedAccountId: string | undefined = $state(
     plugin.settings.defaults.accountId,
+  );
+
+  let countFilesWithRequests = $derived(
+    new Set(chat.toolRequests.map((r) => r.path)).size,
   );
 
   onMount(() => {
@@ -179,9 +185,14 @@
           args,
         },
       });
+      leaf.setEphemeralState();
+
+      console.log("After set view state", leaf.view);
 
       // Focus the new leaf
       plugin.app.workspace.setActiveLeaf(leaf, { focus: true });
+
+      console.log("After set active leaf");
     } catch (error) {
       console.error("Error opening merge view:", error);
       new Notice(`Error: ${error.message}`, 3000);
@@ -190,13 +201,15 @@
 
   async function executeTool(toolInvocation: ToolInvocation) {
     try {
-      const result = await executeToolInvocation(toolInvocation);
+      const result = await executeToolInvocation(toolInvocation, chat);
       console.log("Tool result:", result);
     } catch (error) {
       console.error("Error executing tool:", error);
       new Notice(`Error: ${error.message}`, 3000);
     }
   }
+
+  async function openFirstToolRequest() {}
 </script>
 
 <div
@@ -305,6 +318,7 @@
             </div>
           {/if}
         </div>
+        <!-- todo display partial tool calls before invocation -->
         {#if message.parts?.some((part) => part.type === "tool-invocation")}
           {#each message.parts as part}
             {#if part.type === "tool-invocation"}
@@ -352,6 +366,34 @@
     onsubmit={handleSubmit}
   >
     <div class="chat-margin">
+      {#if countFilesWithRequests > 0}
+        <div
+          class="w-full flex items-center gap-2 px-3 py-2 rounded border border-gray-200 bg-gray-50 mb-2"
+        >
+          <span class="text-xs font-medium text-gray-700 flex-1 flex">
+            <button
+              type="button"
+              class="clickable-icon gap-2 items-center"
+              onclick={openFirstToolRequest}
+            >
+              <ArrowLeft class="size-3.5" />
+              {countFilesWithRequests} file with changes
+            </button>
+          </span>
+          <button
+            type="button"
+            class="ml-auto px-2 py-1 rounded text-xs font-semibold text-purple-700 bg-purple-100 hover:bg-purple-200 transition"
+          >
+            Accept all
+          </button>
+          <button
+            type="button"
+            class="px-2 py-1 rounded text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
+          >
+            Reject all
+          </button>
+        </div>
+      {/if}
       {#if chat.state.type === "loading"}
         <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
           <Loader2Icon class="size-4 animate-spin" />

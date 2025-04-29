@@ -3,6 +3,19 @@ import { Chat, type DocumentAttachment } from "./chat.svelte";
 import superjson from "superjson";
 import type { ToolRequest } from "../tools/request.ts";
 
+const CURRENT_VERSION = 1 as const;
+
+export const initialData: CurrentChatFile = {
+  version: 1,
+  chat: {
+    messages: [],
+    attachments: [],
+    toolRequests: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+};
+
 export type ChatFileV1 = {
   version: 1;
   chat: {
@@ -16,12 +29,12 @@ export type ChatFileV1 = {
 
 export type ChatFile = ChatFileV1;
 
+export type CurrentChatFile = ChatFile & { version: typeof CURRENT_VERSION };
+
 export type ChatFileMigrator = {
   version: number;
   migrate: (data: any) => any;
 };
-
-const CURRENT_VERSION = 1 as const;
 
 export class ChatSerializer {
   static readonly CURRENT_VERSION = 1;
@@ -43,19 +56,15 @@ export class ChatSerializer {
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       },
-    } satisfies ChatFile & { version: typeof CURRENT_VERSION });
+    } satisfies CurrentChatFile);
   }
 
-  static parse(
-    jsonString: string,
-  ): ChatFile & { version: typeof CURRENT_VERSION } {
+  static parse(jsonString: string): CurrentChatFile {
     const data = superjson.parse(jsonString);
     return this.migrateToLatest(data);
   }
 
-  private static migrateToLatest(
-    data: any,
-  ): ChatFile & { version: typeof CURRENT_VERSION } {
+  private static migrateToLatest(data: any): CurrentChatFile {
     let currentData = data;
     const sourceVersion = currentData.version || 0;
 
@@ -71,6 +80,6 @@ export class ChatSerializer {
       }
     }
 
-    return currentData as ChatFile;
+    return currentData as CurrentChatFile;
   }
 }

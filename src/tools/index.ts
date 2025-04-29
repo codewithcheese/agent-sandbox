@@ -307,9 +307,10 @@ export async function executeToolInvocation(
   }
 
   // Execute the tool using its execute method
-  return await tool.execute(toolInvocation.args, {
+  const result = await tool.execute(toolInvocation.args, {
     toolCallId: toolInvocation.toolCallId,
     // fixme? pass messages not used yet
     messages: [],
   });
+  console.log("Tool result:", result, toolInvocation);
 }

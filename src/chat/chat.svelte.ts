@@ -3,9 +3,8 @@ import {
   convertToCoreMessages,
   type CoreMessage,
   streamText,
-  type UIMessage,
-  type ToolInvocation,
   type Tool,
+  type UIMessage,
 } from "ai";
 import { type AIAccount, createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
@@ -24,12 +23,7 @@ import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
 import type { ChatModel } from "../settings/models.ts";
 import { usePlugin } from "$lib/utils";
-import {
-  ChatSerializer,
-  type ChatFile,
-  type ChatFileV1,
-} from "./chat-serializer.ts";
-import type { ToolInvocationUIPart } from "@ai-sdk/ui-utils";
+import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import type { ToolRequest } from "../tools/request.ts";
 
 export interface DocumentAttachment {
@@ -47,7 +41,10 @@ export type LoadingState =
       delay: number;
     };
 
+const chatCache = new Map<TFile, Chat | Promise<Chat>>();
+
 export class Chat {
+  file: TFile;
   messages = $state<UIMessage[]>([]);
   selectedChatbot = $state<string | undefined>();
   chatbots = $state<TFile[]>([]);
@@ -56,11 +53,13 @@ export class Chat {
   toolRequests = $state<ToolRequest[]>([]);
   createdAt: Date;
   updatedAt: Date;
+  options = $state<{ maxSteps: number }>({ maxSteps: 10 });
 
   #abortController?: AbortController;
 
   constructor(
-    initialData: ChatFileV1 = {
+    file: TFile,
+    data: CurrentChatFile = {
       version: 1,
       chat: {
         messages: [],
@@ -70,16 +69,29 @@ export class Chat {
         updatedAt: new Date(),
       },
     },
-    private onSave: () => void,
-    private options: { maxSteps: number } = {
-      maxSteps: 10,
-    },
   ) {
-    this.messages = initialData.chat.messages;
-    this.attachments = initialData.chat.attachments;
-    this.toolRequests = initialData.chat.toolRequests ?? [];
-    this.createdAt = initialData.chat.createdAt;
-    this.updatedAt = initialData.chat.updatedAt;
+    this.file = file;
+    this.messages = data.chat.messages;
+    this.attachments = data.chat.attachments;
+    this.toolRequests = data.chat.toolRequests ?? [];
+    this.createdAt = data.chat.createdAt;
+    this.updatedAt = data.chat.updatedAt;
+  }
+
+  static async create(file: TFile) {
+    const plugin = usePlugin();
+    const raw = await plugin.app.vault.read(file);
+    const data = ChatSerializer.parse(raw);
+    return new Chat(file, data);
+  }
+
+  static async load(file: TFile) {
+    if (chatCache.has(file)) {
+      return chatCache.get(file);
+    }
+    const chat = await Chat.create(file);
+    chatCache.set(file, chat);
+    return chat;
   }
 
   addAttachment(file: TFile) {
@@ -232,6 +244,10 @@ export class Chat {
         this.#abortController?.signal,
       );
     } catch (error: any) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
       // Global error handling
       console.error("Error in runConversation:", error);
       let errorMessage = "An error occurred while generating the response.";
@@ -330,8 +346,9 @@ export class Chat {
   /**
    * Persist the conversation state by serializing the data
    */
-  private save() {
-    this.onSave();
+  private async save() {
+    const plugin = usePlugin();
+    await plugin.app.vault.modify(this.file, ChatSerializer.stringify(this));
   }
 
   /**

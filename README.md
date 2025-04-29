@@ -1,6 +1,10 @@
 # Agent Sandbox
 
-Sandbox for developing knowledge agents in Obsidian.
+Agent Sandbox is a development environment for building and testing "knowledge agents" within Obsidian. Knowledge 
+agents are automated tools or bots that can process, analyze, and interact with your notes, providing intelligent 
+features such as answering questions, summarizing content, or automating workflows. This sandbox enables developers 
+to rapidly prototype, iterate, and refine such agents, seamlessly integrating them into the Obsidian ecosystem.
+
 
 ## Installation
 

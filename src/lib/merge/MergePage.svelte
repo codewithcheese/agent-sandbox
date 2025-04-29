@@ -92,7 +92,8 @@
       console.log(
         `Saving changes to ${originalFilePath}`,
         originalDocText,
-        state.doc,
+        "Proposed content",
+        state.doc.toString(),
       );
       await plugin.app.vault.adapter.write(originalFilePath, originalDocText);
 
@@ -118,9 +119,7 @@
     <div class="cm-scroller">
       <div class="cm-sizer">
         <div class="inline-title">{getBaseName(originalFilePath)}</div>
-        <div
-          bind:this={editorContainer}
-        ></div>
+        <div bind:this={editorContainer}></div>
       </div>
     </div>
   </div>

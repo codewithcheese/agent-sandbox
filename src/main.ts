@@ -6,6 +6,7 @@ import {
   Plugin,
   type PluginManifest,
   TFile,
+  WorkspaceLeaf,
 } from "obsidian";
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
 import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.ts";
@@ -28,6 +29,8 @@ import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
 import { PGliteProvider } from "./pglite/provider.ts";
 import { installTools } from "./tools/command.ts";
+import { initialData } from "./chat/chat-serializer.ts";
+import superjson from "superjson";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -77,11 +80,28 @@ export class AgentSandboxPlugin extends Plugin {
     }
 
     const filePath = `${normalizedPath}/${fileName}.chat`;
-    const file = await this.app.vault.create(filePath, "");
+    const file = await this.app.vault.create(
+      filePath,
+      superjson.stringify(initialData),
+    );
 
-    const leaf = Platform.isMobile
-      ? this.app.workspace.getLeaf()
-      : this.app.workspace.getRightLeaf(false);
+    let leaf: WorkspaceLeaf;
+
+    if (!Platform.isMobile) {
+      const rightChatLeaves = this.app.workspace
+        .getLeavesOfType(CHAT_VIEW_TYPE)
+        // @ts-expect-error containerEl not typed
+        .filter((l) => l.containerEl.closest(".mod-right-split"));
+
+      if (rightChatLeaves.length > 0) {
+        leaf = rightChatLeaves[0];
+      } else {
+        leaf = this.app.workspace.getRightLeaf(false);
+      }
+    } else {
+      // Mobile: fall back to the current/only leaf
+      leaf = this.app.workspace.getLeaf();
+    }
 
     await leaf.openFile(file, {
       active: true,

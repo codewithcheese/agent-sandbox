@@ -1,13 +1,15 @@
 import { FileView, Menu, TFile, WorkspaceLeaf } from "obsidian";
 import { mount, unmount } from "svelte";
-import ChatElement from "./ChatElement.svelte";
 import type { ViewContext } from "$lib/obsidian/view.ts";
+import ChatPage from "./ChatPage.svelte";
+import { Chat } from "./chat.svelte.ts";
 
 export const CHAT_VIEW_TYPE = "sandbox-chat-view";
 
 export class ChatView extends FileView {
   allowNoFile: boolean = false;
   private component: any = null;
+  floatingEl: HTMLDivElement | null = null;
   view = $state<ViewContext>({
     position: "center",
     name: "",
@@ -37,6 +39,19 @@ export class ChatView extends FileView {
     } else {
       this.view.position = "center";
     }
+  }
+
+  onload() {
+    super.onload();
+    // this.createFloatingContainer();
+  }
+
+  onunload() {
+    if (this.floatingEl) {
+      this.floatingEl.remove();
+      this.floatingEl = null;
+    }
+    super.onunload();
   }
 
   onResize() {
@@ -84,7 +99,7 @@ export class ChatView extends FileView {
     await this.mount(file);
   }
 
-  async mount(file: TFile) {
+  private async mount(file: TFile) {
     if (this.component) {
       await unmount(this.component);
       this.component = null;
@@ -99,14 +114,43 @@ export class ChatView extends FileView {
     viewContent.style.backgroundColor = "var(--background-primary)";
 
     // Mount the Svelte component with props
-    this.component = mount(ChatElement, {
+    this.component = mount(ChatPage, {
       target: this.containerEl.children[1],
       props: {
-        data: await this.app.vault.read(file),
-        onSave: (data: string) => this.app.vault.modify(this.file, data),
+        chat: await Chat.load(file),
         view: this.view,
       },
     });
+  }
+
+  private createFloatingContainer() {
+    // If already created, do nothing
+    if (this.floatingEl) return;
+
+    // You could append directly to document.body:
+    //   const container = document.body.createDiv();
+    //
+    // Alternatively, append to the workspace’s containerEl:
+    //   const container = this.app.workspace.containerEl.createDiv();
+
+    const container = document.body.createDiv();
+    container.id = "chat-floating-container";
+
+    // Basic style: fixed bottom center
+    // For advanced styling, consider external CSS or theming
+    container.style.position = "fixed";
+    container.style.bottom = "20px";
+    container.style.left = "50%";
+    container.style.transform = "translateX(-50%)";
+    container.style.zIndex = "9999"; // ensure it’s on top
+    container.style.padding = "8px";
+    container.style.borderRadius = "8px";
+    container.style.backgroundColor = "var(--background-primary)";
+
+    // Add any initial content or container for your controls
+    container.setText("Floating Widget Controls Go Here");
+
+    this.floatingEl = container;
   }
 
   canAcceptExtension(extension: string): boolean {
