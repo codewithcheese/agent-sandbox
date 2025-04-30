@@ -26,7 +26,7 @@
 </script>
 
 <div class="flex p-1">
-  <div class="flex flex-1 items-center gap-2">
+  <div class="flex flex-1 items-center gap-2 text-sm">
     {@render icon?.()}
     {label}
     {#if path}

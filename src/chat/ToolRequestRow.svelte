@@ -18,7 +18,7 @@
 
   function getLabel(request: ToolRequest) {
     const labels = {
-      read: ["Analyzing", "Analyzed", "Failed"],
+      read: ["Viewing", "Viewed", "Failed"],
       modify: ["Editing", "Edited", "Failed"],
       create: ["Creating", "Created", "Failed"],
       delete: ["Deleting", "Deleted", "Failed"],
