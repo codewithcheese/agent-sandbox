@@ -141,10 +141,9 @@
       });
   }
 
-  async function handleReviewClick(toolCallId: string) {
+  async function openToolRequest(toolCallId: string) {
     try {
       const plugin = usePlugin();
-
       const leaf = plugin.app.workspace.getLeaf(true);
       await leaf.setViewState({
         type: MERGE_VIEW_TYPE,
@@ -172,7 +171,13 @@
     }
   }
 
-  async function openFirstToolRequest() {}
+  async function openFirstToolRequest() {
+    if (chat.toolRequests.length === 0) return;
+    const toolCallId = chat.toolRequests[0].toolCallId;
+    if (toolCallId) {
+      await openToolRequest(toolCallId);
+    }
+  }
 </script>
 
 <div
@@ -293,7 +298,7 @@
                     requests={chat.toolRequests.filter(
                       (r) => r.toolCallId === part.toolInvocation.toolCallId,
                     )}
-                    onReviewClick={handleReviewClick}
+                    onReviewClick={openToolRequest}
                   />
                 {:else}
                   <div
