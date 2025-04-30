@@ -44,12 +44,12 @@ export type LoadingState =
 const chatCache = new Map<string, WeakRef<Chat | Promise<Chat>>>();
 
 const registry = new FinalizationRegistry((path: string) => {
-  // console.log("Finalizing chat", path);
+  console.log("Finalizing chat", path);
   chatCache.delete(path);
 });
 
 export class Chat {
-  file: TFile;
+  path: string;
   messages = $state<UIMessage[]>([]);
   selectedChatbot = $state<string | undefined>();
   chatbots = $state<TFile[]>([]);
@@ -62,25 +62,9 @@ export class Chat {
 
   #abortController?: AbortController;
 
-  constructor(
-    file: TFile,
-    data: CurrentChatFile = {
-      version: 1,
-      chat: {
-        messages: [],
-        attachments: [],
-        toolRequests: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    },
-  ) {
-    this.file = file;
-    this.messages = data.chat.messages;
-    this.attachments = data.chat.attachments;
-    this.toolRequests = data.chat.toolRequests ?? [];
-    this.createdAt = data.chat.createdAt;
-    this.updatedAt = data.chat.updatedAt;
+  constructor(path: string, data: CurrentChatFile) {
+    Object.assign(this, data.payload);
+    this.path = path;
   }
 
   static async create(path: string) {
@@ -91,7 +75,7 @@ export class Chat {
     }
     const raw = await plugin.app.vault.read(file);
     const data = ChatSerializer.parse(raw);
-    return new Chat(file, data);
+    return new Chat(path, data);
   }
 
   static async load(path: string) {
@@ -99,15 +83,15 @@ export class Chat {
     if (cachedRef) {
       const cachedValue = cachedRef.deref();
       if (cachedValue) {
-        // console.log("Loading chat from cache", path);
+        console.log("Loading chat from cache", path);
         return cachedValue;
       } else {
         // Reference was garbage collected
-        // console.log("Chat was garbage collected, reloading", path);
+        console.log("Chat was garbage collected, reloading", path);
         chatCache.delete(path);
       }
     }
-    // console.log("Loading chat from file", path);
+    console.log("Loading chat from file", path);
     // synchronously cache the promise to prevent multiple loads
     const chatPromise = Chat.create(path);
     chatCache.set(path, new WeakRef(chatPromise));
@@ -374,7 +358,11 @@ export class Chat {
    */
   private async save() {
     const plugin = usePlugin();
-    await plugin.app.vault.modify(this.file, ChatSerializer.stringify(this));
+    const file = plugin.app.vault.getAbstractFileByPath(this.path);
+    if (!file) {
+      throw Error(`Chat file not found: ${this.path}`);
+    }
+    await plugin.app.vault.modify(file, ChatSerializer.stringify(this));
   }
 
   /**

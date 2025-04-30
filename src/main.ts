@@ -29,8 +29,8 @@ import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
 import { PGliteProvider } from "./pglite/provider.ts";
 import { installTools } from "./tools/command.ts";
-import { initialData } from "./chat/chat-serializer.ts";
 import superjson from "superjson";
+import { ChatSerializer } from "./chat/chat-serializer.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -82,7 +82,7 @@ export class AgentSandboxPlugin extends Plugin {
     const filePath = `${normalizedPath}/${fileName}.chat`;
     const file = await this.app.vault.create(
       filePath,
-      superjson.stringify(initialData),
+      superjson.stringify(ChatSerializer.INITIAL_DATA),
     );
 
     let leaf: WorkspaceLeaf;

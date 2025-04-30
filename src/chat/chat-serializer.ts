@@ -3,22 +3,9 @@ import { Chat, type DocumentAttachment } from "./chat.svelte";
 import superjson from "superjson";
 import type { ToolRequest } from "../tools/request.ts";
 
-const CURRENT_VERSION = 1 as const;
-
-export const initialData: CurrentChatFile = {
-  version: 1,
-  chat: {
-    messages: [],
-    attachments: [],
-    toolRequests: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-};
-
 export type ChatFileV1 = {
   version: 1;
-  chat: {
+  payload: {
     messages: UIMessage[];
     attachments: DocumentAttachment[];
     toolRequests: ToolRequest[];
@@ -29,7 +16,9 @@ export type ChatFileV1 = {
 
 export type ChatFile = ChatFileV1;
 
-export type CurrentChatFile = ChatFile & { version: typeof CURRENT_VERSION };
+export type CurrentChatFile = ChatFile & {
+  version: typeof ChatSerializer.CURRENT_VERSION;
+};
 
 export type ChatFileMigrator = {
   version: number;
@@ -37,7 +26,18 @@ export type ChatFileMigrator = {
 };
 
 export class ChatSerializer {
-  static readonly CURRENT_VERSION = 1;
+  static readonly CURRENT_VERSION = 1 as const;
+
+  static INITIAL_DATA = {
+    version: 1,
+    payload: {
+      messages: [],
+      attachments: [],
+      toolRequests: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  } satisfies CurrentChatFile;
 
   private static readonly VERSION_MIGRATORS: ChatFileMigrator[] = [
     {
@@ -49,7 +49,7 @@ export class ChatSerializer {
   static stringify(chat: Chat): string {
     return superjson.stringify({
       version: this.CURRENT_VERSION,
-      chat: {
+      payload: {
         messages: chat.messages,
         attachments: chat.attachments,
         toolRequests: chat.toolRequests,
