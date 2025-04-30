@@ -10,7 +10,7 @@ export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
 export interface MergeViewState {
   chatPath: string;
-  toolCallId: string;
+  toolRequestId: string;
 }
 
 export class MergeView extends ItemView {
@@ -47,7 +47,7 @@ export class MergeView extends ItemView {
     const chat = await Chat.load(this.state.chatPath);
 
     const toolRequest = chat.toolRequests.find(
-      (tr) => tr.toolCallId === this.state.toolCallId,
+      (tr) => tr.id === this.state.toolRequestId,
     );
     if (!toolRequest) {
       throw new Error("Tool request not found");

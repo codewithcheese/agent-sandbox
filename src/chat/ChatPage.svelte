@@ -24,12 +24,12 @@
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { normalizePath, Notice } from "obsidian";
-  import ToolRequest from "./ToolRequest.svelte";
+  import ToolRequestRow from "./ToolRequestRow.svelte";
   import { type ViewContext } from "$lib/obsidian/view.ts";
-  import type { ToolInvocation } from "@ai-sdk/ui-utils";
-  import { executeToolInvocation } from "../tools";
   import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
   import { findCenterLeaf } from "$lib/utils/obsidian.ts";
+  import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
+  import type { ToolRequest } from "../tools/tool-request.ts";
 
   const plugin = usePlugin();
 
@@ -143,7 +143,7 @@
       });
   }
 
-  async function openToolRequest(toolCallId: string) {
+  async function openToolRequest(toolRequest: ToolRequest) {
     try {
       const plugin = usePlugin();
       const leaf = plugin.app.workspace.getLeaf(true);
@@ -151,7 +151,7 @@
         type: MERGE_VIEW_TYPE,
         state: {
           chatPath: chat.path,
-          toolCallId,
+          toolRequestId: toolRequest.id,
         },
       });
       leaf.setEphemeralState();
@@ -163,22 +163,15 @@
     }
   }
 
-  async function executeTool(toolInvocation: ToolInvocation) {
-    try {
-      const result = await executeToolInvocation(toolInvocation, chat);
-      console.log("Tool result:", result);
-    } catch (error) {
-      console.error("Error executing tool:", error);
-      new Notice(`Error: ${error.message}`, 3000);
+  async function openFirstPendingToolRequest() {
+    const pendingToolRequest = chat.toolRequests.find(
+      (tr) => tr.status === "pending",
+    );
+    if (!pendingToolRequest) {
+      new Notice("No pending tool requests found", 3000);
+      return;
     }
-  }
-
-  async function openFirstToolRequest() {
-    if (chat.toolRequests.length === 0) return;
-    const toolCallId = chat.toolRequests[0].toolCallId;
-    if (toolCallId) {
-      await openToolRequest(toolCallId);
-    }
+    await openToolRequest(pendingToolRequest);
   }
 </script>
 
@@ -298,31 +291,24 @@
                 >
                   <WrenchIcon class="size-3" />
                   <div class="flex-1">{part.toolInvocation.toolName}</div>
-                  <InfoIcon class="size-3" />
+                  <button
+                    type="button"
+                    class="clickable-icon"
+                    onclick={() =>
+                      openToolInvocationInfoModal(chat, part.toolInvocation)}
+                    ><InfoIcon class="size-3" /></button
+                  >
                 </div>
                 {#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}
                   <!-- Handle tool invocations -->
                   <div class="border-t border-gray-200">
-                    <ToolRequest
+                    <ToolRequestRow
                       toolCallId={part.toolInvocation.toolCallId}
                       {toolRequest}
-                      onReviewClick={openToolRequest}
+                      onReviewClick={() => openToolRequest(toolRequest)}
                     />
                   </div>
                 {/each}
-
-                <div
-                  class="text-xs bg-gray-100 p-2 rounded font-mono whitespace-pre-wrap"
-                >
-                  <p>
-                    {JSON.stringify(part.toolInvocation.args, null, 2)}
-                  </p>
-                  <button
-                    onclick={() =>
-                      executeTool($state.snapshot(part.toolInvocation))}
-                    class="clickable-icon">Execute</button
-                  >
-                </div>
               </div>
             {/if}
           {/each}
@@ -351,7 +337,7 @@
             <button
               type="button"
               class="clickable-icon gap-2 items-center"
-              onclick={openFirstToolRequest}
+              onclick={openFirstPendingToolRequest}
             >
               <ArrowLeft class="size-3.5" />
               {countFilesWithRequests} file with changes
