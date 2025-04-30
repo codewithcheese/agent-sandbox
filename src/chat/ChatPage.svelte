@@ -48,7 +48,11 @@
   );
 
   let countFilesWithRequests = $derived(
-    new Set(chat.toolRequests.map((r) => r.path)).size,
+    new Set(
+      chat.toolRequests
+        .filter((r) => r.status === "pending")
+        .map((r) => r.path),
+    ).size,
   );
 
   onMount(() => {
@@ -343,18 +347,18 @@
               {countFilesWithRequests} file with changes
             </button>
           </span>
-          <button
-            type="button"
-            class="ml-auto px-2 py-1 rounded text-xs font-semibold text-purple-700 bg-purple-100 hover:bg-purple-200 transition"
-          >
-            Accept all
-          </button>
-          <button
-            type="button"
-            class="px-2 py-1 rounded text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
-          >
-            Reject all
-          </button>
+          <!--          <button-->
+          <!--            type="button"-->
+          <!--            class="ml-auto px-2 py-1 rounded text-xs font-semibold text-purple-700 bg-purple-100 hover:bg-purple-200 transition"-->
+          <!--          >-->
+          <!--            Accept all-->
+          <!--          </button>-->
+          <!--          <button-->
+          <!--            type="button"-->
+          <!--            class="px-2 py-1 rounded text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"-->
+          <!--          >-->
+          <!--            Reject all-->
+          <!--          </button>-->
         </div>
       {/if}
       {#if chat.state.type === "loading"}

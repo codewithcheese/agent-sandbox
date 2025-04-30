@@ -168,7 +168,6 @@ export async function createTool(vaultTool: VaultTool, chat: Chat) {
   if (vaultTool.type === "builtin") {
     if (vaultTool.name === "str_replace_editor") {
       return anthropic.tools.textEditor_20250124({
-        // @ts-expect-error unusual type
         execute: await createExecutor(vaultTool, chat),
       });
     } else {
