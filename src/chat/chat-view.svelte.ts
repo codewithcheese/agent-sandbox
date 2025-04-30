@@ -117,7 +117,7 @@ export class ChatView extends FileView {
     this.component = mount(ChatPage, {
       target: this.containerEl.children[1],
       props: {
-        chat: await Chat.load(file),
+        chat: await Chat.load(file.path),
         view: this.view,
       },
     });

@@ -41,7 +41,12 @@ export type LoadingState =
       delay: number;
     };
 
-const chatCache = new Map<TFile, Chat | Promise<Chat>>();
+const chatCache = new Map<string, WeakRef<Chat | Promise<Chat>>>();
+
+const registry = new FinalizationRegistry((path: string) => {
+  // console.log("Finalizing chat", path);
+  chatCache.delete(path);
+});
 
 export class Chat {
   file: TFile;
@@ -78,19 +83,40 @@ export class Chat {
     this.updatedAt = data.chat.updatedAt;
   }
 
-  static async create(file: TFile) {
+  static async create(path: string) {
     const plugin = usePlugin();
+    const file = plugin.app.vault.getAbstractFileByPath(path);
+    if (!file) {
+      throw Error(`Chat file not found: ${path}`);
+    }
     const raw = await plugin.app.vault.read(file);
     const data = ChatSerializer.parse(raw);
     return new Chat(file, data);
   }
 
-  static async load(file: TFile) {
-    if (chatCache.has(file)) {
-      return chatCache.get(file);
+  static async load(path: string) {
+    const cachedRef = chatCache.get(path);
+    if (cachedRef) {
+      const cachedValue = cachedRef.deref();
+      if (cachedValue) {
+        // console.log("Loading chat from cache", path);
+        return cachedValue;
+      } else {
+        // Reference was garbage collected
+        // console.log("Chat was garbage collected, reloading", path);
+        chatCache.delete(path);
+      }
     }
-    const chat = await Chat.create(file);
-    chatCache.set(file, chat);
+    // console.log("Loading chat from file", path);
+    // synchronously cache the promise to prevent multiple loads
+    const chatPromise = Chat.create(path);
+    chatCache.set(path, new WeakRef(chatPromise));
+
+    // await chat and register for finalization
+    const chat = await chatPromise;
+    chatCache.set(path, new WeakRef(chat));
+    registry.register(chat, path);
+
     return chat;
   }
 
