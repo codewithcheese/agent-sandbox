@@ -14,9 +14,9 @@
   type Props = {
     toolInvocation: ToolInvocation;
     requests: ToolRequest[];
-    reviewTextEditorChanges: (toolCallId: string, args: any) => void;
+    onReviewClick: (toolCallId: string) => void;
   };
-  let { toolInvocation, reviewTextEditorChanges, requests }: Props = $props();
+  let { toolInvocation, onReviewClick, requests }: Props = $props();
 </script>
 
 {#if toolInvocation.args.command === "str_replace"}
@@ -31,11 +31,7 @@
     {#snippet controls()}
       <button
         class="clickable-icon gap-1 highlight-icon"
-        onclick={() =>
-          reviewTextEditorChanges(
-            toolInvocation.toolCallId,
-            toolInvocation.args,
-          )}
+        onclick={() => onReviewClick(toolInvocation.toolCallId)}
       >
         <FileTextIcon class="size-3.5" />
         Review
@@ -78,10 +74,7 @@
       <button
         class="clickable-icon highlight-icon"
         onclick={() =>
-          reviewTextEditorChanges(
-            toolInvocation.toolCallId,
-            toolInvocation.args,
-          )}
+          onReviewClick(toolInvocation.toolCallId, toolInvocation.args)}
       >
         <FileTextIcon class="size-3.5" />
         Review

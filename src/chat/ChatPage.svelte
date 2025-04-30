@@ -1,31 +1,29 @@
 <script lang="ts">
-  // @ts-expect-error css import type issue
+  // @ts-expect-error CSS import type issue
   import chatCss from "./chat.css?inline";
 
   import { Textarea } from "$lib/components/ui/textarea";
   import { Button } from "$lib/components/ui/button";
   import {
     ArrowLeft,
-    CheckCircle2Icon,
     CornerDownLeftIcon,
     FileTextIcon,
     Loader2Icon,
     PlusIcon,
     RefreshCwIcon,
     StopCircleIcon,
-    TerminalIcon,
     XIcon,
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
-  import { cn, formatDate, usePlugin } from "$lib/utils";
+  import { usePlugin } from "$lib/utils";
   import { insertCss } from "$lib/utils/insert-css.ts";
-  import { onDestroy, onMount, getContext } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { normalizePath, Notice } from "obsidian";
   import TextEditorToolView from "./TextEditorToolView.svelte";
-  import { VIEW_CTX, type ViewContext } from "$lib/obsidian/view.ts";
+  import { type ViewContext } from "$lib/obsidian/view.ts";
   import type { ToolInvocation } from "@ai-sdk/ui-utils";
   import { executeToolInvocation } from "../tools";
   import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
@@ -143,56 +141,21 @@
       });
   }
 
-  async function reviewTextEditorChanges(toolCallId: string, args: any) {
+  async function handleReviewClick(toolCallId: string) {
     try {
       const plugin = usePlugin();
 
-      // Get the file path
-      const normalizedPath = args.path.startsWith("/")
-        ? args.path.substring(1)
-        : args.path;
-
-      // Get the file
-      const file = plugin.app.vault.getFileByPath(normalizedPath);
-      if (!file) {
-        new Notice(`File not found: ${args.path}`, 3000);
-        return;
-      }
-
-      // Read the original content
-      const originalContent = await plugin.app.vault.read(file);
-
-      // Generate the proposed content based on the command
-      let proposedContent = originalContent;
-
-      if (args.command === "str_replace") {
-        proposedContent = originalContent.replace(args.old_str, args.new_str);
-      } else if (args.command === "insert") {
-        const lines = originalContent.split("\n");
-        lines.splice(args.insert_line, 0, args.new_str);
-        proposedContent = lines.join("\n");
-      }
-
-      // Open a new leaf for the merge view
       const leaf = plugin.app.workspace.getLeaf(true);
       await leaf.setViewState({
         type: MERGE_VIEW_TYPE,
         state: {
-          originalContent,
-          proposedContent,
-          originalFilePath: normalizedPath,
+          chatPath: chat.path,
           toolCallId,
-          args,
         },
       });
       leaf.setEphemeralState();
-
-      console.log("After set view state", leaf.view);
-
-      // Focus the new leaf
       plugin.app.workspace.setActiveLeaf(leaf, { focus: true });
-
-      console.log("After set active leaf");
+      plugin.app.workspace.requestSaveLayout();
     } catch (error) {
       console.error("Error opening merge view:", error);
       new Notice(`Error: ${error.message}`, 3000);
@@ -330,7 +293,7 @@
                     requests={chat.toolRequests.filter(
                       (r) => r.toolCallId === part.toolInvocation.toolCallId,
                     )}
-                    {reviewTextEditorChanges}
+                    onReviewClick={handleReviewClick}
                   />
                 {:else}
                   <div

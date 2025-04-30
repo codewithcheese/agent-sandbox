@@ -1,25 +1,20 @@
 import { ItemView } from "obsidian";
 import { mount, unmount } from "svelte";
 import MergePage from "./MergePage.svelte";
-
-/**
- * todo: add title
- * todo: add margins (sizer)
- */
+import { Chat } from "../../chat/chat.svelte.ts";
+import * as diff from "diff";
+import { getBaseName } from "$lib/utils/path.ts";
 
 export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
 export interface MergeViewState {
-  originalFilePath?: string;
-  proposedContent?: string;
+  chatPath: string;
+  toolCallId: string;
 }
 
 export class MergeView extends ItemView {
   private component: any = null;
-  private originalContent: string = "";
-  private proposedContent: string = "";
-  private originalFilePath: string = "";
-  private initialized: boolean = false;
+  private state: MergeViewState | undefined;
 
   getViewType(): string {
     return MERGE_VIEW_TYPE;
@@ -33,27 +28,10 @@ export class MergeView extends ItemView {
     return "git-pull-request";
   }
 
-  canResume(): boolean {
-    return false;
-  }
-
-  async onOpen(): Promise<void> {
-    await super.onOpen();
-
-    console.log("merge view onOpen", this);
-
-    const container = this.containerEl.children[1];
-    container.empty();
-
-    // Mount the Svelte component
-    await this.mountComponent();
-    this.initialized = true;
-  }
-
   /**
    * Mount the Svelte component
    */
-  private async mountComponent(): Promise<void> {
+  private async mount(): Promise<void> {
     if (this.component) {
       await unmount(this.component);
       this.component = null;
@@ -63,28 +41,44 @@ export class MergeView extends ItemView {
     viewContent.style.padding = "0px";
     viewContent.style.backgroundColor = "var(--background-primary)";
 
+    console.log("Mount", this.state);
+
+    const chat = await Chat.load(this.state.chatPath);
+
+    const toolRequest = chat.toolRequests.find(
+      (tr) => tr.toolCallId === this.state.toolCallId,
+    );
+    if (!toolRequest) {
+      throw new Error("Tool request not found");
+    }
+    if (toolRequest.type !== "modify") {
+      throw new Error(`Merge does not support ${toolRequest.type} operations.`);
+    }
+
+    const file = this.app.vault.getAbstractFileByPath(toolRequest.path);
+    const ogContent = await this.app.vault.adapter.read(file.path);
+
+    const newContent = diff.applyPatch(ogContent, toolRequest.patch);
+
     // Mount the Svelte component with props
     this.component = mount(MergePage, {
       target: viewContent,
       props: {
-        originalContent: this.originalContent,
-        proposedContent: this.proposedContent,
-        originalFilePath: this.originalFilePath,
-        onSave: (originalContent: string) => {
-          console.log("Merge onSave", originalContent);
+        ogContent,
+        newContent,
+        name: getBaseName(toolRequest.path),
+        onSave: async (resolvedContent: string, pendingContent: string) => {
+          const remaining = diff.createPatch(
+            toolRequest.path,
+            resolvedContent,
+            pendingContent,
+          );
+          await this.app.vault.adapter.write(toolRequest.path, resolvedContent);
+          toolRequest.patch = remaining;
+          await chat.save();
         },
       },
     });
-  }
-
-  /**
-   * Update the component content
-   */
-  async updateContent(): Promise<void> {
-    if (!this.component || !this.containerEl) return;
-
-    // Remount the component with updated props
-    this.mountComponent();
   }
 
   async onClose(): Promise<void> {
@@ -95,66 +89,13 @@ export class MergeView extends ItemView {
     await super.onClose();
   }
 
-  /**
-   * Sets or updates the content for the merge view
-   * @param originalContent The content of the current file
-   * @param proposedContent The content of the file to merge with
-   * @param originalFilePath The path to the original file
-   */
-  async setContent(
-    originalContent: string,
-    proposedContent: string,
-    originalFilePath: string,
-  ): Promise<void> {
-    this.originalContent = originalContent;
-    this.proposedContent = proposedContent;
-    this.originalFilePath = originalFilePath;
-
-    if (this.containerEl) {
-      await this.updateContent();
-    }
-
-    this.initialized = true;
-
-    // Request that Obsidian save the layout
-    this.app.workspace.requestSaveLayout();
+  getState(): Record<string, undefined> {
+    console.log("Getting state", this.state);
+    return this.state as any;
   }
 
-  /**
-   * Get the state to be persisted in the workspace
-   */
-  // getState(): Record<string, unknown> {
-  //   console.log("Getting state", this.originalFilePath, this.proposedContent);
-  //   return {
-  //     originalFilePath: this.originalFilePath,
-  //     proposedContent: this.proposedContent,
-  //   };
-  // }
-
   async setState(state: any, result: any): Promise<void> {
-    console.log("Setting state", state);
-
-    if (state?.originalFilePath) {
-      this.originalFilePath = state.originalFilePath;
-
-      try {
-        // Load the original content from the file
-        this.originalContent = await this.app.vault.adapter.read(
-          this.originalFilePath,
-        );
-
-        // Set the proposed content directly from state
-        if (state.proposedContent) {
-          this.proposedContent = state.proposedContent;
-        }
-
-        // Update the view if it's already initialized
-        if (this.containerEl && this.initialized) {
-          await this.updateContent();
-        }
-      } catch (error) {
-        console.error("Error loading original file content:", error);
-      }
-    }
+    this.state = state;
+    await this.mount();
   }
 }

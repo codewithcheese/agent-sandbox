@@ -356,7 +356,7 @@ export class Chat {
   /**
    * Persist the conversation state by serializing the data
    */
-  private async save() {
+  public async save() {
     const plugin = usePlugin();
     const file = plugin.app.vault.getAbstractFileByPath(this.path);
     if (!file) {

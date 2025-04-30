@@ -7,15 +7,13 @@
   import { Notice } from "obsidian";
   import { usePlugin } from "$lib/utils";
 
-  const plugin = usePlugin();
-
-  // Props
-  let { originalContent, proposedContent, originalFilePath, onSave } = $props<{
-    originalContent: string;
-    proposedContent: string;
-    originalFilePath: string;
-    onSave: (content: string) => void;
-  }>();
+  type Props = {
+    name: string;
+    ogContent: string;
+    newContent: string;
+    onSave: (resolvedContent: string, pendingContent: string) => Promise<void>;
+  };
+  let { name, ogContent, newContent, onSave }: Props = $props();
 
   // State
   let editorView: EditorView | null = $state(null);
@@ -45,7 +43,7 @@
     // Create the editor
     editorView = new EditorView({
       state: EditorState.create({
-        doc: proposedContent,
+        doc: newContent,
         extensions: [
           drawSelection(),
           keymap.of([...defaultKeymap, indentWithTab]),
@@ -69,7 +67,7 @@
             }
           }),
           unifiedMergeView({
-            original: originalContent,
+            original: ogContent,
             gutter: false,
           }),
         ],
@@ -88,29 +86,19 @@
 
     try {
       const state = editorView.state;
-      const originalDocText = getOriginalDoc(state).toString();
+      const resolvedContent = getOriginalDoc(state).toString();
+      const pendingContent = state.doc.toString();
       console.log(
-        `Saving changes to ${originalFilePath}`,
-        originalDocText,
+        // `Saving changes to ${originalFilePath}`,
+        resolvedContent,
         "Proposed content",
-        state.doc.toString(),
+        pendingContent,
       );
-      await plugin.app.vault.adapter.write(originalFilePath, originalDocText);
-
-      new Notice(`Changes saved to ${originalFilePath.split("/").pop()}`);
-
-      onSave(originalDocText);
+      await onSave(resolvedContent, pendingContent);
     } catch (error) {
       console.error("Error saving changes:", error);
       new Notice(`Error saving changes: ${(error as Error).message}`);
     }
-  }
-
-  function getBaseName(path: string): string {
-    const filename = path.split("/").pop() || path;
-    return filename.includes(".")
-      ? filename.substring(0, filename.lastIndexOf("."))
-      : filename;
   }
 </script>
 
@@ -118,7 +106,7 @@
   <div class="cm-editor">
     <div class="cm-scroller">
       <div class="cm-sizer">
-        <div class="inline-title">{getBaseName(originalFilePath)}</div>
+        <div class="inline-title">Review: {name}</div>
         <div bind:this={editorContainer}></div>
       </div>
     </div>

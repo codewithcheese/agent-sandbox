@@ -25,14 +25,8 @@ export function createVaultProxy(vault: Vault, toolCallId: string, chat: Chat) {
           data: string,
           options?: DataWriteOptions,
         ): Promise<void> => {
-          // read target file and calculate changes
           const content = await target.read(file);
-          const patch = diff.createTwoFilesPatch(
-            file.name,
-            file.name,
-            content,
-            data,
-          );
+          const patch = diff.createPatch(file.name, content, data);
 
           chat.toolRequests.push({
             toolCallId,

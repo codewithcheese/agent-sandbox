@@ -54,6 +54,7 @@ export function findFirstLeaf(node: WorkspaceLeaf): WorkspaceLeaf | null {
     return node;
   }
   // Otherwise, node is another split: check its children, in order
+  // @ts-expect-error children not typed
   for (const child of node.children) {
     const found = findFirstLeaf(child);
     if (found) {
