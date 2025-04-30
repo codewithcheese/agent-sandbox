@@ -1,6 +1,6 @@
 import type { TextStreamPart, UIMessage } from "ai";
 import { nanoid } from "nanoid";
-import { getToolCall, updateToolInvocationPart } from "./tools.ts";
+import { getToolCall, updateToolInvocationPart } from "../../tools";
 import { parsePartialJson } from "@ai-sdk/ui-utils";
 
 export function applyStreamPartToMessages(

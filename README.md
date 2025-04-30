@@ -1,6 +1,10 @@
 # Agent Sandbox
 
-Sandbox for developing knowledge agents in Obsidian.
+Agent Sandbox is a development environment for building and testing "knowledge agents" within Obsidian. Knowledge 
+agents are automated tools or bots that can process, analyze, and interact with your notes, providing intelligent 
+features such as answering questions, summarizing content, or automating workflows. This sandbox enables developers 
+to rapidly prototype, iterate, and refine such agents, seamlessly integrating them into the Obsidian ecosystem.
+
 
 ## Installation
 
@@ -64,20 +68,28 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Title generation
+- [ ] Fix code-block display
+- [ ] Delete a message
+- [ ] Edit message
+- [ ] Token counting
+- [ ] Refresh chatbot list when chatbots path modified
+- [ ] Context optimization (forget old messages)
+- [ ] Display tokens used in tool call
+- [ ] Pass abort signal to tools
+- [ ] Read file image support
+- [x] Merge view tweaks
+  - [x] Open in the main leaf
+  - [x] Add margins
+  - [x] Add title 
+- [x] Add pending edits indicator
 - [x] Stop generation button
 - [x] Catch errors in call model and reset state
-- [ ] Action button prompts
-- [ ] Read file image support
 - [x] Fix 429 handling
 - [x] Show loading indicator
 - [x] Markdown message rendering
 - [x] Allow selection in message content
-- [ ] Default model setting
-- [ ] Remove front matter from system
+- [x] Default model setting
+- [x] Remove front matter from system
 - [x] Fix reasoning details handling
 - [x] Display error responses
-- [ ] Refresh chatbot list when chatbots path modified
-- [ ] Token counting
-- [ ] Context optimization (forget old messages)
-- [ ] Display tokens used in tool call
-- [ ] Pass abort signal to tools

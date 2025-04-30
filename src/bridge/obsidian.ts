@@ -6,10 +6,14 @@ if (
   window.__vitest_browser__ === true
 ) {
   // Test mode - mock obsidian
-  obsidian = (await import("../tests/mocks/obsidian.ts")).default;
-} else if (typeof window !== "undefined" && window.obsidianAPI) {
+  obsidian = (await import("../../tests/mocks/obsidian.ts")).default;
+} else if (
+  typeof window !== "undefined" &&
+  window.bridge &&
+  window.bridge.obsidian
+) {
   // Development mode - use global bridge provided by dev-proxy
-  obsidian = window.obsidianAPI;
+  obsidian = window.bridge.obsidian;
 } else {
   obsidian = await import("obsidian");
 }

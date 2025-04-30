@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { executePython } from "../../src/tools";
+import { executePython } from "../../src/tools/execute.ts";
 
 describe("Execute Python Tool Tests", () => {
   const options = {

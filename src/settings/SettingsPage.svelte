@@ -23,6 +23,12 @@
   }
 </script>
 
+<div class="setting-item setting-item-heading">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Vault</div>
+  </div>
+</div>
+
 <div class="setting-item">
   <div class="setting-item-info">
     <div class="setting-item-name">Chatbots path</div>
@@ -31,9 +37,27 @@
   <div class="setting-item-control">
     <input
       type="text"
-      value={settings.chatbotsPath}
+      value={settings.vault.chatbotsPath}
       onchange={(e) => {
-        plugin.settings.chatbotsPath = e.currentTarget.value;
+        plugin.settings.vault.chatbotsPath = e.currentTarget.value;
+        plugin.saveSettings();
+        settings = plugin.settings;
+      }}
+    />
+  </div>
+</div>
+
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Chats path</div>
+    <div class="setting-item-description">Where to save your chat files</div>
+  </div>
+  <div class="setting-item-control">
+    <input
+      type="text"
+      value={settings.vault.chatsPath}
+      onchange={(e) => {
+        plugin.settings.vault.chatsPath = e.currentTarget.value;
         plugin.saveSettings();
         settings = plugin.settings;
       }}

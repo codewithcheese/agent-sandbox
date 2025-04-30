@@ -1,30 +1,43 @@
 <script lang="ts">
-  // @ts-expect-error css import type issue
+  // @ts-expect-error CSS import type issue
   import chatCss from "./chat.css?inline";
+
   import { Textarea } from "$lib/components/ui/textarea";
   import { Button } from "$lib/components/ui/button";
   import {
-    CheckCircle2Icon,
+    ArrowLeft,
     CornerDownLeftIcon,
     FileTextIcon,
+    InfoIcon,
     Loader2Icon,
     PlusIcon,
     RefreshCwIcon,
     StopCircleIcon,
-    TerminalIcon,
+    WrenchIcon,
     XIcon,
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
-  import { cn, formatDate, usePlugin } from "$lib/utils";
+  import { usePlugin } from "$lib/utils";
   import { insertCss } from "$lib/utils/insert-css.ts";
   import { onDestroy, onMount } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
+  import { normalizePath, Notice } from "obsidian";
+  import ToolRequestRow from "./ToolRequestRow.svelte";
+  import { type ViewContext } from "$lib/obsidian/view.ts";
+  import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
+  import { findCenterLeaf } from "$lib/utils/obsidian.ts";
+  import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
+  import type { ToolRequest } from "../tools/tool-request.ts";
 
   const plugin = usePlugin();
 
-  let { chat }: { chat: Chat } = $props();
+  let { chat, view }: { chat: Chat; view: ViewContext } = $props();
+
+  $inspect("toolRequests", chat.toolRequests);
+
+  console.log(findCenterLeaf());
 
   let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedModelId: string | undefined = $state(
@@ -34,8 +47,13 @@
     plugin.settings.defaults.accountId,
   );
 
-  $inspect("selectedModelId", selectedModelId);
-  $inspect("selectedAccountId", selectedAccountId);
+  let countFilesWithRequests = $derived(
+    new Set(
+      chat.toolRequests
+        .filter((r) => r.status === "pending")
+        .map((r) => r.path),
+    ).size,
+  );
 
   onMount(() => {
     chat.loadChatbots();
@@ -82,7 +100,8 @@
   }
 
   function startNewChat() {
-    chat.reset();
+    const plugin = usePlugin();
+    plugin.openChatView();
   }
 
   function getBaseName(path: string): string {
@@ -90,12 +109,16 @@
     return path.split("/").pop() || path;
   }
 
-  function openAttachment(path: string) {
+  function openFile(path: string) {
     const plugin = usePlugin();
-    const file = plugin.app.vault.getFileByPath(path);
-    if (file) {
-      plugin.app.workspace.openLinkText(file.path, "", true);
+    const normalizedPath = normalizePath(path);
+    const file = plugin.app.vault.getFileByPath(normalizedPath);
+    if (!file) {
+      new Notice(`File not found: ${normalizedPath}`, 3000);
+      return;
     }
+    const centerLeaf = plugin.app.workspace.getLeaf("tab");
+    centerLeaf.openFile(file, { active: true });
   }
 
   function getModelAccountOptions() {
@@ -123,14 +146,52 @@
         }));
       });
   }
+
+  async function openToolRequest(toolRequest: ToolRequest) {
+    try {
+      const plugin = usePlugin();
+      const leaf = plugin.app.workspace.getLeaf(true);
+      await leaf.setViewState({
+        type: MERGE_VIEW_TYPE,
+        state: {
+          chatPath: chat.path,
+          toolRequestId: toolRequest.id,
+        },
+      });
+      leaf.setEphemeralState();
+      plugin.app.workspace.setActiveLeaf(leaf, { focus: true });
+      plugin.app.workspace.requestSaveLayout();
+    } catch (error) {
+      console.error("Error opening merge view:", error);
+      new Notice(`Error: ${error.message}`, 3000);
+    }
+  }
+
+  async function openFirstPendingToolRequest() {
+    const pendingToolRequest = chat.toolRequests.find(
+      (tr) => tr.status === "pending",
+    );
+    if (!pendingToolRequest) {
+      new Notice("No pending tool requests found", 3000);
+      return;
+    }
+    await openToolRequest(pendingToolRequest);
+  }
 </script>
 
-<div use:insertCss={chatCss} class="flex h-full w-full">
-  <div class="flex flex-col h-full p-2 w-full">
-    <div class="mb-4 flex gap-2 justify-between">
+<div
+  use:insertCss={chatCss}
+  class="min-h-full h-full flex flex-col"
+  style="padding: 0 var(--size-4-3) 0;"
+>
+  <div
+    class="sticky top-0 w-full z-10 pb-4 pt-3"
+    style="background-color: var(--background-primary)"
+  >
+    <div class="w-full flex flex-row justify-between items-center">
       <div class="flex flex-row items-center gap-1">
         <select
-          class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          class="w-[150px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           bind:value={chat.selectedChatbot}
         >
           <option value={undefined}>Select a chatbot...</option>
@@ -161,84 +222,49 @@
         <PlusIcon class="size-3.5" />
       </Button>
     </div>
-    <div class="flex-1 overflow-y-auto">
+  </div>
+
+  <div class="flex chat-margin flex-1">
+    <div class="flex flex-col w-full flex-1 gap-1 pb-[40px]">
       {#each chat.messages as message}
-        <div
-          class={message.role === "user"
-            ? "border border-gray-rgb rounded p-2 my-2"
-            : "text text-gray-800 my-4"}
-        >
-          {#if message.role === "user"}
-            <div class="flex justify-between items-center mb-0.5 text-xs">
-              <span class="font-medium">You</span>
-              {#if message.createdAt}
-                <span class="opacity-80">{formatDate(message.createdAt)}</span>
-              {/if}
-            </div>
-          {/if}
-
-          <div
-            class="whitespace-pre-wrap prose leading-none select-text
-                          prose-h1:my-2
-                          prose-h2:mt-2 prose-h2:mb-1
-                          prose-h3:mt-2 prose-h3:mb-1
-                          prose-h4:mt-2 prose-h4:mb-1
-                          prose-h5:mt-2 prose-h5:mb-1
-                          prose-h6:my-1
-                          prose-p:my-1
-                          prose-blockquote:my-1
-                          prose-figure:my-1
-                          prose-figcaption:mt-1
-                          prose-ul:my-0
-                          prose-ol:my-0
-                          prose-li:my-0
-                          prose-table:my-1
-                          prose-thead:my-1
-                          prose-tbody:my-1
-                          prose-dl:my-1
-                          prose-dt:my-1
-                          prose-dd:my-1
+        <div class={message.role === "user" ? "" : "text text-gray-800"}>
+          {#if message.content}
+            <div
+              class="whitespace-pre-wrap prose leading-none select-text
+                          prose-h1:m-0
+                          prose-h2:m-0
+                          prose-h3:m-0
+                          prose-h4:m-0
+                          prose-h5:m-0
+                          prose-h6:m-0
+                          prose-p:m-0
+                          prose-blockquote:m-0
+                          prose-figure:m-0
+                          prose-figcaption:m-0
+                          prose-ul:m-0
+                          prose-ol:m-0
+                          prose-li:m-0
+                          prose-table:m-0
+                          prose-thead:m-0
+                          prose-tbody:m-0
+                          prose-dl:m-0
+                          prose-dt:m-0
+                          prose-dd:m-0
                           prose-hr:my-2
-                          prose-pre:my-1
+                          prose-pre:m-0
                           prose-code:px-1
-                          prose-lead:my-1
+                          prose-lead:m-0
                           prose-strong:font-semibold
-                          prose-img:my-1
-                          prose-video:my-1
-                          prose-a:decoration-1 text-foreground max-w-full"
-          >
-            <Markdown md={message.content} />
-          </div>
+                          prose-img:m-0
+                          prose-video:m-0
 
-          {#if message.parts?.some((part) => part.type === "tool-invocation")}
-            {#each message.parts as part}
-              {#if part.type === "tool-invocation"}
-                <div class="bg-gray-50 rounded border border-gray-200 p-2 my-2">
-                  <div class="flex items-center gap-2 mb-1.5">
-                    <TerminalIcon size={14} class="text-gray-600" />
-                    <span class="font-medium text-gray-700"
-                      >{part.toolInvocation.toolName}</span
-                    >
-                    {#if part.toolInvocation.state === "result"}
-                      <CheckCircle2Icon
-                        size={14}
-                        class="text-green-500 ml-auto"
-                      />
-                    {:else if part.toolInvocation.state === "partial-call"}
-                      <Loader2Icon
-                        size={14}
-                        class="text-blue-500 ml-auto animate-spin"
-                      />
-                    {/if}
-                  </div>
-                  <div
-                    class="text-xs font-mono bg-gray-100 rounded p-1.5 overflow-x-auto"
-                  >
-                    {JSON.stringify(part.toolInvocation.args, null, 2)}
-                  </div>
-                </div>
-              {/if}
-            {/each}
+                          prose-a:decoration-1 text-foreground max-w-full {message.role ===
+              'user'
+                ? 'bg-violet-50 rounded p-4'
+                : 'py-4'}"
+            >
+              <Markdown md={message.content} />
+            </div>
           {/if}
 
           {#if message.experimental_attachments && message.experimental_attachments.length > 0}
@@ -246,14 +272,12 @@
               <div class="flex flex-wrap gap-2">
                 {#each message.experimental_attachments as attachment}
                   <button
-                    class={message.role === "user"
-                      ? "flex items-center gap-1.5 py-1 px-2 bg-purple-400/20 rounded text-sm hover:bg-purple-400/30 transition-colors"
-                      : "flex items-center gap-1.5 py-1 px-2 bg-gray-100 rounded text-sm hover:bg-gray-200 transition-colors"}
-                    onclick={() => openAttachment(attachment.name || "")}
+                    class="clickable-icon gap-1"
+                    onclick={() => openFile(attachment.name)}
                   >
                     <FileTextIcon class="size-3.5" />
                     <span class="max-w-[200px] truncate"
-                      >{getBaseName(attachment.name || "")}</span
+                      >{getBaseName(attachment.name)}</span
                     >
                   </button>
                 {/each}
@@ -261,14 +285,82 @@
             </div>
           {/if}
         </div>
+        <!-- todo display partial tool calls before invocation -->
+        {#if message.parts?.some((part) => part.type === "tool-invocation")}
+          {#each message.parts as part}
+            {#if part.type === "tool-invocation"}
+              <div class="rounded border border-gray-200">
+                <div
+                  class="flex flex-row gap-1 text-xs p-1 text-gray-700 items-center"
+                >
+                  <WrenchIcon class="size-3" />
+                  <div class="flex-1">{part.toolInvocation.toolName}</div>
+                  <button
+                    type="button"
+                    class="clickable-icon"
+                    onclick={() =>
+                      openToolInvocationInfoModal(chat, part.toolInvocation)}
+                    ><InfoIcon class="size-3" /></button
+                  >
+                </div>
+                {#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}
+                  <!-- Handle tool invocations -->
+                  <div class="border-t border-gray-200">
+                    <ToolRequestRow
+                      toolCallId={part.toolInvocation.toolCallId}
+                      {toolRequest}
+                      onReviewClick={() => openToolRequest(toolRequest)}
+                    />
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          {/each}
+        {/if}
       {/each}
 
       {#if chat.state.type === "retrying"}
         <RetryAlert retryState={chat.state} />
       {/if}
     </div>
+  </div>
 
-    <form name="input" class="mt-4" onsubmit={handleSubmit}>
+  <form
+    name="input"
+    class="sticky bottom-0 left-0 z-10 p-2 pt-4 w-full z-10 {view.position ===
+      'right' && 'pb-8'}"
+    style="background-color: var(--background-primary)"
+    onsubmit={handleSubmit}
+  >
+    <div class="chat-margin">
+      {#if countFilesWithRequests > 0}
+        <div
+          class="w-full flex items-center gap-2 px-3 py-2 rounded border border-gray-200 bg-gray-50 mb-2"
+        >
+          <span class="text-xs font-medium text-gray-700 flex-1 flex">
+            <button
+              type="button"
+              class="clickable-icon gap-2 items-center"
+              onclick={openFirstPendingToolRequest}
+            >
+              <ArrowLeft class="size-3.5" />
+              {countFilesWithRequests} file with changes
+            </button>
+          </span>
+          <!--          <button-->
+          <!--            type="button"-->
+          <!--            class="ml-auto px-2 py-1 rounded text-xs font-semibold text-purple-700 bg-purple-100 hover:bg-purple-200 transition"-->
+          <!--          >-->
+          <!--            Accept all-->
+          <!--          </button>-->
+          <!--          <button-->
+          <!--            type="button"-->
+          <!--            class="px-2 py-1 rounded text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"-->
+          <!--          >-->
+          <!--            Reject all-->
+          <!--          </button>-->
+        </div>
+      {/if}
       {#if chat.state.type === "loading"}
         <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
           <Loader2Icon class="size-4 animate-spin" />
@@ -278,21 +370,25 @@
       {#if chat.attachments.length > 0}
         <div class="flex flex-wrap gap-2 mb-2">
           {#each chat.attachments as attachment}
-            <div
-              class="flex items-center gap-1.5 py-1 px-2 bg-gray-100 rounded text-sm"
+            <button
+              type="button"
+              onclick={() => openFile(normalizePath(attachment.file.path))}
+              class="clickable-icon items-center gap-1"
             >
               <FileTextIcon class="size-3.5 text-gray-600" />
               <span class="max-w-[200px] truncate"
                 >{getBaseName(attachment.file.path)}</span
               >
-              <button
-                type="button"
-                class="text-gray-500 hover:text-gray-700"
-                onclick={() => chat.removeAttachment(attachment.id)}
+              <span
+                class="text-gray-500 hover:text-gray-700 hover:bg-gray-100 flex items-center"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  chat.removeAttachment(attachment.id);
+                }}
               >
                 <XIcon class="size-3.5" />
-              </button>
-            </div>
+              </span>
+            </button>
           {/each}
         </div>
       {/if}
@@ -357,6 +453,15 @@
           </Button>
         {/if}
       </div>
-    </form>
-  </div>
+    </div>
+  </form>
 </div>
+
+<style>
+  .chat-margin {
+    width: 100%;
+    max-width: var(--file-line-width);
+    margin-left: auto;
+    margin-right: auto;
+  }
+</style>

@@ -4,6 +4,23 @@ import { resolve } from "path";
 import * as fs from "fs";
 import * as path from "node:path";
 import { configDefaults } from "vitest/config";
+import builtins from "builtin-modules";
+import slugify from "@sindresorhus/slugify";
+
+// Define the list of packages to exclude from bundling
+const excludePackages = [
+  "obsidian",
+  "@codemirror/autocomplete",
+  "@codemirror/collab",
+  "@codemirror/commands",
+  "@codemirror/language",
+  "@codemirror/lint",
+  "@codemirror/search",
+  "@codemirror/state",
+  "@codemirror/view",
+  "@lezer/common",
+  "@lezer/lr",
+];
 
 // Helper function to copy manifest.json to dist directory
 function copyManifestToDist() {
@@ -24,12 +41,23 @@ function copyManifestToDist() {
 export default defineConfig(({ command }) => {
   const isDev = command === "serve";
 
+  const aliasEntries = excludePackages.map((pkg) => {
+    const bridgeFile = `${slugify(pkg)}.ts`;
+    return [pkg, resolve(__dirname, `src/bridge/${bridgeFile}`)];
+  });
+
+  console.log(aliasEntries, {
+    $lib: path.resolve("./src/lib"),
+    // Spread the dynamically generated bridge aliases
+    ...Object.fromEntries(aliasEntries),
+  });
+
   return {
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),
-        // Redirect 'obsidian' imports to our proxy file
-        obsidian: resolve(__dirname, "src/obsidian.ts"),
+        // Spread the dynamically generated bridge aliases
+        ...Object.fromEntries(aliasEntries),
       },
     },
     server: {
@@ -114,7 +142,7 @@ export default defineConfig(({ command }) => {
       },
     ],
     optimizeDeps: {
-      exclude: ["obsidian"],
+      exclude: excludePackages,
     },
     assetsInclude: ["**/*.md"],
     test: {
@@ -141,7 +169,7 @@ export default defineConfig(({ command }) => {
         fileName: () => "main.js",
       },
       rollupOptions: {
-        external: ["obsidian"],
+        external: [...excludePackages, "electron", ...builtins],
         output: {
           format: "cjs",
           exports: "named",

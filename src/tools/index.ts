@@ -1,271 +1,315 @@
-import { PyodideExecutor } from "$lib/pyodide/executor";
+import type { UIMessage, Tool, CoreMessage, ToolExecutionOptions } from "ai";
+import type { ToolInvocation, ToolInvocationUIPart } from "@ai-sdk/ui-utils";
+import { type CachedMetadata, Notice, type TFile, Vault } from "obsidian";
 import { usePlugin } from "$lib/utils";
-import { fileTree } from "$lib/utils/file-tree.ts";
+import { tool } from "ai";
+import { JSONSchemaToZod } from "@dmitryrechkin/json-schema-to-zod";
+import { anthropic } from "@ai-sdk/anthropic";
+import { textEditor } from "./execute.ts";
+import { resolveInternalLink } from "../lib/utils/obsidian";
+import { getListFromFrontmatter } from "../lib/utils/frontmatter";
+import { extractCodeBlockContent } from "$lib/utils/codeblocks.ts";
+import { createVaultProxy } from "./vault-proxy.ts";
+import type { Chat } from "../chat/chat.svelte.ts";
 
-// Keep track of file edits for undo functionality
-const fileEditHistory = new Map<string, string[]>();
+export type VaultTool = BuiltinTool | ImportVaultTool | CodeVaultTool;
 
-export * from "./reddit.ts";
+type BuiltinTool = {
+  type: "builtin";
+  name: "str_replace_editor";
+  description: string;
+  file: TFile;
+};
 
-/**
- * Read a file from the Obsidian vault
- */
-export async function readFile({ path }) {
-  try {
-    const plugin = usePlugin();
-    // Remove leading slash if present as Obsidian doesn't support root path syntax
-    const normalizedPath = path.startsWith("/") ? path.substring(1) : path;
-    const file = plugin.app.vault.getFileByPath(normalizedPath);
-    if (!file) {
-      return { error: `File not found: ${path}` };
-    }
-    const content = await plugin.app.vault.read(file);
-    return { content };
-  } catch (error) {
-    return { error: `Failed to read file: ${error.message}` };
+type CodeVaultTool = {
+  type: "code";
+  name: string;
+  description: string;
+  schema: Record<string, any>;
+  code: string;
+  file: TFile;
+};
+
+type ImportVaultTool = {
+  type: "import";
+  name: string;
+  description: string;
+  schema: Record<string, any>;
+  import: string;
+  file: TFile;
+};
+
+export function updateToolInvocationPart(
+  message: UIMessage,
+  toolCallId: string,
+  invocation: ToolInvocation,
+) {
+  const part = message.parts.find(
+    (part) =>
+      part.type === "tool-invocation" &&
+      part.toolInvocation.toolCallId === toolCallId,
+  ) as ToolInvocationUIPart | undefined;
+
+  if (part != null) {
+    part.toolInvocation = invocation;
+  } else {
+    message.parts.push({
+      type: "tool-invocation",
+      toolInvocation: invocation,
+    });
   }
 }
 
-/**
- * List files in a directory in the Obsidian vault
- */
-export async function listFiles({ path }) {
-  try {
-    // Coerce '.' into '/' since there's no concept of working directory in Obsidian
-    const normalizedPath = path === "." ? "/" : path;
-    const result = await fileTree(normalizedPath);
-    return { result };
-  } catch (error) {
-    return { error: `Failed to list files: ${error.message}` };
-  }
+export function getToolCall(message: UIMessage, toolCallId: string) {
+  return message.parts.find(
+    (p) =>
+      p.type === "tool-invocation" &&
+      p.toolInvocation.toolCallId === toolCallId,
+  ) as
+    | (ToolInvocationUIPart & { toolInvocation: { text: string } })
+    | undefined;
 }
 
-/**
- * Execute Python code using Pyodide
- */
-export async function executePython({ code, installPackages = [] }) {
-  try {
-    const pyodide = new PyodideExecutor();
-    await pyodide.load();
+export async function parseToolDefinition(file: TFile): Promise<VaultTool> {
+  const plugin = usePlugin();
 
-    // Install any requested packages
-    if (installPackages.length > 0) {
-      for (const pkg of installPackages) {
-        await pyodide.installPackage(pkg);
-      }
-    }
+  const metadata = plugin.app.metadataCache.getFileCache(file);
 
-    // Execute the Python code
-    const result = await pyodide.execute(code);
+  if (
+    !(
+      metadata.frontmatter &&
+      "name" in metadata.frontmatter &&
+      "description" in metadata.frontmatter
+    )
+  ) {
+    throw Error(
+      `Invalid tool definition in ${file.path}. Missing frontmatter fields: name, description`,
+    );
+  }
 
+  // Special case for str_replace_editor (Anthropic's text editor tool)
+  // This tool doesn't require a schema, code block, or import function
+  if (metadata.frontmatter.name === "str_replace_editor") {
     return {
-      success: result.success,
-      result: result.result,
-      stdout: result.stdout,
-      error: result.error,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      result: null,
-      stdout: "",
-      error: error?.message || String(error),
+      type: "builtin",
+      name: metadata.frontmatter.name,
+      description: metadata.frontmatter.description,
+      file,
     };
   }
-}
 
-/**
- * Think tool for structured reasoning
- */
-export function think({ thought }) {
-  // This is a no-op tool - it simply returns the thought that was passed in
-  // The value comes from giving the AI space to think in a structured way
-  return thought;
-}
+  let importName: string | null = null;
+  if ("import" in metadata.frontmatter) {
+    importName = metadata.frontmatter["import"];
 
-/**
- * Text Editor tool for viewing and editing files in the Obsidian vault
- * Compatible with Anthropic's text editor tool
- */
-export async function textEditor({ command, path, file_text, insert_line, new_str, old_str, view_range }) {
-  try {
-    const plugin = usePlugin();
-    // Remove leading slash if present as Obsidian doesn't support root path syntax
-    const normalizedPath = path.startsWith("/") ? path.substring(1) : path;
-
-    switch (command) {
-      case "view": {
-        // View a file or directory
-        const abstractFile = plugin.app.vault.getAbstractFileByPath(normalizedPath);
-        
-        if (!abstractFile) {
-          return { error: `File or directory not found: ${path}` };
-        }
-        
-        // If it's a directory, list its contents
-        if (abstractFile.children) {
-          const { fileTree } = await import("$lib/utils/file-tree.ts");
-          const result = await fileTree(normalizedPath);
-          return { content: result };
-        }
-        
-        // It's a file, read its contents
-        const file = plugin.app.vault.getFileByPath(normalizedPath);
-        if (!file) {
-          return { error: `File not found: ${path}` };
-        }
-        
-        const content = await plugin.app.vault.read(file);
-        
-        // If view_range is specified, return only the specified lines
-        if (view_range && Array.isArray(view_range) && view_range.length === 2) {
-          const lines = content.split("\n");
-          const [startLine, endLine] = view_range;
-          
-          // Adjust for 1-indexed line numbers
-          const start = Math.max(0, startLine - 1);
-          const end = endLine === -1 ? lines.length : endLine;
-          
-          // Add line numbers to each line
-          const numberedLines = lines.slice(start, end).map((line, i) => `${start + i + 1}: ${line}`).join("\n");
-          return { content: numberedLines };
-        }
-        
-        // Add line numbers to each line
-        const numberedLines = content.split("\n").map((line, i) => `${i + 1}: ${line}`).join("\n");
-        return { content: numberedLines };
-      }
-      
-      case "create": {
-        // Create a new file
-        if (!file_text) {
-          return { error: "file_text is required for create command" };
-        }
-        
-        // Check if file already exists
-        const existingFile = plugin.app.vault.getAbstractFileByPath(normalizedPath);
-        if (existingFile) {
-          return { error: `File already exists: ${path}` };
-        }
-        
-        // Create parent directories if they don't exist
-        const dirPath = normalizedPath.substring(0, normalizedPath.lastIndexOf("/"));
-        if (dirPath && !plugin.app.vault.getAbstractFileByPath(dirPath)) {
-          await plugin.app.vault.createFolder(dirPath);
-        }
-        
-        // Create the file
-        await plugin.app.vault.create(normalizedPath, file_text);
-        return { content: `Successfully created file: ${path}` };
-      }
-      
-      case "str_replace": {
-        // Replace text in a file
-        if (!old_str) {
-          return { error: "old_str is required for str_replace command" };
-        }
-        
-        if (!new_str) {
-          return { error: "new_str is required for str_replace command" };
-        }
-        
-        const file = plugin.app.vault.getFileByPath(normalizedPath);
-        if (!file) {
-          return { error: `File not found: ${path}` };
-        }
-        
-        const content = await plugin.app.vault.read(file);
-        
-        // Check if old_str exists in the file
-        if (!content.includes(old_str)) {
-          return { error: `Text to replace not found in file: ${path}` };
-        }
-        
-        // Count occurrences of old_str
-        const occurrences = (content.match(new RegExp(old_str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
-        
-        if (occurrences > 1) {
-          return { error: `Multiple occurrences (${occurrences}) of text to replace found in file: ${path}` };
-        }
-        
-        // Save current content for undo
-        if (!fileEditHistory.has(normalizedPath)) {
-          fileEditHistory.set(normalizedPath, []);
-        }
-        fileEditHistory.get(normalizedPath)?.push(content);
-        
-        // Replace the text
-        const newContent = content.replace(old_str, new_str);
-        await plugin.app.vault.modify(file, newContent);
-        
-        return { content: "Successfully replaced text at exactly one location." };
-      }
-      
-      case "insert": {
-        // Insert text at a specific line
-        if (insert_line === undefined) {
-          return { error: "insert_line is required for insert command" };
-        }
-        
-        if (!new_str) {
-          return { error: "new_str is required for insert command" };
-        }
-        
-        const file = plugin.app.vault.getFileByPath(normalizedPath);
-        if (!file) {
-          return { error: `File not found: ${path}` };
-        }
-        
-        const content = await plugin.app.vault.read(file);
-        const lines = content.split("\n");
-        
-        // Validate insert_line
-        if (insert_line < 0 || insert_line > lines.length) {
-          return { error: `Invalid insert_line: ${insert_line}. File has ${lines.length} lines.` };
-        }
-        
-        // Save current content for undo
-        if (!fileEditHistory.has(normalizedPath)) {
-          fileEditHistory.set(normalizedPath, []);
-        }
-        fileEditHistory.get(normalizedPath)?.push(content);
-        
-        // Insert the text
-        lines.splice(insert_line, 0, new_str);
-        const newContent = lines.join("\n");
-        await plugin.app.vault.modify(file, newContent);
-        
-        return { content: `Successfully inserted text after line ${insert_line}.` };
-      }
-      
-      case "undo_edit": {
-        // Undo the last edit
-        const file = plugin.app.vault.getFileByPath(normalizedPath);
-        if (!file) {
-          return { error: `File not found: ${path}` };
-        }
-        
-        // Check if we have history for this file
-        if (!fileEditHistory.has(normalizedPath) || fileEditHistory.get(normalizedPath)?.length === 0) {
-          return { error: `No edit history found for file: ${path}` };
-        }
-        
-        // Get the last saved content
-        const previousContent = fileEditHistory.get(normalizedPath)?.pop();
-        if (!previousContent) {
-          return { error: `Failed to retrieve previous content for file: ${path}` };
-        }
-        
-        // Restore the previous content
-        await plugin.app.vault.modify(file, previousContent);
-        
-        return { content: `Successfully undid last edit to file: ${path}` };
-      }
-      
-      default:
-        return { error: `Unknown command: ${command}` };
+    // Validate that it's just a function name without path
+    if (importName && (importName.includes(":") || importName.includes("/"))) {
+      throw new Error(
+        `Invalid import format in ${file.path}: ${importName}. Expected format: functionName`,
+      );
     }
-  } catch (error) {
-    return { error: `Failed to execute ${command}: ${error.message}` };
   }
+
+  const content = await plugin.app.vault.read(file);
+  const cache = plugin.app.metadataCache.getFileCache(file);
+
+  const codeBlocks = cache.sections.filter(
+    (section) => section.type === "code",
+  );
+
+  let schemaText: string | null = null;
+  if (codeBlocks.length > 0) {
+    const schemaBlock = content.slice(
+      codeBlocks[0].position.start.offset,
+      codeBlocks[0].position.end.offset,
+    );
+    schemaText = extractCodeBlockContent(schemaBlock, 0, file.path);
+  }
+
+  let code: string | null = null;
+  if (codeBlocks.length > 1) {
+    const codeBlock = content.slice(
+      codeBlocks[1].position.start.offset,
+      codeBlocks[1].position.end.offset,
+    );
+    code = extractCodeBlockContent(codeBlock, 1, file.path);
+  }
+
+  if (schemaText && code) {
+    return {
+      type: "code",
+      name: metadata.frontmatter.name,
+      description: metadata.frontmatter.description,
+      schema: JSON.parse(schemaText),
+      code,
+      file,
+    };
+  } else if (schemaText && importName) {
+    return {
+      type: "import",
+      name: metadata.frontmatter.name,
+      description: metadata.frontmatter.description,
+      schema: JSON.parse(schemaText),
+      import: importName,
+      file,
+    };
+  } else {
+    throw new Error(
+      `Tool ${file.name} must have a schema and either code or import specified`,
+    );
+  }
+}
+
+/**
+ * Creates an AI SDK tool from a vault tool definition
+ */
+export async function createTool(vaultTool: VaultTool, chat: Chat) {
+  // Special case for Anthropic text editor tool
+  if (vaultTool.type === "builtin") {
+    if (vaultTool.name === "str_replace_editor") {
+      return anthropic.tools.textEditor_20250124({
+        execute: await createExecutor(vaultTool, chat),
+      });
+    } else {
+      throw new Error(`Unsupported builtin tool type: ${vaultTool["name"]}`);
+    }
+  }
+
+  return tool({
+    description: vaultTool.description,
+    parameters: JSONSchemaToZod.convert(vaultTool.schema),
+    execute: await createExecutor(vaultTool, chat),
+  });
+}
+
+async function createCodeExecutor(vaultTool: CodeVaultTool) {
+  console.log(`Using inline code for ${vaultTool.name}`);
+
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const executeFunction = new AsyncFunction(
+    "params",
+    "usePlugin",
+    vaultTool.code,
+  );
+
+  return async (params: any, options: ToolExecutionOptions) => {
+    await executeFunction(params, options);
+  };
+}
+
+async function createImportExecutor(vaultTool: ImportVaultTool) {
+  const toolsModule = await import(/* @vite-ignore */ "./execute.ts");
+  const importedFunction =
+    toolsModule[vaultTool.import as keyof typeof toolsModule];
+  if (typeof importedFunction !== "function") {
+    throw new Error(
+      `Imported function '${vaultTool.import}' not found in tools/execute.ts`,
+    );
+  }
+  return async (params: any, options: ToolExecutionOptions) => {
+    return importedFunction(params, options);
+  };
+}
+
+type Executor = (params: any, options: ToolExecutionOptions) => Promise<any>;
+
+async function createExecutor(
+  vaultTool: VaultTool,
+  chat: Chat,
+): Promise<Executor> {
+  console.log("Creating executor for tool", vaultTool.name);
+  if (vaultTool.type === "builtin") {
+    if ((vaultTool.name = "str_replace_editor")) {
+      return async (params: any, options) => {
+        console.log('Executing "str_replace_editor" tool', params, options);
+        const vault = createVaultProxy(
+          usePlugin().app.vault,
+          options.toolCallId,
+          chat,
+        );
+        return textEditor(params, { ...options, vault });
+      };
+    } else {
+      throw new Error(`Unknown builtin tool: ${vaultTool["name"]}`);
+    }
+  } else if (vaultTool.type === "code") {
+    return createCodeExecutor(vaultTool);
+  } else if (vaultTool.type === "import") {
+    return createImportExecutor(vaultTool);
+  } else {
+    throw new Error(`Unknown tool type: ${vaultTool["type"]}`);
+  }
+}
+
+export async function loadAllTools(toolsPath: string, chat: Chat) {
+  const plugin = usePlugin();
+  const files = plugin.app.vault.getFiles();
+  const normalizedPath = toolsPath.startsWith("/")
+    ? toolsPath.slice(1)
+    : toolsPath;
+
+  const toolFiles = files.filter((file) =>
+    file.path.startsWith(normalizedPath),
+  );
+
+  const tools: Record<string, Tool> = {};
+  for (const file of toolFiles) {
+    const toolDef = await parseToolDefinition(file);
+    tools[toolDef.name] = await createTool(toolDef, chat);
+  }
+  return tools;
+}
+
+export async function loadToolsFromFrontmatter(
+  metadata: CachedMetadata,
+  chat: Chat,
+) {
+  const plugin = usePlugin();
+  const tools: Record<string, Tool> = {};
+
+  const toolLinks = getListFromFrontmatter(metadata, "tools");
+
+  for (const toolLink of toolLinks) {
+    const toolFile = resolveInternalLink(toolLink, plugin);
+    if (!toolFile) {
+      throw Error(`Failed to resolve tool link: ${toolLink}`);
+    }
+    const toolDef = await parseToolDefinition(toolFile);
+    tools[toolDef.name] = await createTool(toolDef, chat);
+  }
+
+  return tools;
+}
+
+export async function executeToolInvocation(
+  toolInvocation: ToolInvocation,
+  chat: Chat,
+) {
+  const plugin = usePlugin();
+
+  // todo: replace with setting
+  const toolsDir = plugin.app.vault.getAbstractFileByPath("tools");
+  if (!toolsDir) {
+    throw new Error("Tools directory not found");
+  }
+
+  const allTools = await loadAllTools(toolsDir.path, chat);
+  const tool = allTools[toolInvocation.toolName];
+
+  if (!tool) {
+    throw new Error(`Tool not found: ${toolInvocation.toolName}`);
+  }
+  if (!tool.execute) {
+    throw new Error(
+      `Tool ${toolInvocation.toolName} does not have an execute method`,
+    );
+  }
+
+  // Execute the tool using its execute method
+  const result = await tool.execute(toolInvocation.args, {
+    toolCallId: toolInvocation.toolCallId,
+    // fixme? pass messages not used yet
+    messages: [],
+  });
+  console.log("Tool result:", result, toolInvocation);
 }

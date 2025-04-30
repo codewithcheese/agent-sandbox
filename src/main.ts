@@ -2,12 +2,20 @@ import {
   App,
   Modal,
   Notice,
+  Platform,
   Plugin,
   type PluginManifest,
   TFile,
+  WorkspaceLeaf,
 } from "obsidian";
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
-import { CHAT_VIEW_SLUG, ChatView } from "./chat/chat-view.ts";
+import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.ts";
+import { CHAT_VIEW_TYPE, ChatView } from "./chat/chat-view.svelte.ts";
+import {
+  type Artifact,
+  ARTIFACT_VIEW_TYPE,
+  ArtifactView,
+} from "$lib/artifacts/artifact-vew.svelte.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
 import {
   DEFAULT_SETTINGS,
@@ -21,6 +29,8 @@ import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
 import { PGliteProvider } from "./pglite/provider.ts";
 import { installTools } from "./tools/command.ts";
+import superjson from "superjson";
+import { ChatSerializer } from "./chat/chat-serializer.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -39,34 +49,98 @@ export class AgentSandboxPlugin extends Plugin {
     modal.open();
   }
 
-  async activateChatView() {
-    const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(CHAT_VIEW_SLUG)[0];
-    if (!leaf) {
-      leaf = workspace.getRightLeaf(false)!;
-      await leaf.setViewState({ type: CHAT_VIEW_SLUG });
+  async openChatView() {
+    const baseName = "Untitled";
+    let fileName = baseName;
+    let counter = 1;
+
+    // Get the chats path from settings
+    const chatsPath = this.settings.vault.chatsPath;
+    const normalizedPath = chatsPath.startsWith("/")
+      ? chatsPath.slice(1)
+      : chatsPath;
+
+    // Ensure the directory exists
+    try {
+      const folderExists = this.app.vault.getAbstractFileByPath(normalizedPath);
+      if (!folderExists) {
+        await this.app.vault.createFolder(normalizedPath);
+      }
+    } catch (error) {
+      console.error("Error creating chats directory:", error);
+      this.showNotice("Failed to create chats directory", 3000);
     }
-    await workspace.revealLeaf(leaf);
+
+    // Create a unique filename
+    while (
+      this.app.vault.getAbstractFileByPath(`${normalizedPath}/${fileName}.chat`)
+    ) {
+      fileName = `${baseName} ${counter}`;
+      counter++;
+    }
+
+    const filePath = `${normalizedPath}/${fileName}.chat`;
+    const file = await this.app.vault.create(
+      filePath,
+      superjson.stringify(ChatSerializer.INITIAL_DATA),
+    );
+
+    let leaf: WorkspaceLeaf;
+
+    if (!Platform.isMobile) {
+      const rightChatLeaves = this.app.workspace
+        .getLeavesOfType(CHAT_VIEW_TYPE)
+        // @ts-expect-error containerEl not typed
+        .filter((l) => l.containerEl.closest(".mod-right-split"));
+
+      if (rightChatLeaves.length > 0) {
+        leaf = rightChatLeaves[0];
+      } else {
+        leaf = this.app.workspace.getRightLeaf(false);
+      }
+    } else {
+      // Mobile: fall back to the current/only leaf
+      leaf = this.app.workspace.getLeaf();
+    }
+
+    await leaf.openFile(file, {
+      active: true,
+      state: { mode: CHAT_VIEW_TYPE },
+    });
+
+    await this.app.workspace.revealLeaf(leaf);
   }
 
   async onload() {
     await this.loadSettings();
     await this.initializePGlite();
 
-    // Register custom view
-    this.registerView(CHAT_VIEW_SLUG, (leaf) => new ChatView(leaf));
+    this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
+    this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
+    this.registerView(MERGE_VIEW_TYPE, (leaf) => new MergeView(leaf));
 
-    // Add ribbon icon for custom view
-    this.addRibbonIcon("layout", "Open Agent Sandbox Chat", async () => {
-      await this.activateChatView();
-    });
+    this.registerExtensions(["chat"], CHAT_VIEW_TYPE);
 
-    // Add ribbon icon for library tree
+    this.addRibbonIcon(
+      "message-square",
+      "Open Agent Sandbox Chat",
+      async () => {
+        await this.openChatView();
+      },
+    );
+
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();
     });
 
-    // Add command to install tools
+    this.addRibbonIcon("git-merge", "Merge Documents", async () => {
+      await this.openMergeView();
+    });
+
+    this.addRibbonIcon("code-block", "Open Artifact View", async () => {
+      await this.openArtifactView({ name: "Empty", html: "" });
+    });
+
     this.addCommand({
       id: "install-tools",
       name: "Install Built-in Tools",
@@ -75,7 +149,6 @@ export class AgentSandboxPlugin extends Plugin {
       },
     });
 
-    // This adds a settings tab so the user can configure various aspects of the plugin
     this.addSettingTab(new Settings(this.app, this));
   }
 
@@ -92,7 +165,6 @@ export class AgentSandboxPlugin extends Plugin {
 
   async loadSettings() {
     const settings = await this.loadData();
-    console.log("Loading settings", settings);
     const shouldSave = !settings;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
     if (shouldSave) {
@@ -101,8 +173,88 @@ export class AgentSandboxPlugin extends Plugin {
   }
 
   async saveSettings() {
-    console.log("Saving settings", this.settings);
     await this.saveData(this.settings);
+  }
+
+  async openMergeView() {
+    const activeFile = this.app.workspace.getActiveFile();
+
+    if (!activeFile) {
+      this.showNotice("No active file to merge with", 3000);
+      return;
+    }
+
+    const currentContent = await this.app.vault.read(activeFile);
+
+    this.openFileSelect(async (selectedFile: TFile) => {
+      if (selectedFile.path === activeFile.path) {
+        this.showNotice("Cannot merge a file with itself", 3000);
+        return;
+      }
+
+      try {
+        const selectedContent = await this.app.vault.read(selectedFile);
+
+        const leaf = this.app.workspace.getLeaf(true);
+        await leaf.setViewState({
+          type: MERGE_VIEW_TYPE,
+          state: {},
+        });
+
+        // Get the view and initialize it with the content
+        if (leaf.view instanceof MergeView) {
+          const view = leaf.view as MergeView;
+          await view.setContent(
+            currentContent,
+            selectedContent,
+            activeFile.path,
+          );
+        } else {
+          this.showNotice("Failed to create merge view", 3000);
+        }
+
+        await this.app.workspace.revealLeaf(leaf);
+        this.showNotice(
+          `Merging ${activeFile.name} with ${selectedFile.name}`,
+          3000,
+        );
+      } catch (error) {
+        console.error("Error opening merge view:", error);
+        this.showNotice(`Error: ${(error as Error).message}`, 3000);
+      }
+    });
+  }
+
+  async openArtifactView(artifact: Artifact) {
+    // Find or create a leaf in Obsidian's workspace
+    let leaf = this.app.workspace
+      .getLeavesOfType(ARTIFACT_VIEW_TYPE)
+      .find((leaf) => {
+        return (
+          leaf.view instanceof ArtifactView &&
+          leaf.view.artifact.name === artifact.name
+        );
+      });
+
+    console.log("openArtifactView", leaf);
+
+    if (!leaf) {
+      leaf = this.app.workspace.getLeaf(true);
+      await leaf.setViewState({
+        type: ARTIFACT_VIEW_TYPE,
+        active: true,
+      });
+    } else {
+      await this.app.workspace.revealLeaf(leaf);
+    }
+
+    // Load the content
+    if (leaf.view instanceof ArtifactView) {
+      const artifactView = leaf.view;
+      artifactView.loadArtifact(artifact);
+    }
+
+    return leaf;
   }
 
   showNotice(message: string, duration?: number) {

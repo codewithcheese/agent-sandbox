@@ -153,7 +153,7 @@ export const helpers = {
   },
 };
 
-// mock useProxy in src/utils/index.ts
+// mock useProxy in src/utils/execute.ts
 window.Env = {
   Plugin: plugin,
 };
