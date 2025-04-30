@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai";
 import { Chat, type DocumentAttachment } from "./chat.svelte";
 import superjson from "superjson";
-import type { ToolRequest } from "../tools/request.ts";
+import type { ToolRequest } from "../tools/tool-request.ts";
 
 export type ChatFileV1 = {
   version: 1;

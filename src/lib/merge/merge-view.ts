@@ -4,6 +4,7 @@ import MergePage from "./MergePage.svelte";
 import { Chat } from "../../chat/chat.svelte.ts";
 import * as diff from "diff";
 import { getBaseName } from "$lib/utils/path.ts";
+import { getPatchStats } from "../../tools/tool-request.ts";
 
 export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
@@ -75,6 +76,10 @@ export class MergeView extends ItemView {
           );
           await this.app.vault.adapter.write(toolRequest.path, resolvedContent);
           toolRequest.patch = remaining;
+          toolRequest.stats = getPatchStats(remaining);
+          if (toolRequest.stats.removed < 1 && toolRequest.stats.added < 1) {
+            toolRequest.status = "success";
+          }
           await chat.save();
         },
       },

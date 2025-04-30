@@ -11,6 +11,10 @@ export * from "./reddit.ts";
 // todo: move to chat context
 const fileEditHistory = new Map<string, string[]>();
 
+type VaultToolExecutionOptions = ToolExecutionOptions & {
+  vault: Vault;
+};
+
 /**
  * Opens AI-generated HTML content in the ArtifactView
  */
@@ -114,10 +118,10 @@ export function think(thought, options) {
  */
 export async function textEditor(
   { command, path, file_text, insert_line, new_str, old_str, view_range },
-  { vault }: ToolExecutionOptions & { vault: Vault },
+  { vault }: VaultToolExecutionOptions,
 ) {
   try {
-    // Remove leading slash if present as Obsidian doesn't support root path syntax
+    // Remove the leading slash if present as Obsidian doesn't support root path syntax
     const normalizedPath = path.startsWith("/") ? path.substring(1) : path;
 
     switch (command) {

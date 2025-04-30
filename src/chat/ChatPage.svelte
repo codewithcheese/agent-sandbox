@@ -8,10 +8,12 @@
     ArrowLeft,
     CornerDownLeftIcon,
     FileTextIcon,
+    InfoIcon,
     Loader2Icon,
     PlusIcon,
     RefreshCwIcon,
     StopCircleIcon,
+    WrenchIcon,
     XIcon,
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
@@ -22,7 +24,7 @@
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { normalizePath, Notice } from "obsidian";
-  import TextEditorToolView from "./TextEditorToolView.svelte";
+  import ToolRequest from "./ToolRequest.svelte";
   import { type ViewContext } from "$lib/obsidian/view.ts";
   import type { ToolInvocation } from "@ai-sdk/ui-utils";
   import { executeToolInvocation } from "../tools";
@@ -291,29 +293,36 @@
           {#each message.parts as part}
             {#if part.type === "tool-invocation"}
               <div class="rounded border border-gray-200">
-                <!-- Handle tool invocations -->
-                {#if part.toolInvocation.toolName === "str_replace_editor"}
-                  <TextEditorToolView
-                    toolInvocation={part.toolInvocation}
-                    requests={chat.toolRequests.filter(
-                      (r) => r.toolCallId === part.toolInvocation.toolCallId,
-                    )}
-                    onReviewClick={openToolRequest}
-                  />
-                {:else}
-                  <div
-                    class="text-xs bg-gray-100 p-2 rounded font-mono whitespace-pre-wrap"
-                  >
-                    <p>
-                      {JSON.stringify(part.toolInvocation.args, null, 2)}
-                    </p>
-                    <button
-                      onclick={() =>
-                        executeTool($state.snapshot(part.toolInvocation))}
-                      class="clickable-icon">Execute</button
-                    >
+                <div
+                  class="flex flex-row gap-1 text-xs p-1 text-gray-700 items-center"
+                >
+                  <WrenchIcon class="size-3" />
+                  <div class="flex-1">{part.toolInvocation.toolName}</div>
+                  <InfoIcon class="size-3" />
+                </div>
+                {#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}
+                  <!-- Handle tool invocations -->
+                  <div class="border-t border-gray-200">
+                    <ToolRequest
+                      toolCallId={part.toolInvocation.toolCallId}
+                      {toolRequest}
+                      onReviewClick={openToolRequest}
+                    />
                   </div>
-                {/if}
+                {/each}
+
+                <div
+                  class="text-xs bg-gray-100 p-2 rounded font-mono whitespace-pre-wrap"
+                >
+                  <p>
+                    {JSON.stringify(part.toolInvocation.args, null, 2)}
+                  </p>
+                  <button
+                    onclick={() =>
+                      executeTool($state.snapshot(part.toolInvocation))}
+                    class="clickable-icon">Execute</button
+                  >
+                </div>
               </div>
             {/if}
           {/each}

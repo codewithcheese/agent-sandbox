@@ -24,7 +24,7 @@ import { extensionToMimeType } from "$lib/utils/mime.ts";
 import type { ChatModel } from "../settings/models.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
-import type { ToolRequest } from "../tools/request.ts";
+import type { ToolRequest } from "../tools/tool-request.ts";
 
 export interface DocumentAttachment {
   id: string;
