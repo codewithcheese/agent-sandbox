@@ -1,15 +1,56 @@
 <script lang="ts">
-  import { normalizePath } from "obsidian";
+  import { normalizePath, Notice } from "obsidian";
   import { Button } from "$lib/components/ui/button/index.js";
   import {
     ArrowLeft,
     CornerDownLeftIcon,
     FileTextIcon,
     Loader2Icon,
+    MicIcon,
+    MicOffIcon,
     StopCircleIcon,
     XIcon,
   } from "lucide-svelte";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
+  import { Realtime } from "./realtime.svelte.ts";
+  import { usePlugin } from "$lib/utils";
+
+  let realtime = new Realtime();
+
+  $inspect("realtime", realtime.state);
+
+  realtime.emitter.onAny((event, data) => {
+    console.log("realtime event", event, data);
+    if (event === "delta") {
+      text += data;
+    } else if (event === "final") {
+      text += " ";
+    } else if (event === "error") {
+      new Notice("Transcription error: " + String(data));
+      realtime.stopSession();
+    }
+  });
+
+  $inspect("realtime", realtime.events);
+
+  let text = $state<string>("");
+
+  function handleTranscribeClick() {
+    // https://platform.openai.com/docs/guides/realtime-transcription
+    if (realtime.state === "closed") {
+      const plugin = usePlugin();
+      const account = plugin.settings.accounts.find(
+        (account) => account.provider === "openai",
+      );
+      if (!account) {
+        new Notification("OpenAI API key not found. Update your settings.");
+        return;
+      }
+      realtime.startSession(account.config.apiKey);
+    } else {
+      realtime.stopSession();
+    }
+  }
 
   let {
     chat,
@@ -71,6 +112,7 @@
         <span>Assistant is thinking...</span>
       </div>
     {/if}
+
     {#if chat.attachments.length > 0}
       <div class="flex flex-wrap gap-2 mb-2">
         {#each chat.attachments as attachment}
@@ -99,6 +141,7 @@
 
     <Textarea
       required
+      bind:value={text}
       name="content"
       placeholder="How can I assist you today?"
       onkeypress={submitOnEnter}
@@ -106,6 +149,15 @@
     />
     <div class="flex items-center justify-between mt-2">
       <div class="flex flex-row align-middle gap-2">
+        <Button size="sm" type="button" onclick={handleTranscribeClick}>
+          {#if realtime.state === "closed"}
+            <MicIcon class="size-4 text-gray-600" />
+          {:else if realtime.state === "open"}
+            <MicOffIcon class="size-4 text-gray-600" />
+          {:else if realtime.state === "connecting"}
+            <Loader2Icon class="size-4 animate-spin" />
+          {/if}
+        </Button>
         <Button
           type="button"
           variant="outline"
