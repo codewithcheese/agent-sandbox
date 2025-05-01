@@ -30,6 +30,7 @@
   import { findCenterLeaf } from "$lib/utils/obsidian.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
   import type { ToolRequest } from "../tools/tool-request.ts";
+  import ChatInput from "./ChatInput.svelte";
 
   const plugin = usePlugin();
 
@@ -325,136 +326,22 @@
     </div>
   </div>
 
-  <form
-    name="input"
-    class="sticky bottom-0 left-0 z-10 p-2 pt-4 w-full z-10 {view.position ===
-      'right' && 'pb-8'}"
-    style="background-color: var(--background-primary)"
-    onsubmit={handleSubmit}
-  >
-    <div class="chat-margin">
-      {#if countFilesWithRequests > 0}
-        <div
-          class="w-full flex items-center gap-2 px-3 py-2 rounded border border-gray-200 bg-gray-50 mb-2"
-        >
-          <span class="text-xs font-medium text-gray-700 flex-1 flex">
-            <button
-              type="button"
-              class="clickable-icon gap-2 items-center"
-              onclick={openFirstPendingToolRequest}
-            >
-              <ArrowLeft class="size-3.5" />
-              {countFilesWithRequests} file with changes
-            </button>
-          </span>
-          <!--          <button-->
-          <!--            type="button"-->
-          <!--            class="ml-auto px-2 py-1 rounded text-xs font-semibold text-purple-700 bg-purple-100 hover:bg-purple-200 transition"-->
-          <!--          >-->
-          <!--            Accept all-->
-          <!--          </button>-->
-          <!--          <button-->
-          <!--            type="button"-->
-          <!--            class="px-2 py-1 rounded text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"-->
-          <!--          >-->
-          <!--            Reject all-->
-          <!--          </button>-->
-        </div>
-      {/if}
-      {#if chat.state.type === "loading"}
-        <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
-          <Loader2Icon class="size-4 animate-spin" />
-          <span>Assistant is thinking...</span>
-        </div>
-      {/if}
-      {#if chat.attachments.length > 0}
-        <div class="flex flex-wrap gap-2 mb-2">
-          {#each chat.attachments as attachment}
-            <button
-              type="button"
-              onclick={() => openFile(normalizePath(attachment.file.path))}
-              class="clickable-icon items-center gap-1"
-            >
-              <FileTextIcon class="size-3.5 text-gray-600" />
-              <span class="max-w-[200px] truncate"
-                >{getBaseName(attachment.file.path)}</span
-              >
-              <span
-                class="text-gray-500 hover:text-gray-700 hover:bg-gray-100 flex items-center"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  chat.removeAttachment(attachment.id);
-                }}
-              >
-                <XIcon class="size-3.5" />
-              </span>
-            </button>
-          {/each}
-        </div>
-      {/if}
-
-      <Textarea
-        required
-        name="content"
-        placeholder="How can I assist you today?"
-        onkeypress={submitOnEnter}
-        class="min-h-[80px] rounded"
-      />
-      <div class="flex items-center justify-between mt-2">
-        <div class="flex flex-row align-middle gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            class="gap-1.5 rounded"
-            onclick={selectDocument}
-          >
-            <FileTextIcon class="size-3.5" />
-          </Button>
-
-          <!-- model select -->
-          <select
-            onchange={handleModelChange}
-            name="model-account"
-            class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            required
-          >
-            <option value=""> Select model </option>
-            {#each getModelAccountOptions() as option}
-              <option
-                value={option.value}
-                selected={option.value ===
-                  `${selectedModelId}:${selectedAccountId}`}
-              >
-                {option.label}
-              </option>
-            {/each}
-          </select>
-        </div>
-        {#if chat.state.type === "idle"}
-          <Button
-            type="submit"
-            size="sm"
-            class="gap-1.5 rounded"
-            bind:ref={submitBtn}
-          >
-            Send
-            <CornerDownLeftIcon class="size-3.5" />
-          </Button>
-        {:else}
-          <Button
-            type="button"
-            size="sm"
-            class="gap-1.5 rounded bg-background border text-black"
-            onclick={() => chat.cancel()}
-          >
-            <StopCircleIcon class="size-3.5" />
-            Cancel
-          </Button>
-        {/if}
-      </div>
-    </div>
-  </form>
+  <ChatInput
+    {chat}
+    {handleSubmit}
+    {countFilesWithRequests}
+    {openFirstPendingToolRequest}
+    {view}
+    {openFile}
+    {getBaseName}
+    {submitOnEnter}
+    {selectDocument}
+    {handleModelChange}
+    {getModelAccountOptions}
+    bind:submitBtn
+    {selectedModelId}
+    {selectedAccountId}
+  />
 </div>
 
 <style>
