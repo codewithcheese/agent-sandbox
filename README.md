@@ -73,6 +73,8 @@ This project includes a version bumping script that automates the release proces
 - [ ] Delete a message
 - [ ] Edit message
 - [ ] Token counting
+- [ ] Chat homepage with previous chats and chatbot seleciton
+- [ ] Remember chatbot between chats
 - [ ] Refresh chatbot list when chatbots path modified
 - [ ] Context optimization (forget old messages)
 - [ ] Display tokens used in tool call

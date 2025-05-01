@@ -14,10 +14,9 @@
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import { Realtime } from "./realtime.svelte.ts";
   import { usePlugin } from "$lib/utils";
+  import { onDestroy } from "svelte";
 
   let realtime = new Realtime();
-
-  $inspect("realtime", realtime.state);
 
   realtime.emitter.onAny((event, data) => {
     console.log("realtime event", event, data);
@@ -30,8 +29,6 @@
       realtime.stopSession();
     }
   });
-
-  $inspect("realtime", realtime.events);
 
   let text = $state<string>("");
 
@@ -68,6 +65,12 @@
     selectedModelId,
     selectedAccountId,
   } = $props();
+
+  onDestroy(() => {
+    if (realtime.state === "open") {
+      realtime.stopSession();
+    }
+  });
 </script>
 
 <form
