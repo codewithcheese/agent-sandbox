@@ -77,7 +77,8 @@ export class Realtime {
       await pc.setLocalDescription(offer);
 
       const sdpRes = await fetch(
-        "https://api.openai.com/v1/realtime?model=gpt-4o-transcribe",
+        // Trying to connect with gpt-4o-transcribe is rejected
+        "https://api.openai.com/v1/realtime?model=gpt-4o-realtime",
         {
           method: "POST",
           body: offer.sdp,
@@ -163,8 +164,9 @@ export class Realtime {
             language: "en",
           },
           turn_detection: {
+            // type: "server_vad",
             type: "semantic_vad",
-            // eagerness: "low",
+            // eagerness: "high",
             // threshold: 0.6,
             // prefix_padding_ms: 300,
             // silence_duration_ms: 650,

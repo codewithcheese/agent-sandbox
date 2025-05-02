@@ -75,6 +75,8 @@ This project includes a version bumping script that automates the release proces
 - [ ] Token counting
 - [ ] Chat homepage with previous chats and chatbot seleciton
 - [ ] Remember chatbot between chats
+- [ ] Add tool request for create, trash, delete
+- [ ] Disconnect realtime after idle period
 - [ ] Refresh chatbot list when chatbots path modified
 - [ ] Context optimization (forget old messages)
 - [ ] Display tokens used in tool call
