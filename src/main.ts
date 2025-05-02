@@ -31,6 +31,7 @@ import { PGliteProvider } from "./pglite/provider.ts";
 import { installTools } from "./tools/command.ts";
 import superjson from "superjson";
 import { ChatSerializer } from "./chat/chat-serializer.ts";
+import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -118,6 +119,8 @@ export class AgentSandboxPlugin extends Plugin {
     this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
     this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
     this.registerView(MERGE_VIEW_TYPE, (leaf) => new MergeView(leaf));
+
+    registerChatRenameHandler();
 
     this.registerExtensions(["chat"], CHAT_VIEW_TYPE);
 

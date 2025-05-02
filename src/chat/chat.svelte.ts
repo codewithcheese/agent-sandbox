@@ -44,10 +44,31 @@ export type LoadingState =
 
 const chatCache = new Map<string, WeakRef<Chat | Promise<Chat>>>();
 
-const registry = new FinalizationRegistry((path: string) => {
+const chatRegistry = new FinalizationRegistry((path: string) => {
   console.log("Finalizing chat", path);
   chatCache.delete(path);
 });
+
+export function registerChatRenameHandler() {
+  // Update cache and instance on rename
+  const plugin = usePlugin();
+  plugin.registerEvent(
+    plugin.app.vault.on("rename", async (file, oldPath) => {
+      // if in cache
+      const chatRef = chatCache.get(oldPath);
+      if (!chatRef) return;
+      // get from weakref, await if necessary
+      const chat = await chatRef.deref();
+      // delete old path from cache
+      chatCache.delete(oldPath);
+      // update chat instance path
+      chat.path = file.path;
+      // set cache with new path
+      chatCache.set(file.path, new WeakRef(chat));
+      chatRegistry.register(chat, file.path);
+    }),
+  );
+}
 
 export class Chat {
   path: string;
@@ -99,7 +120,7 @@ export class Chat {
     // await chat and register for finalization
     const chat = await chatPromise;
     chatCache.set(path, new WeakRef(chat));
-    registry.register(chat, path);
+    chatRegistry.register(chat, path);
 
     return chat;
   }
