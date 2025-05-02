@@ -27,26 +27,18 @@
   import ToolRequestRow from "./ToolRequestRow.svelte";
   import { type ViewContext } from "$lib/obsidian/view.ts";
   import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
-  import { findCenterLeaf } from "$lib/utils/obsidian.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
   import type { ToolRequest } from "../tools/tool-request.ts";
   import ChatInput from "./ChatInput.svelte";
+  import { ChatOptions } from "./options.svelte.ts";
 
   const plugin = usePlugin();
 
   let { chat, view }: { chat: Chat; view: ViewContext } = $props();
 
-  $inspect("toolRequests", chat.toolRequests);
-
-  console.log(findCenterLeaf());
+  let options = new ChatOptions();
 
   let submitBtn: HTMLButtonElement | null = $state(null);
-  let selectedModelId: string | undefined = $state(
-    plugin.settings.defaults.modelId,
-  );
-  let selectedAccountId: string | undefined = $state(
-    plugin.settings.defaults.accountId,
-  );
 
   let countFilesWithRequests = $derived(
     new Set(
@@ -62,6 +54,7 @@
 
   onDestroy(() => {
     chat.cancel();
+    options.cleanup();
   });
 
   function submitOnEnter(e: KeyboardEvent) {
@@ -73,10 +66,10 @@
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    if (!selectedModelId || !selectedAccountId) {
+    if (!options.modelId || !options.accountId) {
       return;
     }
-    chat.submit(e, selectedModelId, selectedAccountId);
+    chat.submit(e, options);
   }
 
   function handleModelChange(
@@ -85,12 +78,8 @@
     },
   ) {
     const [modelId, accountId] = e.currentTarget.value.split(":");
-    selectedModelId = modelId;
-    selectedAccountId = accountId;
-    const plugin = usePlugin();
-    plugin.settings.defaults.modelId = modelId;
-    plugin.settings.defaults.accountId = accountId;
-    plugin.saveSettings();
+    options.modelId = modelId;
+    options.accountId = accountId;
   }
 
   function selectDocument() {
@@ -193,7 +182,13 @@
       <div class="flex flex-row items-center gap-1">
         <select
           class="w-[150px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          bind:value={chat.selectedChatbot}
+          bind:value={
+            () => options.chatbotPath,
+            (selected) => {
+              console.log("Updating selected chatbot:", selected);
+              options.chatbotPath = selected;
+            }
+          }
         >
           <option value={undefined}>Select a chatbot...</option>
           {#each chat.chatbots as chatbot}
@@ -339,8 +334,7 @@
     {handleModelChange}
     {getModelAccountOptions}
     bind:submitBtn
-    {selectedModelId}
-    {selectedAccountId}
+    {options}
   />
 </div>
 

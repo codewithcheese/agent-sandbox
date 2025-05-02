@@ -25,6 +25,7 @@ import type { ChatModel } from "../settings/models.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import type { ToolRequest } from "../tools/tool-request.ts";
+import type { ChatOptions } from "./options.svelte.ts";
 
 export interface DocumentAttachment {
   id: string;
@@ -51,7 +52,6 @@ const registry = new FinalizationRegistry((path: string) => {
 export class Chat {
   path: string;
   messages = $state<UIMessage[]>([]);
-  selectedChatbot = $state<string | undefined>();
   chatbots = $state<TFile[]>([]);
   attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
@@ -138,7 +138,7 @@ export class Chat {
     );
   }
 
-  async submit(event: Event, modelId: string, accountId: string) {
+  async submit(event: Event, options: ChatOptions) {
     event.preventDefault();
 
     const formData = new FormData(event.target as HTMLFormElement);
@@ -146,18 +146,6 @@ export class Chat {
     if (!content && this.attachments.length === 0) return;
 
     const plugin = usePlugin();
-
-    // Find the selected model
-    const model = plugin.settings.models.find(
-      (m): m is ChatModel => m.type === "chat" && m.id === modelId,
-    );
-    if (!model) {
-      throw Error(`Chat model ${modelId} not found`);
-    }
-    const account = plugin.settings.accounts.find((a) => a.id === accountId);
-    if (!account) {
-      throw Error(`AI account ${accountId} not found`);
-    }
 
     // Prepare any attachments as data URIs
     const attachments: Attachment[] = [];
@@ -193,10 +181,10 @@ export class Chat {
     this.clearAttachments();
 
     // Now run the conversation to completion
-    await this.runConversation(model, account);
+    await this.runConversation(options);
   }
 
-  private async runConversation(model: ChatModel, account: AIAccount) {
+  private async runConversation(options: ChatOptions) {
     try {
       this.state = { type: "loading" };
 
@@ -206,26 +194,17 @@ export class Chat {
       let system: string | null = null;
       let metadata: CachedMetadata | null = null;
       let activeTools: Record<string, Tool> = {};
-      const context = {};
 
-      if (this.selectedChatbot) {
-        const chatbotFile = plugin.app.vault.getFileByPath(
-          this.selectedChatbot,
-        );
-
-        if (!chatbotFile) {
-          throw Error(`Chatbot at ${this.selectedChatbot} not found`);
-        }
-
-        metadata = plugin.app.metadataCache.getFileCache(chatbotFile);
-        system = await this.createSystemPrompt(chatbotFile);
-        activeTools = await loadToolsFromFrontmatter(metadata!, this);
-        console.log("SYSTEM MESSAGE\n-----\n", system);
-        console.log("Active tools", activeTools);
+      const chatbotFile = plugin.app.vault.getFileByPath(options.chatbotPath);
+      if (!chatbotFile) {
+        throw Error(`Chatbot at ${options.chatbotPath} not found`);
       }
 
-      // We'll allow multiple steps. If the model calls a tool, we handle it, then call the model again.
-      let stepCount = 0;
+      metadata = plugin.app.metadataCache.getFileCache(chatbotFile);
+      system = await this.createSystemPrompt(chatbotFile);
+      activeTools = await loadToolsFromFrontmatter(metadata!, this);
+      console.log("SYSTEM MESSAGE\n-----\n", system);
+      console.log("Active tools", activeTools);
 
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
@@ -248,8 +227,8 @@ export class Chat {
 
       await this.callModel(
         messages,
-        model.id,
-        account,
+        options.modelId,
+        options.getAccount(),
         activeTools,
         this.#abortController?.signal,
       );

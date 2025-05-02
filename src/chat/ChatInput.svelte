@@ -62,8 +62,7 @@
     handleModelChange,
     getModelAccountOptions,
     submitBtn = $bindable(),
-    selectedModelId,
-    selectedAccountId,
+    options,
   } = $props();
 
   onDestroy(() => {
@@ -183,7 +182,7 @@
             <option
               value={option.value}
               selected={option.value ===
-                `${selectedModelId}:${selectedAccountId}`}
+                `${options.modelId}:${options.accountId}`}
             >
               {option.label}
             </option>
