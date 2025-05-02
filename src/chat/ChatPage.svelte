@@ -2,19 +2,15 @@
   // @ts-expect-error CSS import type issue
   import chatCss from "./chat.css?inline";
 
-  import { Textarea } from "$lib/components/ui/textarea";
   import { Button } from "$lib/components/ui/button";
   import {
-    ArrowLeft,
-    CornerDownLeftIcon,
     FileTextIcon,
     InfoIcon,
-    Loader2Icon,
     PlusIcon,
     RefreshCwIcon,
-    StopCircleIcon,
     WrenchIcon,
-    XIcon,
+    Trash2Icon,
+    PencilIcon,
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { usePlugin } from "$lib/utils";
@@ -37,7 +33,7 @@
   let { chat, view }: { chat: Chat; view: ViewContext } = $props();
 
   let options = new ChatOptions();
-
+  let editIndex: number | null = $state(null);
   let submitBtn: HTMLButtonElement | null = $state(null);
 
   let countFilesWithRequests = $derived(
@@ -56,6 +52,10 @@
     chat.cancel();
     options.cleanup();
   });
+
+  function deleteMessage(index: number) {
+    chat.messages = chat.messages.filter((_, i) => i !== index);
+  }
 
   function submitOnEnter(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -225,8 +225,10 @@
 
   <div class="flex chat-margin flex-1">
     <div class="flex flex-col w-full flex-1 gap-1 pb-[40px]">
-      {#each chat.messages as message}
-        <div class={message.role === "user" ? "" : "text text-gray-800"}>
+      {#each chat.messages as message, i}
+        <div
+          class="group relative {message.role !== 'user' && 'text-gray-800'}"
+        >
           {#if message.content}
             <div
               class="whitespace-pre-wrap prose leading-none select-text
@@ -262,7 +264,40 @@
                 ? 'bg-violet-50 rounded p-4'
                 : 'py-4'}"
             >
-              <Markdown md={message.content} />
+              {#if editIndex === i}
+                <div class="mt-2 flex gap-2">
+                  <textarea
+                    class="flex-1 rounded border border-gray-200 p-2 text-md"
+                    bind:value={message.content}
+                  ></textarea>
+                  <button
+                    class="clickable-icon"
+                    onclick={() => (editIndex = null)}
+                  >
+                    Save
+                  </button>
+                </div>
+              {:else}
+                <Markdown md={message.content} />
+                <div
+                  class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1"
+                >
+                  {#if message.role === "user"}
+                    <button
+                      class="clickable-icon"
+                      onclick={() => (editIndex = i)}
+                    >
+                      <PencilIcon class="size-4" />
+                    </button>
+                  {/if}
+                  <button
+                    class="clickable-icon"
+                    onclick={() => deleteMessage(i)}
+                  >
+                    <Trash2Icon class="size-4" />
+                  </button>
+                </div>
+              {/if}
             </div>
           {/if}
 
