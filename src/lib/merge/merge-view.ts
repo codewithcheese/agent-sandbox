@@ -81,6 +81,17 @@ export class MergeView extends ItemView {
             toolRequest.status = "success";
           }
           await chat.save();
+
+          if (toolRequest.status === "success") {
+            console.log("Closing merge view for path: ", toolRequest.path);
+            const file = this.app.vault.getFileByPath(toolRequest.path);
+            if (file) {
+              await this.leaf.openFile(file);
+            } else {
+              // close view
+              await this.leaf.detach();
+            }
+          }
         },
       },
     });

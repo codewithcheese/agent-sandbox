@@ -147,7 +147,7 @@
       name="content"
       placeholder="How can I assist you today?"
       onkeypress={submitOnEnter}
-      class="min-h-[80px] rounded"
+      maxRows={10}
     />
     <div class="flex items-center justify-between mt-2">
       <div class="flex flex-row align-middle gap-2">
