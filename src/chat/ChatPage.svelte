@@ -140,7 +140,10 @@
   async function openToolRequest(toolRequest: ToolRequest) {
     try {
       const plugin = usePlugin();
-      const leaf = plugin.app.workspace.getLeaf(true);
+      let leaf = plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];
+      if (!leaf) {
+        leaf = plugin.app.workspace.getLeaf(true);
+      }
       await leaf.setViewState({
         type: MERGE_VIEW_TYPE,
         state: {
