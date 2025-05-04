@@ -12,7 +12,7 @@ export function registerMobileLogger(plugin: Plugin) {
       const line = [];
       line.push(`\n[${prefix}]`);
       for (const arg of args) {
-        if (arg && typeof arg === "object") {
+        if (arg && typeof arg === "object" && !(arg instanceof Error)) {
           line.push(JSON.stringify(arg));
         } else {
           line.push(String(arg));
