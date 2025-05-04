@@ -7,7 +7,7 @@ export function registerMobileLogger(plugin: Plugin) {
   /** One file per day so it never grows without bound. */
   const logFile = `${plugin.manifest.dir}/log-${new Date()
     .toISOString()
-    .slice(0, 10)}.log`;
+    .slice(0, 10)}.txt`;
 
   /**
    * Stringify any JS value, coping with:
