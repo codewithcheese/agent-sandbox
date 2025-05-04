@@ -1,7 +1,7 @@
 {
 	"id": "agent-sandbox",
 	"name": "Agent Sandbox",
-	"version": "0.9.3",
+	"version": "0.9.4",
 	"minAppVersion": "0.15.0",
 	"description": "Sandbox for developing knowledge agents in Obsidian.",
 	"author": "codewithcheese",
