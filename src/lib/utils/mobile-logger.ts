@@ -2,7 +2,7 @@ import { Plugin, Platform } from "obsidian";
 
 /** Register log sink that mirrors the browser console to a vault file (mobile-only). */
 export function registerMobileLogger(plugin: Plugin) {
-  // if (!Platform.isMobile) return;
+  if (!Platform.isMobile) return;
 
   /** One file per day so it never grows without bound. */
   const logFile = `${plugin.manifest.dir}/log-${new Date()

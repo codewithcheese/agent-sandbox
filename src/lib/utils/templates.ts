@@ -1,52 +1,57 @@
-import Handlebars from "handlebars";
-import asyncHelpers from "handlebars-async-helpers";
+import nunjucks from "nunjucks";
 
-type AsyncHelperFunction = (...args: any[]) => Promise<string>;
-type HelperFunction = (...args: any[]) => string;
-type Helpers = Record<string, AsyncHelperFunction | HelperFunction>;
+/**
+ * A filter receives the piped value as its first argument, followed by any
+ * additional positional / keyword parameters, and may return either a value or
+ * a `Promise` that resolves to a value.
+ */
+export type FilterFunction<In = unknown, Out = unknown> = (
+  value: In,
+  ...args: unknown[]
+) => Out | Promise<Out>;
 
-interface TemplateOptions {
-  allowProtoMethodsByDefault?: boolean;
-  allowProtoPropertiesByDefault?: boolean;
-  noEscape?: boolean;
+export type Filters = Record<string, FilterFunction>;
+
+export interface TemplateOptions {
+  autoescape?: boolean;
 }
 
 /**
- * Process a template string with async helpers using Handlebars
- * @param content Template string to process
- * @param helpers Record of helper functions to register with Handlebars
- * @param options Template compilation and runtime options
- * @returns Processed template string
+ * Render a template string using **Nunjucks** with support for asynchronous
+ * filters.
  */
 export async function processTemplate(
   content: string,
-  helpers: Helpers,
+  filters: Filters,
   options: TemplateOptions = {},
 ): Promise<string> {
-  const hb = asyncHelpers(Handlebars);
+  const env = new nunjucks.Environment(null, {
+    autoescape: options.autoescape ?? false,
+    throwOnUndefined: false,
+  });
 
-  // Register all helpers
-  Object.entries(helpers).forEach(([name, helper]) => {
-    hb.registerHelper(name, async function (...args) {
-      // Remove the Handlebars options object from the end of args
-      const helperArgs = args.slice(0, -1);
-      console.log("Args", args, helperArgs);
-      return helper(...helperArgs);
+  // Register each filter as an async-aware Nunjucks filter.
+  Object.entries(filters).forEach(([name, filterFn]) => {
+    env.addFilter(
+      name,
+      (...rawArgs: unknown[]) => {
+        // Nunjucks appends the async callback as the **last** argument.
+        const done = rawArgs.pop() as (err: unknown, result?: unknown) => void;
+
+        const [value, ...positional] = rawArgs as [unknown, ...unknown[]];
+
+        Promise.resolve(filterFn(value, ...positional))
+          .then((result) => done(null, result))
+          .catch((err) => done(err));
+      },
+      /* async */ true,
+    );
+  });
+
+  return new Promise<string>((resolve, reject) => {
+    env.renderString(content, {}, (err, res) => {
+      if (err) return reject(err);
+      resolve(res as string);
     });
   });
-
-  // Create template
-  const template = hb.compile(content, {
-    noEscape: options.noEscape ?? true,
-  });
-
-  // Execute template with async helpers
-  return template(
-    {},
-    {
-      allowProtoMethodsByDefault: options.allowProtoMethodsByDefault ?? true,
-      allowProtoPropertiesByDefault:
-        options.allowProtoPropertiesByDefault ?? true,
-    },
-  );
 }

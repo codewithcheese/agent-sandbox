@@ -1,9 +1,11 @@
 import { usePlugin } from "$lib/utils/index";
+import { normalizePath } from "obsidian";
 
 export async function fileTree(path: string = "/"): Promise<string> {
   const plugin = usePlugin();
   const vault = plugin.app.vault;
   const files = vault.getFiles();
+  path = normalizePath(path);
 
   // Group files by folder path
   const fileTree: { [key: string]: any[] } = {};
@@ -54,7 +56,7 @@ export async function fileTree(path: string = "/"): Promise<string> {
   };
 
   // If a specific path is provided, only show that part of the tree
-  if (path !== "/") {
+  if (path !== "/" && path !== "" && path !== ".") {
     const folder = vault.getAbstractFileByPath(path);
     if (!folder) {
       return `Folder not found: ${path}`;
