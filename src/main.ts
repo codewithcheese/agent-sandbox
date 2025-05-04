@@ -32,6 +32,7 @@ import { installTools } from "./tools/command.ts";
 import superjson from "superjson";
 import { ChatSerializer } from "./chat/chat-serializer.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
+import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -39,6 +40,7 @@ export class AgentSandboxPlugin extends Plugin {
 
   constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
+    registerMobileLogger(this);
     window.Env = {
       Plugin: this,
     };
