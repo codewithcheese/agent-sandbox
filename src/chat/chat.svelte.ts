@@ -8,7 +8,7 @@ import {
 } from "ai";
 import { type AIAccount, createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
-import type { CachedMetadata, TFile } from "obsidian";
+import { type CachedMetadata, normalizePath, TFile, TFolder } from "obsidian";
 import { processTemplate } from "$lib/utils/templates.ts";
 import {
   processEmbeds,
@@ -21,11 +21,11 @@ import { loadToolsFromFrontmatter } from "../tools";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
 import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
-import type { ChatModel } from "../settings/models.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import type { ToolRequest } from "../tools/tool-request.ts";
 import type { ChatOptions } from "./options.svelte.ts";
+import { getBaseName, getLastDirName } from "$lib/utils/path.ts";
 
 export interface DocumentAttachment {
   id: string;
@@ -73,7 +73,7 @@ export function registerChatRenameHandler() {
 export class Chat {
   path: string;
   messages = $state<UIMessage[]>([]);
-  chatbots = $state<TFile[]>([]);
+  chatbots = $state<{ name: string; file: TFile }[]>([]);
   attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
   toolRequests = $state<ToolRequest[]>([]);
@@ -146,17 +146,37 @@ export class Chat {
     this.save();
   }
 
+  // fixme: move to chat view, chat has no need to manage chatbot loading
   async loadChatbots() {
     const plugin = usePlugin();
-    const directoryPath = plugin.settings.vault.chatbotsPath;
-    const files = plugin.app.vault.getFiles();
-    const normalizedPath = directoryPath.startsWith("/")
-      ? directoryPath.slice(1)
-      : directoryPath;
+    const chatbotsPath = normalizePath(plugin.settings.vault.chatbotsPath);
+    const chatbotsDir = plugin.app.vault.getAbstractFileByPath(chatbotsPath);
+    if (!(chatbotsDir instanceof TFolder))
+      throw new Error(`${plugin.settings.vault.chatbotsPath} is not a folder`);
 
-    this.chatbots = files.filter((file) =>
-      file.path.startsWith(normalizedPath),
-    );
+    this.chatbots = [];
+    chatbotsDir.children.forEach((handle) => {
+      if (handle instanceof TFile) {
+        // Top-level file is prompt, name is file basename
+        this.chatbots.push({ name: getBaseName(handle.path), file: handle });
+      }
+      if (!(handle instanceof TFolder)) {
+        return;
+      }
+      // check for prompt.md in sub-dir
+      const promptPath = normalizePath(`${handle.path}/Prompt.md`);
+      const promptFile = plugin.app.vault.getFileByPath(promptPath);
+      if (!promptFile) {
+        console.warn(
+          `No prompt.md found in chatbot folder ${handle.path}. Skipping...,`,
+        );
+        return;
+      }
+      this.chatbots.push({
+        name: getLastDirName(promptFile.path),
+        file: promptFile,
+      });
+    });
   }
 
   async submit(event: Event, options: ChatOptions) {

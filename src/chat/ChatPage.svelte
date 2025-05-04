@@ -195,7 +195,7 @@
         >
           <option value={undefined}>Select a chatbot...</option>
           {#each chat.chatbots as chatbot}
-            <option value={chatbot.path}>{chatbot.basename}</option>
+            <option value={chatbot.file.path}>{chatbot.name}</option>
           {/each}
         </select>
 
