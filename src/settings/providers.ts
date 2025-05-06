@@ -13,7 +13,7 @@ export type AIAccount = {
 };
 
 export const AIProvider: Record<
-  "ollama" | "openai" | "anthropic" | "gemini",
+  "ollama" | "openai" | "anthropic" | "gemini" | "assemblyai",
   {
     name: string;
     requiredFields: (keyof typeof ModelConfigField)[];
@@ -40,6 +40,11 @@ export const AIProvider: Record<
     requiredFields: ["apiKey"],
     optionalFields: ["baseURL"],
   },
+  assemblyai: {
+    name: "AssemblyAI",
+    requiredFields: ["apiKey"],
+    optionalFields: ["baseURL"],
+  },
 } as const;
 
 export function createAIProvider(account: AIAccount) {
@@ -63,6 +68,8 @@ export function createAIProvider(account: AIAccount) {
       return createOllama({
         ...account.config,
       });
+    case "assemblyai":
+      throw Error("AssemblyAI cannot be used as a AI SDK provider.");
     default:
       // exhaustive check
       const provider: never = account.provider;

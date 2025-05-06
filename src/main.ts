@@ -33,10 +33,12 @@ import superjson from "superjson";
 import { ChatSerializer } from "./chat/chat-serializer.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
+import { RecorderWidget } from "./recorder/recorder-widget.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
   pglite: PGliteProvider;
+  recorder: RecorderWidget;
 
   constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
@@ -45,6 +47,7 @@ export class AgentSandboxPlugin extends Plugin {
       Plugin: this,
     };
     this.pglite = new PGliteProvider(this);
+    this.recorder = new RecorderWidget();
   }
 
   async openFileSelect(onSelect: (file: TFile) => void) {
@@ -134,13 +137,17 @@ export class AgentSandboxPlugin extends Plugin {
       },
     );
 
+    this.addRibbonIcon("mic", "Toggle Recorder", () => {
+      this.recorder.toggle();
+    });
+
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();
     });
 
-    this.addRibbonIcon("code-block", "Open Artifact View", async () => {
-      await this.openArtifactView({ name: "Empty", html: "" });
-    });
+    // this.addRibbonIcon("code", "Open Artifact View", async () => {
+    //   await this.openArtifactView({ name: "Empty", html: "" });
+    // });
 
     this.addCommand({
       id: "install-tools",

@@ -1,7 +1,12 @@
 import { App, PluginSettingTab } from "obsidian";
 import AgentSandboxPlugin from "../main.ts";
 import SettingsPage from "./SettingsPage.svelte";
-import { type ChatModel, type EmbeddingModel, models } from "./models.ts";
+import {
+  type ChatModel,
+  type EmbeddingModel,
+  models,
+  type TranscriptionModel,
+} from "./models.ts";
 import type { AIAccount } from "./providers.ts";
 import { mount, unmount } from "svelte";
 
@@ -21,7 +26,12 @@ export interface PluginSettings {
     chatsPath: string;
   };
   accounts: AIAccount[];
-  models: (ChatModel | EmbeddingModel)[];
+  models: (ChatModel | EmbeddingModel | TranscriptionModel)[];
+  recording: {
+    modelId?: string;
+    accountId?: string;
+    language?: string;
+  };
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -41,6 +51,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   },
   accounts: [],
   models,
+  recording: {},
 };
 
 export class Settings extends PluginSettingTab {

@@ -65,6 +65,7 @@
     "@lezer/lr": "^1.4.2",
     "@sindresorhus/slugify": "^2.2.1",
     "@types/diff": "^7.0.2",
+    "assemblyai": "^4.12.2",
     "buffer": "^6.0.3",
     "comlink": "^4.4.2",
     "diff": "^7.0.0",

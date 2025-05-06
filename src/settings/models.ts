@@ -15,7 +15,13 @@ export type EmbeddingModel = {
   dimensions: number;
 };
 
-export const models: (ChatModel | EmbeddingModel)[] = [
+export type TranscriptionModel = {
+  id: string;
+  provider: AIProviderId;
+  type: "transcription";
+};
+
+export const models: (ChatModel | EmbeddingModel | TranscriptionModel)[] = [
   {
     id: "o1",
     provider: "openai",
@@ -106,5 +112,10 @@ export const models: (ChatModel | EmbeddingModel)[] = [
     type: "chat",
     inputTokenLimit: 1048576,
     outputTokenLimit: 8192,
+  },
+  {
+    id: "universal",
+    provider: "assemblyai",
+    type: "transcription",
   },
 ];

@@ -186,3 +186,98 @@
     </div>
   </div>
 {/each}
+
+<div class="setting-item setting-item-heading">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Recording</div>
+  </div>
+</div>
+
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Account</div>
+    <div class="setting-item-description">
+      Select an account for transcription. Supported providers: AssemblyAI.
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <select
+      value={settings.recording.accountId}
+      onchange={(e) => {
+        settings.recording.accountId = e.currentTarget.value;
+        settings.recording.modelId = undefined;
+        save();
+      }}
+    >
+      <option value="">Select account...</option>
+      {#each settings.accounts.filter((a) => a.provider === "assemblyai") as account}
+        <option value={account.id}>{account.name}</option>
+      {/each}
+    </select>
+  </div>
+</div>
+
+{#if settings.recording.accountId}
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Model</div>
+      <div class="setting-item-description">Select a transcription model</div>
+    </div>
+    <div class="setting-item-control">
+      <select
+        value={settings.recording.modelId}
+        onchange={(e) => {
+          settings.recording.modelId = e.currentTarget.value;
+          save();
+        }}
+      >
+        <option value="">Select model...</option>
+        {#each settings.models.filter((m) => m.type === "transcription" && m.provider === "assemblyai") as model}
+          <option value={model.id}>{model.id}</option>
+        {/each}
+      </select>
+    </div>
+  </div>
+{/if}
+
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Language</div>
+    <div class="setting-item-description">
+      Select the primary language for transcription
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <select
+      value={settings.recording.language}
+      onchange={(e) => {
+        settings.recording.language = e.currentTarget.value
+          ? e.currentTarget.value
+          : undefined;
+        save();
+      }}
+    >
+      <option value="">Auto-detect</option>
+      <option value="en">Global English</option>
+      <option value="en_au">Australian English</option>
+      <option value="en_uk">British English</option>
+      <option value="en_us">US English</option>
+      <option value="es">Spanish</option>
+      <option value="fr">French</option>
+      <option value="de">German</option>
+      <option value="it">Italian</option>
+      <option value="pt">Portuguese</option>
+      <option value="nl">Dutch</option>
+      <option value="hi">Hindi</option>
+      <option value="ja">Japanese</option>
+      <option value="zh">Chinese</option>
+      <option value="fi">Finnish</option>
+      <option value="ko">Korean</option>
+      <option value="pl">Polish</option>
+      <option value="ru">Russian</option>
+      <option value="tr">Turkish</option>
+      <option value="uk">Ukrainian</option>
+      <option value="vi">Vietnamese</option>
+    </select>
+  </div>
+</div>

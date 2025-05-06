@@ -83,6 +83,7 @@ This project includes a version bumping script that automates the release proces
 - [ ] Pass abort signal to tools
 - [ ] Read file image support
 - [ ] Merge view undo
+- [ ] Close merge view when complete
 - [x] Auto-resize text area
 - [x] Merge view tweaks
   - [x] Open in the main leaf

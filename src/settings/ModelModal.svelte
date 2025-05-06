@@ -1,13 +1,13 @@
 <script lang="ts">
-  import type { ChatModel, EmbeddingModel } from "./models.ts";
+  import type { ChatModel, EmbeddingModel, TranscriptionModel } from "./models.ts";
 
   import { AIProvider } from "./providers.ts";
   import type { AllowEmpty } from "$lib/types/allow-empty.ts";
 
   type Props = {
-    current?: ChatModel | EmbeddingModel;
+    current?: ChatModel | EmbeddingModel | TranscriptionModel;
     close: () => void;
-    save: (model: ChatModel | EmbeddingModel) => void;
+    save: (model: ChatModel | EmbeddingModel | TranscriptionModel) => void;
   };
   let { current, close, save }: Props = $props();
 
@@ -21,15 +21,16 @@
         outputTokenLimit: 0,
       } as
         | AllowEmpty<ChatModel, "provider" | "id">
-        | AllowEmpty<EmbeddingModel, "provider" | "id">),
+        | AllowEmpty<EmbeddingModel, "provider" | "id">
+        | AllowEmpty<TranscriptionModel, "provider" | "id">),
   );
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    save($state.snapshot(model as ChatModel | EmbeddingModel));
+    save($state.snapshot(model as ChatModel | EmbeddingModel | TranscriptionModel));
   }
 
-  function updateModelType(type: "chat" | "embedding") {
+  function updateModelType(type: "chat" | "embedding" | "transcription") {
     if (type === "chat") {
       model = {
         id: model.id,
@@ -38,12 +39,18 @@
         inputTokenLimit: (model as ChatModel).inputTokenLimit || 0,
         outputTokenLimit: (model as ChatModel).outputTokenLimit || 0,
       };
-    } else {
+    } else if (type === "embedding") {
       model = {
         id: model.id,
         provider: model.provider,
         type: "embedding",
         dimensions: (model as EmbeddingModel).dimensions || 0,
+      };
+    } else {
+      model = {
+        id: model.id,
+        provider: model.provider,
+        type: "transcription",
       };
     }
   }
@@ -72,6 +79,7 @@
         >
           <option value="chat">Chat</option>
           <option value="embedding">Embedding</option>
+          <option value="transcription">Transcription</option>
         </select>
       </div>
     </div>
@@ -137,7 +145,7 @@
           />
         </div>
       </div>
-    {:else}
+    {:else if model.type === "embedding"}
       <div class="setting-item">
         <div class="setting-item-info">
           <div class="setting-item-name">Dimensions</div>
