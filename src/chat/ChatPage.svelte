@@ -15,7 +15,7 @@
   import type { Chat } from "./chat.svelte.ts";
   import { usePlugin } from "$lib/utils";
   import { insertCss } from "$lib/utils/insert-css.ts";
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
@@ -27,14 +27,23 @@
   import type { ToolRequest } from "../tools/tool-request.ts";
   import ChatInput from "./ChatInput.svelte";
   import { ChatOptions } from "./options.svelte.ts";
+  import SystemMessage from "./SystemMessage.svelte";
+  import type { Agents } from "./agents.svelte.ts";
 
   const plugin = usePlugin();
 
-  let { chat, view }: { chat: Chat; view: ViewContext } = $props();
+  let {
+    chat,
+    view,
+    agents,
+  }: { chat: Chat; view: ViewContext; agents: Agents } = $props();
 
   let options = new ChatOptions();
   let editIndex: number | null = $state(null);
   let submitBtn: HTMLButtonElement | null = $state(null);
+  let selectedAgent = $derived(
+    agents.entries.find((c) => c.file.path === options.chatbotPath),
+  );
 
   let countFilesWithRequests = $derived(
     new Set(
@@ -43,10 +52,6 @@
         .map((r) => r.path),
     ).size,
   );
-
-  onMount(() => {
-    chat.loadChatbots();
-  });
 
   onDestroy(() => {
     chat.cancel();
@@ -185,17 +190,11 @@
       <div class="flex flex-row items-center gap-1">
         <select
           class="w-[150px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          bind:value={
-            () => options.chatbotPath,
-            (selected) => {
-              console.log("Updating selected chatbot:", selected);
-              options.chatbotPath = selected;
-            }
-          }
+          bind:value={options.chatbotPath}
         >
-          <option value={undefined}>Select a chatbot...</option>
-          {#each chat.chatbots as chatbot}
-            <option value={chatbot.file.path}>{chatbot.name}</option>
+          <option value={undefined}>Select an agent...</option>
+          {#each agents.entries as agent}
+            <option value={agent.file.path}>{agent.name}</option>
           {/each}
         </select>
 
@@ -204,7 +203,7 @@
           variant="outline"
           size="sm"
           class="gap-1.5 rounded"
-          onclick={() => chat.loadChatbots()}
+          onclick={() => agents.refresh()}
         >
           <RefreshCwIcon class="size-3.5" />
         </Button>
@@ -222,6 +221,10 @@
       </Button>
     </div>
   </div>
+
+  {#if selectedAgent}
+    <SystemMessage agent={selectedAgent} />
+  {/if}
 
   <div class="flex chat-margin flex-1">
     <div class="flex flex-col w-full flex-1 gap-1 pb-[40px]">

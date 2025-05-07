@@ -68,11 +68,9 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Token counting
 - [ ] Title generation
 - [ ] Fix code-block display
-- [ ] Delete a message
-- [ ] Edit message
-- [ ] Token counting
 - [ ] Chat homepage with previous chats and chatbot seleciton
 - [ ] Remember chatbot between chats
 - [ ] Add tool request for create, trash, delete
@@ -84,6 +82,8 @@ This project includes a version bumping script that automates the release proces
 - [ ] Read file image support
 - [ ] Merge view undo
 - [ ] Close merge view when complete
+- [x] Delete a message
+- [x] Edit message
 - [x] Auto-resize text area
 - [x] Merge view tweaks
   - [x] Open in the main leaf

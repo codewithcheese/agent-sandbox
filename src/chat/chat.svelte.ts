@@ -25,7 +25,6 @@ import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import type { ToolRequest } from "../tools/tool-request.ts";
 import type { ChatOptions } from "./options.svelte.ts";
-import { getBaseName, getLastDirName } from "$lib/utils/path.ts";
 
 export interface DocumentAttachment {
   id: string;
@@ -73,7 +72,6 @@ export function registerChatRenameHandler() {
 export class Chat {
   path: string;
   messages = $state<UIMessage[]>([]);
-  chatbots = $state<{ name: string; file: TFile }[]>([]);
   attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
   toolRequests = $state<ToolRequest[]>([]);
@@ -144,39 +142,6 @@ export class Chat {
   clearAttachments() {
     this.attachments = [];
     this.save();
-  }
-
-  // fixme: move to chat view, chat has no need to manage chatbot loading
-  async loadChatbots() {
-    const plugin = usePlugin();
-    const chatbotsPath = normalizePath(plugin.settings.vault.chatbotsPath);
-    const chatbotsDir = plugin.app.vault.getAbstractFileByPath(chatbotsPath);
-    if (!(chatbotsDir instanceof TFolder))
-      throw new Error(`${plugin.settings.vault.chatbotsPath} is not a folder`);
-
-    this.chatbots = [];
-    chatbotsDir.children.forEach((handle) => {
-      if (handle instanceof TFile) {
-        // Top-level file is prompt, name is file basename
-        this.chatbots.push({ name: getBaseName(handle.path), file: handle });
-      }
-      if (!(handle instanceof TFolder)) {
-        return;
-      }
-      // check for prompt.md in sub-dir
-      const promptPath = normalizePath(`${handle.path}/Prompt.md`);
-      const promptFile = plugin.app.vault.getFileByPath(promptPath);
-      if (!promptFile) {
-        console.warn(
-          `No prompt.md found in chatbot folder ${handle.path}. Skipping...,`,
-        );
-        return;
-      }
-      this.chatbots.push({
-        name: getLastDirName(promptFile.path),
-        file: promptFile,
-      });
-    });
   }
 
   async submit(event: Event, options: ChatOptions) {

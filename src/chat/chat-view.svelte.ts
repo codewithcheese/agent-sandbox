@@ -3,6 +3,7 @@ import { mount, unmount } from "svelte";
 import type { ViewContext } from "$lib/obsidian/view.ts";
 import ChatPage from "./ChatPage.svelte";
 import { Chat } from "./chat.svelte.ts";
+import { Agents } from "./agents.svelte.ts";
 
 export const CHAT_VIEW_TYPE = "sandbox-chat-view";
 
@@ -113,10 +114,15 @@ export class ChatView extends FileView {
     viewContent.style.padding = "0px";
     viewContent.style.backgroundColor = "var(--background-primary)";
 
+    // Load agents
+    const agents = new Agents();
+    await agents.refresh();
+
     // Mount the Svelte component with props
     this.component = mount(ChatPage, {
       target: this.containerEl.children[1],
       props: {
+        agents,
         chat: await Chat.load(file.path),
         view: this.view,
       },

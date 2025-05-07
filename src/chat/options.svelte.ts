@@ -14,23 +14,21 @@ export class ChatOptions {
   cleanup: () => void;
 
   constructor() {
-    const storedData = localStorage.getItem(STORAGE_KEY);
+    const plugin = usePlugin();
+    const storedData = plugin.app.loadLocalStorage(STORAGE_KEY);
     if (storedData) {
-      Object.assign(this, JSON.parse(storedData));
+      Object.assign(this, storedData);
     }
 
     // Save preferences to localStorage whenever they change
     this.cleanup = $effect.root(() => {
       $effect(() => {
         console.log("Saving options");
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            modelId: this.modelId,
-            accountId: this.accountId,
-            chatbotPath: this.chatbotPath,
-          }),
-        );
+        plugin.app.saveLocalStorage(STORAGE_KEY, {
+          modelId: this.modelId,
+          accountId: this.accountId,
+          chatbotPath: this.chatbotPath,
+        });
       });
     });
   }
@@ -52,7 +50,7 @@ export class ChatOptions {
       (a) => a.id === this.accountId,
     );
     if (!account) {
-      throw Error(`AI account ${accountId} not found`);
+      throw Error(`AI account ${this.accountId} not found`);
     }
     return account;
   }
