@@ -333,14 +333,14 @@
 </script>
 
 <div
-  class="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center"
+  class="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center z-100"
 >
   <!-- Stacked Transcripts -->
   {#if recordings.length > 0}
     <div class="flex flex-col-reverse gap-1 w-full max-w-sm mb-2">
       {#each recordings as recording (recording.id)}
         <div
-          class="flex items-center border border-gray-200 bg-gray-50 rounded-full w-full p-1"
+          class="flex items-center border border-[var(--color-base-50)] bg-gray-[var(--color-base-00)] rounded-full w-full p-1"
         >
           <!-- Remove Button -->
           <button
@@ -358,16 +358,6 @@
                 ? "Error"
                 : recording.text}
           </span>
-
-          <!-- Play Button (if audio available) -->
-          <!--{#if recording.audioUrl}-->
-          <!--  <button-->
-          <!--    onclick={() => playRecording(recording.audioUrl)}-->
-          <!--    class="flex-shrink-0 text-gray-600 hover:text-blue-600 mr-1"-->
-          <!--  >-->
-          <!--    <span class="text-xs">▶</span>-->
-          <!--  </button>-->
-          <!--{/if}-->
 
           {#if recording.state === "ready"}
             <button
@@ -388,18 +378,18 @@
     <div class="flex items-center justify-center">
       {#if isExpanded}
         <div
-          class="flex items-center bg-accent rounded-full h-12 w-64 px-2 border border-gray-300"
+          class="flex items-center bg-accent rounded-full h-12 w-64 px-2 border border-[var(--color-base-10)]"
         >
           <button
             onclick={cancelRecording}
             class="flex items-center justify-center clickable-icon rounded-full"
           >
-            <XIcon class="text-white size-6" />
+            <XIcon class="text-[var(--color-base-10)] size-6" />
           </button>
           <div class="flex-1 flex items-center justify-center space-x-px mx-1">
             {#each audioLevels as level, index}
               <div
-                class="w-1 bg-white rounded-full"
+                class="w-1 bg-[var(--color-base-10)] rounded-full"
                 style="height: {Math.max(3, level * 8)}px; opacity: {(index +
                   1) /
                   audioLevels.length}"
@@ -410,13 +400,13 @@
             onclick={acceptRecording}
             class="clickable-icon flex items-center justify-center h-10 w-10 rounded-full"
           >
-            <CheckIcon class="text-white size-6" />
+            <CheckIcon class="text-[var(--color-base-10)] size-6" />
           </button>
         </div>
       {:else}
         <button
           onclick={startRecording}
-          class="btn-accent text-white flex items-center justify-center rounded-full h-12 w-12 transition-colors font-semibold shadow"
+          class="mic-btn flex items-center justify-center transition-colors"
         >
           <Mic size={20} />
         </button>
@@ -430,8 +420,11 @@
     background-color: var(--color-accent-1) !important;
   }
 
-  .btn-accent {
+  .mic-btn {
     background-color: var(--color-accent-1) !important;
     color: var(--color-base-00) !important;
+    border-radius: calc(infinity * 1px) !important;
+    width: calc(var(--spacing) * 12);
+    height: calc(var(--spacing) * 12);
   }
 </style>

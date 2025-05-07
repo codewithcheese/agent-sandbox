@@ -225,7 +225,8 @@
     <div class="flex flex-col w-full flex-1 gap-1 pb-[40px]">
       {#each chat.messages as message, i}
         <div
-          class="group relative {message.role !== 'user' && 'text-gray-800'}"
+          class="group relative {message.role !== 'user' &&
+            'text-[var(--color-base-10)]'}"
         >
           {#if message.content}
             <div
@@ -256,10 +257,10 @@
                           prose-strong:font-semibold
                           prose-img:m-0
                           prose-video:m-0
-
+                          [body.theme-dark_&]:prose-invert
                           prose-a:decoration-1 text-foreground max-w-full {message.role ===
               'user'
-                ? 'bg-violet-50 rounded p-4'
+                ? 'border border-[var(--color-accent)] rounded p-4'
                 : 'py-4'}"
             >
               {#if editIndex === i}
@@ -323,7 +324,7 @@
             {#if part.type === "tool-invocation"}
               <div class="rounded border border-gray-200">
                 <div
-                  class="flex flex-row gap-1 text-xs p-1 text-gray-700 items-center"
+                  class="flex flex-row gap-1 text-xs p-1 text-[var(--color-base-10)] items-center"
                 >
                   <WrenchIcon class="size-3" />
                   <div class="flex-1">{part.toolInvocation.toolName}</div>

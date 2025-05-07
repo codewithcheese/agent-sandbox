@@ -69,6 +69,8 @@ This project includes a version bumping script that automates the release proces
 ## Todo
 
 - [ ] Token counting
+- [ ] Reposition recorder with drag
+- [ ] Save recording history in local storage
 - [ ] Title generation
 - [ ] Fix code-block display
 - [ ] Chat homepage with previous chats and chatbot seleciton

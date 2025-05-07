@@ -6,6 +6,7 @@ import * as path from "node:path";
 import { configDefaults } from "vitest/config";
 import builtins from "builtin-modules";
 import slugify from "@sindresorhus/slugify";
+import tailwindcss from "@tailwindcss/vite";
 
 // Define the list of packages to exclude from bundling
 const excludePackages = [
@@ -73,6 +74,7 @@ export default defineConfig(({ command }) => {
       },
     },
     plugins: [
+      tailwindcss(),
       svelte({
         compilerOptions: {
           customElement: true,
