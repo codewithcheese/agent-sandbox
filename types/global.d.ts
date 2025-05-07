@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import * as ObsidianType from "obsidian";
 import * as CodeMirrorViewType from "@codemirror/view";
 import * as CodeMirrorStateType from "@codemirror/state";

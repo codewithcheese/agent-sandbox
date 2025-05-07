@@ -1,7 +1,4 @@
 <script lang="ts">
-  // @ts-expect-error CSS import type issue
-  import chatCss from "./chat.css?inline";
-
   import { Button } from "$lib/components/ui/button";
   import {
     FileTextIcon,
@@ -14,7 +11,6 @@
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { usePlugin } from "$lib/utils";
-  import { insertCss } from "$lib/utils/insert-css.ts";
   import { onDestroy } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
@@ -178,7 +174,6 @@
 </script>
 
 <div
-  use:insertCss={chatCss}
   class="min-h-full h-full flex flex-col"
   style="padding: 0 var(--size-4-3) 0;"
 >

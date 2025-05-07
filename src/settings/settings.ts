@@ -1,5 +1,5 @@
 import { App, PluginSettingTab } from "obsidian";
-import AgentSandboxPlugin from "../main.ts";
+import AgentSandboxPlugin from "../plugin.ts";
 import SettingsPage from "./SettingsPage.svelte";
 import {
   type ChatModel,
