@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { TFile } from "obsidian";
   import { BotIcon } from "lucide-svelte";
+  import { isAgent } from "../chat/agents.svelte.ts";
 
   type Props = {
     template: { file?: TFile };
@@ -20,6 +21,6 @@
     <span class="status-bar-item-icon">
       <BotIcon size="14" />
     </span>
-    {template.file.basename}
+    {isAgent(template.file)}
   </span>
 {/if}

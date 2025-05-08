@@ -10,6 +10,7 @@ import { usePlugin } from "$lib/utils";
 import AgentStatusBar from "./AgentStatusBar.svelte";
 import AgentStatusModal from "./AgentStatusModal.svelte";
 import { createSystemContent } from "../chat/system.ts";
+import { isAgent } from "../chat/agents.svelte.ts";
 
 export class AgentStatus {
   statusEl: HTMLElement;
@@ -61,12 +62,7 @@ export class AgentStatus {
   onActiveUpdate(file: TFile) {
     const plugin = usePlugin();
     const metadata = plugin.app.metadataCache.getFileCache(file);
-    if (
-      metadata.frontmatter &&
-      "agent" in metadata.frontmatter &&
-      (metadata.frontmatter["agent"] === true ||
-        metadata.frontmatter["agent"] === "true")
-    ) {
+    if (isAgent(file)) {
       this.template.file = file;
     } else {
       this.template.file = undefined;

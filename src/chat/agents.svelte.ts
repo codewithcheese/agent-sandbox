@@ -63,30 +63,11 @@ export class Agents {
   }
 
   /**
-   * Check if a file is an agent and return its name if it is
-   */
-  private isAgent(file: TFile): string | null {
-    if (file.extension !== "md") return null;
-
-    const plugin = usePlugin();
-    const metadata = plugin.app.metadataCache.getFileCache(file);
-
-    if (!metadata?.frontmatter) return null;
-
-    const agentField = metadata.frontmatter.agent;
-    if (agentField === true || agentField === "true") {
-      return metadata.frontmatter.name || file.basename;
-    }
-
-    return null;
-  }
-
-  /**
    * Update the entries list for a specific file
    */
   private updateEntryForFile(file: TFile): void {
     // Get agent name if this is an agent file
-    const agentName = this.isAgent(file);
+    const agentName = isAgent(file);
 
     // Find if this file is already in our entries
     const existingIndex = this.entries.findIndex(
@@ -115,10 +96,26 @@ export class Agents {
     const markdownFiles = plugin.app.vault.getMarkdownFiles();
 
     for (const file of markdownFiles) {
-      const agentName = this.isAgent(file);
+      const agentName = isAgent(file);
       if (agentName) {
         this.entries.push({ name: agentName, file });
       }
     }
   }
+}
+
+export function isAgent(file: TFile): string | null {
+  if (file.extension !== "md") return null;
+
+  const plugin = usePlugin();
+  const metadata = plugin.app.metadataCache.getFileCache(file);
+
+  if (!metadata?.frontmatter) return null;
+
+  const agentField = metadata.frontmatter.agent;
+  if (agentField === true || agentField === "true") {
+    return metadata.frontmatter.name || file.basename;
+  }
+
+  return null;
 }

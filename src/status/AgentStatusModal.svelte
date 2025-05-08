@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { TFile } from "obsidian";
+  import { isAgent } from "../chat/agents.svelte.ts";
 
   type Props = {
     content: string;
@@ -10,7 +11,7 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <div class="font-semibold">{file.basename}</div>
+  <div class="font-semibold">{isAgent(file)}</div>
   {#if error}
     <div class="text-(--text-error)">
       {error}
