@@ -289,7 +289,3 @@ export class AgentSandboxPlugin extends Plugin {
 }
 
 export default AgentSandboxPlugin;
-
-if (import.meta.hot) {
-  import.meta.hot.accept((mod) => {});
-}

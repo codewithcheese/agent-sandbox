@@ -3,7 +3,7 @@ import { normalizePath, TFile, TFolder } from "obsidian";
 import { getBaseName, getLastDirName } from "$lib/utils/path.ts";
 
 export class Agents {
-  public entries: { name: string; file: TFile }[] = [];
+  entries = $state<{ name: string; file: TFile }[]>();
 
   async refresh() {
     const plugin = usePlugin();
