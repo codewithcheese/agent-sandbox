@@ -195,13 +195,13 @@ export class Chat {
       let metadata: CachedMetadata | null = null;
       let activeTools: Record<string, Tool> = {};
 
-      const chatbotFile = plugin.app.vault.getFileByPath(options.chatbotPath);
-      if (!chatbotFile) {
-        throw Error(`Chatbot at ${options.chatbotPath} not found`);
+      const agentFile = plugin.app.vault.getFileByPath(options.agentPath);
+      if (!agentFile) {
+        throw Error(`Agent at ${options.agentPath} not found`);
       }
 
-      metadata = plugin.app.metadataCache.getFileCache(chatbotFile);
-      system = await createSystemContent(chatbotFile);
+      metadata = plugin.app.metadataCache.getFileCache(agentFile);
+      system = await createSystemContent(agentFile);
       activeTools = await loadToolsFromFrontmatter(metadata!, this);
       console.log("SYSTEM MESSAGE\n-----\n", system);
       console.log("Active tools", activeTools);

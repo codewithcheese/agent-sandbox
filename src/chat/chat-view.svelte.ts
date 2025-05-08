@@ -114,15 +114,11 @@ export class ChatView extends FileView {
     viewContent.style.padding = "0px";
     viewContent.style.backgroundColor = "var(--background-primary)";
 
-    // Load agents
-    const agents = new Agents();
-    await agents.refresh();
-
     // Mount the Svelte component with props
     this.component = mount(ChatPage, {
       target: this.containerEl.children[1],
       props: {
-        agents,
+        agents: await Agents.load(),
         chat: await Chat.load(file.path),
         view: this.view,
       },
@@ -132,12 +128,6 @@ export class ChatView extends FileView {
   private createFloatingContainer() {
     // If already created, do nothing
     if (this.floatingEl) return;
-
-    // You could append directly to document.body:
-    //   const container = document.body.createDiv();
-    //
-    // Alternatively, append to the workspace’s containerEl:
-    //   const container = this.app.workspace.containerEl.createDiv();
 
     const container = document.body.createDiv();
     container.id = "chat-floating-container";

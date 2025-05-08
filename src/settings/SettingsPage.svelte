@@ -31,24 +31,6 @@
 
 <div class="setting-item">
   <div class="setting-item-info">
-    <div class="setting-item-name">Chatbots path</div>
-    <div class="setting-item-description">Where are your chatbots located?</div>
-  </div>
-  <div class="setting-item-control">
-    <input
-      type="text"
-      value={settings.vault.chatbotsPath}
-      onchange={(e) => {
-        plugin.settings.vault.chatbotsPath = e.currentTarget.value;
-        plugin.saveSettings();
-        settings = plugin.settings;
-      }}
-    />
-  </div>
-</div>
-
-<div class="setting-item">
-  <div class="setting-item-info">
     <div class="setting-item-name">Chats path</div>
     <div class="setting-item-description">Where to save your chat files</div>
   </div>
@@ -145,7 +127,7 @@
     <div class="setting-item-info">
       <div class="setting-item-name">No models configured</div>
       <div class="setting-item-description">
-        Add models to use with your chatbots.
+        Add models to use with your agents.
       </div>
     </div>
     <div class="setting-item-control"></div>

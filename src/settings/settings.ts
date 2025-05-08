@@ -22,7 +22,6 @@ export interface PluginSettings {
     accountId: string;
   };
   vault: {
-    chatbotsPath: string;
     chatsPath: string;
   };
   accounts: AIAccount[];
@@ -46,7 +45,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     accountId: "",
   },
   vault: {
-    chatbotsPath: "chatbots",
     chatsPath: "chats",
   },
   accounts: [],

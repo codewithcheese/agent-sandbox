@@ -38,7 +38,7 @@
   let editIndex: number | null = $state(null);
   let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedAgent = $derived(
-    agents.entries.find((c) => c.file.path === options.chatbotPath),
+    agents.entries.find((c) => c.file.path === options.agentPath),
   );
 
   let countFilesWithRequests = $derived(
@@ -185,23 +185,13 @@
       <div class="flex flex-row items-center gap-1">
         <select
           class="w-[150px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          bind:value={options.chatbotPath}
+          bind:value={options.agentPath}
         >
           <option value={undefined}>Select an agent...</option>
           {#each agents.entries as agent}
             <option value={agent.file.path}>{agent.name}</option>
           {/each}
         </select>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          class="gap-1.5 rounded"
-          onclick={() => agents.refresh()}
-        >
-          <RefreshCwIcon class="size-3.5" />
-        </Button>
       </div>
 
       <Button

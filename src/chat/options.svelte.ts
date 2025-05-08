@@ -10,7 +10,7 @@ export const STORAGE_KEY = "agent-sandbox-chat-preferences";
 export class ChatOptions {
   modelId = $state<string | undefined>();
   accountId = $state<string | undefined>();
-  chatbotPath = $state<string | undefined>();
+  agentPath = $state<string | undefined>();
   cleanup: () => void;
 
   constructor() {
@@ -27,7 +27,7 @@ export class ChatOptions {
         plugin.app.saveLocalStorage(STORAGE_KEY, {
           modelId: this.modelId,
           accountId: this.accountId,
-          chatbotPath: this.chatbotPath,
+          agentPath: this.agentPath,
         });
       });
     });
