@@ -83,6 +83,7 @@ This project includes a version bumping script that automates the release proces
 - [ ] Pass abort signal to tools
 - [ ] Read file image support
 - [ ] Merge view undo
+- [ ] Merge view use Obsidian semantic colors
 - [ ] Close merge view when complete
 - [x] Delete a message
 - [x] Edit message

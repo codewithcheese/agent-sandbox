@@ -59,16 +59,9 @@
 
   {#snippet controls()}
     {#if toolRequest.type === "modify" && toolRequest.status === "pending"}
-      <button class="clickable-icon highlight-icon" onclick={onReviewClick}>
+      <button class="mod-cta" onclick={onReviewClick}>
         <FileTextIcon class="size-3.5" />&nbsp;Review
       </button>
     {/if}
   {/snippet}
 </ToolRow>
-
-<style>
-  .highlight-icon {
-    background: var(--interactive-accent) !important;
-    color: var(--text-on-accent) !important;
-  }
-</style>

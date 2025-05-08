@@ -174,7 +174,7 @@
 </script>
 
 <div
-  class="min-h-full h-full flex flex-col"
+  class="min-h-full h-full chat-margin flex flex-col"
   style="padding: 0 var(--size-4-3) 0;"
 >
   <div
@@ -221,7 +221,7 @@
     <SystemMessage agent={selectedAgent} />
   {/if}
 
-  <div class="flex chat-margin flex-1">
+  <div class="flex flex-1">
     <div class="flex flex-col w-full flex-1 gap-1 pb-[40px]">
       {#each chat.messages as message, i}
         <div class="group relative">
