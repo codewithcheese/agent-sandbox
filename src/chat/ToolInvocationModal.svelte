@@ -14,7 +14,7 @@
 <div class="flex flex-col gap-2">
   <div class="font-semibold">{toolInvocation.toolName}</div>
   <div
-    class="text-xs bg-gray-100 border border-gray-300 p-2 rounded font-mono whitespace-pre-wrap"
+    class="text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
   >
     <p>
       {JSON.stringify(toolInvocation.args, null, 2)}

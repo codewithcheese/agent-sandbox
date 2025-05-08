@@ -34,6 +34,7 @@ import { ChatSerializer } from "./chat/chat-serializer.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
 import { RecorderWidget } from "./recorder/recorder-widget.ts";
+import { AgentStatus } from "./status/agent-status.svelte.ts";
 import mainCss from "./main.css?inline";
 
 export class AgentSandboxPlugin extends Plugin {
@@ -41,6 +42,7 @@ export class AgentSandboxPlugin extends Plugin {
   pglite: PGliteProvider;
   recorder: RecorderWidget;
   styleEl?: HTMLStyleElement;
+  agentStatus: AgentStatus;
 
   constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
@@ -50,6 +52,85 @@ export class AgentSandboxPlugin extends Plugin {
     };
     this.pglite = new PGliteProvider(this);
     this.recorder = new RecorderWidget();
+  }
+
+  async onload() {
+    this.loadCSS();
+    await this.loadSettings();
+    await this.initializePGlite();
+
+    this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
+    this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
+    this.registerView(MERGE_VIEW_TYPE, (leaf) => new MergeView(leaf));
+
+    registerChatRenameHandler();
+
+    this.registerExtensions(["chat"], CHAT_VIEW_TYPE);
+
+    this.agentStatus = new AgentStatus();
+
+    this.addRibbonIcon(
+      "message-square",
+      "Open Agent Sandbox Chat",
+      async () => {
+        await this.openChatView();
+      },
+    );
+
+    this.addRibbonIcon("mic", "Toggle Recorder", () => {
+      this.recorder.toggle();
+    });
+
+    this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
+      new FileTreeModal(this.app).open();
+    });
+
+    this.addCommand({
+      id: "install-tools",
+      name: "Install Built-in Tools",
+      callback: async () => {
+        await installTools();
+      },
+    });
+
+    this.addSettingTab(new Settings(this.app, this));
+  }
+
+  async reload() {
+    // reload CSS
+    const css = await import("./main.css?inline&t=" + Date.now());
+    this.styleEl.textContent = css.default;
+  }
+
+  loadCSS() {
+    this.styleEl = document.createElement("style");
+    this.styleEl.textContent = mainCss;
+    document.head.appendChild(this.styleEl);
+    this.register(() => {
+      if (this.styleEl) this.styleEl.remove();
+    });
+  }
+
+  async initializePGlite() {
+    try {
+      await this.pglite.initialize();
+    } catch (error) {
+      console.error("Failed to initialize PGlite:", error);
+      new Notice("Failed to initialize PGlite: " + (error as Error).message);
+    }
+  }
+
+  async loadSettings() {
+    const settings = await this.loadData();
+    const shouldSave = !settings;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
+    if (shouldSave) {
+      await this.saveSettings();
+    }
+  }
+
+  async saveSettings() {
+    await this.saveData(this.settings);
   }
 
   async openFileSelect(onSelect: (file: TFile) => void) {
@@ -117,83 +198,6 @@ export class AgentSandboxPlugin extends Plugin {
     });
 
     await this.app.workspace.revealLeaf(leaf);
-  }
-
-  async onload() {
-    this.loadCSS();
-    await this.loadSettings();
-    await this.initializePGlite();
-
-    this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
-    this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
-    this.registerView(MERGE_VIEW_TYPE, (leaf) => new MergeView(leaf));
-
-    registerChatRenameHandler();
-
-    this.registerExtensions(["chat"], CHAT_VIEW_TYPE);
-
-    this.addRibbonIcon(
-      "message-square",
-      "Open Agent Sandbox Chat",
-      async () => {
-        await this.openChatView();
-      },
-    );
-
-    this.addRibbonIcon("mic", "Toggle Recorder", () => {
-      this.recorder.toggle();
-    });
-
-    this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
-      new FileTreeModal(this.app).open();
-    });
-
-    this.addCommand({
-      id: "install-tools",
-      name: "Install Built-in Tools",
-      callback: async () => {
-        await installTools();
-      },
-    });
-
-    this.addSettingTab(new Settings(this.app, this));
-  }
-
-  async reload() {
-    // reload CSS
-    const css = await import("./main.css?inline&t=" + Date.now());
-    this.styleEl.textContent = css.default;
-  }
-
-  loadCSS() {
-    this.styleEl = document.createElement("style");
-    this.styleEl.textContent = mainCss;
-    document.head.appendChild(this.styleEl);
-    this.register(() => {
-      if (this.styleEl) this.styleEl.remove();
-    });
-  }
-
-  async initializePGlite() {
-    try {
-      await this.pglite.initialize();
-    } catch (error) {
-      console.error("Failed to initialize PGlite:", error);
-      new Notice("Failed to initialize PGlite: " + (error as Error).message);
-    }
-  }
-
-  async loadSettings() {
-    const settings = await this.loadData();
-    const shouldSave = !settings;
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
-    if (shouldSave) {
-      await this.saveSettings();
-    }
-  }
-
-  async saveSettings() {
-    await this.saveData(this.settings);
   }
 
   async openArtifactView(artifact: Artifact) {

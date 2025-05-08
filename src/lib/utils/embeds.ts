@@ -1,23 +1,6 @@
 import { TFile } from "obsidian";
 import { usePlugin } from "./index";
 
-/**
- * Strip frontmatter from content
- * @param content Content to strip frontmatter from
- * @returns Content without frontmatter
- */
-export function stripFrontMatter(content: string): string {
-  // Match YAML frontmatter between --- delimiters at the start of the content
-  const frontmatterRegex = /^---\r?\n[\s\S]*?\r?\n---\r?\n/;
-  return content.replace(frontmatterRegex, '');
-}
-
-/**
- * Process Obsidian-style embeds in the content
- * @param sourceFile The source file containing the embeds, used for resolving relative paths
- * @param content Content to process
- * @returns Content with embeds resolved
- */
 export async function processEmbeds(
   sourceFile: TFile,
   content: string,
@@ -51,12 +34,6 @@ export async function processEmbeds(
   return processedContent;
 }
 
-/**
- * Process Obsidian-style links in the content
- * @param sourceFile The source file containing the links, used for resolving relative paths
- * @param content Content to process
- * @returns Content with links resolved
- */
 export async function processLinks(
   sourceFile: TFile,
   content: string,

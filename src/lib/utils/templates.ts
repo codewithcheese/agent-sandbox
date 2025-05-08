@@ -23,6 +23,7 @@ export interface TemplateOptions {
 export async function processTemplate(
   content: string,
   filters: Filters,
+  context: Record<string, any> = {},
   options: TemplateOptions = {},
 ): Promise<string> {
   const env = new nunjucks.Environment(null, {
@@ -49,7 +50,7 @@ export async function processTemplate(
   });
 
   return new Promise<string>((resolve, reject) => {
-    env.renderString(content, {}, (err, res) => {
+    env.renderString(content, context, (err, res) => {
       if (err) return reject(err);
       resolve(res as string);
     });

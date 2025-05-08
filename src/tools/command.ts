@@ -6,8 +6,10 @@ import { usePlugin } from "$lib/utils";
 // assetsInclude: ['**/*.md']
 
 // Use Vite's glob import to get all markdown files
-// @ts-expect-error - Vite-specific feature
-const toolModules: Record<string, string> = import.meta.glob("./*.md", { as: "raw", eager: true });
+const toolModules: Record<string, string> = import.meta.glob("./*.md", {
+  as: "raw",
+  eager: true,
+});
 
 /**
  * Modal for confirming file overwrite
@@ -79,10 +81,10 @@ export async function installTools() {
   // Install each tool
   for (const [path, content] of Object.entries(toolModules)) {
     // Extract the tool name from the path
-    const baseName = path.split('/').pop() || '';
-    const toolId = baseName.replace(/\.md$/, '');
+    const baseName = path.split("/").pop() || "";
+    const toolId = baseName.replace(/\.md$/, "");
     const targetPath = `${toolsFolderPath}/${toolId}.md`;
-    
+
     // Check if file exists
     const existingFile = plugin.app.vault.getAbstractFileByPath(targetPath);
 

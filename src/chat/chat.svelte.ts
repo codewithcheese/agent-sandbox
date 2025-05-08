@@ -8,15 +8,8 @@ import {
 } from "ai";
 import { type AIAccount, createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
-import { type CachedMetadata, normalizePath, TFile, TFolder } from "obsidian";
-import { processTemplate } from "$lib/utils/templates.ts";
-import {
-  processEmbeds,
-  processLinks,
-  stripFrontMatter,
-} from "$lib/utils/embeds.ts";
+import { type CachedMetadata, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
-import { fileTree } from "$lib/utils/file-tree.ts";
 import { loadToolsFromFrontmatter } from "../tools";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
 import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
@@ -25,6 +18,7 @@ import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import type { ToolRequest } from "../tools/tool-request.ts";
 import type { ChatOptions } from "./options.svelte.ts";
+import { createSystemContent } from "./system.ts";
 
 export interface DocumentAttachment {
   id: string;
@@ -207,7 +201,7 @@ export class Chat {
       }
 
       metadata = plugin.app.metadataCache.getFileCache(chatbotFile);
-      system = await this.createSystemPrompt(chatbotFile);
+      system = await createSystemContent(chatbotFile);
       activeTools = await loadToolsFromFrontmatter(metadata!, this);
       console.log("SYSTEM MESSAGE\n-----\n", system);
       console.log("Active tools", activeTools);
@@ -381,18 +375,5 @@ export class Chat {
     );
 
     await new Promise((resolve) => setTimeout(resolve, retryDelay));
-  }
-
-  async createSystemPrompt(file: TFile) {
-    const plugin = usePlugin();
-    let system = await plugin.app.vault.read(file)!;
-
-    // Clean the file contents
-    system = stripFrontMatter(system);
-    system = await processEmbeds(file, system);
-    system = await processLinks(file, system);
-    system = await processTemplate(system, { fileTree });
-    console.log("SYSTEM MESSAGE\n-----\n", system);
-    return system;
   }
 }
