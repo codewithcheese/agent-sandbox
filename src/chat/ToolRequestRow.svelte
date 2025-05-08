@@ -31,10 +31,10 @@
 
   function getColor(request: ToolRequest) {
     return request.status === "pending"
-      ? "text-yellow-600"
+      ? "text-(--text-warning)"
       : request.status === "success"
-        ? "text-green-600"
-        : "text-red-600";
+        ? "text-(--text-success)"
+        : "text-(--text-error)";
   }
 </script>
 
@@ -68,7 +68,7 @@
 
 <style>
   .highlight-icon {
-    background: darkslategray !important;
-    color: white !important;
+    background: var(--interactive-accent) !important;
+    color: var(--text-on-accent) !important;
   }
 </style>

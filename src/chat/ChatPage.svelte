@@ -224,10 +224,7 @@
   <div class="flex chat-margin flex-1">
     <div class="flex flex-col w-full flex-1 gap-1 pb-[40px]">
       {#each chat.messages as message, i}
-        <div
-          class="group relative {message.role !== 'user' &&
-            'text-[var(--color-base-10)]'}"
-        >
+        <div class="group relative">
           {#if message.content}
             <div
               class="whitespace-pre-wrap prose leading-none select-text
@@ -260,13 +257,13 @@
                           [body.theme-dark_&]:prose-invert
                           prose-a:decoration-1 text-foreground max-w-full {message.role ===
               'user'
-                ? 'border border-[var(--color-accent)] rounded p-4'
+                ? 'bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4'
                 : 'py-4'}"
             >
               {#if editIndex === i}
                 <div class="mt-2 flex gap-2">
                   <textarea
-                    class="flex-1 rounded border border-gray-200 p-2 text-md"
+                    class="flex-1 rounded border p-2 text-md"
                     bind:value={message.content}
                   ></textarea>
                   <button
@@ -322,10 +319,8 @@
         {#if message.parts?.some((part) => part.type === "tool-invocation")}
           {#each message.parts as part}
             {#if part.type === "tool-invocation"}
-              <div class="rounded border border-gray-200">
-                <div
-                  class="flex flex-row gap-1 text-xs p-1 text-[var(--color-base-10)] items-center"
-                >
+              <div class="rounded border border-(--background-modifier-border)">
+                <div class="flex flex-row gap-1 text-xs p-1 items-center">
                   <WrenchIcon class="size-3" />
                   <div class="flex-1">{part.toolInvocation.toolName}</div>
                   <button
@@ -338,7 +333,7 @@
                 </div>
                 {#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}
                   <!-- Handle tool invocations -->
-                  <div class="border-t border-gray-200">
+                  <div class="border-t border-(--background-modifier-border)">
                     <ToolRequestRow
                       toolCallId={part.toolInvocation.toolCallId}
                       {toolRequest}

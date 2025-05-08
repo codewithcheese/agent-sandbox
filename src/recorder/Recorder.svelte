@@ -384,12 +384,12 @@
             onclick={cancelRecording}
             class="flex items-center justify-center clickable-icon rounded-full"
           >
-            <XIcon class="text-[var(--color-base-10)] size-6" />
+            <XIcon class="text-(--text-on-accent-inverted) size-6" />
           </button>
           <div class="flex-1 flex items-center justify-center space-x-px mx-1">
             {#each audioLevels as level, index}
               <div
-                class="w-1 bg-[var(--color-base-10)] rounded-full"
+                class="w-1 bg-(--color-base-10) rounded-full"
                 style="height: {Math.max(3, level * 8)}px; opacity: {(index +
                   1) /
                   audioLevels.length}"
@@ -400,7 +400,7 @@
             onclick={acceptRecording}
             class="clickable-icon flex items-center justify-center h-10 w-10 rounded-full"
           >
-            <CheckIcon class="text-[var(--color-base-10)] size-6" />
+            <CheckIcon class="text-(--text-on-accent-inverted) size-6" />
           </button>
         </div>
       {:else}

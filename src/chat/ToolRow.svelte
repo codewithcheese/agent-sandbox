@@ -35,10 +35,10 @@
       >
     {/if}
     {#if stats && (stats.added || stats.removed)}
-      <div class="text-green-600 font-semibold text-sm">
+      <div class="text-(--text-success) font-semibold text-sm">
         +{stats.added}
       </div>
-      <div class="text-red-600 font-semibold text-sm">
+      <div class="text-(--text-error) font-semibold text-sm">
         -{stats.removed}
       </div>
     {/if}

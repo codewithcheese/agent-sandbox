@@ -74,7 +74,7 @@
 
 <form
   name="input"
-  class="sticky bottom-0 left-0 z-10 p-2 pt-4 w-full z-10 {view.position ===
+  class="sticky bottom-0 left-0 z-10 p-2 pt-4 w-full {view.position ===
     'right' && 'pb-8'}"
   style="background-color: var(--background-primary)"
   onsubmit={handleSubmit}
@@ -82,9 +82,9 @@
   <div class="chat-margin">
     {#if countFilesWithRequests > 0}
       <div
-        class="w-full flex items-center gap-2 px-3 py-2 rounded border border-gray-200 bg-gray-50 mb-2"
+        class="w-full flex items-center gap-2 px-3 py-2 rounded border border-(--background-modifier-border) bg-(--background-primary-alt) mb-2"
       >
-        <span class="text-xs font-medium text-gray-700 flex-1 flex">
+        <span class="text-xs font-medium flex-1 flex">
           <button
             type="button"
             class="clickable-icon gap-2 items-center"
@@ -109,7 +109,7 @@
       </div>
     {/if}
     {#if chat.state.type === "loading"}
-      <div class="flex items-center gap-2 mb-3 text-sm text-blue-600">
+      <div class="flex items-center gap-2 mb-3 text-sm text-(--text-accent)">
         <Loader2Icon class="size-4 animate-spin" />
         <span>Assistant is thinking...</span>
       </div>
@@ -123,12 +123,12 @@
             onclick={() => openFile(normalizePath(attachment.file.path))}
             class="clickable-icon items-center gap-1"
           >
-            <FileTextIcon class="size-3.5 text-gray-600" />
+            <FileTextIcon class="size-3.5" />
             <span class="max-w-[200px] truncate"
               >{getBaseName(attachment.file.path)}</span
             >
             <span
-              class="text-gray-500 hover:text-gray-700 hover:bg-gray-100 flex items-center"
+              class="flex items-center"
               onclick={(e) => {
                 e.stopPropagation();
                 chat.removeAttachment(attachment.id);
@@ -153,9 +153,9 @@
       <div class="flex flex-row align-middle gap-2">
         <Button size="sm" type="button" onclick={handleTranscribeClick}>
           {#if realtime.state === "closed"}
-            <MicIcon class="size-4 text-gray-600" />
+            <MicIcon class="size-4" />
           {:else if realtime.state === "open"}
-            <MicOffIcon class="size-4 text-gray-600" />
+            <MicOffIcon class="size-4" />
           {:else if realtime.state === "connecting"}
             <Loader2Icon class="size-4 animate-spin" />
           {/if}
@@ -174,7 +174,7 @@
         <select
           onchange={handleModelChange}
           name="model-account"
-          class="w-[250px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          class="w-[250px] h-9 rounded-md px-3 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           required
         >
           <option value=""> Select model </option>
@@ -203,7 +203,7 @@
         <Button
           type="button"
           size="sm"
-          class="gap-1.5 rounded bg-background border text-black"
+          class="gap-1.5 rounded"
           onclick={() => chat.cancel()}
         >
           <StopCircleIcon class="size-3.5" />
