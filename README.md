@@ -71,12 +71,10 @@ This project includes a version bumping script that automates the release proces
 - [ ] Token counting
 - [ ] Reposition recorder with drag
 - [ ] Save recording history in local storage
-- [ ] Title generation
 - [ ] Fix code-block display
 - [ ] Chat homepage with previous chats and agent selection
 - [ ] Add tool request for create, trash, delete
 - [ ] Disconnect realtime after idle period
-- [ ] Refresh agent list when agent added, removed, or renamed
 - [ ] Context optimization (forget old messages)
 - [ ] Display tokens used in tool call
 - [ ] Pass abort signal to tools
@@ -84,6 +82,8 @@ This project includes a version bumping script that automates the release proces
 - [ ] Merge view undo
 - [ ] Merge view use Obsidian semantic colors
 - [ ] Close merge view when complete
+- [x] Refresh agent list when agent added, removed, or renamed
+- [x] Title generation
 - [x] Remember agent between chats
 - [x] Delete a message
 - [x] Edit message

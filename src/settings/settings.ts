@@ -59,7 +59,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     prompt: `Your task is to generate a short and concise title that summarizes the main topic or theme of the conversation.
 
 <conversation>
-{conversation}
+{{ conversation }}
 </conversation>
 
 Guidelines for creating the title:
