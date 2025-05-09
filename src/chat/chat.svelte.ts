@@ -2,13 +2,14 @@ import {
   type Attachment,
   convertToCoreMessages,
   type CoreMessage,
+  generateText,
   streamText,
   type Tool,
   type UIMessage,
 } from "ai";
 import { type AIAccount, createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
-import { type CachedMetadata, TFile } from "obsidian";
+import { type CachedMetadata, Notice, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { loadToolsFromFrontmatter } from "../tools";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
@@ -19,6 +20,7 @@ import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import type { ToolRequest } from "../tools/tool-request.ts";
 import type { ChatOptions } from "./options.svelte.ts";
 import { createSystemContent } from "./system.ts";
+import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
 
 export interface DocumentAttachment {
   id: string;
@@ -64,7 +66,7 @@ export function registerChatRenameHandler() {
 }
 
 export class Chat {
-  path: string;
+  path = $state<string>();
   messages = $state<UIMessage[]>([]);
   attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
@@ -184,7 +186,7 @@ export class Chat {
     await this.runConversation(options);
   }
 
-  private async runConversation(options: ChatOptions) {
+  async runConversation(options: ChatOptions) {
     try {
       this.state = { type: "loading" };
 
@@ -258,14 +260,15 @@ export class Chat {
       // Final cleanup
       this.#abortController = undefined;
       this.state = { type: "idle" };
-      this.save();
+      await this.save();
+    }
+
+    if (this.shouldGenerateTitle()) {
+      await this.generateTitle();
     }
   }
 
-  /**
-   * Makes a single call to the model, returning any new tool calls & the finish reason.
-   */
-  private async callModel(
+  async callModel(
     messages: CoreMessage[],
     modelId: string,
     account: AIAccount,
@@ -322,9 +325,6 @@ export class Chat {
     }
   }
 
-  /**
-   * Cancel the current call (if any), set state to idle.
-   */
   cancel() {
     if (this.#abortController) {
       this.#abortController.abort("cancelled");
@@ -332,10 +332,7 @@ export class Chat {
     this.state = { type: "idle" };
   }
 
-  /**
-   * Persist the conversation state by serializing the data
-   */
-  public async save() {
+  async save() {
     const plugin = usePlugin();
     const file = plugin.app.vault.getAbstractFileByPath(this.path);
     if (!file) {
@@ -344,10 +341,149 @@ export class Chat {
     await plugin.app.vault.modify(file, ChatSerializer.stringify(this));
   }
 
-  /**
-   * Handle 429 rate limit errors by waiting for the specified time or a default delay.
-   */
-  private async handleRateLimit(
+  shouldGenerateTitle() {
+    if (this.messages.length < 2) {
+      return false;
+    }
+
+    const plugin = usePlugin();
+    const { title } = plugin.settings;
+    if (!title.accountId || !title.modelId) {
+      console.log("Account and model not configured for chat title generation");
+      return false;
+    }
+
+    const file = plugin.app.vault.getAbstractFileByPath(this.path);
+    if (!file.basename.startsWith("New chat")) {
+      return false;
+    }
+
+    return true;
+  }
+
+  async generateTitle(): Promise<void> {
+    const plugin = usePlugin();
+
+    const { title } = plugin.settings;
+
+    if (!hasVariable(title.prompt, "conversation")) {
+      new Notice(
+        "Chat title generation failed. Prompt must contain {{ conversation }} variable to insert conversation context.",
+        5000,
+      );
+      return;
+    }
+
+    const account = plugin.settings.accounts.find(
+      (a) => a.id === title.accountId,
+    );
+    if (!account) {
+      new Notice(
+        `Chat title generation failed. Account ${title.accountId} not found.`,
+        5000,
+      );
+      return;
+    }
+
+    const model = plugin.settings.models.find((m) => m.id === title.modelId);
+    if (!model) {
+      new Notice(
+        `Chat title generation failed. Model ${title.modelId} not found.`,
+        5000,
+      );
+      return;
+    }
+
+    // Prepare the conversation content to insert into the prompt
+    const conversationText = this.messages
+      .map((msg) => `${msg.role}: ${msg.content}`)
+      .join("\n\n");
+
+    // Insert the conversation into the prompt template
+    const promptWithConversation = await renderStringAsync(
+      title.prompt,
+      {
+        conversation: conversationText,
+      },
+      { autoescape: false, throwOnUndefined: true },
+    );
+
+    try {
+      // Create a message with the title generation prompt
+      const messages: CoreMessage[] = [
+        {
+          role: "user",
+          content: promptWithConversation,
+        },
+        {
+          role: "assistant",
+          content: "<title>",
+        },
+      ];
+
+      const provider = createAIProvider(account);
+
+      const textResult = await generateText({
+        model: provider.languageModel(model.id),
+        messages,
+        maxRetries: 0,
+      });
+
+      const titleMatch = textResult.text.match(/(?:<title>|^)(.*?)<\/title>/);
+
+      if (!titleMatch || !titleMatch[1]) {
+        new Notice(
+          "Chat title generation failed. No title found in response. The prompt must require that the title is generated within <title></title> tags.",
+          5000,
+        );
+      }
+
+      let extractedTitle = titleMatch[1].trim();
+
+      // Sanitize the title for use as a filename
+      // Remove characters that are not allowed in filenames
+      extractedTitle = extractedTitle
+        .replace(/[\/\\:\*\?"<>\|]/g, "") // Remove OS-forbidden chars
+        .replace(/[\[\]#^{}]/g, "") // Remove Markdown special chars
+        .replace(/\s+/g, " ") // Normalize whitespace
+        .trim();
+
+      if (extractedTitle.length === 0) {
+        new Notice(
+          "Chat title generation failed. Title empty after sanitization.",
+          5000,
+        );
+        return;
+      }
+
+      // Limit the length of the title
+      if (extractedTitle.length > 100) {
+        extractedTitle = extractedTitle.substring(0, 100);
+      }
+
+      const file = plugin.app.vault.getFileByPath(this.path);
+      let newBasename = extractedTitle;
+      let counter = 1;
+      let newPath = file.path.replace(file.basename, newBasename);
+
+      // Ensure the new path is unique by checking if a file with the same path already exists
+      // Skip the check if the new path is the same as the current file path
+      while (
+        plugin.app.vault.getAbstractFileByPath(newPath) &&
+        newPath !== file.path
+      ) {
+        newBasename = `${extractedTitle} ${counter}`;
+        newPath = file.path.replace(file.basename, newBasename);
+        counter++;
+      }
+
+      await plugin.app.fileManager.renameFile(file, newPath);
+    } catch (error) {
+      new Notice(`Chat title generation failed. Error: ${error}.`, 5000);
+    }
+  }
+
+  async handleRateLimit(
     attempt: number,
     maxAttempts: number,
     defaultDelay: number,

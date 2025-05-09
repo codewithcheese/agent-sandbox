@@ -139,7 +139,7 @@ export class AgentSandboxPlugin extends Plugin {
   }
 
   async openChatView() {
-    const baseName = "Untitled";
+    const baseName = "New chat";
     let fileName = baseName;
     let counter = 1;
 

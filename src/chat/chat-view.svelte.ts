@@ -62,14 +62,14 @@ export class ChatView extends FileView {
 
   onPaneMenu(menu: Menu, source: "more-options" | "tab-header" | string): void {
     super.onPaneMenu(menu, source);
-    if (source === "tab-header") {
+    if (source === "more-options") {
       menu.addItem((item) => {
         item
-          .setTitle("Reload view")
+          .setTitle("Regenerate Title")
           .setIcon("refresh-cw")
           .onClick(async () => {
-            await this.onClose();
-            await this.onOpen();
+            const chat = await Chat.load(this.file.path);
+            await chat.generateTitle();
           });
       });
     }

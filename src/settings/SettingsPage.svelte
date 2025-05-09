@@ -4,6 +4,9 @@
   import { PlusCircleIcon, SettingsIcon, Trash2Icon } from "lucide-svelte";
 
   import { AIProvider } from "./providers.ts";
+  import { createModal } from "$lib/modals/create-modal.ts";
+  import TextareaModal from "./TextareaModal.svelte";
+  import { Notice } from "obsidian";
 
   const plugin = usePlugin();
   let settings = $state(plugin.settings);
@@ -193,7 +196,9 @@
     >
       <option value="">Select account...</option>
       {#each settings.accounts.filter((a) => a.provider === "assemblyai") as account}
-        <option value={account.id}>{account.name}</option>
+        <option value={account.id}
+          >{AIProvider[account.provider].name} / {account.name}</option
+        >
       {/each}
     </select>
   </div>
@@ -263,3 +268,93 @@
     </select>
   </div>
 </div>
+
+<div class="setting-item setting-item-heading">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Chat Title Generation</div>
+  </div>
+</div>
+
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Prompt</div>
+    <div class="setting-item-description">
+      The prompt used to generate chat titles
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <button
+      class="mod-cta"
+      type="button"
+      onclick={() => {
+        console.log("creating modal");
+        const modal = createModal(TextareaModal, {
+          name: "Chat title generation prompt",
+          description: `Prompt must contain {{ conversation }} variable, to be replaced with current chat messages.\nPrompt must require that the response generates a title with in <title></title> tags.`,
+          content: settings.title.prompt,
+          onSave: (content) => {
+            settings.title.prompt = content;
+            save();
+            modal.close();
+            new Notice("Saved", 3000);
+          },
+          onCancel: () => {
+            modal.close();
+          },
+        });
+        modal.open();
+      }}>Edit</button
+    >
+  </div>
+</div>
+
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Account</div>
+    <div class="setting-item-description">
+      Select an account for chat title generation
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <select
+      value={settings.title.accountId}
+      onchange={(e) => {
+        settings.title.accountId = e.currentTarget.value;
+        settings.title.modelId = undefined;
+        save();
+      }}
+    >
+      <option value="">Select account...</option>
+      {#each settings.accounts as account}
+        <option value={account.id}
+          >{AIProvider[account.provider].name} / {account.name}</option
+        >
+      {/each}
+    </select>
+  </div>
+</div>
+
+{#if settings.title.accountId}
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Model</div>
+      <div class="setting-item-description">
+        Select a model for chat title generation
+      </div>
+    </div>
+    <div class="setting-item-control">
+      <select
+        value={settings.title.modelId}
+        onchange={(e) => {
+          settings.title.modelId = e.currentTarget.value;
+          save();
+        }}
+      >
+        <option value="">Select model...</option>
+        {#each settings.models.filter((m) => m.type === "chat" && (settings.title.accountId ? m.provider === settings.accounts.find((a) => a.id === settings.title.accountId)?.provider : true)) as model}
+          <option value={model.id}>{model.id}</option>
+        {/each}
+      </select>
+    </div>
+  </div>
+{/if}

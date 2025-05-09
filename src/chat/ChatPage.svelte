@@ -34,6 +34,8 @@
     agents,
   }: { chat: Chat; view: ViewContext; agents: Agents } = $props();
 
+  $inspect("Chat path", chat.path);
+
   let options = new ChatOptions();
   let editIndex: number | null = $state(null);
   let submitBtn: HTMLButtonElement | null = $state(null);
