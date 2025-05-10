@@ -83,7 +83,7 @@ function extractSchemaFromFrontmatter(
     type: "object",
     properties: {},
     required: [],
-    additionalProperties: false,
+    additionalProperties: true,
   };
   if (!("frontmatter" in metadata)) {
     return schema;
