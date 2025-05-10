@@ -68,20 +68,23 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
-- [ ] Token counting
-- [ ] Reposition recorder with drag
-- [ ] Save recording history in local storage
-- [ ] Fix code-block display
-- [ ] Chat homepage with previous chats and agent selection
-- [ ] Add tool request for create, trash, delete
-- [ ] Disconnect realtime after idle period
-- [ ] Context optimization (forget old messages)
-- [ ] Display tokens used in tool call
-- [ ] Pass abort signal to tools
-- [ ] Read file image support
-- [ ] Merge view undo
-- [ ] Merge view use Obsidian semantic colors
-- [ ] Close merge view when complete
+- [ ] Chat: Token counting
+- [ ] Tools: Tool builder agent for generating tool schemas and implementations
+- [ ] Recorder: Reposition recorder with drag
+- [ ] Recorder: Save recording history in local storage
+- [ ] Chat: Fix code-block display
+- [ ] Chat: Chat homepage with previous chats and agent selection
+- [ ] Chat: Add tool request for create, trash, delete
+- [ ] Chat: Disconnect realtime after idle period
+- [ ] Chat: Context optimization (forget old messages)
+- [ ] Chat: Display tokens used in tool call
+- [ ] Chat: Pass abort signal to tools
+- [ ] Chat: Read file image support
+- [ ] Merge: Merge view undo
+- [ ] Merge: Merge view use Obsidian semantic colors
+- [ ] Merge: Close merge view when complete
+- [ ] Chat: Delete chat if empty when closed
+- [ ] Schema editor: Align design with Properties UI
 - [x] Refresh agent list when agent added, removed, or renamed
 - [x] Title generation
 - [x] Remember agent between chats

@@ -49,7 +49,6 @@ export class AgentStatus {
       plugin.app.workspace.on(
         "editor-change",
         (editor: Editor, info: MarkdownView) => {
-          console.log("editor-change", editor, info);
           const active = plugin.app.workspace.getActiveViewOfType(MarkdownView);
           if (active && active === info) {
             this.onActiveUpdate(active.file);

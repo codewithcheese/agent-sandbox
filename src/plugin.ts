@@ -36,6 +36,7 @@ import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
 import { RecorderWidget } from "./recorder/recorder-widget.ts";
 import { AgentStatus } from "./status/agent-status.svelte.ts";
 import mainCss from "./main.css?inline";
+import { JsonSchemaCodeBlockProcessor } from "./editor/json-schema-code-block.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -43,6 +44,7 @@ export class AgentSandboxPlugin extends Plugin {
   recorder: RecorderWidget;
   styleEl?: HTMLStyleElement;
   agentStatus: AgentStatus;
+  jsonSchemaCodeBlock: JsonSchemaCodeBlockProcessor;
 
   constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
@@ -68,6 +70,7 @@ export class AgentSandboxPlugin extends Plugin {
     this.registerExtensions(["chat"], CHAT_VIEW_TYPE);
 
     this.agentStatus = new AgentStatus();
+    this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
     this.addRibbonIcon(
       "message-square",
