@@ -21,21 +21,15 @@
       new Notice("Select template repair agent in settings");
       return;
     }
-    const file = plugin.app.vault.getFileByPath(path);
-    const template = await plugin.app.vault.read(file);
+    const agentFile = plugin.app.vault.getFileByPath(path);
     // open chat view and set agent
     const view = await ChatView.newChat();
     view.options.autosave = false;
     view.options.agentPath = settings.agents.templateRepairAgentPath;
     // get reference to view's chat and submit
     const chat = await Chat.load(view.file.path);
-    await chat.submit(
-      `<Template path="${path}">
-${template}
-</Template>\n\nFix the following errors in template:
-${errors.join("\n")}`,
-      view.options,
-    );
+    chat.addAttachment(agentFile);
+    await chat.submit(`Fix: ${errors.join("\n")}`, view.options);
   }
 </script>
 
