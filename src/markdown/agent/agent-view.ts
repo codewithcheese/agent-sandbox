@@ -1,9 +1,9 @@
 import { ItemView, MarkdownView, Plugin, type TFile, Notice } from "obsidian";
-import { isAgent } from "../chat/agents.svelte.ts";
+import { isAgent } from "../../chat/agents.svelte.ts";
 import { usePlugin } from "$lib/utils";
 import { mount, unmount } from "svelte";
 import AgentPage from "./AgentPage.svelte";
-import { createSystemContent } from "../chat/system.ts";
+import { createSystemContent } from "../../chat/system.ts";
 
 const AGENT_VIEW_TYPE = "sandbox-agent-view";
 

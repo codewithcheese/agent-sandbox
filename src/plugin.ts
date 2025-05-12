@@ -34,20 +34,16 @@ import { ChatSerializer } from "./chat/chat-serializer.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
 import { RecorderWidget } from "./recorder/recorder-widget.ts";
-import { AgentStatus } from "./status/agent-status.svelte.ts";
 import mainCss from "./main.css?inline";
-import { JsonSchemaCodeBlockProcessor } from "./editor/json-schema-code-block.ts";
-import { AgentAction } from "./editor/agent-action.ts";
-import { AgentView } from "./editor/agent-view.ts";
-import { BannerComponent } from "./editor/banner-component.svelte.ts";
+import { JsonSchemaCodeBlockProcessor } from "./markdown/schema/json-schema-code-block.ts";
+import { AgentView } from "./markdown/agent/agent-view.ts";
+import { AgentBannerComponent } from "./markdown/agent/agent-banner-component.svelte.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
   pglite: PGliteProvider;
   recorder: RecorderWidget;
   styleEl?: HTMLStyleElement;
-  agentAction: AgentAction;
-  agentStatus: AgentStatus;
   jsonSchemaCodeBlock: JsonSchemaCodeBlockProcessor;
 
   constructor(app: App, manifest: PluginManifest) {
@@ -72,9 +68,7 @@ export class AgentSandboxPlugin extends Plugin {
 
     ChatView.register(this);
     AgentView.register(this);
-    BannerComponent.register(this);
-    this.agentAction = new AgentAction();
-    this.agentStatus = new AgentStatus();
+    AgentBannerComponent.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
     this.addRibbonIcon("mic", "Toggle Recorder", () => {

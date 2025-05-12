@@ -1,8 +1,8 @@
 <script lang="ts">
   import { BotIcon, HammerIcon, TextIcon, TextSearchIcon } from "lucide-svelte";
-  import type { BannerProps } from "./banner-component.svelte.ts";
-  import { ChatView } from "../chat/chat-view.svelte.ts";
-  import { Chat } from "../chat/chat.svelte.ts";
+  import type { BannerProps } from "./agent-banner-component.svelte.ts";
+  import { ChatView } from "../../chat/chat-view.svelte.ts";
+  import { Chat } from "../../chat/chat.svelte.ts";
   import { usePlugin } from "$lib/utils";
   import { Notice } from "obsidian";
 

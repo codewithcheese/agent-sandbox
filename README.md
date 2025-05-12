@@ -88,6 +88,7 @@ This project includes a version bumping script that automates the release proces
 - [ ] Chat: Fix saving with attachments
 - [ ] Live template preview action, poor experience reading template in modal
 - [ ] UI: Remove unused shadcn-svelte components 
+- [ ] Chat: Resume options for existing chat
 - [x] Refresh agent list when agent added, removed, or renamed
 - [x] Title generation
 - [x] Remember agent between chats

@@ -33,8 +33,6 @@ export async function processTemplate(
     throwOnUndefined: options.throwOnUndefined ?? false,
   });
 
-  console.log("Processing template");
-
   // Register each filter as an async-aware Nunjucks filter.
   Object.entries(filters).forEach(([name, filterFn]) => {
     env.addFilter(
