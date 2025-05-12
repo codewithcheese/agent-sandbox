@@ -34,16 +34,16 @@ import { ChatSerializer } from "./chat/chat-serializer.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
 import { RecorderWidget } from "./recorder/recorder-widget.ts";
-import { AgentStatus } from "./status/agent-status.svelte.ts";
 import mainCss from "./main.css?inline";
-import { JsonSchemaCodeBlockProcessor } from "./editor/json-schema-code-block.ts";
+import { JsonSchemaCodeBlockProcessor } from "./markdown/schema/json-schema-code-block.ts";
+import { AgentView } from "./markdown/agent/agent-view.ts";
+import { AgentBannerComponent } from "./markdown/agent/agent-banner-component.svelte.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
   pglite: PGliteProvider;
   recorder: RecorderWidget;
   styleEl?: HTMLStyleElement;
-  agentStatus: AgentStatus;
   jsonSchemaCodeBlock: JsonSchemaCodeBlockProcessor;
 
   constructor(app: App, manifest: PluginManifest) {
@@ -61,24 +61,15 @@ export class AgentSandboxPlugin extends Plugin {
     await this.loadSettings();
     await this.initializePGlite();
 
-    this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
     this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
     this.registerView(MERGE_VIEW_TYPE, (leaf) => new MergeView(leaf));
 
     registerChatRenameHandler();
 
-    this.registerExtensions(["chat"], CHAT_VIEW_TYPE);
-
-    this.agentStatus = new AgentStatus();
+    ChatView.register(this);
+    AgentView.register(this);
+    AgentBannerComponent.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
-
-    this.addRibbonIcon(
-      "message-square",
-      "Open Agent Sandbox Chat",
-      async () => {
-        await this.openChatView();
-      },
-    );
 
     this.addRibbonIcon("mic", "Toggle Recorder", () => {
       this.recorder.toggle();

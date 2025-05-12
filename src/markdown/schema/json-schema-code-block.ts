@@ -3,7 +3,6 @@ import {
   type MarkdownPostProcessorContext,
   MarkdownRenderChild,
   MarkdownView,
-  type TFile,
 } from "obsidian";
 import SchemaEditor from "./SchemaEditor.svelte";
 import { mount, unmount } from "svelte";

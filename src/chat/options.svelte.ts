@@ -1,7 +1,6 @@
 /**
  * Utility functions for managing user preferences in localStorage
  */
-import { Notice } from "obsidian";
 import type { ChatModel } from "../settings/models.ts";
 import { usePlugin } from "$lib/utils/index.ts";
 
@@ -11,6 +10,7 @@ export class ChatOptions {
   modelId = $state<string | undefined>();
   accountId = $state<string | undefined>();
   agentPath = $state<string | undefined>();
+  autosave = $state<boolean>(true);
   cleanup: () => void;
 
   constructor() {
@@ -23,6 +23,7 @@ export class ChatOptions {
     // Save preferences to localStorage whenever they change
     this.cleanup = $effect.root(() => {
       $effect(() => {
+        if (!this.autosave) return;
         console.log("Saving options");
         plugin.app.saveLocalStorage(STORAGE_KEY, {
           modelId: this.modelId,

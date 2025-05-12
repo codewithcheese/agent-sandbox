@@ -52,6 +52,13 @@ export async function fileTree(path: string = "/"): Promise<string> {
       result += buildTree(subfolder, depth);
     }
 
+    if (!filesInDir.length && !subfolders.length) {
+      if (result) {
+        result += "\n";
+      }
+      result += `${indent}${depth > 0 ? "  " : ""}- ∅ Empty folder\n`;
+    }
+
     return result;
   };
 

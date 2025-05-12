@@ -10,11 +10,7 @@
 
   const plugin = usePlugin();
   let settings = $state(plugin.settings);
-
-  onMount(() => {
-    plugin.loadSettings();
-    settings = plugin.settings;
-  });
+  let { agents } = $props();
 
   onDestroy(() => {
     console.log("Unmounting");
@@ -358,3 +354,33 @@
     </div>
   </div>
 {/if}
+
+<!-- Agents Section -->
+<div class="setting-item setting-item-heading">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Agents</div>
+  </div>
+</div>
+
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Template Repair Agent</div>
+    <div class="setting-item-description">
+      Select an agent that can repair other agents' templates.
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <select
+      value={settings.agents.templateRepairAgentPath}
+      onchange={(e) => {
+        settings.agents.templateRepairAgentPath = e.currentTarget.value || null;
+        save();
+      }}
+    >
+      <option value="">None</option>
+      {#each agents.entries as agent}
+        <option value={agent.file.path}>{agent.name}</option>
+      {/each}
+    </select>
+  </div>
+</div>

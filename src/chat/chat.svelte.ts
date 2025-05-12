@@ -140,12 +140,11 @@ export class Chat {
     this.save();
   }
 
-  async submit(event: Event, options: ChatOptions) {
-    event.preventDefault();
-
-    const formData = new FormData(event.target as HTMLFormElement);
-    const content = formData.get("content")?.toString() ?? "";
-    if (!content && this.attachments.length === 0) return;
+  async submit(content: string, options: ChatOptions) {
+    if (!content && this.attachments.length === 0) {
+      new Notice("Please enter a message or attach a file.", 5000);
+      return;
+    }
 
     const plugin = usePlugin();
 
@@ -178,8 +177,6 @@ export class Chat {
       createdAt: new Date(),
     });
 
-    // Clear the form and attachments
-    (event.target as HTMLFormElement)?.reset();
     this.clearAttachments();
 
     // Now run the conversation to completion
