@@ -6,7 +6,17 @@ import { fileTree } from "$lib/utils/file-tree.ts";
 import * as _ from "lodash";
 import Ajv from "ajv";
 
-export async function createSystemContent(file: TFile) {
+type SystemMessageOptions = {
+  template?: {
+    autoescape?: boolean;
+    throwOnUndefined?: boolean;
+  };
+};
+
+export async function createSystemContent(
+  file: TFile,
+  options: SystemMessageOptions = {},
+) {
   const plugin = usePlugin();
   const metadata = plugin.app.metadataCache.getFileCache(file);
   const data = extractDataFromFrontmatter(metadata);
@@ -17,7 +27,7 @@ export async function createSystemContent(file: TFile) {
   system = unescapeTags(system);
   system = await processEmbeds(file, system);
   system = await processLinks(file, system);
-  system = await processTemplate(system, { fileTree }, data);
+  system = await processTemplate(system, { fileTree }, data, options.template);
   console.log("SYSTEM MESSAGE\n-----\n", system);
   return system;
 }

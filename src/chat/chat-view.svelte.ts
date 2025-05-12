@@ -1,9 +1,20 @@
-import { FileView, Menu, TFile, WorkspaceLeaf } from "obsidian";
+import {
+  FileView,
+  Menu,
+  TFile,
+  Plugin,
+  WorkspaceLeaf,
+  Platform,
+  normalizePath,
+} from "obsidian";
 import { mount, unmount } from "svelte";
 import type { ViewContext } from "$lib/obsidian/view.ts";
 import ChatPage from "./ChatPage.svelte";
 import { Chat } from "./chat.svelte.ts";
 import { Agents } from "./agents.svelte.ts";
+import superjson from "superjson";
+import { ChatSerializer } from "./chat-serializer.ts";
+import { usePlugin } from "$lib/utils";
 
 export const CHAT_VIEW_TYPE = "sandbox-chat-view";
 
@@ -151,5 +162,78 @@ export class ChatView extends FileView {
 
   canAcceptExtension(extension: string): boolean {
     return extension === "chat";
+  }
+
+  static register(plugin: Plugin) {
+    plugin.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
+    plugin.registerExtensions(["chat"], CHAT_VIEW_TYPE);
+    plugin.addRibbonIcon(
+      "message-square",
+      "Open Agent Sandbox Chat",
+      async () => {
+        await ChatView.newChat();
+      },
+    );
+  }
+
+  static async newChat(): Promise<ChatView> {
+    const plugin = usePlugin();
+    const baseName = "New chat";
+    let fileName = baseName;
+    let counter = 1;
+
+    // Get the chats path from settings
+    const chatsPath = normalizePath(plugin.settings.vault.chatsPath);
+
+    // Ensure the directory exists
+    try {
+      const folderExists = plugin.app.vault.getAbstractFileByPath(chatsPath);
+      if (!folderExists) {
+        await plugin.app.vault.createFolder(chatsPath);
+      }
+    } catch (error) {
+      console.error("Error creating chats directory:", error);
+      plugin.showNotice("Failed to create chats directory", 3000);
+    }
+
+    // Create a unique filename
+    while (
+      plugin.app.vault.getAbstractFileByPath(`${chatsPath}/${fileName}.chat`)
+    ) {
+      fileName = `${baseName} ${counter}`;
+      counter++;
+    }
+
+    const filePath = `${chatsPath}/${fileName}.chat`;
+    const file = await plugin.app.vault.create(
+      filePath,
+      superjson.stringify(ChatSerializer.INITIAL_DATA),
+    );
+
+    let leaf: WorkspaceLeaf;
+
+    if (!Platform.isMobile) {
+      const rightChatLeaves = plugin.app.workspace
+        .getLeavesOfType(CHAT_VIEW_TYPE)
+        .filter((l) => l.containerEl.closest(".mod-right-split"));
+
+      if (rightChatLeaves.length > 0) {
+        leaf = rightChatLeaves[0];
+      } else {
+        leaf = plugin.app.workspace.getRightLeaf(false);
+      }
+    } else {
+      // Mobile: fall back to the current/only leaf
+      leaf = plugin.app.workspace.getLeaf();
+    }
+
+    await leaf.openFile(file, {
+      active: true,
+      state: { mode: CHAT_VIEW_TYPE },
+    });
+
+    await plugin.app.workspace.revealLeaf(leaf);
+
+    return leaf.view as ChatView;
   }
 }

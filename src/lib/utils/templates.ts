@@ -1,4 +1,5 @@
 import nunjucks from "nunjucks";
+import { usePlugin } from "$lib/utils/index.ts";
 
 /**
  * A filter receives the piped value as its first argument, followed by any
@@ -14,6 +15,7 @@ export type Filters = Record<string, FilterFunction>;
 
 export interface TemplateOptions {
   autoescape?: boolean;
+  throwOnUndefined?: boolean;
 }
 
 /**
@@ -28,8 +30,10 @@ export async function processTemplate(
 ): Promise<string> {
   const env = new nunjucks.Environment(null, {
     autoescape: options.autoescape ?? false,
-    throwOnUndefined: false,
+    throwOnUndefined: options.throwOnUndefined ?? false,
   });
+
+  console.log("Processing template");
 
   // Register each filter as an async-aware Nunjucks filter.
   Object.entries(filters).forEach(([name, filterFn]) => {
@@ -47,6 +51,50 @@ export async function processTemplate(
       },
       /* async */ true,
     );
+  });
+
+  // Add path function that joins arguments and adds .md extension
+  env.addGlobal("path", (...args: string[]) => {
+    return args.join("/") + ".md";
+  });
+
+  env.addFilter(
+    "exists",
+    (filePath: string, done: (err: Error | null, result?: boolean) => void) => {
+      const plugin = usePlugin();
+      plugin.app.vault.adapter
+        .exists(filePath, true)
+        .then((exists) => done(null, exists))
+        .catch((err) => done(err));
+    },
+    /* async */ true,
+  );
+
+  env.addFilter(
+    "read",
+    (filePath: string, done: (err: Error | null, result?: string) => void) => {
+      const plugin = usePlugin();
+      plugin.app.vault.adapter
+        .exists(filePath, true)
+        .then((exists) => {
+          if (!exists) {
+            return done(new Error(`File not found: ${filePath}`));
+          }
+
+          return plugin.app.vault.adapter
+            .read(filePath)
+            .then((content) => done(null, content))
+            .catch((err) => done(err));
+        })
+        .catch((err) => done(err));
+    },
+    /* async */ true,
+  );
+
+  // Add debug filter to log variables during template rendering
+  env.addFilter("debug", (value: any) => {
+    console.log("[Template Debug]", value);
+    return value;
   });
 
   return new Promise<string>((resolve, reject) => {

@@ -7,11 +7,13 @@
   import { createModal } from "$lib/modals/create-modal.ts";
   import TextareaModal from "./TextareaModal.svelte";
   import { Notice } from "obsidian";
+  import { Agents } from "../chat/agents.svelte.ts";
 
   const plugin = usePlugin();
   let settings = $state(plugin.settings);
+  let agents = $state([]);
 
-  onMount(() => {
+  onMount(async () => {
     plugin.loadSettings();
     settings = plugin.settings;
   });

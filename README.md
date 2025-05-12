@@ -85,6 +85,9 @@ This project includes a version bumping script that automates the release proces
 - [ ] Merge: Close merge view when complete
 - [ ] Chat: Delete chat if empty when closed
 - [ ] Schema editor: Align design with Properties UI
+- [ ] Chat: Fix saving with attachments
+- [ ] Live template preview action, poor experience reading template in modal
+- [ ] UI: Remove unused shadcn-svelte components 
 - [x] Refresh agent list when agent added, removed, or renamed
 - [x] Title generation
 - [x] Remember agent between chats

@@ -36,6 +36,9 @@ export interface PluginSettings {
     accountId?: string;
     modelId?: string;
   };
+  agents: {
+    templateRepairAgentPath: string | null;
+  };
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -55,6 +58,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   accounts: [],
   models,
   recording: {},
+  agents: {
+    templateRepairAgentPath: null,
+  },
   title: {
     prompt: `Your task is to generate a short and concise title that summarizes the main topic or theme of the conversation.
 

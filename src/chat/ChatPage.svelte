@@ -60,6 +60,33 @@
     chat.messages = chat.messages.filter((_, i) => i !== index);
   }
 
+  async function regenerateFromMessage(index: number) {
+    const message = chat.messages[index];
+    const isUserMessage = message.role === "user";
+
+    // Determine where to cut the conversation for regeneration
+    const cutIndex = isUserMessage ? index + 1 : index;
+
+    // Save messages that come after the one(s) we're regenerating
+    const messagesToKeep = chat.messages.slice(
+      cutIndex + (isUserMessage ? 1 : 0),
+    );
+
+    // Truncate the conversation to the point where we want to regenerate
+    chat.messages = chat.messages.slice(0, cutIndex);
+
+    // Generate new response
+    await chat.runConversation(options);
+
+    // Restore the saved messages
+    if (messagesToKeep.length > 0) {
+      chat.messages = [...chat.messages, ...messagesToKeep];
+    }
+
+    // Save the updated chat
+    await chat.save();
+  }
+
   function submitOnEnter(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -72,7 +99,11 @@
     if (!options.modelId || !options.accountId) {
       return;
     }
-    chat.submit(e, options);
+    const form = event.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const content = formData.get("content")?.toString() ?? "";
+    form.reset();
+    chat.submit(content, options);
   }
 
   function handleModelChange(
@@ -278,6 +309,15 @@
                       <PencilIcon class="size-4" />
                     </button>
                   {/if}
+                  <button
+                    class="clickable-icon"
+                    aria-label={message.role === "user"
+                      ? "Regenerate assistant response"
+                      : "Regenerate this response"}
+                    onclick={() => regenerateFromMessage(i)}
+                  >
+                    <RefreshCwIcon class="size-4" />
+                  </button>
                   <button
                     class="clickable-icon"
                     onclick={() => deleteMessage(i)}
