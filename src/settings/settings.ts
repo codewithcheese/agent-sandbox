@@ -10,6 +10,7 @@ import {
 import type { AIAccount } from "./providers.ts";
 import { mount, unmount } from "svelte";
 import { Agents } from "../chat/agents.svelte.ts";
+import { usePlugin } from "$lib/utils";
 
 export interface PluginSettings {
   services: {
@@ -38,7 +39,7 @@ export interface PluginSettings {
     modelId?: string;
   };
   agents: {
-    templateRepairAgentPath: string | null;
+    templateRepairAgentPath: string;
   };
 }
 
@@ -60,7 +61,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   models,
   recording: {},
   agents: {
-    templateRepairAgentPath: null,
+    templateRepairAgentPath: "",
   },
   title: {
     prompt: `Your task is to generate a short and concise title that summarizes the main topic or theme of the conversation.
@@ -92,6 +93,8 @@ export class Settings extends PluginSettingTab {
   async display(): Promise<void> {
     const { containerEl } = this;
     containerEl.empty();
+    const plugin = usePlugin();
+    await plugin.loadSettings();
     this.component = mount(SettingsPage, {
       target: containerEl,
       props: {
