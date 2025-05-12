@@ -28,15 +28,16 @@
 
   const plugin = usePlugin();
 
-  let {
-    chat,
-    view,
-    agents,
-  }: { chat: Chat; view: ViewContext; agents: Agents } = $props();
+  type Props = {
+    chat: Chat;
+    view: ViewContext;
+    agents: Agents;
+    options: ChatOptions;
+  };
+  let { chat, view, agents, options }: Props = $props();
 
   $inspect("Chat path", chat.path);
 
-  let options = new ChatOptions();
   let editIndex: number | null = $state(null);
   let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedAgent = $derived(

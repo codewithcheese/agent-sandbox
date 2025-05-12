@@ -8,7 +8,6 @@ import { AgentView } from "./agent-view.ts";
 export type BannerProps = {
   path: string;
   errors: string[];
-  content: string;
   openRenderView: () => any;
   openMarkdownView: () => any;
   viewType: "MarkdownView" | "AgentView";
@@ -22,7 +21,6 @@ export class BannerComponent extends SvelteComponent<BannerProps> {
     super(AgentBanner, view.containerEl.querySelector(".view-content"), {
       path,
       errors: [],
-      content: "",
       viewType: view instanceof MarkdownView ? "MarkdownView" : "AgentView",
       openPreview: () => {},
     });
@@ -57,12 +55,11 @@ export class BannerComponent extends SvelteComponent<BannerProps> {
   async render() {
     try {
       this.props.errors = [];
-      this.props.content = await createSystemContent(this.file, {
+      await createSystemContent(this.file, {
         template: { throwOnUndefined: true },
       });
     } catch (e) {
       this.props.errors.push(e.message || String(e));
-      console.error("Error rendering agent content:", e);
     }
   }
 

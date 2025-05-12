@@ -15,6 +15,7 @@ import { Agents } from "./agents.svelte.ts";
 import superjson from "superjson";
 import { ChatSerializer } from "./chat-serializer.ts";
 import { usePlugin } from "$lib/utils";
+import { ChatOptions } from "./options.svelte.ts";
 
 export const CHAT_VIEW_TYPE = "sandbox-chat-view";
 
@@ -26,6 +27,13 @@ export class ChatView extends FileView {
     position: "center",
     name: "",
   });
+  options: ChatOptions;
+
+  constructor(leaf: WorkspaceLeaf) {
+    super(leaf);
+    this.options = new ChatOptions();
+    this.register(() => this.options.cleanup());
+  }
 
   getViewType(): string {
     return CHAT_VIEW_TYPE;
@@ -132,6 +140,7 @@ export class ChatView extends FileView {
         agents: await Agents.load(),
         chat: await Chat.load(file.path),
         view: this.view,
+        options: this.options,
       },
     });
   }
