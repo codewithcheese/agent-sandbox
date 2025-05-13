@@ -24,7 +24,7 @@
     const resize = () => {
       node.style.height = "auto"; // collapse first
       const needed = Math.ceil(node.scrollHeight / lh);
-      const rows = Math.min(needed, max);
+      const rows = Math.min(Math.max(needed, 1), max);
       node.style.overflowY = needed > max ? "auto" : "hidden";
       node.style.height = `${rows * lh}px`;
 
@@ -38,7 +38,6 @@
       );
     };
 
-    resize();
     node.addEventListener("input", resize);
 
     return {
@@ -57,10 +56,7 @@
   use:autosize={{ maxRows }}
   rows="1"
   bind:this={ref}
-  class={cn(
-    "border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-    className,
-  )}
+  class={cn("w-full", className)}
   bind:value
   {...restProps}
 ></textarea>
