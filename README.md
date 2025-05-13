@@ -72,7 +72,6 @@ This project includes a version bumping script that automates the release proces
 - [ ] Tools: Tool builder agent for generating tool schemas and implementations
 - [ ] Recorder: Reposition recorder with drag
 - [ ] Recorder: Save recording history in local storage
-- [ ] Chat: Fix code-block display
 - [ ] Chat: Chat homepage with previous chats and agent selection
 - [ ] Chat: Add tool request for create, trash, delete
 - [ ] Chat: Disconnect realtime after idle period
@@ -89,6 +88,7 @@ This project includes a version bumping script that automates the release proces
 - [ ] Live template preview action, poor experience reading template in modal
 - [ ] UI: Remove unused shadcn-svelte components 
 - [ ] Chat: Resume options for existing chat
+- [x] Chat: Fix code-block display
 - [x] Refresh agent list when agent added, removed, or renamed
 - [x] Title generation
 - [x] Remember agent between chats

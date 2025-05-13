@@ -10,7 +10,7 @@
     PencilIcon,
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
-  import { usePlugin } from "$lib/utils";
+  import { cn, usePlugin } from "$lib/utils";
   import { onDestroy } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
@@ -251,7 +251,9 @@
         <div class="group relative">
           {#if message.content}
             <div
-              class="whitespace-pre-wrap prose leading-none select-text
+              class={cn(
+                `whitespace-pre-wrap prose leading-none select-text
+                prose-pre:bg-(--background-primary-alt)
                           prose-h1:m-0
                           prose-h2:m-0
                           prose-h3:m-0
@@ -279,10 +281,11 @@
                           prose-img:m-0
                           prose-video:m-0
                           [body.theme-dark_&]:prose-invert
-                          prose-a:decoration-1 text-foreground max-w-full {message.role ===
-              'user'
-                ? 'bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4'
-                : 'py-4'}"
+                          prose-a:decoration-1 text-foreground max-w-full`,
+                message.role === "user"
+                  ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
+                  : "py-4",
+              )}
             >
               {#if editIndex === i}
                 <div class="mt-2 flex gap-2">
