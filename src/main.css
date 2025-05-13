@@ -92,3 +92,13 @@
         border-style: solid;
     }
 }
+
+@layer utilities {
+    .markdown-source-view.mod-cm6 .cm-content > .cm-deletedChunk[contenteditable=false] {
+        contain: none !important;
+    }
+
+    .cm-deletedChunk .cm-chunkButtons {
+        z-index: 10;
+    }
+}
