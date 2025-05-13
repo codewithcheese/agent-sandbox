@@ -25,6 +25,7 @@
   import { ChatOptions } from "./options.svelte.ts";
   import SystemMessage from "./SystemMessage.svelte";
   import type { Agents } from "./agents.svelte.ts";
+  import Autoscroll from "./Autoscroll.svelte";
 
   const plugin = usePlugin();
 
@@ -38,6 +39,8 @@
 
   $inspect("Chat path", chat.path);
 
+  let scrollContainer: HTMLElement | null = $state(null);
+  let sentinel: HTMLElement | null = $state(null);
   let editIndex: number | null = $state(null);
   let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedAgent = $derived(
@@ -207,12 +210,10 @@
   }
 </script>
 
-<div
-  class="min-h-full h-full chat-margin flex flex-col"
-  style="padding: 0 var(--size-4-3) 0;"
->
+<div class="h-full max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto]">
+  <!-- header -->
   <div
-    class="sticky top-0 w-full z-10 pb-4 pt-3"
+    class="chat-margin z-10 py-1 px-2"
     style="background-color: var(--background-primary)"
   >
     <div class="w-full flex flex-row justify-between items-center">
@@ -241,18 +242,21 @@
     </div>
   </div>
 
-  {#if selectedAgent}
-    <SystemMessage agent={selectedAgent} />
-  {/if}
-
-  <div class="flex flex-1">
-    <div class="flex flex-col w-full flex-1 gap-1 pb-[40px]">
-      {#each chat.messages as message, i}
-        <div class="group relative">
-          {#if message.content}
-            <div
-              class={cn(
-                `whitespace-pre-wrap prose leading-none select-text
+  <!-- body -->
+  <div bind:this={scrollContainer} class="min-h-0 overflow-y-scroll py-2">
+    <div class="chat-margin px-2">
+      <!-- system message -->
+      {#if selectedAgent}
+        <SystemMessage agent={selectedAgent} />
+      {/if}
+      <!-- messages -->
+      <div class="flex flex-col w-full flex-1 gap-1">
+        {#each chat.messages as message, i}
+          <div class="group relative">
+            {#if message.content}
+              <div
+                class={cn(
+                  `whitespace-pre-wrap prose leading-none select-text
                 prose-pre:bg-(--background-primary-alt)
                           prose-h1:m-0
                           prose-h2:m-0
@@ -282,113 +286,122 @@
                           prose-video:m-0
                           [body.theme-dark_&]:prose-invert
                           prose-a:decoration-1 text-foreground max-w-full`,
-                message.role === "user"
-                  ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-                  : "py-4",
-              )}
-            >
-              {#if editIndex === i}
-                <div class="mt-2 flex gap-2">
-                  <textarea
-                    class="flex-1 rounded border p-2 text-md"
-                    bind:value={message.content}
-                  ></textarea>
-                  <button
-                    class="clickable-icon"
-                    onclick={() => (editIndex = null)}
-                  >
-                    Save
-                  </button>
-                </div>
-              {:else}
-                <Markdown md={message.content} />
-                <div
-                  class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1"
-                >
-                  {#if message.role === "user"}
+                  message.role === "user"
+                    ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
+                    : "py-4",
+                )}
+              >
+                {#if editIndex === i}
+                  <div class="mt-2 flex gap-2">
+                    <textarea
+                      class="flex-1 rounded border p-2 text-md"
+                      bind:value={message.content}
+                    ></textarea>
                     <button
                       class="clickable-icon"
-                      onclick={() => (editIndex = i)}
+                      onclick={() => (editIndex = null)}
                     >
-                      <PencilIcon class="size-4" />
+                      Save
                     </button>
-                  {/if}
-                  <button
-                    class="clickable-icon"
-                    aria-label={message.role === "user"
-                      ? "Regenerate assistant response"
-                      : "Regenerate this response"}
-                    onclick={() => regenerateFromMessage(i)}
-                  >
-                    <RefreshCwIcon class="size-4" />
-                  </button>
-                  <button
-                    class="clickable-icon"
-                    onclick={() => deleteMessage(i)}
-                  >
-                    <Trash2Icon class="size-4" />
-                  </button>
-                </div>
-              {/if}
-            </div>
-          {/if}
-
-          {#if message.experimental_attachments && message.experimental_attachments.length > 0}
-            <div class="mt-2">
-              <div class="flex flex-wrap gap-2">
-                {#each message.experimental_attachments as attachment}
-                  <button
-                    class="clickable-icon gap-1"
-                    onclick={() => openFile(attachment.name)}
-                  >
-                    <FileTextIcon class="size-3.5" />
-                    <span class="max-w-[200px] truncate"
-                      >{getBaseName(attachment.name)}</span
-                    >
-                  </button>
-                {/each}
-              </div>
-            </div>
-          {/if}
-        </div>
-        <!-- todo display partial tool calls before invocation -->
-        {#if message.parts?.some((part) => part.type === "tool-invocation")}
-          {#each message.parts as part}
-            {#if part.type === "tool-invocation"}
-              <div class="rounded border border-(--background-modifier-border)">
-                <div class="flex flex-row gap-1 text-xs p-1 items-center">
-                  <WrenchIcon class="size-3" />
-                  <div class="flex-1">{part.toolInvocation.toolName}</div>
-                  <button
-                    type="button"
-                    class="clickable-icon"
-                    onclick={() =>
-                      openToolInvocationInfoModal(chat, part.toolInvocation)}
-                    ><InfoIcon class="size-3" /></button
-                  >
-                </div>
-                {#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}
-                  <!-- Handle tool invocations -->
-                  <div class="border-t border-(--background-modifier-border)">
-                    <ToolRequestRow
-                      toolCallId={part.toolInvocation.toolCallId}
-                      {toolRequest}
-                      onReviewClick={() => openToolRequest(toolRequest)}
-                    />
                   </div>
-                {/each}
+                {:else}
+                  <Markdown md={message.content} />
+                  <div
+                    class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1"
+                  >
+                    {#if message.role === "user"}
+                      <button
+                        class="clickable-icon"
+                        onclick={() => (editIndex = i)}
+                      >
+                        <PencilIcon class="size-4" />
+                      </button>
+                    {/if}
+                    <button
+                      class="clickable-icon"
+                      aria-label={message.role === "user"
+                        ? "Regenerate assistant response"
+                        : "Regenerate this response"}
+                      onclick={() => regenerateFromMessage(i)}
+                    >
+                      <RefreshCwIcon class="size-4" />
+                    </button>
+                    <button
+                      class="clickable-icon"
+                      onclick={() => deleteMessage(i)}
+                    >
+                      <Trash2Icon class="size-4" />
+                    </button>
+                  </div>
+                {/if}
               </div>
             {/if}
-          {/each}
+
+            {#if message.experimental_attachments && message.experimental_attachments.length > 0}
+              <div class="mt-2">
+                <div class="flex flex-wrap gap-2">
+                  {#each message.experimental_attachments as attachment}
+                    <button
+                      class="clickable-icon gap-1"
+                      onclick={() => openFile(attachment.name)}
+                    >
+                      <FileTextIcon class="size-3.5" />
+                      <span class="max-w-[200px] truncate"
+                        >{getBaseName(attachment.name)}</span
+                      >
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+          <!-- todo display partial tool calls before invocation -->
+          {#if message.parts?.some((part) => part.type === "tool-invocation")}
+            {#each message.parts as part}
+              {#if part.type === "tool-invocation"}
+                <div
+                  class="rounded border border-(--background-modifier-border)"
+                >
+                  <div class="flex flex-row gap-1 text-xs p-1 items-center">
+                    <WrenchIcon class="size-3" />
+                    <div class="flex-1">{part.toolInvocation.toolName}</div>
+                    <button
+                      type="button"
+                      class="clickable-icon"
+                      onclick={() =>
+                        openToolInvocationInfoModal(chat, part.toolInvocation)}
+                      ><InfoIcon class="size-3" /></button
+                    >
+                  </div>
+                  {#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}
+                    <!-- Handle tool invocations -->
+                    <div class="border-t border-(--background-modifier-border)">
+                      <ToolRequestRow
+                        toolCallId={part.toolInvocation.toolCallId}
+                        {toolRequest}
+                        onReviewClick={() => openToolRequest(toolRequest)}
+                      />
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            {/each}
+          {/if}
+        {/each}
+
+        {#if chat.state.type === "retrying"}
+          <RetryAlert retryState={chat.state} />
         {/if}
-      {/each}
-
-      {#if chat.state.type === "retrying"}
-        <RetryAlert retryState={chat.state} />
-      {/if}
+      </div>
     </div>
-  </div>
 
+    <Autoscroll
+      messages={chat.messages}
+      container={scrollContainer}
+      bind:sentinel
+    />
+  </div>
+  <!--footer-->
   <ChatInput
     {chat}
     {handleSubmit}

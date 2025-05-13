@@ -28,7 +28,6 @@ export async function createSystemContent(
   system = await processEmbeds(file, system);
   system = await processLinks(file, system);
   system = await processTemplate(system, { fileTree }, data, options.template);
-  console.log("SYSTEM MESSAGE\n-----\n", system);
   return system;
 }
 

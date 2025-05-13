@@ -68,6 +68,8 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+
+- [ ] Tools: Text editor tools for non-Anthropic models
 - [ ] Chat: Token counting
 - [ ] Tools: Tool builder agent for generating tool schemas and implementations
 - [ ] Recorder: Reposition recorder with drag
@@ -88,6 +90,9 @@ This project includes a version bumping script that automates the release proces
 - [ ] Live template preview action, poor experience reading template in modal
 - [ ] UI: Remove unused shadcn-svelte components 
 - [ ] Chat: Resume options for existing chat
+- [ ] Chat: Highly detailed and tunable logging solution
+- [x] Chat: Auto-scroll
+- [x] Merge: Bug accept buttons not visible when no remove
 - [x] Chat: Fix code-block display
 - [x] Refresh agent list when agent added, removed, or renamed
 - [x] Title generation
