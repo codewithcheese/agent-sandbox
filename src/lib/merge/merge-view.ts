@@ -1,10 +1,11 @@
-import { ItemView } from "obsidian";
+import { ItemView, MarkdownView } from "obsidian";
 import { mount, unmount } from "svelte";
 import MergePage from "./MergePage.svelte";
 import { Chat } from "../../chat/chat.svelte.ts";
 import * as diff from "diff";
 import { getBaseName } from "$lib/utils/path.ts";
 import { getPatchStats } from "../../tools/tool-request.ts";
+import { findMatchingView } from "$lib/obsidian/leaf.ts";
 
 export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
@@ -16,6 +17,7 @@ export interface MergeViewState {
 export class MergeView extends ItemView {
   private component: any = null;
   private state: MergeViewState | undefined;
+  navigation = false;
 
   getViewType(): string {
     return MERGE_VIEW_TYPE;
@@ -85,11 +87,17 @@ export class MergeView extends ItemView {
           if (toolRequest.status === "success") {
             console.log("Closing merge view for path: ", toolRequest.path);
             const file = this.app.vault.getFileByPath(toolRequest.path);
-            if (file) {
-              await this.leaf.openFile(file);
+            const view = findMatchingView(
+              MarkdownView,
+              (view) => view.file.path === file.path,
+            );
+            if (view) {
+              await this.app.workspace.revealLeaf(view.leaf);
+              this.leaf.detach();
             } else {
-              // close view
-              await this.leaf.detach();
+              const leaf = this.app.workspace.getLeaf(true);
+              await leaf.openFile(file);
+              this.leaf.detach();
             }
           }
         },
