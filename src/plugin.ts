@@ -11,6 +11,7 @@ import {
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
 import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.ts";
 import { CHAT_VIEW_TYPE, ChatView } from "./chat/chat-view.svelte.ts";
+import { ChatHistoryView } from "./chat/chat-history-view.svelte.ts";
 import {
   type Artifact,
   ARTIFACT_VIEW_TYPE,
@@ -67,6 +68,7 @@ export class AgentSandboxPlugin extends Plugin {
     registerChatRenameHandler();
 
     ChatView.register(this);
+    ChatHistoryView.register(this);
     AgentView.register(this);
     AgentBannerComponent.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();

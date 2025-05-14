@@ -16,6 +16,7 @@ import superjson from "superjson";
 import { ChatSerializer } from "./chat-serializer.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatOptions } from "./options.svelte.ts";
+import { ChatHistoryView } from "./chat-history-view.svelte.ts";
 
 export const CHAT_VIEW_TYPE = "sandbox-chat-view";
 
@@ -33,6 +34,9 @@ export class ChatView extends FileView {
     super(leaf);
     this.options = new ChatOptions();
     this.register(() => this.options.cleanup());
+    this.addAction("history", "View Chat History", async () => {
+      await ChatHistoryView.openChatHistory();
+    });
   }
 
   getViewType(): string {
@@ -185,7 +189,7 @@ export class ChatView extends FileView {
     );
   }
 
-  static async newChat(): Promise<ChatView> {
+  static async newChat(leaf?: WorkspaceLeaf): Promise<ChatView> {
     const plugin = usePlugin();
     const baseName = "New chat";
     let fileName = baseName;
@@ -219,21 +223,21 @@ export class ChatView extends FileView {
       superjson.stringify(ChatSerializer.INITIAL_DATA),
     );
 
-    let leaf: WorkspaceLeaf;
+    if (!leaf) {
+      if (!Platform.isMobile) {
+        const rightChatLeaves = plugin.app.workspace
+          .getLeavesOfType(CHAT_VIEW_TYPE)
+          .filter((l) => l.containerEl.closest(".mod-right-split"));
 
-    if (!Platform.isMobile) {
-      const rightChatLeaves = plugin.app.workspace
-        .getLeavesOfType(CHAT_VIEW_TYPE)
-        .filter((l) => l.containerEl.closest(".mod-right-split"));
-
-      if (rightChatLeaves.length > 0) {
-        leaf = rightChatLeaves[0];
+        if (rightChatLeaves.length > 0) {
+          leaf = rightChatLeaves[0];
+        } else {
+          leaf = plugin.app.workspace.getRightLeaf(false);
+        }
       } else {
-        leaf = plugin.app.workspace.getRightLeaf(false);
+        // Mobile: fall back to the current/only leaf
+        leaf = plugin.app.workspace.getLeaf();
       }
-    } else {
-      // Mobile: fall back to the current/only leaf
-      leaf = plugin.app.workspace.getLeaf();
     }
 
     await leaf.openFile(file, {

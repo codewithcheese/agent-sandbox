@@ -68,10 +68,8 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
-
-- [ ] Chat: previous chats action
+- [ ] Chat: Tag based file editing
 - [ ] Chat: Chat homepage with agent selection
-- [ ] Tools: Text editor tools for non-Anthropic models
 - [ ] Chat: Token counting
 - [ ] Tools: Tool builder agent for generating tool schemas and implementations
 - [ ] Recorder: Reposition recorder with drag
@@ -93,6 +91,8 @@ This project includes a version bumping script that automates the release proces
 - [ ] Chat: Highly detailed and tunable logging solution
 - [ ] Schema editor: Support for defining array items
 - [ ] Schema editor: Fix don't clobber unsupported values
+- [ ] Tools: Text editor tools for non-Anthropic models
+- [x] Chat: previous chats action
 - [x] Merge: Close merge view when complete
 - [x] Chat: Auto-scroll
 - [x] Merge: Bug accept buttons not visible when no remove
