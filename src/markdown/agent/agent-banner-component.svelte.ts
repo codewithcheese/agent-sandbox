@@ -21,63 +21,38 @@ export type BannerProps = {
 };
 
 export class AgentBannerComponent extends Component {
-  protected file: TFile;
-  protected target: HTMLElement;
-  protected ref: any;
-  protected props = $state<BannerProps>({} as any);
+  private plugin = usePlugin();
+  private file: TFile;
+  private target?: HTMLElement;
+  private ref: any;
+  private props = $state<BannerProps>({
+    path: "",
+    errors: [],
+    openRenderView: () => {},
+    openMarkdownView: () => {},
+    viewType: "MarkdownView",
+  });
 
-  constructor(protected view: MarkdownView | AgentView) {
+  constructor(private view: MarkdownView | AgentView) {
     super();
-    const plugin = usePlugin();
-    this.file = this.getFile();
-    this.props.path = this.file.path;
-    this.props.errors = [];
-    this.props.openRenderView = () => AgentView.open(this.file.path);
-    this.props.openMarkdownView = () => view.leaf.openFile(this.file);
-    this.props.viewType =
-      this.view instanceof MarkdownView ? "MarkdownView" : "AgentView";
-    this.registerEvent(
-      plugin.app.vault.on("modify", async (file: TFile) => {
-        if (file.path === this.file.path) {
-          await this.update();
-        }
-      }),
-    );
-    plugin.registerEvent(
-      plugin.app.metadataCache.on("changed", async (file: TFile) => {
-        if (file.path === this.file.path) {
-          await this.update();
-        }
-      }),
-    );
-  }
 
-  insertTarget() {
-    const viewEl = this.view.containerEl.querySelector(".view-content");
-    this.target = document.createElement("div");
-    if (viewEl) {
-      if (viewEl.firstChild) {
-        viewEl.insertBefore(this.target, viewEl.firstChild);
-      } else {
-        viewEl.appendChild(this.target);
-      }
-    }
-  }
+    this.file = this.resolveFile();
+    const { path } = this.file;
 
-  removeTarget() {
-    if (this.target) {
-      this.target.remove();
-      this.target = undefined;
-    }
-  }
+    Object.assign(this.props, {
+      path,
+      openRenderView: () => AgentView.open(this.file.path),
+      openMarkdownView: () => this.view.leaf.openFile(this.file),
+      viewType:
+        this.view instanceof MarkdownView ? "MarkdownView" : "AgentView",
+    });
 
-  getFile() {
-    if (this.view instanceof MarkdownView) {
-      return this.view.file;
-    } else if (this.view instanceof AgentView) {
-      const plugin = usePlugin();
-      return plugin.app.vault.getFileByPath(this.view.path);
-    }
+    const refresh = async (file: TFile) => {
+      if (file.path === path) await this.update();
+    };
+
+    this.registerEvent(this.plugin.app.vault.on("modify", refresh));
+    this.registerEvent(this.plugin.app.metadataCache.on("changed", refresh));
   }
 
   async onload() {
@@ -85,41 +60,65 @@ export class AgentBannerComponent extends Component {
     await this.update();
   }
 
-  async update() {
+  async onunload() {
+    await this.dispose();
+    super.onunload();
+  }
+
+  async update(view?: MarkdownView | AgentView) {
+    if (view) {
+      this.file = this.resolveFile();
+      this.props.path = this.file.path;
+      this.props.errors = [];
+    }
+
     if (isAgent(this.file)) {
-      if (!this.target) {
-        this.insertTarget();
-      }
-      if (!this.ref) {
-        this.ref = mount(AgentBanner, {
-          target: this.target,
-          props: this.props,
-        });
-      }
-      await this.rerender();
+      this.ensureMounted();
+      await this.renderBanner();
     } else {
-      if (this.ref) {
-        await unmount(this.ref);
-        this.ref = null;
-      }
-      if (this.target) {
-        this.removeTarget();
-      }
+      await this.dispose();
     }
   }
 
-  async rerender() {
+  private async renderBanner() {
     try {
       this.props.errors = [];
       await createSystemContent(this.file, {
         template: { throwOnUndefined: true },
       });
     } catch (e) {
-      this.props.errors.push(e.message || String(e));
+      this.props.errors = [(e as Error).message ?? String(e)];
     }
   }
 
+  private ensureMounted() {
+    if (!this.target) {
+      const container = this.view.containerEl.querySelector(".view-content");
+      this.target = document.createElement("div");
+      container?.insertBefore(this.target, container.firstChild);
+    }
+
+    if (!this.ref) {
+      this.ref = mount(AgentBanner, { target: this.target, props: this.props });
+    }
+  }
+
+  private async dispose() {
+    if (this.ref) {
+      await unmount(this.ref);
+      this.ref = null;
+    }
+    this.target?.remove();
+    this.target = undefined;
+  }
+
+  private resolveFile() {
+    if (this.view instanceof MarkdownView) return this.view.file;
+    return this.plugin.app.vault.getFileByPath(this.view.path);
+  }
+
   static register(plugin: Plugin) {
+    console.log("Agent banner register plugin", plugin);
     plugin.registerEvent(
       plugin.app.workspace.on(
         "active-leaf-change",
@@ -130,10 +129,18 @@ export class AgentBannerComponent extends Component {
               leaf.view instanceof AgentView)
           ) {
             const { view } = leaf;
-            if ("agentBanner" in view) return;
-            const agentBanner = new AgentBannerComponent(view);
-            view.addChild(agentBanner);
-            Object.defineProperty(view, "agentBanner", { value: agentBanner });
+            if (
+              "agentBanner" in view &&
+              view.agentBanner instanceof AgentBannerComponent
+            ) {
+              view.agentBanner.update(view);
+            } else {
+              const agentBanner = new AgentBannerComponent(view);
+              view.addChild(agentBanner);
+              Object.defineProperty(view, "agentBanner", {
+                value: agentBanner,
+              });
+            }
           }
         },
       ),
