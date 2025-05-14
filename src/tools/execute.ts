@@ -242,7 +242,7 @@ export async function textEditor(
         await vault.modify(file, content.replace(old_str, new_str));
 
         return {
-          content: "Successfully replaced text at exactly one location.",
+          result: "str_replace operation applied. Pending human review.",
         };
       }
 
@@ -270,11 +270,12 @@ export async function textEditor(
             error: `Invalid insert_line: ${insert_line}. File has ${lines.length} lines.`,
           };
         }
+        lines[insert_line] = new_str;
 
-        // Instead of applying the change, return a confirmation
+        await vault.modify(file, lines.join("\n"));
+
         return {
-          content: `Proposed to insert text at line ${insert_line} in ${path}. Changes require review.`,
-          status: "pending_review",
+          result: "replace operation applied. Pending human review.",
         };
       }
 

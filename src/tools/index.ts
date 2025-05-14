@@ -11,14 +11,16 @@ import { getListFromFrontmatter } from "../lib/utils/frontmatter";
 import { extractCodeBlockContent } from "$lib/utils/codeblocks.ts";
 import { createVaultProxy } from "./vault-proxy.ts";
 import type { Chat } from "../chat/chat.svelte.ts";
+import type { AIProviderId } from "../settings/providers";
 
 export type VaultTool = BuiltinTool | ImportVaultTool | CodeVaultTool;
 
 type BuiltinTool = {
-  type: "builtin";
+  type: "built-in";
   name: "str_replace_editor";
   description: string;
   file: TFile;
+  schema?: Record<string, any>;
 };
 
 type CodeVaultTool = {
@@ -88,13 +90,32 @@ export async function parseToolDefinition(file: TFile): Promise<VaultTool> {
   }
 
   // Special case for str_replace_editor (Anthropic's text editor tool)
-  // This tool doesn't require a schema, code block, or import function
   if (metadata.frontmatter.name === "str_replace_editor") {
+    let schema: Record<string, any> | undefined = undefined;
+
+    const content = await plugin.app.vault.read(file);
+    const cache = plugin.app.metadataCache.getFileCache(file);
+
+    const codeBlocks =
+      cache.sections?.filter((section) => section.type === "code") || [];
+
+    if (codeBlocks.length > 0) {
+      const schemaBlock = content.slice(
+        codeBlocks[0].position.start.offset,
+        codeBlocks[0].position.end.offset,
+      );
+      const schemaText = extractCodeBlockContent(schemaBlock, 0, file.path);
+      if (schemaText) {
+        schema = JSON.parse(schemaText);
+      }
+    }
+
     return {
-      type: "builtin",
+      type: "built-in",
       name: metadata.frontmatter.name,
       description: metadata.frontmatter.description,
       file,
+      schema,
     };
   }
 
@@ -163,13 +184,32 @@ export async function parseToolDefinition(file: TFile): Promise<VaultTool> {
 /**
  * Creates an AI SDK tool from a vault tool definition
  */
-export async function createTool(vaultTool: VaultTool, chat: Chat) {
+export async function createTool(
+  vaultTool: VaultTool,
+  chat: Chat,
+  providerId?: AIProviderId,
+) {
   // Special case for Anthropic text editor tool
-  if (vaultTool.type === "builtin") {
+  if (vaultTool.type === "built-in") {
     if (vaultTool.name === "str_replace_editor") {
-      return anthropic.tools.textEditor_20250124({
-        execute: await createExecutor(vaultTool, chat),
-      });
+      // Use Anthropic's built-in text editor if the model provider is Anthropic
+      if (!providerId || providerId === "anthropic") {
+        return anthropic.tools.textEditor_20250124({
+          execute: await createExecutor(vaultTool, chat),
+        });
+      } else if (vaultTool.schema) {
+        // For other model providers, use the schema-based approach if schema is available
+        return tool({
+          description: vaultTool.description,
+          parameters: JSONSchemaToZod.convert(vaultTool.schema),
+          execute: await createExecutor(vaultTool, chat),
+        });
+      } else {
+        // If no schema is available for fallback, throw an error
+        throw new Error(
+          `Text Editor tool requires a schema for non-Anthropic models. Please add a schema to ${vaultTool.file.path}`,
+        );
+      }
     } else {
       throw new Error(`Unsupported builtin tool type: ${vaultTool["name"]}`);
     }
@@ -218,8 +258,8 @@ async function createExecutor(
   chat: Chat,
 ): Promise<Executor> {
   console.log("Creating executor for tool", vaultTool.name);
-  if (vaultTool.type === "builtin") {
-    if ((vaultTool.name = "str_replace_editor")) {
+  if (vaultTool.type === "built-in") {
+    if (vaultTool.name === "str_replace_editor") {
       return async (params: any, options) => {
         console.log('Executing "str_replace_editor" tool', params, options);
         const vault = createVaultProxy(
@@ -241,7 +281,11 @@ async function createExecutor(
   }
 }
 
-export async function loadAllTools(toolsPath: string, chat: Chat) {
+export async function loadAllTools(
+  toolsPath: string,
+  chat: Chat,
+  providerId?: AIProviderId,
+) {
   const plugin = usePlugin();
   const files = plugin.app.vault.getFiles();
   const normalizedPath = toolsPath.startsWith("/")
@@ -255,7 +299,7 @@ export async function loadAllTools(toolsPath: string, chat: Chat) {
   const tools: Record<string, Tool> = {};
   for (const file of toolFiles) {
     const toolDef = await parseToolDefinition(file);
-    tools[toolDef.name] = await createTool(toolDef, chat);
+    tools[toolDef.name] = await createTool(toolDef, chat, providerId);
   }
   return tools;
 }
@@ -263,6 +307,7 @@ export async function loadAllTools(toolsPath: string, chat: Chat) {
 export async function loadToolsFromFrontmatter(
   metadata: CachedMetadata,
   chat: Chat,
+  providerId?: AIProviderId,
 ) {
   const plugin = usePlugin();
   const tools: Record<string, Tool> = {};
@@ -275,7 +320,7 @@ export async function loadToolsFromFrontmatter(
       throw Error(`Failed to resolve tool link: ${toolLink}`);
     }
     const toolDef = await parseToolDefinition(toolFile);
-    tools[toolDef.name] = await createTool(toolDef, chat);
+    tools[toolDef.name] = await createTool(toolDef, chat, providerId);
   }
 
   return tools;
@@ -284,6 +329,7 @@ export async function loadToolsFromFrontmatter(
 export async function executeToolInvocation(
   toolInvocation: ToolInvocation,
   chat: Chat,
+  providerId?: AIProviderId,
 ) {
   const plugin = usePlugin();
 
@@ -293,7 +339,7 @@ export async function executeToolInvocation(
     throw new Error("Tools directory not found");
   }
 
-  const allTools = await loadAllTools(toolsDir.path, chat);
+  const allTools = await loadAllTools(toolsDir.path, chat, providerId);
   const tool = allTools[toolInvocation.toolName];
 
   if (!tool) {

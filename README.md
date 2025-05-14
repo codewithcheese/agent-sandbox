@@ -69,21 +69,21 @@ This project includes a version bumping script that automates the release proces
 ## Todo
 
 
+- [ ] Chat: previous chats action
+- [ ] Chat: Chat homepage with agent selection
 - [ ] Tools: Text editor tools for non-Anthropic models
 - [ ] Chat: Token counting
 - [ ] Tools: Tool builder agent for generating tool schemas and implementations
 - [ ] Recorder: Reposition recorder with drag
 - [ ] Recorder: Save recording history in local storage
-- [ ] Chat: Chat homepage with previous chats and agent selection
 - [ ] Chat: Add tool request for create, trash, delete
 - [ ] Chat: Disconnect realtime after idle period
 - [ ] Chat: Context optimization (forget old messages)
 - [ ] Chat: Display tokens used in tool call
 - [ ] Chat: Pass abort signal to tools
 - [ ] Chat: Read file image support
-- [ ] Merge: Merge view undo
-- [ ] Merge: Merge view use Obsidian semantic colors
-- [ ] Merge: Close merge view when complete
+- [ ] Merge: undo/redo
+- [ ] Merge: use Obsidian semantic colors
 - [ ] Chat: Delete chat if empty when closed
 - [ ] Schema editor: Align design with Properties UI
 - [ ] Chat: Fix saving with attachments
@@ -91,6 +91,9 @@ This project includes a version bumping script that automates the release proces
 - [ ] UI: Remove unused shadcn-svelte components 
 - [ ] Chat: Resume options for existing chat
 - [ ] Chat: Highly detailed and tunable logging solution
+- [ ] Schema editor: Support for defining array items
+- [ ] Schema editor: Fix don't clobber unsupported values
+- [x] Merge: Close merge view when complete
 - [x] Chat: Auto-scroll
 - [x] Merge: Bug accept buttons not visible when no remove
 - [x] Chat: Fix code-block display

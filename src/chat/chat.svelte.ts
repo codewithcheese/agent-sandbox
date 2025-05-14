@@ -201,7 +201,7 @@ export class Chat {
 
       metadata = plugin.app.metadataCache.getFileCache(agentFile);
       system = await createSystemContent(agentFile);
-      activeTools = await loadToolsFromFrontmatter(metadata!, this);
+      activeTools = await loadToolsFromFrontmatter(metadata!, this, options.getAccount().provider);
       console.log("SYSTEM MESSAGE\n-----\n", system);
       console.log("Active tools", activeTools);
 

@@ -257,7 +257,7 @@
               <div
                 class={cn(
                   `whitespace-pre-wrap prose leading-none select-text
-                prose-pre:bg-(--background-primary-alt)
+                prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
                           prose-h1:m-0
                           prose-h2:m-0
                           prose-h3:m-0
