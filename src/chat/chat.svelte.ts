@@ -236,6 +236,36 @@ export class Chat {
         return;
       }
 
+      if (error instanceof Error) {
+        // Anthropic's CORS Policy Change (March 2025)
+        //
+        // Anthropic recently changed their CORS policy for new individual accounts:
+        // - New individual accounts now have CORS restrictions by default
+        // - The error occurs even with valid API keys and anthropic-dangerous-direct-browser-access: true
+        // - The error message contains "CORS requests are not allowed for this Organization"
+        //
+        // Solution: Users need to create an organization in their Anthropic account
+        if (
+          error.message.includes(
+            "CORS requests are not allowed for this Organization",
+          )
+        ) {
+          console.error("Anthropic CORS error", error);
+          throw new Error(
+            `Provider ${options.getAccount().id} is experiencing a CORS issue. This is a known issue with new individual Anthropic accounts.
+
+To resolve this issue:
+
+1. Go to https://console.anthropic.com/settings/organization
+2. Create a new organization
+3. Your API key should work properly after creating an organization
+
+For more information, please refer to the following issue:
+https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
+          );
+        }
+      }
+
       // Global error handling
       console.error("Error in runConversation:", error);
       let errorMessage = "An error occurred while generating the response.";
