@@ -23,7 +23,7 @@
   import type { ToolRequest } from "../tools/tool-request.ts";
   import ChatInput from "./ChatInput.svelte";
   import { ChatOptions } from "./options.svelte.ts";
-  import SystemMessage from "./SystemMessage.svelte";
+  import AgentMessage from "./AgentMessage.svelte";
   import type { Agents } from "./agents.svelte.ts";
   import Autoscroll from "./Autoscroll.svelte";
 
@@ -68,13 +68,24 @@
     const message = chat.messages[index];
     const isUserMessage = message.role === "user";
 
+    // If regenerating a user message, find the next user message (if any)
+    let nextUserMessageIndex = -1;
+    if (isUserMessage) {
+      for (let i = index + 1; i < chat.messages.length; i++) {
+        if (chat.messages[i].role === "user") {
+          nextUserMessageIndex = i;
+          break;
+        }
+      }
+    }
+
     // Determine where to cut the conversation for regeneration
     const cutIndex = isUserMessage ? index + 1 : index;
 
-    // Save messages that come after the one(s) we're regenerating
-    const messagesToKeep = chat.messages.slice(
-      cutIndex + (isUserMessage ? 1 : 0),
-    );
+    // Keep messages after the next user message (if any)
+    const messagesToKeep = nextUserMessageIndex !== -1 
+      ? chat.messages.slice(nextUserMessageIndex)
+      : [];
 
     // Truncate the conversation to the point where we want to regenerate
     chat.messages = chat.messages.slice(0, cutIndex);
@@ -82,7 +93,7 @@
     // Generate new response
     await chat.runConversation(options);
 
-    // Restore the saved messages
+    // Restore the saved messages (messages after the next user message)
     if (messagesToKeep.length > 0) {
       chat.messages = [...chat.messages, ...messagesToKeep];
     }
@@ -247,7 +258,7 @@
     <div class="chat-margin px-2">
       <!-- system message -->
       {#if selectedAgent}
-        <SystemMessage agent={selectedAgent} />
+        <AgentMessage agent={selectedAgent} />
       {/if}
       <!-- messages -->
       <div class="flex flex-col w-full flex-1 gap-1">
