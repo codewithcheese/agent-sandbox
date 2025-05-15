@@ -188,6 +188,8 @@ export default defineConfig(({ command }) => {
       },
       outDir: "dist",
       emptyOutDir: false,
+      // sourcemap: "inline", // useful for debugging build, but bundle is > 7MB
+      // minify: false,
     },
   };
 });

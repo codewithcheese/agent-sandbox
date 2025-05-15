@@ -29,8 +29,10 @@ function getDebugPath(stack: string) {
 }
 
 export function createDebug() {
-  const tmp = new Error();
-  const path = getDebugPath(tmp.stack);
-  console.log("Create debug", path);
+  let path = "agent-sandbox";
+  if (import.meta.env.DEV) {
+    const tmp = new Error();
+    path = getDebugPath(tmp.stack);
+  }
   return debug(path);
 }
