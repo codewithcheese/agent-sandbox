@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { PGliteProvider } from "../src/pglite/provider";
-import { plugin } from "./mocks/obsidian";
 
 // Define the interface for PGlite result
 interface PGliteResult {
@@ -15,7 +14,7 @@ describe("PGlite CDN Tests", () => {
   let provider: PGliteProvider;
 
   beforeAll(async () => {
-    provider = new PGliteProvider(plugin as any, "test-db");
+    provider = new PGliteProvider();
     await provider.initialize();
     pglite = provider.getClient();
   }, 60000);

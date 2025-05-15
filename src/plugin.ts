@@ -53,7 +53,7 @@ export class AgentSandboxPlugin extends Plugin {
     window.Env = {
       Plugin: this,
     };
-    this.pglite = new PGliteProvider(this);
+    this.pglite = new PGliteProvider();
     this.recorder = new RecorderWidget();
   }
 
