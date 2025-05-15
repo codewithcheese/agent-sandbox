@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 import { resolve } from "path";
 import * as fs from "fs";
 import * as path from "node:path";
-import { configDefaults } from "vitest/config";
+import { configDefaults, defineProject } from "vitest/config";
 import builtins from "builtin-modules";
 import slugify from "@sindresorhus/slugify";
 import tailwindcss from "@tailwindcss/vite";
@@ -47,11 +47,11 @@ export default defineConfig(({ command }) => {
     return [pkg, resolve(__dirname, `src/bridge/${bridgeFile}`)];
   });
 
-  console.log(aliasEntries, {
-    $lib: path.resolve("./src/lib"),
-    // Spread the dynamically generated bridge aliases
-    ...Object.fromEntries(aliasEntries),
-  });
+  // console.log(aliasEntries, {
+  //   $lib: path.resolve("./src/lib"),
+  //   // Spread the dynamically generated bridge aliases
+  //   ...Object.fromEntries(aliasEntries),
+  // });
 
   return {
     resolve: {
@@ -148,21 +148,49 @@ export default defineConfig(({ command }) => {
     },
     assetsInclude: ["**/*.md"],
     test: {
-      // Default environment is jsdom for browser tests
-      environment: "jsdom",
-      browser: {
-        enabled: true,
-        headless: process.env.CI === "true",
-        provider: "playwright",
-        instances: [
-          {
-            name: "chromium",
-            browser: "chromium",
-          },
-        ],
-      },
+      passWithNoTests: true,
       exclude: [...configDefaults.exclude, "e2e/*"],
-      include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+
+      // Define multiple projects
+      workspace: [
+        {
+          extends: true,
+          test: {
+            name: "browser",
+            environment: "jsdom",
+            // Include files that match browser tests pattern
+            include: [
+              "**/*.browser.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+              "**/tests/**/*.browser.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+            ],
+            browser: {
+              enabled: true,
+              headless: process.env.CI === "true",
+              provider: "playwright",
+              instances: [
+                {
+                  name: "chromium",
+                  browser: "chromium",
+                },
+              ],
+            },
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: "jsdom",
+            environment: "jsdom",
+            // Include all test files except browser-specific ones
+            include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+            exclude: [
+              "**/*.browser.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+              "**/tests/**/*.browser.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+              "node_modules/**",
+            ],
+          },
+        },
+      ],
     },
     build: {
       lib: {

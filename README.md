@@ -33,7 +33,11 @@ pnpm dev
 pnpm build
 
 # Run tests
-pnpm test:unit
+pnpm test
+
+# Run specific test projects
+pnpm test:browser  # Run browser tests only
+pnpm test:jsdom    # Run jsdom tests only
 ```
 
 ## GitHub Workflows
