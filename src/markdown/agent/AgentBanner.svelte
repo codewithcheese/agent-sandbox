@@ -6,13 +6,8 @@
   import { usePlugin } from "$lib/utils";
   import { Notice } from "obsidian";
 
-  let {
-    path,
-    errors,
-    openRenderView,
-    openMarkdownView,
-    viewType,
-  }: BannerProps = $props();
+  let { path, errors, openAgentView, openMarkdownView, viewType }: BannerProps =
+    $props();
 
   async function handleFixClick() {
     const plugin = usePlugin();
@@ -56,7 +51,7 @@
       >
     {/if}
     {#if viewType === "MarkdownView" && errors.length === 0}
-      <button class="gap-1" onclick={() => openRenderView()} type="button"
+      <button class="gap-1" onclick={() => openAgentView()} type="button"
         ><TextSearchIcon size="14" /> Preview</button
       >
     {/if}

@@ -4,6 +4,7 @@ import {
   Plugin,
   type TFile,
   Component,
+  FileView,
 } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { createSystemContent } from "../../chat/system.ts";
@@ -11,46 +12,49 @@ import { AgentView } from "./agent-view.ts";
 import { isAgent } from "../../chat/agents.svelte.ts";
 import AgentBanner from "./AgentBanner.svelte";
 import { mount, unmount } from "svelte";
+import { createDebug } from "$lib/debug.ts";
+import { watchForRemoval } from "$lib/utils/dom.ts";
+
+const debug = createDebug();
 
 export type BannerProps = {
   path: string;
   errors: string[];
-  openRenderView: () => any;
+  openAgentView: () => any;
   openMarkdownView: () => any;
   viewType: "MarkdownView" | "AgentView";
 };
 
 export class AgentBannerComponent extends Component {
   private plugin = usePlugin();
-  private file: TFile;
   private target?: HTMLElement;
   private ref: any;
   private props = $state<BannerProps>({
     path: "",
     errors: [],
-    openRenderView: () => {},
+    openAgentView: () => {},
     openMarkdownView: () => {},
     viewType: "MarkdownView",
   });
 
-  constructor(private view: MarkdownView | AgentView) {
+  constructor(private leaf: WorkspaceLeaf) {
     super();
 
-    this.file = this.resolveFile();
-    const { path } = this.file;
+    debug("new AgentBannerComponent()", leaf);
 
     Object.assign(this.props, {
-      path,
-      openRenderView: () => AgentView.open(this.file.path),
-      openMarkdownView: () => this.view.leaf.openFile(this.file),
-      viewType:
-        this.view instanceof MarkdownView ? "MarkdownView" : "AgentView",
+      path: this.getFile().path,
+      openAgentView: () => AgentView.open(this.getFile()),
+      openMarkdownView: () => this.leaf.openFile(this.getFile()),
+      viewType: this.getViewType(),
     });
 
     const refresh = async (file: TFile) => {
-      if (file.path === path) await this.update();
+      console.log("refresh", file.path, this.getFile().path);
+      if (file.path === this.getFile().path) await this.update();
     };
 
+    leaf.view.addChild(this);
     this.registerEvent(this.plugin.app.vault.on("modify", refresh));
     this.registerEvent(this.plugin.app.metadataCache.on("changed", refresh));
   }
@@ -61,29 +65,33 @@ export class AgentBannerComponent extends Component {
   }
 
   async onunload() {
-    await this.dispose();
+    await this.unmount();
     super.onunload();
   }
 
-  async update(view?: MarkdownView | AgentView) {
-    if (view) {
-      this.file = this.resolveFile();
-      this.props.path = this.file.path;
+  async update(leaf?: WorkspaceLeaf) {
+    // @ts-expect-error id not in type
+    debug("update()", leaf?.id);
+    // @ts-expect-error id not in type
+    if (leaf && leaf.id === this.leaf.id) {
+      this.props.path = this.getFile().path;
       this.props.errors = [];
+      this.props.viewType = this.getViewType();
+      debug("props updated", this.props.path, this.props.viewType);
     }
 
-    if (isAgent(this.file)) {
-      this.ensureMounted();
-      await this.renderBanner();
+    if (isAgent(this.getFile())) {
+      this.mount();
+      await this.updateBanner();
     } else {
-      await this.dispose();
+      await this.unmount();
     }
   }
 
-  private async renderBanner() {
+  private async updateBanner() {
     try {
       this.props.errors = [];
-      await createSystemContent(this.file, {
+      await createSystemContent(this.getFile(), {
         template: { throwOnUndefined: true },
       });
     } catch (e) {
@@ -91,55 +99,68 @@ export class AgentBannerComponent extends Component {
     }
   }
 
-  private ensureMounted() {
+  private mount() {
     if (!this.target) {
-      const container = this.view.containerEl.querySelector(".view-content");
+      const container =
+        this.leaf.view.containerEl.querySelector(".view-content");
       this.target = document.createElement("div");
       container?.insertBefore(this.target, container.firstChild);
+      debug("new target created");
     }
 
     if (!this.ref) {
       this.ref = mount(AgentBanner, { target: this.target, props: this.props });
+      // Switching from AgentView to Markdown view causes contentEl to be cleared
+      // watch for target removal to unmount the component
+      watchForRemoval(this.target, () => this.unmount());
+      debug("mounted");
+    } else {
+      debug("mount skipped");
     }
   }
 
-  private async dispose() {
+  private async unmount() {
     if (this.ref) {
       await unmount(this.ref);
+      debug("unmounted");
       this.ref = null;
     }
     this.target?.remove();
     this.target = undefined;
+    debug("target removed");
   }
 
-  private resolveFile() {
-    if (this.view instanceof MarkdownView) return this.view.file;
-    return this.plugin.app.vault.getFileByPath(this.view.path);
+  private getFile() {
+    if (this.leaf.view instanceof FileView) return this.leaf.view.file;
+    debug("View not FileView. File undefined.");
+    return undefined;
+  }
+
+  private getViewType() {
+    return this.leaf.view instanceof MarkdownView
+      ? "MarkdownView"
+      : this.leaf.view instanceof AgentView
+        ? "AgentView"
+        : null;
   }
 
   static register(plugin: Plugin) {
-    console.log("Agent banner register plugin", plugin);
+    debug("AgentBannerComponent.register");
     plugin.registerEvent(
       plugin.app.workspace.on(
         "active-leaf-change",
-        (leaf: WorkspaceLeaf | null) => {
+        async (
+          leaf: (WorkspaceLeaf & { agentBanner?: AgentBannerComponent }) | null,
+        ) => {
           if (
             leaf &&
             (leaf.view instanceof MarkdownView ||
               leaf.view instanceof AgentView)
           ) {
-            const { view } = leaf;
-            if (
-              "agentBanner" in view &&
-              view.agentBanner instanceof AgentBannerComponent
-            ) {
-              view.agentBanner.update(view);
+            if (leaf.agentBanner) {
+              await leaf.agentBanner.update(leaf);
             } else {
-              const agentBanner = new AgentBannerComponent(view);
-              view.addChild(agentBanner);
-              Object.defineProperty(view, "agentBanner", {
-                value: agentBanner,
-              });
+              leaf.agentBanner = new AgentBannerComponent(leaf);
             }
           }
         },

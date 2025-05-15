@@ -1,18 +1,28 @@
-import { ItemView, MarkdownView, Plugin, type TFile, Notice } from "obsidian";
+import {
+  ItemView,
+  MarkdownView,
+  Plugin,
+  type TFile,
+  Notice,
+  FileView,
+} from "obsidian";
 import { isAgent } from "../../chat/agents.svelte.ts";
 import { usePlugin } from "$lib/utils";
 import { mount, unmount } from "svelte";
 import AgentPage from "./AgentPage.svelte";
 import { createSystemContent } from "../../chat/system.ts";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 const AGENT_VIEW_TYPE = "sandbox-agent-view";
 
-export class AgentView extends ItemView {
-  path: string;
+export class AgentView extends FileView {
   private component: any = null;
+  navigation = true;
 
-  static async open(path: string) {
-    console.log("AgentView open", path);
+  static async open(file: TFile) {
+    debug("this.open", file);
     const plugin = usePlugin();
     let { leaf } = plugin.app.workspace.getActiveViewOfType(MarkdownView);
     if (!leaf) {
@@ -20,8 +30,9 @@ export class AgentView extends ItemView {
     }
     await leaf.setViewState({
       type: AGENT_VIEW_TYPE,
-      active: true,
-      state: { path },
+      state: {
+        file: file.path,
+      },
     });
   }
 
@@ -32,18 +43,12 @@ export class AgentView extends ItemView {
   onload() {
     super.onload();
     this.addAction("markdown", "Markdown view", async () => {
-      if (!this.path) return;
       const plugin = usePlugin();
       let { leaf } = plugin.app.workspace.getActiveViewOfType(MarkdownView);
       if (!leaf) {
         leaf = plugin.app.workspace.getLeaf(true);
       }
-      const file = plugin.app.vault.getFileByPath(this.path);
-      if (file) {
-        await leaf.openFile(file);
-      } else {
-        new Notice(`File not found: ${this.path}`);
-      }
+      await leaf.openFile(this.file);
     });
   }
 
@@ -52,24 +57,16 @@ export class AgentView extends ItemView {
   }
 
   getDisplayText(): string {
-    console.log("AgentView getDisplayText");
-    const file = this.app.vault.getFileByPath(this.path);
-    const name = file && isAgent(file);
-    if (file && name) {
+    const name = this.file && isAgent(this.file);
+    if (name) {
       return `${name}`;
     } else {
       return "Agent view";
     }
   }
 
-  getState(): { path: string } {
-    return {
-      path: this.path,
-    };
-  }
-
-  async setState(state: any, result: any): Promise<void> {
-    this.path = state.path;
+  async onLoadFile(file: TFile): Promise<void> {
+    await super.onLoadFile(file);
     await this.mount();
   }
 
@@ -86,16 +83,11 @@ export class AgentView extends ItemView {
     viewContent.style.padding = "0px";
     viewContent.style.backgroundColor = "var(--background-primary)";
 
-    const file = this.app.vault.getFileByPath(this.path) as TFile;
-    if (!file) {
-      throw new Error(`File not found: ${this.path}`);
-    }
-
     let content = "";
     let errors: string[] = [];
 
     try {
-      content = await createSystemContent(file, {
+      content = await createSystemContent(this.file, {
         template: { throwOnUndefined: true },
       });
     } catch (e) {
@@ -107,7 +99,7 @@ export class AgentView extends ItemView {
     this.component = mount(AgentPage, {
       target: viewContent,
       props: {
-        name: isAgent(file) || file.basename,
+        name: isAgent(this.file) || this.file.basename,
         content,
         errors,
       },
