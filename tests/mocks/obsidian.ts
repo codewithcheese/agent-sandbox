@@ -14,7 +14,7 @@ export const fileSystem = new Map<
 >();
 export const fileCache = new Map<string, any>();
 
-class MockTFile {
+export class MockTFile {
   path: string;
   basename: string;
   extension: string;
