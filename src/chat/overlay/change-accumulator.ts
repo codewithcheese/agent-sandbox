@@ -44,166 +44,24 @@ export class ChangeAccumulator {
   public discard(messageId: string): void {
     // Get all paths in the accumulator
     const pathsToCheck = Array.from(this.changesByPath.keys());
-    
+
     // For each path, filter out changes with the specified messageId
     for (const path of pathsToCheck) {
       const changes = this.changesByPath.get(path);
       if (!changes) continue;
-      
+
       // Filter out changes with the specified messageId
-      const filteredChanges = changes.filter(change => change.messageId !== messageId);
-      
+      const filteredChanges = changes.filter(
+        (change) => change.messageId !== messageId,
+      );
+
       if (filteredChanges.length === 0) {
         // If no changes remain, remove the path entry
         this.changesByPath.delete(path);
       } else {
-        // Attempt to repair the sequence
-        const repairedChanges = this.repairChangeSequence(filteredChanges);
-        
-        if (repairedChanges.length === 0) {
-          // If repair failed completely, remove the path
-          this.changesByPath.delete(path);
-        } else {
-          // Update with the repaired changes
-          this.changesByPath.set(path, repairedChanges);
-        }
+        // Update with the filtered changes
+        this.changesByPath.set(path, filteredChanges);
       }
-    }
-  }
-  
-  /**
-   * Repairs a sequence of changes after some changes have been removed.
-   * Ensures that each change's 'before' state matches the previous change's 'after' state.
-   */
-  private repairChangeSequence(changes: TrackedChange[]): TrackedChange[] {
-    if (changes.length <= 1) return changes; // No repair needed for 0 or 1 change
-    
-    const repairedChanges: TrackedChange[] = [];
-    let currentContent: string | undefined;
-    
-    // First change establishes the baseline
-    const firstChange = changes[0];
-    repairedChanges.push(firstChange);
-    
-    // Set the current content based on the first change
-    if (firstChange.kind === ChangeKind.CREATE) {
-      currentContent = firstChange.after;
-    } else if (firstChange.kind === ChangeKind.MODIFY) {
-      currentContent = firstChange.after;
-    } else if (firstChange.kind === ChangeKind.DELETE) {
-      currentContent = undefined;
-    }
-    
-    // Process subsequent changes
-    for (let i = 1; i < changes.length; i++) {
-      const change = changes[i];
-      
-      // Handle each change type
-      if (change.kind === ChangeKind.MODIFY) {
-        repairedChanges.push(this.repairModifyChange(change, currentContent));
-        // Update current content if the change was applied
-        if (repairedChanges[repairedChanges.length - 1]) {
-          currentContent = (repairedChanges[repairedChanges.length - 1] as ModifyChange).after;
-        }
-      } else if (change.kind === ChangeKind.DELETE) {
-        if (currentContent === undefined) {
-          // Already deleted, skip
-          continue;
-        }
-        
-        // For DELETE, we don't care as much about the exact before content
-        // Just update it to match current and add to sequence
-        const repairedChange: DeleteChange = {
-          ...change,
-          before: currentContent
-        };
-        repairedChanges.push(repairedChange);
-        currentContent = undefined;
-      } else if (change.kind === ChangeKind.CREATE) {
-        if (currentContent !== undefined) {
-          // Can't create what already exists - convert to MODIFY
-          const repairedChange: ModifyChange = {
-            ...change,
-            kind: ChangeKind.MODIFY,
-            before: currentContent
-          };
-          repairedChanges.push(repairedChange);
-        } else {
-          // Valid CREATE
-          repairedChanges.push(change);
-        }
-        currentContent = change.after;
-      } else if (change.kind === ChangeKind.RENAME) {
-        // RENAME doesn't affect content, just add it
-        repairedChanges.push(change);
-      }
-    }
-    
-    // Filter out any null values (changes that couldn't be repaired)
-    return repairedChanges.filter(Boolean) as TrackedChange[];
-  }
-  
-  /**
-   * Repairs a MODIFY change by attempting to apply its changes to the current content.
-   * Returns the repaired change or null if repair was not possible.
-   */
-  private repairModifyChange(change: ModifyChange, currentContent: string | undefined): ModifyChange | null {
-    if (currentContent === undefined) {
-      // Can't modify what doesn't exist
-      return null;
-    }
-    
-    if (change.before === currentContent) {
-      // Perfect match, no repair needed
-      return change;
-    }
-    
-    // Mismatch - try to patch
-    const patchResult = this.applyPatch(change.before, change.after, currentContent);
-    if (patchResult.success) {
-      // Create a new modified change with corrected before value
-      return {
-        ...change,
-        before: currentContent,
-        after: patchResult.result
-      };
-    }
-    
-    // Patch failed
-    return null;
-  }
-  
-  /**
-   * Attempts to apply the changes between 'before' and 'after' onto 'current'
-   * using the diff-match-patch algorithm.
-   */
-  private applyPatch(before: string, after: string, current: string): { success: boolean; result?: string } {
-    // If the current content already matches the before state, just return the after state
-    if (before === current) {
-      return { success: true, result: after };
-    }
-    
-    try {
-      // Create a diff-match-patch instance
-      const dmp = new diff_match_patch();
-      
-      // Create a patch from before to after
-      const patches = dmp.patch_make(before, after);
-      
-      // Apply the patch to the current content
-      const [patchedText, results] = dmp.patch_apply(patches, current);
-      
-      // Check if all patches were applied successfully
-      const allSuccessful = results.every(Boolean);
-      
-      if (allSuccessful && patchedText !== current) {
-        return { success: true, result: patchedText };
-      }
-      
-      return { success: false };
-    } catch (error) {
-      // If any error occurs during patching, consider it a failure
-      return { success: false };
     }
   }
 
@@ -227,148 +85,340 @@ export class ChangeAccumulator {
     return composite;
   }
 
+  // Rule lookup table for composite change transformations
+  private ruleMap: Record<string, (composite: CompositeChange, change: TrackedChange) => CompositeChange | null> = {
+    // CREATE -> X rules
+    [this.getRuleKey(ChangeKind.CREATE, ChangeKind.DELETE)]: this.applyRule_CreateDelete.bind(this),
+    [this.getRuleKey(ChangeKind.CREATE, ChangeKind.MODIFY)]: this.applyRule_CreateModify.bind(this),
+    [this.getRuleKey(ChangeKind.CREATE, ChangeKind.CREATE)]: this.applyRule_CreateCreate.bind(this),
+    
+    // MODIFY -> X rules
+    [this.getRuleKey(ChangeKind.MODIFY, ChangeKind.DELETE)]: this.applyRule_ModifyDelete.bind(this),
+    [this.getRuleKey(ChangeKind.MODIFY, ChangeKind.MODIFY)]: this.applyRule_ModifyModify.bind(this),
+    [this.getRuleKey(ChangeKind.MODIFY, ChangeKind.CREATE)]: this.applyRule_ModifyCreate.bind(this),
+    
+    // DELETE -> X rules
+    [this.getRuleKey(ChangeKind.DELETE, ChangeKind.CREATE)]: this.applyRule_DeleteCreate.bind(this),
+    [this.getRuleKey(ChangeKind.DELETE, ChangeKind.MODIFY)]: this.applyRule_DeleteModify.bind(this),
+    [this.getRuleKey(ChangeKind.DELETE, ChangeKind.DELETE)]: this.applyRule_DeleteDelete.bind(this),
+  };
+
+  // Generate a unique key for rule lookup
+  private getRuleKey(fromKind: ChangeKind, toKind: ChangeKind): string {
+    return `${fromKind}->${toKind}`;
+  }
+
   private applyNextIndividualChange(
     currentComposite: CompositeChange | null,
     nextChange: TrackedChange,
   ): CompositeChange | null {
-    const { id, timestamp, description } = nextChange;
-
+    // Handle first change in a sequence
     if (!currentComposite) {
-      // This is the first change in the sequence for this path
-      if (nextChange.kind === ChangeKind.CREATE) {
-        return {
-          id,
-          timestamp,
-          description,
-          kind: ChangeKind.CREATE,
-          path: nextChange.path,
-          after: nextChange.after,
-          before: undefined,
-        };
-      }
-      if (nextChange.kind === ChangeKind.MODIFY) {
-        return {
-          id,
-          timestamp,
-          description,
-          kind: ChangeKind.MODIFY,
-          path: nextChange.path,
-          before: nextChange.before,
-          after: nextChange.after,
-        };
-      }
-      if (nextChange.kind === ChangeKind.DELETE) {
-        return {
-          id,
-          timestamp,
-          description,
-          kind: ChangeKind.DELETE,
-          path: nextChange.path,
-          before: nextChange.before,
-          after: undefined,
-        };
-      }
-      // A RENAME as the very first operation is unusual for content.
-      // It implies renaming a file not yet in the accumulator's content tracking.
-      // The `add` logic handles path keying. For composite calculation,
-      // a lone RENAME doesn't produce a C/M/D composite.
-      return null;
+      return this.applyFirstChange(nextChange);
     }
-
-    // --- Apply nextChange to currentComposite ---
-
+  
+    // Handle RENAME operations specially
     if (nextChange.kind === ChangeKind.RENAME) {
+      return this.applyRenameToComposite(currentComposite, nextChange as RenameChange);
+    }
+  
+    // Look up the appropriate rule based on current kind and next kind
+    const ruleKey = this.getRuleKey(currentComposite.kind, nextChange.kind);
+    const ruleHandler = this.ruleMap[ruleKey];
+    
+    if (ruleHandler) {
+      return ruleHandler(currentComposite, nextChange);
+    }
+    
+    // Fallback for unhandled cases
+    return this.applyFallbackRule(currentComposite, nextChange);
+  }
+  
+  // Handle first change in a sequence
+  private applyFirstChange(change: TrackedChange): CompositeChange | null {
+    const { id, timestamp, description } = change;
+  
+    if (change.kind === ChangeKind.CREATE) {
       return {
-        ...currentComposite, // Preserve kind, before, after from content state
-        id,
-        timestamp,
-        description,
-        path: nextChange.path, // New path
-        renamedFrom: nextChange.oldPath, // Mark where it was renamed from
+        id, timestamp, description,
+        kind: ChangeKind.CREATE,
+        path: change.path,
+        after: (change as CreateChange).after,
+        before: undefined,
       };
     }
-
-    // If paths don't match and it's not a rename, something is inconsistent.
-    // For simplicity, we assume `nextChange.path` is the relevant one if it's a content op.
-    // This can happen if a RENAME was discarded, and a subsequent MODIFY op still has the old (renamed) path.
-    const effectivePath = nextChange.path;
-
-    if (currentComposite.kind === ChangeKind.CREATE) {
-      if (nextChange.kind === ChangeKind.DELETE) return null; // Create -> Delete
-      if (nextChange.kind === ChangeKind.MODIFY) {
-        // Create -> Modify
-        return {
-          ...currentComposite,
-          id,
-          timestamp,
-          description,
-          path: effectivePath,
-          after: (nextChange as ModifyChange).after,
-        };
-      }
-    }
-
-    if (currentComposite.kind === ChangeKind.MODIFY) {
-      if (nextChange.kind === ChangeKind.DELETE) {
-        // Modify -> Delete
-        return {
-          ...currentComposite,
-          id,
-          timestamp,
-          description,
-          path: effectivePath,
-          kind: ChangeKind.DELETE,
-          after: undefined,
-        };
-      }
-      if (nextChange.kind === ChangeKind.MODIFY) {
-        // Modify -> Modify
-        return {
-          ...currentComposite,
-          id,
-          timestamp,
-          description,
-          path: effectivePath,
-          after: (nextChange as ModifyChange).after,
-        };
-      }
-    }
-
-    if (currentComposite.kind === ChangeKind.DELETE) {
-      if (nextChange.kind === ChangeKind.CREATE) {
-        // Delete -> Create
-        return {
-          ...currentComposite, // Keeps original 'before'
-          id,
-          timestamp,
-          description,
-          path: effectivePath,
-          kind: ChangeKind.MODIFY,
-          after: (nextChange as CreateChange).after,
-        };
-      }
-      // Delete -> Modify or Delete -> Delete are less logical but keep it deleted.
+    
+    if (change.kind === ChangeKind.MODIFY) {
       return {
-        ...currentComposite,
-        id,
-        timestamp,
-        description,
-        path: effectivePath,
+        id, timestamp, description,
+        kind: ChangeKind.MODIFY,
+        path: change.path,
+        before: (change as ModifyChange).before,
+        after: (change as ModifyChange).after,
       };
     }
-
-    // Fallback or unhandled sequence (should ideally not be reached with valid ops)
-    // If currentComposite exists, and nextChange is CREATE/MODIFY/DELETE,
-    // it should have been handled by the specific cases above.
-    // This might indicate an unexpected sequence, e.g. CREATE following CREATE.
-    // For robustness, we can try to apply metadata and after state.
+    
+    if (change.kind === ChangeKind.DELETE) {
+      return {
+        id, timestamp, description,
+        kind: ChangeKind.DELETE,
+        path: change.path,
+        before: (change as DeleteChange).before,
+        after: undefined,
+      };
+    }
+    
+    // A RENAME as the first operation doesn't produce a content composite
+    return null;
+  }
+  
+  // Apply RENAME to any composite
+  private applyRenameToComposite(
+    composite: CompositeChange, 
+    rename: RenameChange
+  ): CompositeChange {
     return {
-      ...currentComposite,
-      id,
-      timestamp,
-      description,
-      path: effectivePath,
-      after: (nextChange as ModifyChange | CreateChange).after, // if applicable
+      ...composite,
+      id: rename.id,
+      timestamp: rename.timestamp,
+      description: rename.description,
+      path: rename.path,
+      renamedFrom: rename.oldPath,
     };
+  }
+  
+  // CREATE -> DELETE = null (cancellation)
+  private applyRule_CreateDelete(
+    composite: CompositeChange, 
+    deleteChange: DeleteChange
+  ): CompositeChange | null {
+    return null; // Create followed by Delete cancels out
+  }
+  
+  // CREATE -> MODIFY = CREATE with updated after
+  private applyRule_CreateModify(
+    composite: CompositeChange, 
+    modifyChange: ModifyChange
+  ): CompositeChange {
+    // Check if before content matches
+    if (modifyChange.before !== composite.after) {
+      // Try to patch
+      const patchResult = this.applyPatch(modifyChange.before, modifyChange.after, composite.after as string);
+      if (patchResult.success) {
+        return {
+          ...composite,
+          id: modifyChange.id,
+          timestamp: modifyChange.timestamp,
+          description: modifyChange.description,
+          path: modifyChange.path,
+          after: patchResult.result,
+        };
+      } else {
+        // Fallback if patching fails - force apply the after state
+        return {
+          ...composite,
+          id: modifyChange.id,
+          timestamp: modifyChange.timestamp,
+          description: modifyChange.description,
+          path: modifyChange.path,
+          after: modifyChange.after,
+        };
+      }
+    }
+    
+    // Normal case - before matches
+    return {
+      ...composite,
+      id: modifyChange.id,
+      timestamp: modifyChange.timestamp,
+      description: modifyChange.description,
+      path: modifyChange.path,
+      after: modifyChange.after,
+    };
+  }
+  
+  // CREATE -> CREATE = CREATE with second content (unusual case)
+  private applyRule_CreateCreate(
+    composite: CompositeChange, 
+    createChange: CreateChange
+  ): CompositeChange {
+    return {
+      ...composite,
+      id: createChange.id,
+      timestamp: createChange.timestamp,
+      description: createChange.description,
+      path: createChange.path,
+      after: createChange.after,
+    };
+  }
+  
+  // MODIFY -> DELETE = DELETE
+  private applyRule_ModifyDelete(
+    composite: CompositeChange, 
+    deleteChange: DeleteChange
+  ): CompositeChange {
+    return {
+      ...composite,
+      id: deleteChange.id,
+      timestamp: deleteChange.timestamp,
+      description: deleteChange.description,
+      path: deleteChange.path,
+      kind: ChangeKind.DELETE,
+      after: undefined,
+    };
+  }
+  
+  // MODIFY -> MODIFY = MODIFY with updated after
+  private applyRule_ModifyModify(
+    composite: CompositeChange, 
+    modifyChange: ModifyChange
+  ): CompositeChange {
+    // Check if before content matches
+    if (modifyChange.before !== composite.after) {
+      // Try to patch
+      const patchResult = this.applyPatch(modifyChange.before, modifyChange.after, composite.after as string);
+      if (patchResult.success) {
+        return {
+          ...composite,
+          id: modifyChange.id,
+          timestamp: modifyChange.timestamp,
+          description: modifyChange.description,
+          path: modifyChange.path,
+          after: patchResult.result,
+        };
+      } else {
+        // Fallback if patching fails - force apply the after state
+        return {
+          ...composite,
+          id: modifyChange.id,
+          timestamp: modifyChange.timestamp,
+          description: modifyChange.description,
+          path: modifyChange.path,
+          after: modifyChange.after,
+        };
+      }
+    }
+    
+    // Normal case - before matches
+    return {
+      ...composite,
+      id: modifyChange.id,
+      timestamp: modifyChange.timestamp,
+      description: modifyChange.description,
+      path: modifyChange.path,
+      after: modifyChange.after,
+    };
+  }
+  
+  // MODIFY -> CREATE = MODIFY with create's content (unusual case)
+  private applyRule_ModifyCreate(
+    composite: CompositeChange, 
+    createChange: CreateChange
+  ): CompositeChange {
+    return {
+      ...composite,
+      id: createChange.id,
+      timestamp: createChange.timestamp,
+      description: createChange.description,
+      path: createChange.path,
+      after: createChange.after,
+    };
+  }
+  
+  // DELETE -> CREATE = MODIFY
+  private applyRule_DeleteCreate(
+    composite: CompositeChange, 
+    createChange: CreateChange
+  ): CompositeChange {
+    return {
+      ...composite,
+      id: createChange.id,
+      timestamp: createChange.timestamp,
+      description: createChange.description,
+      path: createChange.path,
+      kind: ChangeKind.MODIFY,
+      after: createChange.after,
+    };
+  }
+  
+  // DELETE -> MODIFY = DELETE (unusual case, keep deleted)
+  private applyRule_DeleteModify(
+    composite: CompositeChange, 
+    modifyChange: ModifyChange
+  ): CompositeChange {
+    return {
+      ...composite,
+      id: modifyChange.id,
+      timestamp: modifyChange.timestamp,
+      description: modifyChange.description,
+      path: modifyChange.path,
+    };
+  }
+  
+  // DELETE -> DELETE = DELETE (unusual case, keep deleted)
+  private applyRule_DeleteDelete(
+    composite: CompositeChange, 
+    deleteChange: DeleteChange
+  ): CompositeChange {
+    return {
+      ...composite,
+      id: deleteChange.id,
+      timestamp: deleteChange.timestamp,
+      description: deleteChange.description,
+      path: deleteChange.path,
+    };
+  }
+  
+  // Fallback for unhandled cases
+  private applyFallbackRule(
+    composite: CompositeChange, 
+    change: TrackedChange
+  ): CompositeChange {
+    return {
+      ...composite,
+      id: change.id,
+      timestamp: change.timestamp,
+      description: change.description,
+      path: change.path,
+      after: 'after' in change ? change.after : composite.after,
+    };
+  }
+
+  /**
+   * Attempts to apply the changes between 'before' and 'after' onto 'current'
+   * using the diff-match-patch algorithm.
+   */
+  private applyPatch(
+    before: string,
+    after: string,
+    current: string,
+  ): { success: boolean; result?: string } {
+    // If the current content already matches the before state, just return the after state
+    if (before === current) {
+      return { success: true, result: after };
+    }
+
+    try {
+      // Create a diff-match-patch instance
+      const dmp = new diff_match_patch();
+
+      // Create a patch from before to after
+      const patches = dmp.patch_make(before, after);
+
+      // Apply the patch to the current content
+      const [patchedText, results] = dmp.patch_apply(patches, current);
+
+      // Check if all patches were applied successfully
+      const allSuccessful = results.every(Boolean);
+
+      if (allSuccessful && patchedText !== current) {
+        return { success: true, result: patchedText };
+      }
+
+      return { success: false };
+    } catch (error) {
+      // If any error occurs during patching, consider it a failure
+      return { success: false };
+    }
   }
 }

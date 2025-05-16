@@ -78,7 +78,9 @@
     "emittery": "^1.1.0",
     "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
+    "isomorphic-git": "^1.30.1",
     "lodash": "^4.17.21",
+    "memfs": "^4.17.2",
     "nanoid": "^3",
     "nunjucks": "^3.2.4",
     "ollama-ai-provider": "^1.2.0",
@@ -90,6 +92,7 @@
     "svelte-exmarkdown": "^4.0.3",
     "svelte-portal": "^2.2.1",
     "tiktoken": "^1.0.21",
+    "unionfs": "^4.5.4",
     "zod": "^3.24.1"
   },
   "packageManager": "pnpm@9.14.2+sha512.6e2baf77d06b9362294152c851c4f278ede37ab1eba3a55fda317a4a17b209f4dbb973fb250a77abc463a341fcb1f17f17cfa24091c4eb319cda0d9b84278387"

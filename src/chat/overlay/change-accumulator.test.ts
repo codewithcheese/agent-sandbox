@@ -467,11 +467,11 @@ describe("ChangeAccumulator", () => {
       // Discard the middle change - patching should fail due to incompatible content
       acc.discard("m2");
 
-      // The composite should only include the first change since patching failed
+      // The composite force applies the after state
       const composite = acc.get(BASE_FILE);
       expect(composite).not.toBeNull();
       expect(composite?.kind).toBe(ChangeKind.CREATE);
-      expect(composite?.after).toBe("Completely different content");
+      expect(composite?.after).toBe("Final content");
     });
 
     it("handles discarding a non-existent messageId gracefully", () => {
