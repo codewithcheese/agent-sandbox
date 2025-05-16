@@ -500,4 +500,118 @@ describe("ChangeAccumulator", () => {
       expect(acc.paths().length).toBe(0);
     });
   });
+
+  it("handles CREATE followed by CREATE as CREATE with latest content", () => {
+    acc.add(
+      makeChange({
+        kind: ChangeKind.CREATE,
+        after: "Content A",
+        messageId: "m1",
+      }),
+    );
+    const c2 = makeChange({
+      kind: ChangeKind.CREATE,
+      after: "Content B",
+      messageId: "m2",
+    });
+    acc.add(c2);
+    const composite = acc.get(BASE_FILE)!;
+    expect(composite.kind).toBe(ChangeKind.CREATE);
+    expect(composite.after).toBe("Content B");
+    expect(composite.id).toBe(c2.id);
+  });
+
+  it("handles MODIFY followed by CREATE as MODIFY with latest content", () => {
+    acc.add(
+      makeChange({
+        kind: ChangeKind.MODIFY,
+        before: "Initial",
+        after: "Modified A",
+        messageId: "m1",
+      }),
+    );
+    const c2 = makeChange({
+      kind: ChangeKind.CREATE,
+      after: "Created B",
+      messageId: "m2",
+    });
+    acc.add(c2);
+    const composite = acc.get(BASE_FILE)!;
+    expect(composite.kind).toBe(ChangeKind.MODIFY); // Stays MODIFY
+    expect(composite.before).toBe("Initial"); // Original before
+    expect(composite.after).toBe("Created B"); // New after
+    expect(composite.id).toBe(c2.id);
+  });
+
+  it("handles DELETE followed by MODIFY as still DELETE", () => {
+    acc.add(
+      makeChange({
+        kind: ChangeKind.DELETE,
+        before: "Content A",
+        messageId: "m1",
+      }),
+    );
+    const c2 = makeChange({
+      kind: ChangeKind.MODIFY,
+      before: "Content A",
+      after: "Content B",
+      messageId: "m2",
+    });
+    acc.add(c2);
+    const composite = acc.get(BASE_FILE)!;
+    expect(composite.kind).toBe(ChangeKind.DELETE);
+    expect(composite.after).toBeUndefined();
+    expect(composite.id).toBe(c2.id); // Metadata updates
+  });
+
+  it("patching applies changes even if 'before' is quite different but patchable", () => {
+    acc.add(
+      makeChange({
+        kind: ChangeKind.CREATE,
+        after: "Line one\nLine two\nLine three",
+        messageId: "m1",
+      }),
+    );
+    // Modify change whose 'before' is only partially similar to the 'after' of the create
+    const c2 = makeChange({
+      kind: ChangeKind.MODIFY,
+      before: "Line one\nDIFFERENT\nLine three", // Original 'before' of this op
+      after: "Line one\nPatched Middle\nLine three", // Original 'after' of this op
+      messageId: "m2",
+    });
+    acc.add(c2);
+
+    const composite = acc.get(BASE_FILE)!;
+    expect(composite.after).toBe("Line one\nPatched Middle\nLine three");
+  });
+
+  it("handles operations with empty strings correctly", () => {
+    acc.add(
+      makeChange({ kind: ChangeKind.CREATE, after: "", messageId: "m1" }),
+    );
+    let composite = acc.get(BASE_FILE)!;
+    expect(composite.after).toBe("");
+
+    const c2 = makeChange({
+      kind: ChangeKind.MODIFY,
+      before: "",
+      after: "New Content",
+      messageId: "m2",
+    });
+    acc.add(c2);
+    composite = acc.get(BASE_FILE)!;
+    expect(composite.after).toBe("New Content");
+    expect(composite.id).toBe(c2.id);
+
+    const c3 = makeChange({
+      kind: ChangeKind.MODIFY,
+      before: "New Content",
+      after: "",
+      messageId: "m3",
+    });
+    acc.add(c3);
+    composite = acc.get(BASE_FILE)!;
+    expect(composite.after).toBe("");
+    expect(composite.id).toBe(c3.id);
+  });
 });
