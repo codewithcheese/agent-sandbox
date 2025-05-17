@@ -1,6 +1,10 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { GitManager } from "./git";
+import debug from "debug";
+
+debug.enable("*");
+debug.log = console.log.bind(console);
 
 describe("git", () => {
   beforeEach(() => {
@@ -13,10 +17,14 @@ describe("git", () => {
 
   describe("initializeRepo", () => {
     it("should initialize a repository and return true", async () => {
+      debug("Hello world");
       const gitManager = new GitManager();
-      const result = await gitManager.init();
-      expect(result).toBe(true);
-      gitManager.dispose();
+      try {
+        const result = await gitManager.init();
+        expect(result).toBe(true);
+      } finally {
+        await gitManager.dispose();
+      }
     });
   });
 
@@ -27,17 +35,19 @@ describe("git", () => {
 
       // Create a test file
       const messageId = "test-message-id";
-      await gitManager.writeFile("test-file.txt", "Test content");
+      console.log("Writing test file...");
+      await gitManager.writeFile("/test-file.txt", "Test content");
 
       // Stage the change
       const sha = await gitManager.commitTurn(messageId);
+      console.log("Commit SHA:", sha);
 
       // Verify the SHA is returned
       expect(sha).toBeTruthy();
       expect(typeof sha).toBe("string");
 
       // Verify the file was created
-      const contents = await gitManager.readFile("test-file.txt");
+      const contents = await gitManager.readFile("/test-file.txt");
       expect(contents).toEqual("Test content");
     });
 
@@ -47,8 +57,8 @@ describe("git", () => {
 
       // Create test files
       const messageId = "test-message-id-2";
-      await gitManager.writeFile("test-file1.txt", "Content for file 1");
-      await gitManager.writeFile("test-file2.txt", "Content for file 2");
+      await gitManager.writeFile("/test-file1.txt", "Content for file 1");
+      await gitManager.writeFile("/test-file2.txt", "Content for file 2");
 
       // Stage the changes
       const sha = await gitManager.commitTurn(messageId);
@@ -58,10 +68,10 @@ describe("git", () => {
       expect(typeof sha).toBe("string");
 
       // Verify the files were created
-      const contents1 = await gitManager.readFile("test-file1.txt");
+      const contents1 = await gitManager.readFile("/test-file1.txt");
       expect(contents1).toEqual("Content for file 1");
 
-      const contents2 = await gitManager.readFile("test-file2.txt");
+      const contents2 = await gitManager.readFile("/test-file2.txt");
       expect(contents2).toEqual("Content for file 2");
     });
   });
@@ -73,12 +83,12 @@ describe("git", () => {
 
       // First, stage some changes
       const messageId = "message-to-drop";
-      await gitManager.writeFile("file-to-drop.txt", "Content to drop");
+      await gitManager.writeFile("/file-to-drop.txt", "Content to drop");
 
       await gitManager.commitTurn(messageId);
 
       // Verify the file exists before dropping
-      const contentBefore = await gitManager.readFile("file-to-drop.txt");
+      const contentBefore = await gitManager.readFile("/file-to-drop.txt");
       expect(contentBefore).toEqual("Content to drop");
 
       // Now drop the turn
@@ -96,7 +106,7 @@ describe("git", () => {
 
       // First, stage some changes
       const messageId = "message-to-approve";
-      await gitManager.writeFile("file-to-approve.txt", "Content to approve");
+      await gitManager.writeFile("/file-to-approve.txt", "Content to approve");
 
       await gitManager.commitTurn(messageId);
 
@@ -105,28 +115,6 @@ describe("git", () => {
 
       // Should return true on successful merge
       expect(result).toBe(true);
-    });
-  });
-
-  describe("getFileDiff", () => {
-    it("should return a file diff", async () => {
-      const gitManager = new GitManager();
-      await gitManager.init();
-
-      // Create a test file and stage it
-      await gitManager.writeFile("test-file.txt", "Test content");
-      await gitManager.commitTurn("test-diff-message");
-
-      // Approve changes to move to master branch
-      await gitManager.approveChanges();
-
-      // Now the file should exist in both branches with the same content
-      const diff = await gitManager.getFileDiff("test-file.txt");
-
-      expect(diff).toEqual({
-        filepath: "test-file.txt",
-        diff: "No changes detected",
-      });
     });
   });
 });

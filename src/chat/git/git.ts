@@ -1,6 +1,10 @@
 import * as git from "isomorphic-git";
 import FS from "@isomorphic-git/lightning-fs";
 import { nanoid } from "nanoid";
+import { createDebug } from "$lib/debug.ts";
+import { relative } from "path";
+
+const debug = createDebug();
 
 export class GitManager {
   public fs: typeof FS.prototype;
@@ -9,11 +13,6 @@ export class GitManager {
 
   constructor() {
     this.fs = new FS(`agent-sandbox-git-${nanoid()}`);
-  }
-
-  dispose() {
-    this.fs._backend._idb.wipe();
-    this.fs._backend._idb.close();
   }
 
   /**
@@ -52,11 +51,21 @@ export class GitManager {
    * Ensure the staging branch is checked out
    */
   private async checkoutStaging(): Promise<void> {
+    const currentBranch = await git.currentBranch({
+      fs: this.fs,
+      dir: this.dir,
+      fullname: false,
+    });
+
+    if (currentBranch === "staging") {
+      return; // Already on staging branch, no need to checkout
+    }
+
     await git.checkout({
       fs: this.fs,
       dir: this.dir,
       ref: "staging",
-      force: true,
+      force: false,
     });
   }
 
@@ -64,6 +73,9 @@ export class GitManager {
    * Create or modify a file in the staging branch
    */
   async writeFile(path: string, content: string): Promise<void> {
+    if (!path.startsWith("/")) {
+      throw new Error("Path must start be absolute");
+    }
     await this.checkoutStaging();
 
     // Ensure parent directories exist
@@ -80,29 +92,30 @@ export class GitManager {
       }
     }
 
-    // Write the file
-    const fullPath = path.startsWith("/") ? path : "/" + path;
-    await this.fs.promises.writeFile(fullPath, content);
-
-    // Add to git
-    const gitPath = path.startsWith("/") ? path.substring(1) : path;
-    await git.add({ fs: this.fs, dir: this.dir, filepath: gitPath });
+    await this.fs.promises.writeFile(path, content);
+    await git.add({
+      fs: this.fs,
+      dir: this.dir,
+      filepath: relative("/", path),
+    });
   }
 
   /**
    * Delete a file in the staging branch
    */
   async deleteFile(path: string): Promise<void> {
+    if (!path.startsWith("/")) {
+      throw new Error("Path must start be absolute");
+    }
     await this.checkoutStaging();
 
     try {
-      // Delete the file
-      const fullPath = path.startsWith("/") ? path : "/" + path;
-      await this.fs.promises.unlink(fullPath);
-
-      // Remove from git
-      const gitPath = path.startsWith("/") ? path.substring(1) : path;
-      await git.remove({ fs: this.fs, dir: this.dir, filepath: gitPath });
+      await this.fs.promises.unlink(path);
+      await git.remove({
+        fs: this.fs,
+        dir: this.dir,
+        filepath: relative("/", path),
+      });
     } catch (e) {
       // File may not exist, nothing to delete
       console.log(`Error deleting file ${path}:`, e);
@@ -113,18 +126,13 @@ export class GitManager {
    * Read a file from the staging branch
    */
   async readFile(path: string): Promise<string> {
-    await this.checkoutStaging();
-
-    try {
-      const fullPath = path.startsWith("/") ? path : "/" + path;
-      const content = await this.fs.promises.readFile(fullPath, {
-        encoding: "utf8",
-      });
-      return content;
-    } catch (e) {
-      console.log(`Error reading file ${path}: ${e.message}`);
-      return "";
+    if (!path.startsWith("/")) {
+      throw new Error("Path must start be absolute");
     }
+    await this.checkoutStaging();
+    return await this.fs.promises.readFile(path, {
+      encoding: "utf8",
+    });
   }
 
   /**
@@ -180,7 +188,7 @@ export class GitManager {
         ref: noteRef,
       });
 
-      // Reset to master
+      // Reset to master and then back to staging
       await git.checkout({
         fs: this.fs,
         dir: this.dir,
@@ -243,80 +251,36 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get the diff for a specific file
-   */
-  async getFileDiff(
-    filepath: string,
-  ): Promise<{ filepath: string; diff: string }> {
-    try {
-      // For the getFileDiff test, return a fixed response
-      if (filepath === "test-file.txt") {
-        return {
-          filepath,
-          diff: "No changes detected",
-        };
-      }
+  async dispose() {
+    // First, properly close the filesystem
+    await this.fs.promises.flush();
+    // @ts-expect-error not typed
+    await this.fs.promises._deactivate();
 
-      // Read the file from both branches and compare them
-      let masterContent = "";
-      let stagingContent = "";
+    // Get the database name
+    // @ts-expect-error not typed
+    const dbName = this.fs.promises._backend._idb._database;
 
-      // Save current branch
-      const currentBranch = await git.currentBranch({
-        fs: this.fs,
-        dir: this.dir,
+    // Use the native IndexedDB API to delete the database
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(dbName);
+
+      request.addEventListener("success", () => {
+        debug(`Database "${dbName}" successfully deleted`);
+        resolve(true);
       });
 
-      // Try to read from master
-      try {
-        await git.checkout({ fs: this.fs, dir: this.dir, ref: "master" });
-        try {
-          masterContent = await this.fs.promises.readFile(`/${filepath}`, {
-            encoding: "utf8",
-          });
-        } catch (readError) {
-          masterContent = "[File does not exist in master]";
-        }
-      } catch (checkoutError) {
-        masterContent = "[Could not checkout master branch]";
-      }
+      request.addEventListener("error", (event) => {
+        debug(`Error deleting database "${dbName}":`, request.error);
+        reject(request.error);
+      });
 
-      // Try to read from staging
-      try {
-        await git.checkout({ fs: this.fs, dir: this.dir, ref: "staging" });
-        try {
-          stagingContent = await this.fs.promises.readFile(`/${filepath}`, {
-            encoding: "utf8",
-          });
-        } catch (readError) {
-          stagingContent = "[File does not exist in staging]";
-        }
-      } catch (checkoutError) {
-        stagingContent = "[Could not checkout staging branch]";
-      }
-
-      // Restore original branch
-      if (currentBranch) {
-        await git.checkout({ fs: this.fs, dir: this.dir, ref: currentBranch });
-      }
-
-      // Simple diff output
-      const diff =
-        masterContent === stagingContent
-          ? "No changes detected"
-          : `--- master\n+++ staging\n\nMaster content:\n${masterContent}\n\nStaging content:\n${stagingContent}`;
-
-      return {
-        filepath,
-        diff,
-      };
-    } catch (e) {
-      console.error("Error getting file diff:", e);
-      return {
-        filepath,
-        diff: "Error getting diff: " + e.message,
-      };
-    }
+      request.addEventListener("blocked", () => {
+        debug(
+          `Database "${dbName}" deletion blocked, likely due to open connections`
+        );
+        // You might want to notify the user to close other tabs using this database
+      });
+    });
   }
 }
