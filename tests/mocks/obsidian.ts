@@ -7,6 +7,7 @@ if (typeof window !== "undefined" && typeof window.Buffer === "undefined") {
 }
 
 import matter from "gray-matter";
+import type { TFile, TFolder, TAbstractFile, Vault } from "obsidian";
 
 export const fileSystem = new Map<
   string,
@@ -14,13 +15,14 @@ export const fileSystem = new Map<
 >();
 export const fileCache = new Map<string, any>();
 
-export class MockTFile {
+export class MockTFile implements TFile {
   path: string;
   basename: string;
   extension: string;
+  name: string;
   vault: any;
   parent: any;
-  stat: { mtime: number; ctime: number };
+  stat: { mtime: number; ctime: number; size: number };
 
   constructor(path: string) {
     this.path = path;
@@ -29,22 +31,27 @@ export class MockTFile {
     const filenameParts = filename.split(".");
     this.extension = filenameParts.length > 1 ? filenameParts.pop()! : "";
     this.basename = filenameParts.join(".");
-    this.stat = { mtime: Date.now(), ctime: Date.now() };
+    this.name = filename;
+    this.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
   }
 }
 
-export class MockTFolder {
+export class MockTFolder implements TFolder {
   path: string;
   name: string;
   children: Array<MockTFile | MockTFolder>;
   vault: any;
   parent: any;
+  basename: string;
+  stat: { mtime: number; ctime: number; size: number };
 
   constructor(path: string) {
     this.path = path;
     const parts = path.split("/");
     this.name = parts[parts.length - 1] || "/";
+    this.basename = this.name;
     this.children = [];
+    this.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
   }
 
   isRoot() {

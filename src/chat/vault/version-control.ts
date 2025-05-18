@@ -3,6 +3,7 @@ import FS from "@isomorphic-git/lightning-fs";
 import { nanoid } from "nanoid";
 import { createDebug } from "$lib/debug.ts";
 import { relative } from "path";
+import { TFile, Vault } from "obsidian";
 
 const debug = createDebug();
 
@@ -10,9 +11,11 @@ export class VersionControl {
   public fs: typeof FS.prototype;
   private dir: string = "/";
   private gitdir: string = "/.git";
+  private vault: Vault;
 
-  constructor() {
+  constructor(vault: Vault) {
     this.fs = new FS(`agent-sandbox-git-${nanoid()}`);
+    this.vault = vault;
   }
 
   /**
@@ -83,10 +86,29 @@ export class VersionControl {
     });
   }
 
+  /**
+   * Writes content to a file in the version control system
+   * @param path Absolute path to the file
+   * @param content Content to write to the file
+   */
   async writeFile(path: string, content: string): Promise<void> {
     if (!path.startsWith("/")) {
       throw new Error("Path must be absolute");
     }
+
+    // Check if the file exists in the version control system
+    const exists = await this.fileExists(path);
+
+    // If the file doesn't exist in version control but exists in the vault, import it first
+    if (!exists) {
+      const fileInVault = this.vault.getFileByPath(path);
+      if (fileInVault) {
+        // File exists in vault but not in version control, import it first
+        await this.importFileToMain(path);
+      }
+      // If it doesn't exist in either, we'll create it below
+    }
+
     await this.checkoutStaging();
 
     // Ensure parent directories exist
@@ -144,6 +166,10 @@ export class VersionControl {
     });
   }
 
+  /**
+   * Deletes a file from the version control system
+   * @param path Absolute path to the file
+   */
   async deleteFile(path: string): Promise<void> {
     if (!path.startsWith("/")) {
       throw new Error("Path must be absolute");
@@ -151,21 +177,22 @@ export class VersionControl {
 
     await this.checkoutStaging();
 
-    // Check if the file exists before attempting to delete it
+    // Check if the file exists in version control
     const exists = await this.fileExists(path);
+
+    // If the file doesn't exist in version control but exists in the vault, import it first
     if (!exists) {
-      throw new Error(`File ${path} does not exist.`);
+      const fileInVault = this.vault.getFileByPath(path);
+      if (fileInVault) {
+        // File exists in vault but not in version control, import it first
+        await this.importFileToMain(path);
+      } else {
+        throw new Error(`File ${path} does not exist.`);
+      }
     }
 
     try {
       await this.fs.promises.unlink(path);
-      console.log(
-        await git.status({
-          fs: this.fs,
-          dir: this.dir,
-          filepath: relative("/", path),
-        }),
-      );
       await git.remove({
         fs: this.fs,
         dir: this.dir,
@@ -180,12 +207,20 @@ export class VersionControl {
    * Imports a file from the vault into the main branch of the Git repository.
    * This ensures the file exists in Git before operations are performed on it.
    * @param path Absolute path to the file
-   * @param content Content of the file to import
    */
-  async importFileToMain(path: string, content: string): Promise<void> {
+  async importFileToMain(path: string): Promise<void> {
     if (!path.startsWith("/")) {
       throw new Error("Path must be absolute");
     }
+
+    // Try to get the file from the vault
+    const file = this.vault.getFileByPath(path);
+    if (!file) {
+      throw new Error(`File ${path} not found in vault`);
+    }
+
+    // Read the file content from the vault
+    const content = await this.vault.read(file as TFile);
 
     // Save current branch to return to it later
     const currentBranch = await this.getCurrentBranch();
@@ -269,6 +304,10 @@ export class VersionControl {
     if (!path.startsWith("/")) {
       throw new Error("New path must be absolute");
     }
+    if (await this.fileExists(path)) {
+      throw new Error("Destination file already exists!");
+    }
+
     await this.checkoutStaging();
     await this.fs.promises.rename(oldPath, path);
     await git.add({

@@ -1,6 +1,8 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { VersionControl } from "./version-control.ts";
+import { vault, helpers } from "../../../tests/mocks/obsidian";
+import { Vault } from "obsidian";
 import debug from "debug";
 
 debug.enable("*");
@@ -9,6 +11,8 @@ debug.log = console.log.bind(console);
 describe("Version Control", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the mock vault state before each test
+    helpers.reset();
   });
 
   afterEach(() => {
@@ -18,7 +22,7 @@ describe("Version Control", () => {
   describe("initializeRepo", () => {
     it("should initialize a repository and return true", async () => {
       debug("Hello world");
-      const versionControl = new VersionControl();
+      const versionControl = new VersionControl(vault as unknown as Vault);
       try {
         const result = await versionControl.init();
         expect(result).toBe(true);
@@ -28,9 +32,53 @@ describe("Version Control", () => {
     });
   });
 
+  describe("fileExists", () => {
+    it("should correctly check if a file exists in version control", async () => {
+      // Initialize version control
+      const versionControl = new VersionControl(vault as unknown as Vault);
+      await versionControl.init();
+      
+      // Create a test file in version control
+      const testFilePath = "/file-exists-test.txt";
+      await versionControl.writeFile(testFilePath, "File exists test content");
+      
+      // Check if the file exists
+      const exists = await versionControl.fileExists(testFilePath);
+      expect(exists).toBe(true);
+      
+      // Check if a non-existent file exists
+      const nonExistentPath = "/non-existent-file.txt";
+      const nonExistentExists = await versionControl.fileExists(nonExistentPath);
+      expect(nonExistentExists).toBe(false);
+    });
+  });
+
+  describe("importFileToMain", () => {
+    it("should import a file from the vault to version control", async () => {
+      // Add a file to the mock vault
+      const testFilePath = "/import-test-file.txt";
+      const testContent = "Import test content";
+      helpers.addFile(testFilePath, testContent);
+      
+      // Initialize version control
+      const versionControl = new VersionControl(vault as unknown as Vault);
+      await versionControl.init();
+      
+      // Import the file from vault to version control
+      await versionControl.importFileToMain(testFilePath);
+      
+      // Verify the file was imported correctly
+      const contents = await versionControl.readFile(testFilePath);
+      expect(contents).toEqual(testContent);
+    });
+  });
+
   describe("stageTurn", () => {
     it("should stage changes for a conversation turn and return a commit SHA", async () => {
-      const versionControl = new VersionControl();
+      // Add a file to the mock vault
+      helpers.addFile("/test-file.txt", "Test content in vault");
+      
+      const versionControl = new VersionControl(vault as unknown as Vault);
       await versionControl.init();
 
       // Create a test file
@@ -52,7 +100,11 @@ describe("Version Control", () => {
     });
 
     it("should handle multiple changes in a single turn", async () => {
-      const versionControl = new VersionControl();
+      // Add files to the mock vault
+      helpers.addFile("/test-file-1.txt", "Test content 1 in vault");
+      helpers.addFile("/test-file-2.txt", "Test content 2 in vault");
+      
+      const versionControl = new VersionControl(vault as unknown as Vault);
       await versionControl.init();
 
       // Create test files

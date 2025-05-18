@@ -120,23 +120,8 @@ export class VaultOverlay implements Vault {
     if (folder && !force) {
       throw new Error("Folder is not empty");
     }
-
-    // Check if the file exists in version control using the fileExists method
-    const fileExistsInVC = await this.versionControl.fileExists(file.path);
-
-    // If the file exists in version control, delete it directly
-    if (fileExistsInVC) {
-      await this.versionControl.deleteFile(file.path);
-      return;
-    }
-
-    // fixme: support non-TFile
-    const content = await this.vault.read(file as TFile);
-
-    // Import the file to main first
-    await this.versionControl.importFileToMain(file.path, content);
-
-    // Now delete it
+    
+    // Delete the file - VersionControl will handle importing if needed
     await this.versionControl.deleteFile(file.path);
   }
 
@@ -160,6 +145,23 @@ export class VaultOverlay implements Vault {
       throw new Error("File already exists.");
     }
 
+    // Check if the file exists in version control
+    const exists = await this.versionControl.fileExists(file.path);
+    
+    // If the file doesn't exist in version control but exists in the vault, import it first
+    if (!exists) {
+      const fileInVault = this.vault.getFileByPath(file.path);
+      if (fileInVault) {
+        // File exists in vault but not in version control, import it first
+        await this.versionControl.importFileToMain(file.path);
+      } else {
+        throw new Error(`File ${file.path} does not exist.`);
+      }
+    }
+    
+    // Rename the file in version control
+    await this.versionControl.rename(file.path, newPath);
+    
     // todo: use `app.fileManager.renameFile` if you want Obsidian to update
   }
 
