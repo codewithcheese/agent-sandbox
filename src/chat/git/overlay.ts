@@ -53,11 +53,7 @@ export class VaultOverlay {
     data: string,
     options?: DataWriteOptions,
   ): Promise<TFile> {
-    // todo: use git manager to add file to staging
-    // return synthetic tfile
-    await this.stageFileChange(path, data, "create");
-
-    return file;
+    const existingFile = this.vault.getAbstractFileByPath(path);
   }
 
   /**
