@@ -10,6 +10,10 @@ interface PGliteResult {
 }
 
 describe("PGlite CDN Tests", () => {
+  beforeAll(() => {
+    (window as any).PGLITE_URL = `${location.origin}/node_modules/@electric-sql/pglite/dist/index.js`;
+    (window as any).PGLITE_VECTOR_URL = `${location.origin}/node_modules/@electric-sql/pglite/dist/vector.tar.gz`;
+  });
   let pglite: PGlite;
   let provider: PGliteProvider;
 
