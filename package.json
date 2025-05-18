@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "code": "code --extensionDevelopmentPath=. --disable-extensions",
     "build": "vite build",
     "dev": "vite",

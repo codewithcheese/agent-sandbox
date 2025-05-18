@@ -16,7 +16,17 @@ export class PyodideExecutor {
     return new Promise<void>(async (resolve, reject) => {
       try {
         // Use Vite's worker import syntax which will be properly bundled
-        const blob = new Blob([workerCode], { type: "application/javascript" });
+        let code = "";
+        if (typeof window !== "undefined") {
+          if ((window as any).PYODIDE_BASE_URL) {
+            code += `self.PYODIDE_BASE_URL = "${(window as any).PYODIDE_BASE_URL}";\n`;
+          }
+          if ((window as any).COMLINK_URL) {
+            code += `self.COMLINK_URL = "${(window as any).COMLINK_URL}";\n`;
+          }
+        }
+        code += workerCode;
+        const blob = new Blob([code], { type: "application/javascript" });
         const workerUrl = URL.createObjectURL(blob);
         this.worker = new Worker(workerUrl);
         // this.worker = new PyodideWorker();

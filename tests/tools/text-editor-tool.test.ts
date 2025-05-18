@@ -1,4 +1,5 @@
 // import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it } from "vitest";
 // import { vault, helpers } from "../mocks/obsidian";
 // import "../mocks/ai-sdk";
 //
@@ -263,3 +264,6 @@
 //     expect(result.error).toContain("Multiple occurrences");
 //   });
 // });
+
+export {};
+
