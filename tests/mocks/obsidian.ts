@@ -18,6 +18,9 @@ export class MockTFile {
   path: string;
   basename: string;
   extension: string;
+  vault: any;
+  parent: any;
+  stat: { mtime: number; ctime: number };
 
   constructor(path: string) {
     this.path = path;
@@ -26,10 +29,39 @@ export class MockTFile {
     const filenameParts = filename.split(".");
     this.extension = filenameParts.length > 1 ? filenameParts.pop()! : "";
     this.basename = filenameParts.join(".");
+    this.stat = { mtime: Date.now(), ctime: Date.now() };
   }
 }
 
+export class MockTFolder {
+  path: string;
+  name: string;
+  children: Array<MockTFile | MockTFolder>;
+  vault: any;
+  parent: any;
+
+  constructor(path: string) {
+    this.path = path;
+    const parts = path.split("/");
+    this.name = parts[parts.length - 1] || "/";
+    this.children = [];
+  }
+
+  isRoot() {
+    return this.path === "" || this.path === "/";
+  }
+}
+
+// Keep track of folders separately from files
+export const folderSystem = new Map<string, MockTFolder>();
+
+// Create root folder
+const rootFolder = new MockTFolder("/");
+folderSystem.set("/", rootFolder);
+
 export const vault = {
+  getName: vi.fn(() => "Mock Vault"),
+  configDir: "/mock-config",
   read: vi.fn(async (file: MockTFile) => {
     const fileData = fileSystem.get(file.path);
     if (!fileData) {
@@ -39,31 +71,129 @@ export const vault = {
   }),
   getFileByPath: vi.fn((path: string) => {
     if (fileSystem.has(path)) {
-      return new MockTFile(path);
+      const file = new MockTFile(path);
+      file.vault = vault;
+      return file;
     }
+    return null;
+  }),
+  getFolderByPath: vi.fn((path: string) => {
+    // Normalize path
+    const normalizedPath = path === "" ? "/" : path;
+    
+    // Check if folder exists
+    if (folderSystem.has(normalizedPath)) {
+      return folderSystem.get(normalizedPath);
+    }
+    
+    // Check if it's the root folder
+    if (normalizedPath === "/") {
+      return rootFolder;
+    }
+    
     return null;
   }),
   getAbstractFileByPath: vi.fn((path: string) => {
+    // Check if it's a file
     if (fileSystem.has(path)) {
-      return new MockTFile(path);
+      const file = new MockTFile(path);
+      file.vault = vault;
+      return file;
     }
+    
+    // Check if it's a folder
+    const normalizedPath = path === "" ? "/" : path;
+    if (folderSystem.has(normalizedPath)) {
+      return folderSystem.get(normalizedPath);
+    }
+    
     return null;
+  }),
+  getRoot: vi.fn(() => {
+    return rootFolder;
   }),
   create: vi.fn(async (path: string, content: string) => {
     fileSystem.set(path, { content });
-    return new MockTFile(path);
+    const file = new MockTFile(path);
+    file.vault = vault;
+    
+    // Set parent folder
+    const lastSlash = path.lastIndexOf("/");
+    if (lastSlash > 0) {
+      const parentPath = path.substring(0, lastSlash);
+      file.parent = vault.getFolderByPath(parentPath);
+    } else {
+      file.parent = rootFolder;
+    }
+    
+    return file;
   }),
   createFolder: vi.fn(async (path: string) => {
+    // Create the folder
+    const folder = new MockTFolder(path);
+    folder.vault = vault;
+    folderSystem.set(path, folder);
+    
+    // Set parent folder
+    const lastSlash = path.lastIndexOf("/");
+    if (lastSlash > 0) {
+      const parentPath = path.substring(0, lastSlash);
+      const parentFolder = vault.getFolderByPath(parentPath);
+      if (parentFolder) {
+        folder.parent = parentFolder;
+        parentFolder.children.push(folder);
+      }
+    } else {
+      folder.parent = rootFolder;
+      rootFolder.children.push(folder);
+    }
+    
     // Mark that the directory exists by adding an empty file
     fileSystem.set(path + "/.dir", { content: "" });
-    return true;
+    return folder;
   }),
   modify: vi.fn(async (file: MockTFile, content: string) => {
     fileSystem.set(file.path, { content });
     return file;
   }),
-  delete: vi.fn(async (file: MockTFile) => {
-    fileSystem.delete(file.path);
+  delete: vi.fn(async (file: MockTFile | MockTFolder) => {
+    if (file instanceof MockTFile) {
+      fileSystem.delete(file.path);
+    } else {
+      // Delete folder and all its contents
+      folderSystem.delete(file.path);
+      // Remove any files that start with this path
+      for (const filePath of fileSystem.keys()) {
+        if (filePath.startsWith(file.path + "/")) {
+          fileSystem.delete(filePath);
+        }
+      }
+    }
+  }),
+  rename: vi.fn(async (file: MockTFile | MockTFolder, newPath: string) => {
+    if (file instanceof MockTFile) {
+      const content = fileSystem.get(file.path)?.content || "";
+      fileSystem.delete(file.path);
+      fileSystem.set(newPath, { content });
+    } else {
+      // Rename folder
+      const folder = folderSystem.get(file.path);
+      if (folder) {
+        folderSystem.delete(file.path);
+        folder.path = newPath;
+        folderSystem.set(newPath, folder);
+      }
+    }
+  }),
+  append: vi.fn(async (file: MockTFile, content: string) => {
+    const existingContent = fileSystem.get(file.path)?.content || "";
+    fileSystem.set(file.path, { content: existingContent + content });
+  }),
+  process: vi.fn(async (file: MockTFile, fn: (data: string) => string) => {
+    const existingContent = fileSystem.get(file.path)?.content || "";
+    const newContent = fn(existingContent);
+    fileSystem.set(file.path, { content: newContent });
+    return newContent;
   }),
 
   adapter: {
@@ -134,6 +264,14 @@ export const helpers = {
   addFile(path: string, content: string) {
     fileSystem.set(path, { content });
 
+    // Create file object
+    const file = new MockTFile(path);
+    file.vault = vault;
+
+    // Ensure parent folders exist
+    this.ensureParentFolders(path);
+
+    // Parse frontmatter if present
     if (content) {
       try {
         const { data } = matter(content);
@@ -145,11 +283,50 @@ export const helpers = {
       }
     }
 
-    return new MockTFile(path);
+    return file;
   },
+
+  addFolder(path: string) {
+    // Create the folder
+    const folder = new MockTFolder(path);
+    folder.vault = vault;
+    folderSystem.set(path, folder);
+
+    // Ensure parent folders exist
+    this.ensureParentFolders(path);
+
+    return folder;
+  },
+
+  ensureParentFolders(path: string) {
+    const lastSlash = path.lastIndexOf("/");
+    if (lastSlash > 0) {
+      const parentPath = path.substring(0, lastSlash);
+      
+      // Create parent folder if it doesn't exist
+      if (!folderSystem.has(parentPath)) {
+        this.addFolder(parentPath);
+      }
+      
+      // Set parent-child relationship
+      const file = vault.getFileByPath(path);
+      const folder = folderSystem.get(parentPath);
+      
+      if (file && folder) {
+        file.parent = folder;
+      }
+    }
+  },
+
   reset() {
     fileSystem.clear();
     fileCache.clear();
+    folderSystem.clear();
+    
+    // Recreate root folder
+    const root = new MockTFolder("/");
+    root.vault = vault;
+    folderSystem.set("/", root);
   },
 };
 
