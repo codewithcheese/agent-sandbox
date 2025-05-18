@@ -232,8 +232,12 @@ async function createCodeExecutor(vaultTool: CodeVaultTool) {
     vaultTool.code,
   );
 
-  return async (params: any, options: ToolExecutionOptions) => {
-    await executeFunction(params, options);
+  return async (params: any, _options: ToolExecutionOptions) => {
+    try {
+      return await executeFunction(params, usePlugin);
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
   };
 }
 
@@ -242,12 +246,16 @@ async function createImportExecutor(vaultTool: ImportVaultTool) {
   const importedFunction =
     toolsModule[vaultTool.import as keyof typeof toolsModule];
   if (typeof importedFunction !== "function") {
-    throw new Error(
-      `Imported function '${vaultTool.import}' not found in tools/execute.ts`,
-    );
+    return async () => ({
+      error: `Imported function '${vaultTool.import}' not found in tools/execute.ts`,
+    });
   }
   return async (params: any, options: ToolExecutionOptions) => {
-    return importedFunction(params, options);
+    try {
+      return await importedFunction(params?.thought ?? params, options);
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
   };
 }
 
