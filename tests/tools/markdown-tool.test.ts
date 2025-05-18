@@ -1,4 +1,5 @@
 // // @vitest-environment node
+import { describe, it } from "vitest";
 // import { describe, it, expect, vi, beforeEach } from "vitest";
 // import { vault, helpers, fileCache } from "../mocks/obsidian";
 // import "../mocks/ai-sdk";
@@ -366,3 +367,6 @@
 //     expect(result.error).toContain("not found in tools/execute.ts");
 //   });
 // });
+
+export {};
+
