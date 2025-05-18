@@ -54,6 +54,7 @@ export default defineConfig(({ command }) => {
   });
 
   return {
+    envPrefix: ["VITE_", "ONLINE"],
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),

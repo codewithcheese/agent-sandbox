@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PyodideExecutor } from "../../src/lib/pyodide/executor";
 
-describe("PyodideExecutor Tests", () => {
+const describeIf = import.meta.env.ONLINE === "false" ? describe.skip : describe;
+
+describeIf("PyodideExecutor Tests", () => {
+  beforeAll(() => {
+    (window as any).PYODIDE_BASE_URL = `${location.origin}/node_modules/pyodide/`;
+    (window as any).COMLINK_URL = `${location.origin}/node_modules/comlink/dist/umd/comlink.js`;
+  });
   let executor: PyodideExecutor;
 
   beforeAll(async () => {
