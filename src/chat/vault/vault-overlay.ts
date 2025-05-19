@@ -120,7 +120,7 @@ export class VaultOverlay implements Vault {
     if (folder && !force) {
       throw new Error("Folder is not empty");
     }
-    
+
     // Delete the file - VersionControl will handle importing if needed
     await this.versionControl.deleteFile(file.path);
   }
@@ -147,21 +147,21 @@ export class VaultOverlay implements Vault {
 
     // Check if the file exists in version control
     const exists = await this.versionControl.fileExists(file.path);
-    
+
     // If the file doesn't exist in version control but exists in the vault, import it first
     if (!exists) {
       const fileInVault = this.vault.getFileByPath(file.path);
       if (fileInVault) {
         // File exists in vault but not in version control, import it first
-        await this.versionControl.importFileToMain(file.path);
+        await this.versionControl.importFileToMaster(file.path);
       } else {
         throw new Error(`File ${file.path} does not exist.`);
       }
     }
-    
+
     // Rename the file in version control
     await this.versionControl.rename(file.path, newPath);
-    
+
     // todo: use `app.fileManager.renameFile` if you want Obsidian to update
   }
 
@@ -186,7 +186,7 @@ export class VaultOverlay implements Vault {
     data: string,
     options?: DataWriteOptions,
   ): Promise<void> {
-    await this.versionControl.append(file.path, data);
+    throw new Error("append not supported");
   }
 
   async process(

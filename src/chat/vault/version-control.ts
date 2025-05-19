@@ -3,167 +3,118 @@ import FS from "@isomorphic-git/lightning-fs";
 import { nanoid } from "nanoid";
 import { createDebug } from "$lib/debug.ts";
 import { relative } from "path";
-import { TFile, Vault } from "obsidian";
+import { Vault } from "obsidian";
+import { invariant } from "@epic-web/invariant";
 
 const debug = createDebug();
 
+const dir: string = "/";
+const gitdir: string = "/.git";
+const master = "master" as const;
+const staging = "staging" as const;
+
+type GitState =
+  | { type: "blank"; branch: undefined }
+  | { type: "ready"; branch: "staging" }
+  | { type: "staged"; branch: "staging" };
+
 export class VersionControl {
-  public fs: typeof FS.prototype;
-  private dir: string = "/";
-  private gitdir: string = "/.git";
-  private vault: Vault;
+  fs: typeof FS.prototype;
+  vault: Vault;
+  state: GitState = { type: "blank", branch: undefined };
 
   constructor(vault: Vault) {
     this.fs = new FS(`agent-sandbox-git-${nanoid()}`);
     this.vault = vault;
   }
 
-  /**
-   * Initialize the git repository
-   */
-  async init(): Promise<boolean> {
+  async init() {
+    invariant(this.state.type === "blank", "Expected blank state");
     console.log("Initializing Git repository...");
     // Initialize git repository
-    await git.init({ fs: this.fs, dir: this.dir, gitdir: this.gitdir });
+    await git.init({ fs: this.fs, dir, gitdir, bare: true });
+    await git.setConfig({
+      fs: this.fs,
+      dir,
+      path: "user.name",
+      value: "AI-Agent",
+    });
+    await git.setConfig({
+      fs: this.fs,
+      dir,
+      path: "user.email",
+      value: "agent@example.com",
+    });
     console.log("Git repository initialized");
 
-    // Create an empty .gitignore file to initialize the main branch
+    // Create an empty .gitignore file to initialize the master branch
     await this.fs.promises.writeFile("/.gitignore", "");
-    await git.add({ fs: this.fs, dir: this.dir, filepath: ".gitignore" });
+    await git.add({ fs: this.fs, dir, filepath: ".gitignore" });
 
     // Create initial commit
     const commitResult = await git.commit({
       fs: this.fs,
-      dir: this.dir,
+      dir,
       message: "Initial commit",
       author: { name: "AI-Agent", email: "agent@example.com" },
     });
-    console.log("Created main branch with initial commit: " + commitResult);
+    console.log("Created master branch with initial commit: " + commitResult);
 
-    await git.branch({ fs: this.fs, dir: this.dir, ref: "staging" });
-    await this.checkoutStaging();
-
-    // List branches to confirm creation
-    const branches = await git.listBranches({ fs: this.fs, dir: this.dir });
-    console.log("Available branches after initialization:", branches);
-
-    return true;
-  }
-
-  /**
-   * Ensure the staging branch is checked out
-   */
-  private async checkoutStaging(): Promise<void> {
-    const currentBranch = await git.currentBranch({
-      fs: this.fs,
-      dir: this.dir,
-      fullname: false,
-    });
-
-    if (currentBranch === "staging") {
-      return; // Already on staging branch, no need to checkout
-    }
+    await git.branch({ fs: this.fs, dir, ref: staging });
 
     await git.checkout({
       fs: this.fs,
-      dir: this.dir,
-      ref: "staging",
+      dir,
+      ref: staging,
       force: false,
     });
+
+    // List branches to confirm creation
+    const branches = await git.listBranches({ fs: this.fs, dir });
+    console.log("Available branches after initialization:", branches);
+
+    this.state = { type: "ready", branch: staging };
   }
 
-  async append(path: string, content: string): Promise<void> {
-    if (!path.startsWith("/")) {
-      throw new Error("Path must be absolute");
-    }
-    await this.checkoutStaging();
-    const data = await this.fs.promises.readFile(path, { encoding: "utf8" });
-    await this.fs.promises.writeFile(path, data + content);
-    await git.add({
-      fs: this.fs,
-      dir: this.dir,
-      filepath: relative("/", path),
-    });
-  }
-
-  /**
-   * Writes content to a file in the version control system
-   * @param path Absolute path to the file
-   * @param content Content to write to the file
-   */
   async writeFile(path: string, content: string): Promise<void> {
-    if (!path.startsWith("/")) {
-      throw new Error("Path must be absolute");
-    }
+    invariant(
+      this.state.type === "ready" || this.state.type === "staged",
+      `Expected ready or staged state. State is ${this.state.type}.`,
+    );
+    invariant(path.startsWith("/"), "Path must be absolute");
 
-    // Check if the file exists in the version control system
     const exists = await this.fileExists(path);
-
-    // If the file doesn't exist in version control but exists in the vault, import it first
-    if (!exists) {
-      const fileInVault = this.vault.getFileByPath(path);
-      if (fileInVault) {
-        // File exists in vault but not in version control, import it first
-        await this.importFileToMain(path);
-      }
-      // If it doesn't exist in either, we'll create it below
+    const existsInVault = this.vault.getFileByPath(path);
+    // Import the file if it doesn't exist in version control but exists in the vault
+    if (!exists && existsInVault) {
+      await this.importFileToMaster(path);
     }
-
-    await this.checkoutStaging();
-
-    // Ensure parent directories exist
-    const pathParts = path.split("/");
-    pathParts.pop(); // Remove the filename
-    let currentPath = "";
-    for (const part of pathParts) {
-      if (!part) continue;
-      currentPath += "/" + part;
-      try {
-        await this.fs.promises.mkdir(currentPath);
-      } catch (e) {
-        // Directory already exists, continue
-      }
-    }
-
+    this.mkdirRecursive(path);
     await this.fs.promises.writeFile(path, content);
     await git.add({
+      dir: dir,
       fs: this.fs,
-      dir: this.dir,
       filepath: relative("/", path),
     });
+    this.state = { type: "staged", branch: staging };
   }
 
   async createFolder(path: string): Promise<void> {
-    if (!path.startsWith("/")) {
-      throw new Error("Path must be absolute");
-    }
-    if (!path.endsWith("/")) {
-      throw new Error("Folder must end with a slash");
-    }
-    await this.checkoutStaging();
-
-    // Ensure parent directories exist
-    const pathParts = path.split("/");
-    pathParts.pop(); // Remove the filename
-    let currentPath = "";
-    for (const part of pathParts) {
-      if (!part) continue;
-      currentPath += "/" + part;
-      try {
-        await this.fs.promises.mkdir(currentPath);
-      } catch (e) {
-        // Directory already exists, continue
-      }
-    }
-
+    invariant(
+      this.state.type === "ready" || this.state.type === "staged",
+      `Expected ready or staged state. State is ${this.state.type}.`,
+    );
+    invariant(path.startsWith("/"), "Path must be absolute");
+    invariant(path.endsWith("/"), "Folder path must end with a slash");
+    this.mkdirRecursive(path);
     // write .gitkeep so that the folder will be tracked by git
     await this.fs.promises.writeFile(`${path}.gitkeep`, "");
-
     await git.add({
+      dir,
       fs: this.fs,
-      dir: this.dir,
       filepath: relative("/", path),
     });
+    this.state = { type: "staged", branch: staging };
   }
 
   /**
@@ -171,11 +122,11 @@ export class VersionControl {
    * @param path Absolute path to the file
    */
   async deleteFile(path: string): Promise<void> {
-    if (!path.startsWith("/")) {
-      throw new Error("Path must be absolute");
-    }
-
-    await this.checkoutStaging();
+    invariant(
+      this.state.type === "ready" || this.state.type === "staged",
+      "Expected ready or staged state",
+    );
+    invariant(path.startsWith("/"), "Path must be absolute");
 
     // Check if the file exists in version control
     const exists = await this.fileExists(path);
@@ -183,145 +134,122 @@ export class VersionControl {
     // If the file doesn't exist in version control but exists in the vault, import it first
     if (!exists) {
       const fileInVault = this.vault.getFileByPath(path);
-      if (fileInVault) {
-        // File exists in vault but not in version control, import it first
-        await this.importFileToMain(path);
-      } else {
-        throw new Error(`File ${path} does not exist.`);
-      }
+      invariant(fileInVault, `File ${path} not found in vault`);
+      await this.importFileToMaster(path);
     }
 
-    try {
-      await this.fs.promises.unlink(path);
-      await git.remove({
-        fs: this.fs,
-        dir: this.dir,
-        filepath: relative("/", path),
-      });
-    } catch (error) {
-      throw new Error(`Could not delete file ${path}: ${error.message}`);
-    }
+    await this.fs.promises.unlink(path);
+    await git.remove({
+      dir,
+      fs: this.fs,
+      filepath: relative("/", path),
+    });
+    this.state = { type: "staged", branch: staging };
   }
 
   /**
-   * Imports a file from the vault into the main branch of the Git repository.
+   * Imports a file from the vault into the master branch of the Git repository.
    * This ensures the file exists in Git before operations are performed on it.
    * @param path Absolute path to the file
    */
-  async importFileToMain(path: string): Promise<void> {
-    if (!path.startsWith("/")) {
-      throw new Error("Path must be absolute");
-    }
+  async importFileToMaster(path: string): Promise<void> {
+    invariant(
+      this.state.type === "ready" || this.state.type === "staged",
+      "Expected ready or staged state",
+    );
+    invariant(path.startsWith("/"), "Path must be absolute");
+    invariant(this.state.branch === staging, "Expected staging branch");
 
     // Try to get the file from the vault
     const file = this.vault.getFileByPath(path);
-    if (!file) {
-      throw new Error(`File ${path} not found in vault`);
-    }
+    invariant(file, `File ${path} not found in vault`);
 
-    // Read the file content from the vault
-    const content = await this.vault.read(file as TFile);
+    const content = await this.vault.read(file);
 
-    // Save current branch to return to it later
-    const currentBranch = await this.getCurrentBranch();
-
-    try {
-      // Checkout main branch
-      await git.checkout({
+    if (this.state.type === "staged") {
+      await git.stash({
+        dir,
         fs: this.fs,
-        dir: this.dir,
-        ref: "master",
-        force: false,
       });
-
-      // Write file and add to Git index
+    }
+    try {
+      await git.checkout({
+        dir,
+        fs: this.fs,
+        ref: master,
+      });
       await this.fs.promises.writeFile(path, content);
       await git.add({
+        dir,
         fs: this.fs,
-        dir: this.dir,
         filepath: relative("/", path),
       });
-
-      // Commit to main branch
       await git.commit({
+        dir,
         fs: this.fs,
-        dir: this.dir,
         message: `Import ${path} from vault`,
-        author: { name: "AI-Agent", email: "agent@example.com" },
       });
-
-      // Checkout staging and merge changes from master
-      await git.checkout({
-        fs: this.fs,
-        dir: this.dir,
-        ref: "staging",
-        force: false,
-      });
-
-      // Merge master into staging
       await git.merge({
+        dir,
         fs: this.fs,
-        dir: this.dir,
-        theirs: "master",
-        author: { name: "AI-Agent", email: "agent@example.com" },
-        message: `Merge master into staging after importing ${path}`,
+        ours: staging,
+        theirs: master,
       });
     } catch (error) {
-      // If merge fails, we'll need to handle conflicts
-      // For now, just throw an error
       throw new Error(
         `Merge conflict when importing ${path}: ${error.message}`,
       );
+    } finally {
+      await git.checkout({
+        dir,
+        fs: this.fs,
+        ref: staging,
+      });
+      await git.add({
+        dir,
+        fs: this.fs,
+        filepath: ".",
+      });
+      await git.commit({
+        dir,
+        fs: this.fs,
+        message: `Merge ${path} from master`,
+      });
+      if (this.state.type === "staged") {
+        await git.stash({
+          dir,
+          fs: this.fs,
+          op: "pop",
+        });
+      }
     }
-
-    // Return to the original branch (usually staging)
-    await git.checkout({
-      fs: this.fs,
-      dir: this.dir,
-      ref: currentBranch,
-      force: false,
-    });
-  }
-
-  /**
-   * Gets the current Git branch name
-   * @returns Promise resolving to the current branch name
-   */
-  private async getCurrentBranch(): Promise<string> {
-    const currentRef = await git.currentBranch({
-      fs: this.fs,
-      dir: this.dir,
-      fullname: false,
-    });
-
-    return currentRef || "master"; // Default to master if no current branch
   }
 
   async rename(oldPath: string, path: string): Promise<void> {
-    if (!oldPath.startsWith("/")) {
-      throw new Error("Old path must be absolute");
-    }
-    if (!path.startsWith("/")) {
-      throw new Error("New path must be absolute");
-    }
-    if (await this.fileExists(path)) {
-      throw new Error("Destination file already exists!");
-    }
+    invariant(
+      this.state.type === "ready" || this.state.type === "staged",
+      "Expected ready or staged state",
+    );
+    invariant(oldPath.startsWith("/"), "Old path must be absolute");
+    invariant(path.startsWith("/"), "New path must be absolute");
+    invariant(
+      !(await this.fileExists(path)),
+      "Destination file already exists!",
+    );
 
-    await this.checkoutStaging();
+    await this.importFileToMaster(oldPath);
+
     await this.fs.promises.rename(oldPath, path);
     await git.add({
+      dir,
       fs: this.fs,
-      dir: this.dir,
       filepath: relative("/", path),
     });
+    this.state = { type: "staged", branch: staging };
   }
 
   async fileExists(path: string): Promise<boolean> {
-    if (!path.startsWith("/")) {
-      throw new Error("Path must be absolute");
-    }
-    await this.checkoutStaging();
+    invariant(path.startsWith("/"), "Path must be absolute");
     try {
       await this.fs.promises.stat(path);
       return true;
@@ -330,46 +258,89 @@ export class VersionControl {
     }
   }
 
+  /**
+   * Get a list of file changes between master and staging branches
+   * @returns A list of file changes with their status (added, modified, deleted)
+   */
+  async getFileChanges(): Promise<
+    Array<{
+      path: string;
+      status: "added" | "modified" | "deleted" | "identical";
+    }>
+  > {
+    const changes: Array<{
+      path: string;
+      status: "added" | "modified" | "deleted" | "identical";
+    }> = [];
+
+    await git.walk({
+      dir,
+      fs: this.fs,
+      trees: [
+        git.TREE({ ref: master }), // oldRef
+        git.TREE({ ref: staging }), // newRef
+      ],
+
+      // map runs once per path that exists in either tree
+      map: async (filepath, [oldEntry, newEntry]) => {
+        if (filepath === ".") return; // skip root
+        if (filepath === ".gitignore") return;
+
+        // undefined => file absent in that commit
+        const oidOld = oldEntry && (await oldEntry.oid());
+        const oidNew = newEntry && (await newEntry.oid());
+
+        let status: "added" | "modified" | "deleted" | "identical";
+        if (oidOld === oidNew) {
+          status = "identical";
+        } else if (!oldEntry) {
+          status = "added";
+        } else if (!newEntry) {
+          status = "deleted";
+        } else {
+          status = "modified";
+        }
+
+        changes.push({
+          path: "/" + filepath, // Add leading slash to match our path convention
+          status: status,
+        });
+      },
+    });
+    return changes;
+  }
+
   async readFile(path: string): Promise<string> {
-    if (!path.startsWith("/")) {
-      throw new Error("Path must start be absolute");
-    }
-    await this.checkoutStaging();
+    invariant(path.startsWith("/"), "Path must be absolute");
+    invariant(this.state.branch === staging, "Expected staging branch");
     return await this.fs.promises.readFile(path, {
       encoding: "utf8",
     });
   }
 
-  /**
-   * Stage changes for a conversation turn
-   */
-  async commitTurn(msgId: string): Promise<string> {
-    await this.checkoutStaging();
-
-    // Add all changes to staging
-    await git.add({
-      fs: this.fs,
-      dir: this.dir,
-      filepath: ".",
-    });
-
-    // Commit the changes
+  async commit(messageId: string) {
+    invariant(this.state.type === "staged", "Expected staged state");
+    invariant(this.state.branch === staging, "Expected staging branch");
     const sha = await git.commit({
+      dir,
       fs: this.fs,
-      dir: this.dir,
-      message: `msg:${msgId}`,
-      author: { name: "AI-Agent", email: "agent@example.com" },
+      message: JSON.stringify({ messageId }),
     });
-
-    // Tag the commit with the msgId so it's easy to drop later
-    await git.writeRef({
-      fs: this.fs,
-      gitdir: this.gitdir,
-      ref: `refs/notes/chat/${msgId}`,
-      value: sha,
-    });
-
+    this.state = { type: "ready", branch: staging };
     return sha;
+  }
+
+  private mkdirRecursive(path: string) {
+    const parts = path.split("/");
+    parts.pop();
+    let currentPath = "";
+    for (const part of parts) {
+      if (!part) continue;
+      currentPath += "/" + part;
+      try {
+        this.fs.promises.mkdir(currentPath);
+      } catch (e) {}
+    }
   }
 
   async dispose() {
