@@ -2,17 +2,21 @@
 
 ## 1. Overview
 
-This system enables an AI agent to read and modify files while providing users with a staging and review mechanism before changes are applied. The system leverages git's versioning capabilities through isomorphic-git, creating an efficient middleware layer between the AI agent and the Obsidian vault. This approach allows for accumulating proposed changes in memory and enabling users to review, approve, or reject them through a visual diff interface.
+This system enables an AI agent to read and modify files while providing users with a staging and review mechanism 
+before changes are applied. The system leverages git's versioning capabilities through isomorphic-git, creating an 
+efficient middleware layer between the AI agent and the Obsidian vault. This approach allows for accumulating proposed 
+changes in memory and enabling users to review, approve, or reject them through a visual diff interface.
 
-The Vault Overlay component provides a seamless integration between the Obsidian vault and the version control system, ensuring that files can be properly managed even when they exist in the vault but not in version control.
+The Vault Overlay component provides a seamless integration between the Obsidian vault and the version control system, 
+ensuring that files can be properly managed even when they exist in the vault but not in version control.
 
 ## 2. System Architecture
 
 ### 2.1 Core Components
 
+* **Vault Overlay**: A implements the Obsidian Vault interface
 * **Git-Based Version Control**: Uses isomorphic-git to track file operations
 * **In-Memory File System**: Volatile filesystem (LightningFS) for staging changes
-* **Vault Overlay**: Intercepts file operations and manages them through the version control system
 * **Import Mechanism**: Automatically imports files from the vault to version control when needed
 * **Diff & Merge System**: Git's native diff and merge capabilities
 * **Conflict Resolution System**: Handles divergences between staged and vault versions
@@ -21,7 +25,7 @@ The Vault Overlay component provides a seamless integration between the Obsidian
 
 1. User interacts with AI agent, requesting file operations
 2. Agent performs file operations through the Vault Overlay
-3. Vault Overlay intercepts these operations and directs them to the Version Control system
+3. Vault Overlay intercepts these operations and handles version control directly
 4. If a file exists in the vault but not in version control, it's automatically imported
 5. Changes are captured in the in-memory filesystem and committed to a staging branch
 6. User can review changes using git's diff capabilities
@@ -34,82 +38,84 @@ The Vault Overlay component provides a seamless integration between the Obsidian
 
 #### 3.1.1 Capabilities
 
-* Track atomic file operations using git commands:
-  * Create/modify: add, writeBlob, commit
-  * Delete: remove, updateIndex, commit
-  * Rename: Similar to git's rename tracking
+* Track atomic file operations using git commands directly in the VaultOverlay:
+  * Create/modify: add, writeFile, commit
+  * Delete: remove, commit
+  * Rename: rename files and update git tracking
 * Import files from the vault to version control when needed
-* Associate changes with conversation messages through git commits and refs
-* Support reverting changes if conversation messages are deleted through git's branching capabilities
+* Associate changes with conversation messages through git commits
+* Support reverting changes if conversation messages are deleted
 
 #### 3.1.2 Implementation Mapping
 
-* **VaultOverlay**: Intercepts file operations and directs them to the VersionControl system
-* **VersionControl**: Handles git operations and file system interactions
-* **Import Mechanism**: Automatically imports files from the vault when they don't exist in version control
-* **Create/Modify/Delete/Rename**: Maps to git commands (add, remove, updateIndex, writeBlob, writeTree, commit)
-* **Change Metadata**: Stored in commit messages and refs
-* **Message Association**: Each turn creates a commit tagged with the message ID
-* **Reversion**: Reset or drop commits when a chat message is deleted
+* **VaultOverlay**: Implements Obsidian's Vault interface and directly handles git operations
+* **State Management**: Maintains a GitState to track whether changes are ready or staged
+* **Import Mechanism**: Methods like `importFileToMaster()` to import files from vault to git
+* **File Operations**: Direct implementation of Vault interface methods (create, modify, delete, rename)
+* **Change Tracking**: Method `getFileChanges()` to identify differences between branches
+* **Message Association**: Commits tagged with message IDs through the `commit()` method
+* **Reversion**: Support for operations like stashing changes when necessary
 
-### 3.2 Vault Overlay and Version Control Integration
+### 3.2 Unified Vault Overlay Implementation
 
-#### 3.2.1 Vault Overlay Approach
+#### 3.2.1 Architecture
 
-* Implements the Obsidian Vault interface to intercept file operations
-* Delegates operations to the VersionControl system
-* Provides a consistent interface for the agent to interact with files
-* Handles importing files from the vault when needed
+* Directly implements the Obsidian Vault interface
+* Contains all version control functionality within the same class
+* Manages the in-memory LightningFS filesystem
+* Tracks state changes between "blank", "ready", and "staged"
+* Uses two branches: "master" and "staging"
 
-#### 3.2.2 Version Control Approach
+#### 3.2.2 Key Methods
 
-* Uses LightningFS as a volatile filesystem that only the agent sees
-* Works in a staging branch inside the volatile filesystem
-* Provides methods for file operations (create, modify, delete, rename)
-* Checks if files exist in version control before operations
-* Imports files from the vault when they exist in the vault but not in version control
+* **init()**: Initializes git repository with master and staging branches
+* **File Access Methods**: Overrides Vault methods like `getFileByPath()`, `getFolderByPath()`
+* **File Operation Methods**: Implements `create()`, `modify()`, `delete()`, `rename()`
+* **Version Control Methods**: Provides `commit()`, `getFileChanges()`, `fileIsTracked()`
+* **Import Methods**: `importFileToMaster()` to bring vault files into version control
+* **Utility Methods**: `mkdirRecursive()`, `createTFile()`, `createTFolder()`
 
-#### 3.2.3 Message Grouping & Undo
+#### 3.2.3 State Management & Workflow
 
-* Commits each conversation turn on the staging branch
-* Tags commits with message IDs
-* Supports reverting changes when a chat message is deleted
-* Operations are practically instant because objects live in RAM
+* Maintains a typed state system (`GitState`) to track repository status
+* Updates state after operations that modify files
+* Handles branch switching when importing files from the vault
+* Provides methods to identify changes between master and staging
 
 ### 3.3 Diff & Merge
 
 #### 3.3.1 Capabilities
 
-* Use `statusMatrix` for fast file-level change detection
-* Three-way merge with `diff-3` for reconciling changes
-* Pluggable `mergeDriver` for custom reconciliation logic
+* Uses git.walk() to identify differences between branches
+* Categorizes changes as "added", "modified", "deleted", or "identical"
+* Returns file changes with their paths and statuses
 
 #### 3.3.2 Conflict Handling
 
-* Detect conflicts with `merge({ abortOnConflict:false, dryRun:true })`
-* Returns `MergeConflictError` with list of conflicted files
-* Provides flexibility to surface conflicts to users or auto-resolve them
+* Import mechanism includes merge operations between branches
+* Handles potential merge conflicts during import process
+* Preserves staging state with stash operations when necessary
 
-### 3.4 Selective Apply
+### 3.4 Lifecycle Management
 
-#### 3.4.1 Approach
+#### 3.4.1 Initialization and Cleanup
 
-* After approval, checkout the real filesystem
-* Cherry-pick the staged commits or copy blobs
-* Delete the volatile branch
-* Works like a transaction - all or nothing
+* Creates a unique in-memory filesystem for each instance
+* Initializes git repository with proper configuration
+* Provides cleanup through `destroy()` method
+* Properly flushes and deactivates filesystem before deletion
 
 ## 4. Implementation Benefits
 
 ### 4.1 Technical Advantages
 
-* **Seamless Integration**: Integrates with Obsidian's vault system while providing version control
+* **Simplified Architecture**: Unified implementation reduces complexity and abstraction layers
+* **Direct Integration**: VaultOverlay directly implements Vault interface for seamless operation
+* **In-Memory Operations**: Changes remain in memory until explicitly committed to the filesystem
 * **Automatic Import**: Handles files that exist in the vault but not in version control
 * **Pure JavaScript**: No native modules required
-* **Cross-platform**: Runs in Node, Deno, browsers, Web Workers, Electron
+* **Cross-platform**: Runs in browsers, Electron, and other JavaScript environments
 * **Mature Technology**: Leverages git's battle-tested versioning capabilities
-* **Efficient**: In-memory operations are fast and lightweight
-* **Familiar Model**: Uses git's well-understood branching and merging model
 
 ### 4.2 User Experience Benefits
 
@@ -117,9 +123,3 @@ The Vault Overlay component provides a seamless integration between the Obsidian
 * **Granular Control**: Approve or reject changes at various levels of detail
 * **Reliable Undo**: Easy reversion of changes tied to conversation messages
 * **Conflict Awareness**: Early detection and resolution of potential conflicts
-
-## 5. Implementation Notes
-
-This git-based approach provides a practical implementation of the AI Agent File Management System using established version control concepts. While it deviates somewhat from the original component-based specification, it achieves the same core functionality through git's native capabilities, potentially reducing development complexity and leveraging a mature ecosystem.
-
-
