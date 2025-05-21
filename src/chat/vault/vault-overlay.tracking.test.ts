@@ -109,7 +109,7 @@ describe("Vault Overlay Tracking", () => {
 
       // Check if the file exists
       const exists = await overlay.fileIsTracked(testFilePath);
-      expect(exists).toBe(true);
+      expect(exists).toBe("added");
 
       // Check if a non-existent file exists
       const nonExistentPath = "/non-existent-file.txt";

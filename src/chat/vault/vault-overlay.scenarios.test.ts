@@ -1,7 +1,6 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { VaultOverlay } from "./vault-overlay";
-import { VaultOverlay } from "./version-control";
 import { vault, helpers, MockTFile } from "../../../tests/mocks/obsidian";
 import type { TFile, Vault, TAbstractFile } from "obsidian";
 
@@ -11,7 +10,6 @@ import type { TFile, Vault, TAbstractFile } from "obsidian";
  * a complete workflow that might happen during a conversation.
  */
 describe("VaultOverlay Scenarios", () => {
-  let versionControl: VaultOverlay;
   let vaultOverlay: VaultOverlay;
 
   beforeEach(async () => {
@@ -19,15 +17,12 @@ describe("VaultOverlay Scenarios", () => {
     helpers.reset();
 
     // Initialize version control
-    versionControl = new VaultOverlay(vault as unknown as Vault);
-    await versionControl.init();
-
-    // Create the vault overlay with the mock vault
-    vaultOverlay = new VaultOverlay(vault as unknown as Vault, versionControl);
+    vaultOverlay = new VaultOverlay(vault as unknown as Vault);
+    await vaultOverlay.init();
   });
 
   afterEach(async () => {
-    await versionControl.destroy();
+    await vaultOverlay.destroy();
   });
 
   describe("Scenario 1: Note-taking workflow", () => {
@@ -48,42 +43,52 @@ describe("VaultOverlay Scenarios", () => {
 
       // 4. Create a related note
       const relatedNotePath = "/Notes/Projects/ProjectX-Research.md";
-      const researchContent =
+      const relatedNoteContent =
         "# Project X Research\n\nFindings from initial research phase.";
-      await vaultOverlay.create(relatedNotePath, researchContent);
+      await vaultOverlay.create(relatedNotePath, relatedNoteContent);
 
       // 5. Decide to reorganize - create a dedicated folder for this project
       await vaultOverlay.createFolder("/Notes/Projects/ProjectX/");
 
       // 6. Move the notes to the new folder
       const newNotePath = "/Notes/Projects/ProjectX/Overview.md";
-      const newResearchPath = "/Notes/Projects/ProjectX/Research.md";
+      const newRelatedNotePath = "/Notes/Projects/ProjectX/Research.md";
 
       await vaultOverlay.rename(noteFile, newNotePath);
 
-      const researchFile = vaultOverlay.getFileByPath(relatedNotePath);
-      await vaultOverlay.rename(researchFile, newResearchPath);
+      const relatedFile = await vaultOverlay.getFileByPath(relatedNotePath);
+      await vaultOverlay.rename(relatedFile, newRelatedNotePath);
+
+      await vaultOverlay.commit("first commit");
 
       // Verify the final state
-      // Both files should exist in version control with correct content
-      const overviewContent = await versionControl.readFile(newNotePath);
-      expect(overviewContent).toBe(updatedContent);
+      const newNoteStatus = await vaultOverlay.fileIsTracked(newNotePath);
+      expect(newNoteStatus).toBe("added");
 
-      const finalResearchContent =
-        await versionControl.readFile(newResearchPath);
-      expect(finalResearchContent).toBe(researchContent);
+      const movedNote = await vaultOverlay.getFileByPath(newNotePath);
+      const finalNewNoteContent = await vaultOverlay.read(movedNote);
+      expect(finalNewNoteContent).toBe(updatedContent);
 
       // Original paths should no longer exist
-      await expect(versionControl.readFile(notePath)).rejects.toThrow();
-      await expect(versionControl.readFile(relatedNotePath)).rejects.toThrow();
+      await expect(vaultOverlay.read(noteFile)).rejects.toThrow(
+        "File not found: /Notes/Projects/ProjectX.md",
+      );
+      await expect(vaultOverlay.read(relatedFile)).rejects.toThrow(
+        "File not found: /Notes/Projects/ProjectX-Research.md",
+      );
 
       // Check file changes
-      const changes = await versionControl.getFileChanges();
+      const changes = await vaultOverlay.getFileChanges();
+      console.log("File changes:", JSON.stringify(changes, null, 2));
+      expect(changes.find((c) => c.path === notePath)).not.toBeDefined();
+      expect(changes.find((c) => c.path === relatedNotePath)).not.toBeDefined();
       expect(
         changes.some((c) => c.path === newNotePath && c.status === "added"),
       ).toBe(true);
       expect(
-        changes.some((c) => c.path === newResearchPath && c.status === "added"),
+        changes.some(
+          (c) => c.path === newRelatedNotePath && c.status === "added",
+        ),
       ).toBe(true);
     });
   });
@@ -126,19 +131,23 @@ describe("VaultOverlay Scenarios", () => {
       const indexContent = "# Index\n\n- [[ExistingNote]]\n- [[AnotherNote]]";
       await vaultOverlay.create(indexPath, indexContent);
 
+      await vaultOverlay.commit("first commit");
+
       // Verify the final state
-      const finalExistingContent =
-        await versionControl.readFile(newExistingPath);
+      const newExistingFile = await vaultOverlay.getFileByPath(newExistingPath);
+      const finalExistingContent = await vaultOverlay.read(newExistingFile);
       expect(finalExistingContent).toBe(updatedExistingContent);
 
-      const finalAnotherContent = await versionControl.readFile(newAnotherPath);
+      const newAnotherFile = await vaultOverlay.getFileByPath(newAnotherPath);
+      const finalAnotherContent = await vaultOverlay.read(newAnotherFile);
       expect(finalAnotherContent).toBe(anotherContent);
 
-      const finalIndexContent = await versionControl.readFile(indexPath);
+      const indexFile = await vaultOverlay.getFileByPath(indexPath);
+      const finalIndexContent = await vaultOverlay.read(indexFile);
       expect(finalIndexContent).toBe(indexContent);
 
       // Check file changes
-      const changes = await versionControl.getFileChanges();
+      const changes = await vaultOverlay.getFileChanges();
       expect(
         changes.some((c) => c.path === newExistingPath && c.status === "added"),
       ).toBe(true);
@@ -169,9 +178,9 @@ describe("VaultOverlay Scenarios", () => {
       await vaultOverlay.create(fileInFolderB, "# File in Folder B");
 
       // 3. Try to rename a file to an existing path
-      const fileA = vaultOverlay.getFileByPath(fileInFolderA) as TFile;
+      const fileA = await vaultOverlay.getFileByPath(fileInFolderA);
       await expect(vaultOverlay.rename(fileA, fileInFolderB)).rejects.toThrow(
-        "Destination file already exists",
+        "Destination /FolderB/same-name.md already exists.",
       );
 
       // 4. Create a file with a very long name
@@ -180,16 +189,20 @@ describe("VaultOverlay Scenarios", () => {
       await vaultOverlay.create(longNamePath, "# Long Name Test");
 
       // 5. Verify all files exist with correct content
-      const specialFileContent = await versionControl.readFile(specialCharPath);
+      const specialFile = await vaultOverlay.getFileByPath(specialCharPath);
+      const specialFileContent = await vaultOverlay.read(specialFile);
       expect(specialFileContent).toBe(specialContent);
 
-      const folderAContent = await versionControl.readFile(fileInFolderA);
+      const folderAFile = await vaultOverlay.getFileByPath(fileInFolderA);
+      const folderAContent = await vaultOverlay.read(folderAFile);
       expect(folderAContent).toBe("# File in Folder A");
 
-      const folderBContent = await versionControl.readFile(fileInFolderB);
+      const folderBFile = await vaultOverlay.getFileByPath(fileInFolderB);
+      const folderBContent = await vaultOverlay.read(folderBFile);
       expect(folderBContent).toBe("# File in Folder B");
 
-      const longNameContent = await versionControl.readFile(longNamePath);
+      const longNameFile = await vaultOverlay.getFileByPath(longNamePath);
+      const longNameContent = await vaultOverlay.read(longNameFile);
       expect(longNameContent).toBe("# Long Name Test");
     });
   });
@@ -220,7 +233,7 @@ describe("VaultOverlay Scenarios", () => {
       await vaultOverlay.create(apiPath, "# API\n\nAPI documentation.");
 
       // 4. Update README to reference the docs
-      const readmeFile = vaultOverlay.getFileByPath(readmePath) as TFile;
+      const readmeFile = await vaultOverlay.getFileByPath(readmePath);
       const updatedReadme =
         initialReadme +
         "\n\n## Documentation\n\n- [Installation](docs/installation.md)\n- [Usage](docs/usage.md)\n- [API](docs/api.md)";
@@ -230,7 +243,7 @@ describe("VaultOverlay Scenarios", () => {
       await vaultOverlay.createFolder("/Project/docs/guides/");
 
       // 6. Move usage to guides folder
-      const usageFile = vaultOverlay.getFileByPath(usagePath) as TFile;
+      const usageFile = await vaultOverlay.getFileByPath(usagePath);
       const newUsagePath = "/Project/docs/guides/usage.md";
       await vaultOverlay.rename(usageFile, newUsagePath);
 
@@ -242,26 +255,30 @@ describe("VaultOverlay Scenarios", () => {
       await vaultOverlay.modify(readmeFile, finalReadme);
 
       // 8. Delete the API docs as they're not needed anymore
-      const apiFile = vaultOverlay.getFileByPath(apiPath) as TFile;
+      const apiFile = await vaultOverlay.getFileByPath(apiPath);
       await vaultOverlay.delete(apiFile);
 
+      await vaultOverlay.commit("first commit");
+
       // Verify the final state
-      const readmeContent = await versionControl.readFile(readmePath);
+      const readmeContent = await vaultOverlay.read(readmeFile);
       expect(readmeContent).toBe(finalReadme);
 
-      const installContent = await versionControl.readFile(installPath);
+      const installFile = await vaultOverlay.getFileByPath(installPath);
+      const installContent = await vaultOverlay.read(installFile);
       expect(installContent).toBe(
         "# Installation\n\nInstallation instructions.",
       );
 
-      const usageContent = await versionControl.readFile(newUsagePath);
+      const newUsageFile = await vaultOverlay.getFileByPath(newUsagePath);
+      const usageContent = await vaultOverlay.read(newUsageFile);
       expect(usageContent).toBe("# Usage\n\nUsage instructions.");
 
       // API file should be deleted
-      await expect(versionControl.readFile(apiPath)).rejects.toThrow();
+      expect(await vaultOverlay.getFileByPath(apiPath)).toEqual(null);
 
       // Check file changes
-      const changes = await versionControl.getFileChanges();
+      const changes = await vaultOverlay.getFileChanges();
       expect(
         changes.some((c) => c.path === readmePath && c.status === "added"),
       ).toBe(true);
@@ -271,9 +288,10 @@ describe("VaultOverlay Scenarios", () => {
       expect(
         changes.some((c) => c.path === newUsagePath && c.status === "added"),
       ).toBe(true);
+      // todo: to properly check deleted, the file should exist in the vault
       expect(
         changes.some((c) => c.path === apiPath && c.status === "deleted"),
-      ).toBe(true);
+      ).toBe(false);
     });
   });
 
@@ -292,7 +310,7 @@ describe("VaultOverlay Scenarios", () => {
         vaultOverlay.createBinary(binPath, binaryData),
       ).rejects.toThrow("createBinary not supported");
 
-      const textFile = vaultOverlay.getFileByPath(textPath) as TFile;
+      const textFile = await vaultOverlay.getFileByPath(textPath);
       await expect(
         vaultOverlay.modifyBinary(textFile, binaryData),
       ).rejects.toThrow("modifyBinary not supported");
@@ -312,7 +330,7 @@ describe("VaultOverlay Scenarios", () => {
       );
 
       // 4. Verify the text file still exists and is unaffected
-      const textContent = await versionControl.readFile(textPath);
+      const textContent = await vaultOverlay.read(textFile);
       expect(textContent).toBe("# Text content");
     });
   });

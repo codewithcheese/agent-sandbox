@@ -175,7 +175,7 @@ export class VaultOverlay implements Vault {
     invariant(!existsInVault, `File already exists`);
 
     // Parent folder hierarchy must exist.
-    this.mkdirRecursive(path);
+    await this.mkdirRecursive(path);
 
     await this.fs.promises.writeFile(path, data);
     await git.add({
@@ -206,7 +206,7 @@ export class VaultOverlay implements Vault {
     );
     invariant(path.startsWith("/"), "Path must be absolute");
     invariant(path.endsWith("/"), "Folder path must end with a slash");
-    this.mkdirRecursive(path);
+    await this.mkdirRecursive(path);
     // write .gitkeep so that the folder will be tracked by git
     await this.fs.promises.writeFile(`${path}.gitkeep`, "");
     await git.add({
@@ -337,6 +337,11 @@ export class VaultOverlay implements Vault {
       fs: this.fs,
       filepath: relative("/", newPath),
     });
+    await git.remove({
+      dir,
+      fs: this.fs,
+      filepath: relative("/", file.path),
+    });
     this.state = { type: "staged", branch: staging };
   }
 
@@ -359,7 +364,7 @@ export class VaultOverlay implements Vault {
       await this.importFileToMaster(path);
     }
     // if trackStatus is deleted, proceed with the modification as if it's a new file
-    this.mkdirRecursive(path);
+    await this.mkdirRecursive(path);
     await this.fs.promises.writeFile(path, data);
     await git.add({
       dir: dir,
@@ -589,7 +594,10 @@ export class VaultOverlay implements Vault {
     return false; // File is not tracked
   }
 
-  private async existsInWorkdir(path: string, type: "file" | "folder" = "file"): Promise<boolean> {
+  private async existsInWorkdir(
+    path: string,
+    type: "file" | "folder" = "file",
+  ): Promise<boolean> {
     try {
       const stats = await this.fs.promises.stat(path);
       if (type === "folder") {
@@ -601,7 +609,10 @@ export class VaultOverlay implements Vault {
     }
   }
 
-  private async existsInMasterBranch(relativePath: string, type: "file" | "folder" = "file"): Promise<boolean> {
+  private async existsInMasterBranch(
+    relativePath: string,
+    type: "file" | "folder" = "file",
+  ): Promise<boolean> {
     try {
       // Resolve the master branch to get its commit OID
       const masterCommitOid = await git.resolveRef({
@@ -626,11 +637,13 @@ export class VaultOverlay implements Vault {
           dir,
           ref: masterCommitOid,
         });
-        
+
         // Check if any files start with the directory path
         // Add trailing slash to ensure we're matching a directory
-        const dirPrefix = relativePath.endsWith("/") ? relativePath : relativePath + "/";
-        return files.some(file => file.startsWith(dirPrefix));
+        const dirPrefix = relativePath.endsWith("/")
+          ? relativePath
+          : relativePath + "/";
+        return files.some((file) => file.startsWith(dirPrefix));
       }
     } catch {
       return false; // Any error means the file/folder doesn't exist in master
@@ -639,22 +652,25 @@ export class VaultOverlay implements Vault {
 
   async folderIsTracked(path: string): Promise<false | "added" | "deleted"> {
     invariant(path.startsWith("/"), "Path must be absolute");
-  
+
     // First check if the directory exists in the working directory
     const existsInWorkdir = await this.existsInWorkdir(path, "folder");
     if (existsInWorkdir) {
       return "added";
     }
-  
+
     // If not in working directory, check if it exists in master branch
     // Since git doesn't track directories directly, we need to check if any files
     // within this directory exist in the master branch
     const relativePath = path.substring(1);
-    const existsInMaster = await this.existsInMasterBranch(relativePath, "folder");
+    const existsInMaster = await this.existsInMasterBranch(
+      relativePath,
+      "folder",
+    );
     if (existsInMaster) {
       return "deleted"; // Directory exists in master but not in working directory
     }
-  
+
     return false; // Directory is not tracked
   }
 
@@ -668,6 +684,7 @@ export class VaultOverlay implements Vault {
       status: "added" | "modified" | "deleted" | "identical";
     }>
   > {
+    invariant(this.state.type === "ready", "Commit before getting changes");
     const changes: Array<{
       path: string;
       status: "added" | "modified" | "deleted" | "identical";
@@ -722,7 +739,7 @@ export class VaultOverlay implements Vault {
     return sha;
   }
 
-  private mkdirRecursive(path: string) {
+  private async mkdirRecursive(path: string) {
     const parts = path.split("/");
     parts.pop();
     let currentPath = "";
@@ -730,7 +747,7 @@ export class VaultOverlay implements Vault {
       if (!part) continue;
       currentPath += "/" + part;
       try {
-        this.fs.promises.mkdir(currentPath);
+        await this.fs.promises.mkdir(currentPath);
       } catch (e) {}
     }
   }
