@@ -92,9 +92,6 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
-      invariant:
-        specifier: ^2.2.4
-        version: 2.2.4
       isomorphic-git:
         specifier: ^1.30.1
         version: 1.30.1
@@ -174,6 +171,9 @@ importers:
       '@types/nunjucks':
         specifier: ^3.2.6
         version: 3.2.6
+      '@types/path-browserify':
+        specifier: ^1.0.3
+        version: 1.0.3
       '@vitest/browser':
         specifier: ^3.0.9
         version: 3.0.9(@types/node@22.13.9)(playwright@1.51.1)(typescript@5.8.2)(vite@6.2.1(@types/node@22.13.9)(jiti@2.4.2)(lightningcss@1.29.2)(yaml@2.7.0))(vitest@3.0.9)
@@ -994,6 +994,9 @@ packages:
   '@types/nunjucks@3.2.6':
     resolution: {integrity: sha512-pHiGtf83na1nCzliuAdq8GowYiXvH5l931xZ0YEHaLMNFgynpEqx+IPStlu7UaDkehfvl01e4x/9Tpwhy7Ue3w==}
 
+  '@types/path-browserify@1.0.3':
+    resolution: {integrity: sha512-ZmHivEbNCBtAfcrFeBCiTjdIc2dey0l7oCGNGpSuRTy8jP6UVND7oUowlvDujBy8r2Hoa8bfFUOCiPWfmtkfxw==}
+
   '@types/statuses@2.0.5':
     resolution: {integrity: sha512-jmIUGWrAiwu3dZpxntxieC+1n/5c3mjrImkmOSQ2NC5uP6cYO4aAZDdSmRcI5C1oiTmqlZGHC+/NmJrKogbP5A==}
 
@@ -1566,9 +1569,6 @@ packages:
   inline-style-parser@0.2.4:
     resolution: {integrity: sha512-0aO8FkhNZlj/ZIbNi7Lxxr12obT7cL1moPfE4tg1LkX7LlLfC6DeX4l2ZEud1ukP9jNQyNnfzQVqwbwmAATY4Q==}
 
-  invariant@2.2.4:
-    resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
-
   is-binary-path@2.1.0:
     resolution: {integrity: sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==}
     engines: {node: '>=8'}
@@ -1758,10 +1758,6 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
-
-  loose-envify@1.4.0:
-    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
-    hasBin: true
 
   loupe@3.1.3:
     resolution: {integrity: sha512-kkIp7XSkP78ZxJEsSxW3712C6teJVoeHHwgo9zJ380de7IYyJ2ISlxojcH2pC5OFLewESmnRi/+XCDIEEVyoug==}
@@ -3404,6 +3400,8 @@ snapshots:
 
   '@types/nunjucks@3.2.6': {}
 
+  '@types/path-browserify@1.0.3': {}
+
   '@types/statuses@2.0.5': {}
 
   '@types/tern@0.23.9':
@@ -3960,10 +3958,6 @@ snapshots:
 
   inline-style-parser@0.2.4: {}
 
-  invariant@2.2.4:
-    dependencies:
-      loose-envify: 1.4.0
-
   is-binary-path@2.1.0:
     dependencies:
       binary-extensions: 2.3.0
@@ -4135,10 +4129,6 @@ snapshots:
   lodash@4.17.21: {}
 
   longest-streak@3.1.0: {}
-
-  loose-envify@1.4.0:
-    dependencies:
-      js-tokens: 4.0.0
 
   loupe@3.1.3: {}
 

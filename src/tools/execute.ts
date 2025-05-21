@@ -3,8 +3,8 @@ import { usePlugin } from "$lib/utils";
 import { fileTree } from "$lib/utils/file-tree.ts";
 import type { Artifact } from "$lib/artifacts/artifact-vew.svelte.ts";
 import type { ToolExecutionOptions } from "ai";
-import type { Vault } from "obsidian";
 import { errorToString } from "$lib/utils/error.ts";
+import type { VaultOverlay } from "../chat/vault/vault-overlay.ts";
 
 export * from "./reddit.ts";
 
@@ -12,7 +12,7 @@ export * from "./reddit.ts";
 const fileEditHistory = new Map<string, string[]>();
 
 type VaultToolExecutionOptions = ToolExecutionOptions & {
-  vault: Vault;
+  vault: VaultOverlay;
 };
 
 /**
@@ -127,7 +127,7 @@ export async function textEditor(
     switch (command) {
       case "view": {
         // View a file or directory
-        const abstractFile = vault.getAbstractFileByPath(normalizedPath);
+        const abstractFile = await vault.getAbstractFileByPath(normalizedPath);
 
         if (!abstractFile) {
           return { error: `File or directory not found: ${path}` };
@@ -142,7 +142,7 @@ export async function textEditor(
         }
 
         // It's a file, read its contents
-        const file = vault.getFileByPath(normalizedPath);
+        const file = await vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
@@ -201,7 +201,7 @@ export async function textEditor(
 
         // Create the file
         await vault.create(normalizedPath, file_text);
-        return { content: `Successfully created file: ${path}` };
+        return { content: `Created file ${path}` };
       }
 
       case "str_replace": {
@@ -214,7 +214,7 @@ export async function textEditor(
           return { error: "new_str is required for str_replace command" };
         }
 
-        const file = vault.getFileByPath(normalizedPath);
+        const file = await vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
@@ -242,7 +242,7 @@ export async function textEditor(
         await vault.modify(file, content.replace(old_str, new_str));
 
         return {
-          result: "str_replace operation applied. Pending human review.",
+          result: `Modified file ${file.path}.`,
         };
       }
 
@@ -256,7 +256,7 @@ export async function textEditor(
           return { error: "new_str is required for insert command" };
         }
 
-        const file = vault.getFileByPath(normalizedPath);
+        const file = await vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
@@ -281,7 +281,7 @@ export async function textEditor(
 
       case "undo_edit": {
         // Undo the last edit
-        const file = vault.getFileByPath(normalizedPath);
+        const file = await vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }

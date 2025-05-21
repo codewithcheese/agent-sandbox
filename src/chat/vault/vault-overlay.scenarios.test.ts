@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { VaultOverlay } from "./vault-overlay";
 import { vault, helpers, MockTFile } from "../../../tests/mocks/obsidian";
 import type { TFile, Vault, TAbstractFile } from "obsidian";
+import { nanoid } from "nanoid";
 
 /**
  * This test suite focuses on realistic scenarios that might occur during
@@ -17,7 +18,7 @@ describe("VaultOverlay Scenarios", () => {
     helpers.reset();
 
     // Initialize version control
-    vaultOverlay = new VaultOverlay(vault as unknown as Vault);
+    vaultOverlay = new VaultOverlay(nanoid(), vault as unknown as Vault);
     await vaultOverlay.init();
   });
 
@@ -83,11 +84,11 @@ describe("VaultOverlay Scenarios", () => {
       expect(changes.find((c) => c.path === notePath)).not.toBeDefined();
       expect(changes.find((c) => c.path === relatedNotePath)).not.toBeDefined();
       expect(
-        changes.some((c) => c.path === newNotePath && c.status === "added"),
+        changes.some((c) => c.path === newNotePath && c.type === "added"),
       ).toBe(true);
       expect(
         changes.some(
-          (c) => c.path === newRelatedNotePath && c.status === "added",
+          (c) => c.path === newRelatedNotePath && c.type === "added",
         ),
       ).toBe(true);
     });
@@ -149,13 +150,13 @@ describe("VaultOverlay Scenarios", () => {
       // Check file changes
       const changes = await vaultOverlay.getFileChanges();
       expect(
-        changes.some((c) => c.path === newExistingPath && c.status === "added"),
+        changes.some((c) => c.path === newExistingPath && c.type === "added"),
       ).toBe(true);
       expect(
-        changes.some((c) => c.path === newAnotherPath && c.status === "added"),
+        changes.some((c) => c.path === newAnotherPath && c.type === "added"),
       ).toBe(true);
       expect(
-        changes.some((c) => c.path === indexPath && c.status === "added"),
+        changes.some((c) => c.path === indexPath && c.type === "added"),
       ).toBe(true);
     });
   });
@@ -280,17 +281,17 @@ describe("VaultOverlay Scenarios", () => {
       // Check file changes
       const changes = await vaultOverlay.getFileChanges();
       expect(
-        changes.some((c) => c.path === readmePath && c.status === "added"),
+        changes.some((c) => c.path === readmePath && c.type === "added"),
       ).toBe(true);
       expect(
-        changes.some((c) => c.path === installPath && c.status === "added"),
+        changes.some((c) => c.path === installPath && c.type === "added"),
       ).toBe(true);
       expect(
-        changes.some((c) => c.path === newUsagePath && c.status === "added"),
+        changes.some((c) => c.path === newUsagePath && c.type === "added"),
       ).toBe(true);
       // todo: to properly check deleted, the file should exist in the vault
       expect(
-        changes.some((c) => c.path === apiPath && c.status === "deleted"),
+        changes.some((c) => c.path === apiPath && c.type === "deleted"),
       ).toBe(false);
     });
   });

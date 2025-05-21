@@ -3,21 +3,29 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { VaultOverlay } from "./vault-overlay";
 import { vault, helpers, MockTFile } from "../../../tests/mocks/obsidian";
 import type { TFile, Vault, TAbstractFile } from "obsidian";
+import { nanoid } from "nanoid";
 
 describe("VaultOverlay", () => {
   let vaultOverlay: VaultOverlay;
-
+  let chatId: string;
   beforeEach(async () => {
     // Reset the mock vault state before each test
     helpers.reset();
 
     // Create the vault overlay with the mock vault
-    vaultOverlay = new VaultOverlay(vault as unknown as Vault);
+    chatId = nanoid();
+    vaultOverlay = new VaultOverlay(chatId, vault as unknown as Vault);
     await vaultOverlay.init();
   });
 
   afterEach(async () => {
     await vaultOverlay.destroy();
+  });
+
+  it("should initialize the git repo once per chatId only", async () => {
+    // create and initialize the vault overlay again
+    vaultOverlay = new VaultOverlay(chatId, vault as unknown as Vault);
+    await vaultOverlay.init();
   });
 
   describe("Create File Test", () => {

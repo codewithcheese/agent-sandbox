@@ -2,6 +2,7 @@ import {
   type DataAdapter,
   type DataWriteOptions,
   type EventRef,
+  normalizePath,
   TAbstractFile,
   TFile,
   TFolder,
@@ -9,10 +10,9 @@ import {
 } from "obsidian";
 import { invariant } from "@epic-web/invariant";
 import FS from "@isomorphic-git/lightning-fs";
-import { nanoid } from "nanoid";
 import * as git from "isomorphic-git";
-import { relative } from "path";
 import { createDebug } from "$lib/debug.ts";
+import { relative } from "path-browserify";
 
 const debug = createDebug();
 
@@ -26,58 +26,115 @@ type GitState =
   | { type: "ready"; branch: "staging" }
   | { type: "staged"; branch: "staging" };
 
+export type Change = {
+  path: string;
+  type: "added" | "deleted" | "modified" | "identical";
+};
+
+function absolute(path: string) {
+  return path.startsWith("/") ? path : "/" + path;
+}
+
 export class VaultOverlay implements Vault {
   fs: FS;
   state: GitState = { type: "blank", branch: undefined };
 
-  constructor(private vault: Vault) {
-    this.fs = new FS(`agent-sandbox-git-${nanoid()}`);
+  constructor(
+    private chatId: string,
+    private vault: Vault,
+  ) {
+    this.fs = new FS(`agent-sandbox-overlay-${chatId}`);
   }
 
   async init() {
     invariant(this.state.type === "blank", "Expected blank state");
-    console.log("Initializing Git repository...");
-    // Initialize git repository
-    await git.init({ fs: this.fs, dir, gitdir, bare: true });
-    await git.setConfig({
+    debug("Initializing Git repository...");
+
+    // Check if git repository already exists
+    try {
+      await git.resolveRef({ fs: this.fs, dir, ref: "HEAD" });
+      debug("Git repository already initialized");
+    } catch (error) {
+      debug("Git repository not initialized yet, creating...");
+      // Initialize git repository
+      await git.init({ fs: this.fs, dir, gitdir, bare: true });
+    }
+
+    // Set git config if not already set
+    const userName = await git.getConfig({
       fs: this.fs,
       dir,
       path: "user.name",
-      value: "AI-Agent",
     });
-    await git.setConfig({
+
+    if (!userName) {
+      await git.setConfig({
+        fs: this.fs,
+        dir,
+        path: "user.name",
+        value: "AI-Agent",
+      });
+    }
+
+    const userEmail = await git.getConfig({
       fs: this.fs,
       dir,
       path: "user.email",
-      value: "agent@example.com",
     });
-    console.log("Git repository initialized");
 
-    // Create an empty .gitignore file to initialize the master branch
-    await this.fs.promises.writeFile("/.gitignore", "");
-    await git.add({ fs: this.fs, dir, filepath: ".gitignore" });
+    if (!userEmail) {
+      await git.setConfig({
+        fs: this.fs,
+        dir,
+        path: "user.email",
+        value: "agent@example.com",
+      });
+    }
 
-    // Create initial commit
-    const commitResult = await git.commit({
-      fs: this.fs,
-      dir,
-      message: "Initial commit",
-      author: { name: "AI-Agent", email: "agent@example.com" },
-    });
-    console.log("Created master branch with initial commit: " + commitResult);
+    let branches = await git.listBranches({ fs: this.fs, dir });
 
-    await git.branch({ fs: this.fs, dir, ref: staging });
+    if (!branches.includes(master)) {
+      // Create an empty .gitignore file to initialize the master branch
+      try {
+        await this.fs.promises.stat("/.gitignore");
+      } catch (error) {
+        // File doesn't exist, create it
+        await this.fs.promises.writeFile("/.gitignore", "");
+      }
 
-    await git.checkout({
-      fs: this.fs,
-      dir,
-      ref: staging,
-      force: false,
-    });
+      // Add .gitignore to git
+      await git.add({ fs: this.fs, dir, filepath: ".gitignore" });
+
+      // Create initial commit
+      const commitResult = await git.commit({
+        fs: this.fs,
+        dir,
+        message: "Initial commit",
+        author: { name: "AI-Agent", email: "agent@example.com" },
+      });
+      debug("Created master branch with initial commit: " + commitResult);
+    }
+
+    if (!branches.includes(staging)) {
+      await git.branch({ fs: this.fs, dir, ref: staging });
+    }
+
+    // Check current branch
+    let currentBranch = await git.currentBranch({ fs: this.fs, dir });
+
+    // Checkout staging branch if not already on it
+    if (currentBranch !== staging) {
+      await git.checkout({
+        fs: this.fs,
+        dir,
+        ref: staging,
+        force: false,
+      });
+    }
 
     // List branches to confirm creation
-    const branches = await git.listBranches({ fs: this.fs, dir });
-    console.log("Available branches after initialization:", branches);
+    branches = await git.listBranches({ fs: this.fs, dir });
+    debug("Available branches after initialization:", branches);
 
     this.state = { type: "ready", branch: staging };
   }
@@ -106,7 +163,7 @@ export class VaultOverlay implements Vault {
     }
 
     // If the file is not tracked, check the vault
-    const file = this.vault.getFileByPath(path);
+    const file = this.vault.getFileByPath(normalizePath(path));
     if (file) {
       file.vault = this as unknown as Vault;
     }
@@ -128,7 +185,7 @@ export class VaultOverlay implements Vault {
       return this.createTFolder(path);
     }
 
-    const folder = this.vault.getFolderByPath(path);
+    const folder = this.vault.getFolderByPath(normalizePath(path));
     if (folder) {
       folder.vault = this as unknown as Vault;
     }
@@ -171,17 +228,17 @@ export class VaultOverlay implements Vault {
     if (trackStatus === "added" || trackStatus === "deleted") {
       throw new Error(`File ${path} already exists.`);
     }
-    const existsInVault = this.vault.getFileByPath(path);
+    const existsInVault = this.vault.getFileByPath(normalizePath(path));
     invariant(!existsInVault, `File already exists`);
 
     // Parent folder hierarchy must exist.
     await this.mkdirRecursive(path);
 
-    await this.fs.promises.writeFile(path, data);
+    await this.fs.promises.writeFile(absolute(path), data);
     await git.add({
       dir: dir,
       fs: this.fs,
-      filepath: relative("/", path),
+      filepath: relative("/", absolute(path)),
     });
     this.state = { type: "staged", branch: staging };
     return this.createTFile(path);
@@ -196,7 +253,7 @@ export class VaultOverlay implements Vault {
   }
 
   async createFolder(path: string) {
-    const existing = this.vault.getAbstractFileByPath(path);
+    const existing = this.vault.getAbstractFileByPath(normalizePath(path));
     if (existing) {
       throw new Error("File already exists.");
     }
@@ -204,11 +261,10 @@ export class VaultOverlay implements Vault {
       this.state.type === "ready" || this.state.type === "staged",
       `Expected ready or staged state. State is ${this.state.type}.`,
     );
-    invariant(path.startsWith("/"), "Path must be absolute");
     invariant(path.endsWith("/"), "Folder path must end with a slash");
     await this.mkdirRecursive(path);
     // write .gitkeep so that the folder will be tracked by git
-    await this.fs.promises.writeFile(`${path}.gitkeep`, "");
+    await this.fs.promises.writeFile(absolute(`${path}.gitkeep`), "");
     await git.add({
       dir,
       fs: this.fs,
@@ -219,7 +275,6 @@ export class VaultOverlay implements Vault {
   }
 
   async read(file: TFile): Promise<string> {
-    invariant(file.path.startsWith("/"), "Path must be absolute");
     invariant(this.state.branch === staging, "Expected staging branch");
 
     const trackStatus = await this.fileIsTracked(file.path);
@@ -229,7 +284,7 @@ export class VaultOverlay implements Vault {
     }
 
     if (trackStatus === "added") {
-      return await this.fs.promises.readFile(file.path, {
+      return await this.fs.promises.readFile(absolute(file.path), {
         encoding: "utf8",
       });
     }
@@ -251,7 +306,7 @@ export class VaultOverlay implements Vault {
   }
 
   async delete(file: TAbstractFile, force?: boolean): Promise<void> {
-    const folder = this.vault.getFolderByPath(file.path);
+    const folder = this.vault.getFolderByPath(normalizePath(file.path));
     if (folder) {
       throw new Error("delete folder not supported");
     }
@@ -263,7 +318,6 @@ export class VaultOverlay implements Vault {
       this.state.type === "ready" || this.state.type === "staged",
       "Expected ready or staged state",
     );
-    invariant(path.startsWith("/"), "Path must be absolute");
 
     // Check if the file exists in version control
     const trackStatus = await this.fileIsTracked(path);
@@ -275,16 +329,16 @@ export class VaultOverlay implements Vault {
 
     // If the file doesn't exist in version control but exists in the vault, import it first
     if (trackStatus === false) {
-      const fileInVault = this.vault.getFileByPath(path);
+      const fileInVault = this.vault.getFileByPath(normalizePath(path));
       invariant(fileInVault, `File ${path} not found in vault`);
       await this.importFileToMaster(path);
     }
 
-    await this.fs.promises.unlink(path);
+    await this.fs.promises.unlink(absolute(path));
     await git.remove({
       dir,
       fs: this.fs,
-      filepath: relative("/", path),
+      filepath: relative("/", absolute(path)),
     });
     this.state = { type: "staged", branch: staging };
   }
@@ -294,8 +348,6 @@ export class VaultOverlay implements Vault {
   }
 
   async rename(file: TAbstractFile, newPath: string): Promise<void> {
-    invariant(file.path.startsWith("/"), "Source path must be absolute");
-    invariant(newPath.startsWith("/"), "Destination path must be absolute");
     invariant(
       this.state.type === "ready" || this.state.type === "staged",
       "Expected ready or staged state",
@@ -308,7 +360,7 @@ export class VaultOverlay implements Vault {
 
     // Path must not end with a forward‑slash (would denote a folder).
     if (newPath.endsWith("/")) {
-      throw new Error("Invalid file path");
+      throw new Error("Destination path must not be a folder");
     }
 
     const newPathTracked = await this.fileIsTracked(newPath);
@@ -326,21 +378,21 @@ export class VaultOverlay implements Vault {
 
     // If the file doesn't exist in version control but exists in the vault, import it first
     if (!trackStatus) {
-      const inVault = this.vault.getFileByPath(file.path);
+      const inVault = this.vault.getFileByPath(normalizePath(file.path));
       invariant(inVault, `Source ${file.path} does not exist.`);
       await this.importFileToMaster(file.path);
     }
 
-    await this.fs.promises.rename(file.path, newPath);
+    await this.fs.promises.rename(absolute(file.path), absolute(newPath));
     await git.add({
       dir,
       fs: this.fs,
-      filepath: relative("/", newPath),
+      filepath: relative("/", absolute(newPath)),
     });
     await git.remove({
       dir,
       fs: this.fs,
-      filepath: relative("/", file.path),
+      filepath: relative("/", absolute(file.path)),
     });
     this.state = { type: "staged", branch: staging };
   }
@@ -355,21 +407,20 @@ export class VaultOverlay implements Vault {
       this.state.type === "ready" || this.state.type === "staged",
       `Expected ready or staged state. State is ${this.state.type}.`,
     );
-    invariant(path.startsWith("/"), "Path must be absolute");
 
     const trackStatus = await this.fileIsTracked(path);
-    const existsInVault = this.vault.getFileByPath(path);
+    const existsInVault = this.vault.getFileByPath(normalizePath(path));
 
     if (!trackStatus && existsInVault) {
       await this.importFileToMaster(path);
     }
     // if trackStatus is deleted, proceed with the modification as if it's a new file
     await this.mkdirRecursive(path);
-    await this.fs.promises.writeFile(path, data);
+    await this.fs.promises.writeFile(absolute(path), data);
     await git.add({
       dir: dir,
       fs: this.fs,
-      filepath: relative("/", path),
+      filepath: relative("/", absolute(path)),
     });
     this.state = { type: "staged", branch: staging };
   }
@@ -443,7 +494,7 @@ export class VaultOverlay implements Vault {
     const basename = name.includes(".")
       ? name.substring(0, name.lastIndexOf("."))
       : name;
-    const stat = await this.fs.promises.stat(`${path}`);
+    const stat = await this.fs.promises.stat(absolute(path));
 
     return {
       ...abstractFile,
@@ -505,11 +556,10 @@ export class VaultOverlay implements Vault {
       this.state.type === "ready" || this.state.type === "staged",
       "Expected ready or staged state",
     );
-    invariant(path.startsWith("/"), "Path must be absolute");
     invariant(this.state.branch === staging, "Expected staging branch");
 
     // Try to get the file from the vault
-    const file = this.vault.getFileByPath(path);
+    const file = this.vault.getFileByPath(normalizePath(path));
     invariant(file, `File ${path} not found in vault`);
 
     const content = await this.vault.read(file);
@@ -526,11 +576,11 @@ export class VaultOverlay implements Vault {
         fs: this.fs,
         ref: master,
       });
-      await this.fs.promises.writeFile(path, content);
+      await this.fs.promises.writeFile(absolute(path), content);
       await git.add({
         dir,
         fs: this.fs,
-        filepath: relative("/", path),
+        filepath: relative("/", absolute(path)),
       });
       await git.commit({
         dir,
@@ -574,8 +624,6 @@ export class VaultOverlay implements Vault {
   }
 
   async fileIsTracked(path: string): Promise<false | "added" | "deleted"> {
-    invariant(path.startsWith("/"), "Path must be absolute");
-
     // Remove leading slash for git operations
     const relativePath = path.substring(1);
 
@@ -599,7 +647,7 @@ export class VaultOverlay implements Vault {
     type: "file" | "folder" = "file",
   ): Promise<boolean> {
     try {
-      const stats = await this.fs.promises.stat(path);
+      const stats = await this.fs.promises.stat(absolute(path));
       if (type === "folder") {
         return stats.isDirectory();
       }
@@ -651,8 +699,6 @@ export class VaultOverlay implements Vault {
   }
 
   async folderIsTracked(path: string): Promise<false | "added" | "deleted"> {
-    invariant(path.startsWith("/"), "Path must be absolute");
-
     // First check if the directory exists in the working directory
     const existsInWorkdir = await this.existsInWorkdir(path, "folder");
     if (existsInWorkdir) {
@@ -678,17 +724,11 @@ export class VaultOverlay implements Vault {
    * Get a list of file changes between master and staging branches
    * @returns A list of file changes with their status (added, modified, deleted)
    */
-  async getFileChanges(): Promise<
-    Array<{
-      path: string;
-      status: "added" | "modified" | "deleted" | "identical";
-    }>
-  > {
-    invariant(this.state.type === "ready", "Commit before getting changes");
-    const changes: Array<{
-      path: string;
-      status: "added" | "modified" | "deleted" | "identical";
-    }> = [];
+  async getFileChanges(): Promise<Change[]> {
+    if (this.state.type === "staged") {
+      console.warn("Staged changes not listed until committed");
+    }
+    const changes: Change[] = [];
 
     await git.walk({
       dir,
@@ -707,23 +747,24 @@ export class VaultOverlay implements Vault {
         const oidOld = oldEntry && (await oldEntry.oid());
         const oidNew = newEntry && (await newEntry.oid());
 
-        let status: "added" | "modified" | "deleted" | "identical";
+        let type: Change["type"];
         if (oidOld === oidNew) {
-          status = "identical";
+          type = "identical";
         } else if (!oldEntry) {
-          status = "added";
+          type = "added";
         } else if (!newEntry) {
-          status = "deleted";
+          type = "deleted";
         } else {
-          status = "modified";
+          type = "modified";
         }
 
         changes.push({
           path: "/" + filepath, // Add leading slash to match our path convention
-          status: status,
+          type,
         });
       },
     });
+    debug("Overlay changes", changes);
     return changes;
   }
 
@@ -747,7 +788,7 @@ export class VaultOverlay implements Vault {
       if (!part) continue;
       currentPath += "/" + part;
       try {
-        await this.fs.promises.mkdir(currentPath);
+        await this.fs.promises.mkdir(absolute(currentPath));
       } catch (e) {}
     }
   }

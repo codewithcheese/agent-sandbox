@@ -9,9 +9,11 @@ import { textEditor } from "./execute.ts";
 import { resolveInternalLink } from "../lib/utils/obsidian";
 import { getListFromFrontmatter } from "../lib/utils/frontmatter";
 import { extractCodeBlockContent } from "$lib/utils/codeblocks.ts";
-import { createVaultProxy } from "./vault-proxy.ts";
 import type { Chat } from "../chat/chat.svelte.ts";
 import type { AIProviderId } from "../settings/providers";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 export type VaultTool = BuiltinTool | ImportVaultTool | CodeVaultTool;
 
@@ -223,7 +225,7 @@ export async function createTool(
 }
 
 async function createCodeExecutor(vaultTool: CodeVaultTool) {
-  console.log(`Using inline code for ${vaultTool.name}`);
+  debug(`Using inline code for ${vaultTool.name}`);
 
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   const executeFunction = new AsyncFunction(
@@ -257,17 +259,12 @@ async function createExecutor(
   vaultTool: VaultTool,
   chat: Chat,
 ): Promise<Executor> {
-  console.log("Creating executor for tool", vaultTool.name);
+  debug("Creating executor for tool", vaultTool.name);
   if (vaultTool.type === "built-in") {
     if (vaultTool.name === "str_replace_editor") {
       return async (params: any, options) => {
-        console.log('Executing "str_replace_editor" tool', params, options);
-        const vault = createVaultProxy(
-          usePlugin().app.vault,
-          options.toolCallId,
-          chat,
-        );
-        return textEditor(params, { ...options, vault });
+        debug('Executing "str_replace_editor" tool', params, options);
+        return textEditor(params, { ...options, vault: chat.vaultOverlay });
       };
     } else {
       throw new Error(`Unknown builtin tool: ${vaultTool["name"]}`);
@@ -357,5 +354,5 @@ export async function executeToolInvocation(
     // fixme? pass messages not used yet
     messages: [],
   });
-  console.log("Tool result:", result, toolInvocation);
+  debug("Tool result:", result, toolInvocation);
 }

@@ -148,6 +148,7 @@ export default defineConfig(({ command }) => {
     },
     assetsInclude: ["**/*.md"],
     test: {
+      setupFiles: "tests/setup.ts",
       passWithNoTests: true,
       exclude: [...configDefaults.exclude, "e2e/*"],
 
