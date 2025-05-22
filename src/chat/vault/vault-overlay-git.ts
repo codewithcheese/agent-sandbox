@@ -35,7 +35,7 @@ function absolute(path: string) {
   return path.startsWith("/") ? path : "/" + path;
 }
 
-export class VaultOverlay implements Vault {
+export class VaultOverlayGit implements Vault {
   fs: FS;
   state: GitState = { type: "blank", branch: undefined };
 

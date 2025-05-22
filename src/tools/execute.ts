@@ -4,7 +4,7 @@ import { fileTree } from "$lib/utils/file-tree.ts";
 import type { Artifact } from "$lib/artifacts/artifact-vew.svelte.ts";
 import type { ToolExecutionOptions } from "ai";
 import { errorToString } from "$lib/utils/error.ts";
-import type { VaultOverlay } from "../chat/vault/vault-overlay.ts";
+import type { Vault } from "obsidian";
 
 export * from "./reddit.ts";
 
@@ -12,7 +12,7 @@ export * from "./reddit.ts";
 const fileEditHistory = new Map<string, string[]>();
 
 type VaultToolExecutionOptions = ToolExecutionOptions & {
-  vault: VaultOverlay;
+  vault: Vault;
 };
 
 /**
@@ -127,7 +127,7 @@ export async function textEditor(
     switch (command) {
       case "view": {
         // View a file or directory
-        const abstractFile = await vault.getAbstractFileByPath(normalizedPath);
+        const abstractFile = vault.getAbstractFileByPath(normalizedPath);
 
         if (!abstractFile) {
           return { error: `File or directory not found: ${path}` };
@@ -142,7 +142,7 @@ export async function textEditor(
         }
 
         // It's a file, read its contents
-        const file = await vault.getFileByPath(normalizedPath);
+        const file = vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
@@ -214,7 +214,7 @@ export async function textEditor(
           return { error: "new_str is required for str_replace command" };
         }
 
-        const file = await vault.getFileByPath(normalizedPath);
+        const file = vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
@@ -256,7 +256,7 @@ export async function textEditor(
           return { error: "new_str is required for insert command" };
         }
 
-        const file = await vault.getFileByPath(normalizedPath);
+        const file = vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }
@@ -281,7 +281,7 @@ export async function textEditor(
 
       case "undo_edit": {
         // Undo the last edit
-        const file = await vault.getFileByPath(normalizedPath);
+        const file = vault.getFileByPath(normalizedPath);
         if (!file) {
           return { error: `File not found: ${path}` };
         }

@@ -38,7 +38,7 @@ ensuring that files can be properly managed even when they exist in the vault bu
 
 #### 3.1.1 Capabilities
 
-* Track atomic file operations using git commands directly in the VaultOverlay:
+* Track atomic file operations using git commands directly in the VaultOverlayGit:
   * Create/modify: add, writeFile, commit
   * Delete: remove, commit
   * Rename: rename files and update git tracking
@@ -48,7 +48,7 @@ ensuring that files can be properly managed even when they exist in the vault bu
 
 #### 3.1.2 Implementation Mapping
 
-* **VaultOverlay**: Implements Obsidian's Vault interface and directly handles git operations
+* **VaultOverlayGit**: Implements Obsidian's Vault interface and directly handles git operations
 * **State Management**: Maintains a GitState to track whether changes are ready or staged
 * **Import Mechanism**: Methods like `importFileToMaster()` to import files from vault to git
 * **File Operations**: Direct implementation of Vault interface methods (create, modify, delete, rename)
@@ -110,7 +110,7 @@ ensuring that files can be properly managed even when they exist in the vault bu
 ### 4.1 Technical Advantages
 
 * **Simplified Architecture**: Unified implementation reduces complexity and abstraction layers
-* **Direct Integration**: VaultOverlay directly implements Vault interface for seamless operation
+* **Direct Integration**: VaultOverlayGit directly implements Vault interface for seamless operation
 * **In-Memory Operations**: Changes remain in memory until explicitly committed to the filesystem
 * **Automatic Import**: Handles files that exist in the vault but not in version control
 * **Pure JavaScript**: No native modules required

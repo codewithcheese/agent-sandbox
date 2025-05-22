@@ -1,11 +1,11 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { VaultOverlay } from "./vault-overlay";
+import { VaultOverlay } from "../vault-overlay.svelte.ts";
 import { vault, helpers, MockTFile } from "../../../tests/mocks/obsidian";
 import type { TFile, Vault, TAbstractFile } from "obsidian";
 import { nanoid } from "nanoid";
 
-describe("VaultOverlay", () => {
+describe("VaultOverlayGit", () => {
   let vaultOverlay: VaultOverlay;
   let chatId: string;
   beforeEach(async () => {
@@ -14,8 +14,7 @@ describe("VaultOverlay", () => {
 
     // Create the vault overlay with the mock vault
     chatId = nanoid();
-    vaultOverlay = new VaultOverlay(chatId, vault as unknown as Vault);
-    await vaultOverlay.init();
+    vaultOverlay = new VaultOverlay(vault as unknown as Vault);
   });
 
   afterEach(async () => {
@@ -24,8 +23,7 @@ describe("VaultOverlay", () => {
 
   it("should initialize the git repo once per chatId only", async () => {
     // create and initialize the vault overlay again
-    vaultOverlay = new VaultOverlay(chatId, vault as unknown as Vault);
-    await vaultOverlay.init();
+    vaultOverlay = new VaultOverlay(vault as unknown as Vault);
   });
 
   describe("Create File Test", () => {
@@ -169,7 +167,7 @@ describe("VaultOverlay", () => {
 
       // Assert
       // File should be renamed in version control
-      const newFile = await vaultOverlay.getFileByPath(newPath);
+      const newFile = vaultOverlay.getFileByPath(newPath);
       const newContent = await vaultOverlay.read(newFile);
       expect(newContent).toEqual(content);
 

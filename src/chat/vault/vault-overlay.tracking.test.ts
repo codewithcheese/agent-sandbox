@@ -1,18 +1,9 @@
 import "fake-indexeddb/auto";
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  vitest,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { vault, helpers } from "../../../tests/mocks/obsidian";
 import { Vault } from "obsidian";
 import debug from "debug";
-import { VaultOverlay } from "./vault-overlay.ts";
-import { nanoid } from "nanoid";
+import { VaultOverlay } from "../vault-overlay.svelte.ts";
 
 debug.enable("*");
 debug.log = console.log.bind(console);
@@ -23,26 +14,12 @@ describe("Vault Overlay Tracking", () => {
     vi.clearAllMocks();
     // Reset the mock vault state before each test
     helpers.reset();
-    overlay = new VaultOverlay(nanoid(), vault as unknown as Vault);
+    overlay = new VaultOverlay(vault as unknown as Vault);
   });
 
   afterEach(() => {
     overlay.destroy();
     vi.resetAllMocks();
-  });
-
-  describe("initializeRepo", () => {
-    it("should initialize a repository and return true", async () => {
-      try {
-        await overlay.init();
-        expect(overlay.state).toEqual({
-          type: "ready",
-          branch: "staging",
-        });
-      } finally {
-        await overlay.destroy();
-      }
-    });
   });
 
   describe(
@@ -53,28 +30,15 @@ describe("Vault Overlay Tracking", () => {
         helpers.addFile("modified-file.txt", "Original content");
         helpers.addFile("to-be-deleted.txt", "This will be deleted");
 
-        // Initialize version control
-        await overlay.init();
-
-        // Import and commit files to master branch
-        // await overlay.importFileToMain("/modified-file.txt");
-        // await overlay.importFileToMain("/to-be-deleted.txt");
-
-        // Switch to staging branch for our changes
-        // We'll use commitTurn later which will handle the branch switching for us
-
-        // Test add, modify, delete on staging branch
-        const modifyFile = await overlay.getFileByPath("modified-file.txt");
-        const deleteFile = await overlay.getFileByPath("to-be-deleted.txt");
+        // Test add, modify, delete on staging
+        const modifyFile = overlay.getFileByPath("modified-file.txt");
+        const deleteFile = overlay.getFileByPath("to-be-deleted.txt");
         await overlay.create("added-file.txt", "This is a new file");
         await overlay.modify(modifyFile, "Modified content");
         await overlay.delete(deleteFile);
 
-        // Commit the changes to staging
-        await overlay.commit("test-message-id");
-
         // Get the file changes between master and staging
-        const changes = await overlay.getFileChanges();
+        const changes = overlay.getFileChanges();
         console.log("Final changes:", JSON.stringify(changes, null, 2));
 
         // Verify the changes include the expected files with correct statuses
@@ -100,20 +64,17 @@ describe("Vault Overlay Tracking", () => {
 
   describe("fileExists", () => {
     it("should correctly check if a file exists in version control", async () => {
-      // Initialize version control
-      await overlay.init();
-
       // Create a test file in version control
       const testFilePath = "/file-exists-test.txt";
       await overlay.create(testFilePath, "File exists test content");
 
       // Check if the file exists
-      const exists = await overlay.fileIsTracked(testFilePath);
+      const exists = overlay.fileIsTracked(testFilePath);
       expect(exists).toBe("added");
 
       // Check if a non-existent file exists
       const nonExistentPath = "/non-existent-file.txt";
-      const nonExistentExists = await overlay.fileIsTracked(nonExistentPath);
+      const nonExistentExists = overlay.fileIsTracked(nonExistentPath);
       expect(nonExistentExists).toBe(false);
     });
   });
@@ -125,67 +86,15 @@ describe("Vault Overlay Tracking", () => {
       const testContent = "Import test content";
       helpers.addFile(testFilePath, testContent);
 
-      // Initialize version control
-      await overlay.init();
-
       // Import the file from vault to version control
       // @ts-expect-error calling private method
-      await overlay.importFileToMaster(testFilePath);
+      await overlay.syncPath(testFilePath);
 
       // Verify the file was imported correctly
-      const testFile = await overlay.getFileByPath(testFilePath);
+      const testFile = overlay.getFileByPath(testFilePath);
       expect(testFile).not.toBeNull();
       const contents = await overlay.read(testFile);
       expect(contents).toEqual(testContent);
-    });
-  });
-
-  describe("stageTurn", () => {
-    it("should stage changes for a conversation turn and return a commit SHA", async () => {
-      await overlay.init();
-
-      // Create a test file
-      const messageId = "test-message-id";
-      console.log("Writing test file...");
-      await overlay.create("/test-file.txt", "Test content");
-
-      // Stage the change
-      const sha = await overlay.commit(messageId);
-      console.log("Commit SHA:", sha);
-
-      // Verify the SHA is returned
-      expect(sha).toBeTruthy();
-      expect(typeof sha).toBe("string");
-
-      // Verify the file was created
-      const testFile = await overlay.getFileByPath("/test-file.txt");
-      const contents = await overlay.read(testFile);
-      expect(contents).toEqual("Test content");
-    });
-
-    it("should handle multiple changes in a single turn", async () => {
-      await overlay.init();
-
-      // Create test files
-      const messageId = "test-message-id-2";
-      await overlay.create("/test-file1.txt", "Content for file 1");
-      await overlay.create("/test-file2.txt", "Content for file 2");
-
-      // Stage the changes
-      const sha = await overlay.commit(messageId);
-
-      // Verify the SHA is returned
-      expect(sha).toBeTruthy();
-      expect(typeof sha).toBe("string");
-
-      // Verify the files were created
-      const testFile1 = await overlay.getFileByPath("/test-file1.txt");
-      const contents1 = await overlay.read(testFile1);
-      expect(contents1).toEqual("Content for file 1");
-
-      const testFile2 = await overlay.getFileByPath("/test-file2.txt");
-      const contents2 = await overlay.read(testFile2);
-      expect(contents2).toEqual("Content for file 2");
     });
   });
 });

@@ -62,11 +62,10 @@
     getModelAccountOptions,
     submitBtn = $bindable(),
     options,
-    changes,
   } = $props();
 
   const countChanges = $derived(
-    changes.filter((c) => c.status !== "identical").length,
+    chat.vaultOverlay.changes.filter((c) => c.status !== "identical").length,
   );
 
   onDestroy(() => {

@@ -11,6 +11,12 @@ export type ChatFileV1 = {
     messages: UIMessage[];
     attachments: DocumentAttachment[];
     toolRequests: ToolRequest[];
+    overlay:
+      | {
+          master: Uint8Array;
+          staging: Uint8Array;
+        }
+      | undefined;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -37,6 +43,7 @@ export class ChatSerializer {
       messages: [],
       attachments: [],
       toolRequests: [],
+      overlay: undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -57,6 +64,7 @@ export class ChatSerializer {
         messages: chat.messages,
         attachments: chat.attachments,
         toolRequests: chat.toolRequests,
+        overlay: chat.vaultOverlay.snapshot(),
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       },

@@ -21,7 +21,7 @@ import type { ToolRequest } from "../tools/tool-request.ts";
 import type { ChatOptions } from "./options.svelte.ts";
 import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
-import { VaultOverlay } from "./vault/vault-overlay.ts";
+import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 
 const debug = createDebug();
@@ -85,12 +85,11 @@ export class Chat {
 
   constructor(path: string, data: CurrentChatFile) {
     Object.assign(this, data.payload);
-    this.vaultOverlay = new VaultOverlay(this.id, usePlugin().app.vault);
+    this.vaultOverlay = new VaultOverlay(
+      usePlugin().app.vault,
+      data.payload.overlay,
+    );
     this.path = path;
-  }
-
-  async init() {
-    await this.vaultOverlay.init();
   }
 
   static async create(path: string) {
@@ -101,9 +100,7 @@ export class Chat {
     }
     const raw = await plugin.app.vault.read(file);
     const data = ChatSerializer.parse(raw);
-    const chat = new Chat(path, data);
-    await chat.init();
-    return chat;
+    return new Chat(path, data);
   }
 
   static async load(path: string) {
@@ -345,15 +342,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
             step.toolResults.forEach((toolResult) => {
               debug("Tool result", toolResult.toolName, toolResult.result);
             });
-            if (this.vaultOverlay.state.type === "staged") {
-              const assistantMessage = step.response.messages
-                .toReversed()
-                .find((m) => m.role === "assistant");
-              if (assistantMessage) {
-                await this.vaultOverlay.commit(assistantMessage.id);
-                debug("Committed tool changes");
-              }
-            }
           },
         });
 

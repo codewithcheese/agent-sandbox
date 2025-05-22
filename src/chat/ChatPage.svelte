@@ -24,7 +24,7 @@
   import AgentMessage from "./AgentMessage.svelte";
   import type { Agents } from "./agents.svelte.ts";
   import Autoscroll from "./Autoscroll.svelte";
-  import type { Change } from "./vault/vault-overlay.ts";
+  import type { Change } from "./vault-overlay.svelte.ts";
 
   const plugin = usePlugin();
 
@@ -38,7 +38,6 @@
 
   $inspect("Chat path", chat.path);
 
-  let changes = $state<Change[]>([]);
   let scrollContainer: HTMLElement | null = $state(null);
   let sentinel: HTMLElement | null = $state(null);
   let editIndex: number | null = $state(null);
@@ -46,13 +45,6 @@
   let selectedAgent = $derived(
     agents.entries.find((c) => c.file.path === options.agentPath),
   );
-
-  $effect(() => {
-    chat.messages.length;
-    untrack(async () => {
-      changes = await chat.vaultOverlay.getFileChanges();
-    });
-  });
 
   onDestroy(() => {
     chat.cancel();
@@ -190,7 +182,9 @@
   }
 
   async function openFirstChange() {
-    const firstChange = changes.find((c) => c.type !== "identical");
+    const firstChange = chat.vaultOverlay.changes.find(
+      (c) => c.type !== "identical",
+    );
     if (!firstChange) {
       new Notice("No pending changes found", 3000);
       return;
@@ -402,7 +396,6 @@
     {getModelAccountOptions}
     bind:submitBtn
     {options}
-    {changes}
   />
 </div>
 

@@ -6,7 +6,7 @@ import * as diff from "diff";
 import { getBaseName } from "$lib/utils/path.ts";
 import { getPatchStats } from "../../tools/tool-request.ts";
 import { findMatchingView } from "$lib/obsidian/leaf.ts";
-import type { Change } from "../../chat/vault/vault-overlay.ts";
+import type { Change } from "../../chat/vault/vault-overlay-git.ts";
 import { createDebug } from "$lib/debug.ts";
 import { nanoid } from "nanoid";
 
@@ -49,7 +49,7 @@ export class MergeView extends ItemView {
     viewContent.style.padding = "0px";
     viewContent.style.backgroundColor = "var(--background-primary)";
 
-    console.log("Mount", this.state);
+    debug("Mount", this.state);
 
     const chat = await Chat.load(this.state.chatPath);
 
@@ -75,9 +75,8 @@ export class MergeView extends ItemView {
             this.state.change.path,
             resolvedContent,
           );
-          await chat.vaultOverlay.modify(file, pendingContent);
-          await chat.vaultOverlay.commit(nanoid());
-          debug("Remaining changes", await chat.vaultOverlay.getFileChanges());
+          await chat.vaultOverlay.syncPath(file.path);
+          debug("Remaining changes", chat.vaultOverlay.getFileChanges());
           await chat.save();
 
           const remaining = diff.createPatch(
@@ -88,10 +87,7 @@ export class MergeView extends ItemView {
           const stats = getPatchStats(remaining);
 
           if (!stats.added && !stats.removed) {
-            console.log(
-              "Closing merge view for path: ",
-              this.state.change.path,
-            );
+            debug("Closing merge view for path: ", this.state.change.path);
             const file = this.app.vault.getFileByPath(
               normalizePath(this.state.change.path),
             );
@@ -122,7 +118,7 @@ export class MergeView extends ItemView {
   }
 
   getState(): Record<string, undefined> {
-    console.log("Getting state", this.state);
+    debug("State", this.state);
     return this.state as any;
   }
 
