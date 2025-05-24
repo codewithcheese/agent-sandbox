@@ -72,6 +72,9 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Diff: Update Loro accept methods to have side effects.
+- [ ] Diff: Add vault change checking
+- [ ] Diff: Sync vault and display changes when user submits message
 - [ ] Chat: Tag based file editing
 - [ ] Chat: Chat homepage with agent selection
 - [ ] Chat: Token counting

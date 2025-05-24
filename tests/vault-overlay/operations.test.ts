@@ -26,6 +26,27 @@ describe("VaultOverlayGit", () => {
     vaultOverlay = new VaultOverlay(vault as unknown as Vault);
   });
 
+  describe("Read File Test", () => {
+    it("should read file not in overlay", async () => {
+      const file = helpers.addFile("/test-file.md", "Original content");
+      const contents = await vaultOverlay.read(file);
+      expect(contents).toEqual("Original content");
+    });
+
+    it("should read file modified in overlay", async () => {
+      const file = helpers.addFile("/test-file.md", "Original content");
+      await vaultOverlay.modify(file, "Modified content");
+      const contents = await vaultOverlay.read(file);
+      expect(contents).toEqual("Modified content");
+    });
+
+    it("should throw when reading file deleted in overlay", async () => {
+      const file = helpers.addFile("/test-file.md", "Original content");
+      await vaultOverlay.delete(file);
+      await expect(() => vaultOverlay.read(file)).rejects.toThrow();
+    });
+  });
+
   describe("Create File Test", () => {
     it("should create a file in the version control system but not in the actual vault", async () => {
       // Arrange

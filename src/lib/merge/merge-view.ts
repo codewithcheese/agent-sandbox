@@ -70,11 +70,16 @@ export class MergeView extends ItemView {
         name: getBaseName(this.state.change.path),
         onSave: async (resolvedContent: string, pendingContent: string) => {
           debug("On save", resolvedContent, pendingContent);
+          // todo: move write into approveModify
           await this.app.vault.adapter.write(
             this.state.change.path,
             resolvedContent,
           );
-          await chat.vaultOverlay.syncPath(file.path);
+          chat.vaultOverlay.approveModify(file.path, resolvedContent);
+          // if some changes are remaining then apply them to the overlay
+          if (resolvedContent !== pendingContent) {
+            await chat.vaultOverlay.modify(file, pendingContent);
+          }
           debug("Remaining changes", chat.vaultOverlay.getFileChanges());
           await chat.save();
 

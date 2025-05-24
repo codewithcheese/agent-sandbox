@@ -66,6 +66,7 @@ export class VaultOverlay implements Vault {
   }
 
   getFileByPath(path: string): TFile {
+    debug("getFileByPath", path);
     invariant(!path.endsWith("/"), "File path must not end with a slash");
 
     const stagingNode = this.findNode("staging", path);
@@ -86,7 +87,8 @@ export class VaultOverlay implements Vault {
   }
 
   getFolderByPath(path: string): TFolder {
-    invariant(path.endsWith("/"), "Folder path must end with a slash");
+    debug("getFolderByPath", path);
+    invariant(path.endsWith("/"), `Folder path must end with a slash: ${path}`);
 
     const stagingNode = this.findNode("staging", path);
     if (stagingNode && stagingNode.data.get("isDeleted")) {
@@ -105,6 +107,7 @@ export class VaultOverlay implements Vault {
   }
 
   getAbstractFileByPath(path: string) {
+    debug("getAbstractFileByPath", path);
     const stagingNode = this.findNode("staging", path);
     if (stagingNode && stagingNode.data.get("isDeleted")) {
       // If the file is tracked but deleted, return null
@@ -183,11 +186,9 @@ export class VaultOverlay implements Vault {
   async read(file: TFile): Promise<string> {
     const stagingNode = this.findNode("staging", file.path);
 
-    if (stagingNode.data.get("isDeleted")) {
+    if (stagingNode && stagingNode.data.get("isDeleted")) {
       throw new Error(`File ${file.path} does not exist`);
-    }
-
-    if (stagingNode) {
+    } else if (stagingNode) {
       return (stagingNode.data.get("text") as LoroText).toString();
     }
 
@@ -259,7 +260,7 @@ export class VaultOverlay implements Vault {
     }
 
     // Check if the file is tracked
-    const stagingNode = this.findNode("staging", file.path);
+    let stagingNode = this.findNode("staging", file.path);
 
     // If the file is deleted, we can't rename it
     if (stagingNode && stagingNode.data.get("isDeleted")) {
@@ -276,19 +277,23 @@ export class VaultOverlay implements Vault {
         `Source ${file.path} does not exist. File not found in vault.`,
       );
       await this.syncPath(file.path);
+      stagingNode = this.findNode("staging", file.path);
+      invariant(
+        stagingNode,
+        `Source ${file.path} does not exist. File not found after sync.`,
+      );
     }
 
-    const node = this.findNode("staging", file.path);
     invariant(
-      node,
+      stagingNode,
       `Source ${file.path} does not exist. File not found after sync.`,
     );
     const folder = this.ensureFolder("staging", newPath);
     // todo: test renaming a file and a folder
     const newName = basename(newPath);
-    node.data.set("name", newName);
-    if (node.parent().id !== folder.id) {
-      node.move(folder);
+    stagingNode.data.set("name", newName);
+    if (stagingNode.parent().id !== folder.id) {
+      stagingNode.move(folder);
     }
     this.stagingDoc.commit();
     this.computeChanges();
@@ -664,7 +669,7 @@ export class VaultOverlay implements Vault {
       }
     }
 
-    return changes;
+    return changes.filter((c) => c.type !== "identical");
   }
 
   ensureFolder(branch: "master" | "staging", path: string): LoroTreeNode {
