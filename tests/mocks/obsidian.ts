@@ -66,7 +66,7 @@ export const folderSystem = new Map<string, MockTFolder>();
 const rootFolder = new MockTFolder("/");
 folderSystem.set("/", rootFolder);
 
-export const vault = {
+export const vault: Vault = {
   getName: vi.fn(() => "Mock Vault"),
   configDir: "/mock-config",
   read: vi.fn(async (file: MockTFile) => {
@@ -87,17 +87,17 @@ export const vault = {
   getFolderByPath: vi.fn((path: string) => {
     // Normalize path
     const normalizedPath = path === "" ? "/" : path;
-    
+
     // Check if folder exists
     if (folderSystem.has(normalizedPath)) {
       return folderSystem.get(normalizedPath);
     }
-    
+
     // Check if it's the root folder
     if (normalizedPath === "/") {
       return rootFolder;
     }
-    
+
     return null;
   }),
   getAbstractFileByPath: vi.fn((path: string) => {
@@ -107,13 +107,13 @@ export const vault = {
       file.vault = vault;
       return file;
     }
-    
+
     // Check if it's a folder
     const normalizedPath = path === "" ? "/" : path;
     if (folderSystem.has(normalizedPath)) {
       return folderSystem.get(normalizedPath);
     }
-    
+
     return null;
   }),
   getRoot: vi.fn(() => {
@@ -123,7 +123,7 @@ export const vault = {
     fileSystem.set(path, { content });
     const file = new MockTFile(path);
     file.vault = vault;
-    
+
     // Set parent folder
     const lastSlash = path.lastIndexOf("/");
     if (lastSlash > 0) {
@@ -132,7 +132,7 @@ export const vault = {
     } else {
       file.parent = rootFolder;
     }
-    
+
     return file;
   }),
   createFolder: vi.fn(async (path: string) => {
@@ -140,7 +140,7 @@ export const vault = {
     const folder = new MockTFolder(path);
     folder.vault = vault;
     folderSystem.set(path, folder);
-    
+
     // Set parent folder
     const lastSlash = path.lastIndexOf("/");
     if (lastSlash > 0) {
@@ -154,14 +154,13 @@ export const vault = {
       folder.parent = rootFolder;
       rootFolder.children.push(folder);
     }
-    
+
     // Mark that the directory exists by adding an empty file
     fileSystem.set(path + "/.dir", { content: "" });
     return folder;
   }),
   modify: vi.fn(async (file: MockTFile, content: string) => {
     fileSystem.set(file.path, { content });
-    return file;
   }),
   delete: vi.fn(async (file: MockTFile | MockTFolder) => {
     if (file instanceof MockTFile) {
@@ -203,6 +202,7 @@ export const vault = {
     return newContent;
   }),
 
+  // @ts-expect-error adapater missing props
   adapter: {
     read: vi.fn(async (path: string) => {
       const fileData = fileSystem.get(path);
@@ -220,7 +220,6 @@ export const vault = {
     mkdir: vi.fn(async (path: string) => {
       // Just mark that the directory exists by adding an empty file
       fileSystem.set(path + "/.dir", { content: "" });
-      return true;
     }),
     readBinary: vi.fn(async (path: string) => {
       const fileData = fileSystem.get(path);
@@ -228,7 +227,7 @@ export const vault = {
         throw new Error(`File not found: ${path}`);
       }
       // Convert string to ArrayBuffer for binary data simulation
-      return new TextEncoder().encode(fileData.content).buffer;
+      return new TextEncoder().encode(fileData.content).buffer as ArrayBuffer;
     }),
     writeBinary: vi.fn(async (path: string, data: ArrayBuffer) => {
       // Convert ArrayBuffer to string for storage
@@ -309,16 +308,16 @@ export const helpers = {
     const lastSlash = path.lastIndexOf("/");
     if (lastSlash > 0) {
       const parentPath = path.substring(0, lastSlash);
-      
+
       // Create parent folder if it doesn't exist
       if (!folderSystem.has(parentPath)) {
         this.addFolder(parentPath);
       }
-      
+
       // Set parent-child relationship
       const file = vault.getFileByPath(path);
       const folder = folderSystem.get(parentPath);
-      
+
       if (file && folder) {
         file.parent = folder;
       }
@@ -329,7 +328,7 @@ export const helpers = {
     fileSystem.clear();
     fileCache.clear();
     folderSystem.clear();
-    
+
     // Recreate root folder
     const root = new MockTFolder("/");
     root.vault = vault;

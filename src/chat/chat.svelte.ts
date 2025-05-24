@@ -145,9 +145,9 @@ export class Chat {
     }
   }
 
-  clearAttachments() {
+  async clearAttachments() {
     this.attachments = [];
-    this.save();
+    return this.save();
   }
 
   async submit(content: string, options: ChatOptions) {
@@ -187,7 +187,7 @@ export class Chat {
       createdAt: new Date(),
     });
 
-    this.clearAttachments();
+    await this.clearAttachments();
 
     // Now run the conversation to completion
     await this.runConversation(options);

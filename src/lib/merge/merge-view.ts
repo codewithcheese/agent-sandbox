@@ -6,9 +6,8 @@ import * as diff from "diff";
 import { getBaseName } from "$lib/utils/path.ts";
 import { getPatchStats } from "../../tools/tool-request.ts";
 import { findMatchingView } from "$lib/obsidian/leaf.ts";
-import type { Change } from "../../chat/vault/vault-overlay-git.ts";
+import type { Change } from "../../chat/vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
-import { nanoid } from "nanoid";
 
 const debug = createDebug();
 

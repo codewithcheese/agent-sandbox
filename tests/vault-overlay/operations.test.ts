@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { VaultOverlay } from "../vault-overlay.svelte.ts";
-import { vault, helpers, MockTFile } from "../../../tests/mocks/obsidian";
+import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
+import { vault, helpers, MockTFile } from "../mocks/obsidian.ts";
 import type { TFile, Vault, TAbstractFile } from "obsidian";
 import { nanoid } from "nanoid";
 
@@ -212,15 +212,15 @@ describe("VaultOverlayGit", () => {
 
     it("should import a file from the vault if it doesn't exist in version control", async () => {
       // Arrange
-      const filePath = "/test-import-rename.md";
-      const newPath = "/renamed-import-file.md";
-      const content = "# Test content for import rename";
+      const filePath = "/before.md";
+      const newPath = "/after.md";
+      const content = "# Test content";
 
-      // Add the file to the vault but not to version control
+      // Add the file to the vault but to overlay
       helpers.addFile(filePath, content);
 
       // Get the file object
-      const file = await vaultOverlay.getFileByPath(filePath);
+      const file = vaultOverlay.getFileByPath(filePath);
       expect(file).not.toBeNull();
 
       // Act
@@ -228,7 +228,7 @@ describe("VaultOverlayGit", () => {
 
       // Assert
       // File should be renamed in version control
-      const newFile = await vaultOverlay.getFileByPath(newPath);
+      const newFile = vaultOverlay.getFileByPath(newPath);
       const newContent = await vaultOverlay.read(newFile);
       expect(newContent).toEqual(content);
 
@@ -238,7 +238,7 @@ describe("VaultOverlayGit", () => {
   });
 
   describe("Delete File Test", () => {
-    it("should delete a file in the version control system but not in the actual vault", async () => {
+    it("should delete a file in the overlay but not in the actual vault", async () => {
       // Arrange - Create a file in the actual vault
       const filePath = "/file-to-delete.md";
       const fileContent = "# File to Delete";
@@ -251,8 +251,8 @@ describe("VaultOverlayGit", () => {
 
       // Assert
       // Verify the file is tracked as deleted in the version control system
-      const isTracked = await vaultOverlay.fileIsTracked(file.path);
-      expect(isTracked).toEqual("deleted");
+      const stagingNode = vaultOverlay.findNode("staging", file.path);
+      expect(stagingNode.data.get("isDeleted")).toEqual(true);
 
       // Verify the file cannot
 
