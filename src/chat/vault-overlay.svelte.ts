@@ -185,11 +185,18 @@ export class VaultOverlay implements Vault {
 
   async read(file: TFile): Promise<string> {
     const stagingNode = this.findNode("staging", file.path);
-
     if (stagingNode && stagingNode.data.get("isDeleted")) {
       throw new Error(`File ${file.path} does not exist`);
     } else if (stagingNode) {
       return (stagingNode.data.get("text") as LoroText).toString();
+    }
+
+    // If no staging node found for this path, check for a master node in the overlay before reading from vault
+    // If a master node exists at this path, but not a staging node, it means the file was renamed.
+    // Then a file is no longer available at this path
+    const masterNode = this.findNode("master", file.path);
+    if (masterNode) {
+      throw new Error(`File ${file.path} does not exist`);
     }
 
     // If not tracked, read from vault

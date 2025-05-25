@@ -233,19 +233,19 @@ describe("VaultOverlayGit", () => {
 
     it("should import a file from the vault if it doesn't exist in version control", async () => {
       // Arrange
-      const filePath = "/before.md";
+      const oldPath = "/before.md";
       const newPath = "/after.md";
       const content = "# Test content";
 
       // Add the file to the vault but to overlay
-      helpers.addFile(filePath, content);
+      helpers.addFile(oldPath, content);
 
       // Get the file object
-      const file = vaultOverlay.getFileByPath(filePath);
-      expect(file).not.toBeNull();
+      const oldFile = vaultOverlay.getFileByPath(oldPath);
+      expect(oldFile).not.toBeNull();
 
       // Act
-      await vaultOverlay.rename(file, newPath);
+      await vaultOverlay.rename(oldFile, newPath);
 
       // Assert
       // File should be renamed in version control
@@ -254,7 +254,7 @@ describe("VaultOverlayGit", () => {
       expect(newContent).toEqual(content);
 
       // Original file should no longer exist in version control
-      await expect(vaultOverlay.read(file)).rejects.toThrow();
+      await expect(vaultOverlay.read(oldFile)).rejects.toThrow();
     });
   });
 
