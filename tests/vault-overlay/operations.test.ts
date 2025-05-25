@@ -215,20 +215,59 @@ describe("VaultOverlayGit", () => {
       );
     });
 
-    it("should throw an error when the new path already exists", async () => {
+    it("should throw an error when the new path already exists in overlay", async () => {
       // Arrange
-      const filePath = "/test-rename-existing.md";
+      const newFilePath = "/new-file.md";
       const existingPath = "/existing-file.md";
       const content = "# Test content for rename";
 
-      // Create files in version control through the overlay
-      const sourceFile = await vaultOverlay.create(filePath, content);
+      // Create files in the overlay
+      const sourceFile = await vaultOverlay.create(newFilePath, content);
       await vaultOverlay.create(existingPath, "Existing content");
 
       // Act & Assert
       await expect(
         vaultOverlay.rename(sourceFile, existingPath),
       ).rejects.toThrow("Destination /existing-file.md already exists.");
+    });
+
+    it("should throw an error when the new path already exists in vault", async () => {
+      // Arrange
+      const newFilePath = "/new-file.md";
+      const existingPath = "/existing-file.md";
+      const content = "# Test content for rename";
+
+      helpers.addFile(existingPath, "Existing content");
+
+      // Create file in the overlay
+      const sourceFile = await vaultOverlay.create(newFilePath, content);
+
+      // Act & Assert
+      await expect(
+        vaultOverlay.rename(sourceFile, existingPath),
+      ).rejects.toThrow("Destination /existing-file.md already exists.");
+    });
+
+    it("should allow rename when destination was renamed in overlay", async () => {
+      // Arrange
+      const newFilePath = "/new-file.md";
+      const existingPath = "/existing-file.md";
+      const renamedExistingPath = "/renamed-existing-file.md";
+      const content = "# Test content";
+
+      helpers.addFile(existingPath, "Existing content");
+
+      // Rename the existing file in the overlay
+      const existingFile = vaultOverlay.getFileByPath(existingPath);
+      await vaultOverlay.rename(existingFile, renamedExistingPath);
+
+      // Create file in the overlay
+      const sourceFile = await vaultOverlay.create(newFilePath, content);
+
+      // Act & Assert
+      await expect(
+        vaultOverlay.rename(sourceFile, existingPath),
+      ).resolves.not.toBeDefined();
     });
 
     it("should import a file from the vault if it doesn't exist in version control", async () => {
@@ -255,6 +294,34 @@ describe("VaultOverlayGit", () => {
 
       // Original file should no longer exist in version control
       await expect(vaultOverlay.read(oldFile)).rejects.toThrow();
+    });
+
+    it("should not get file using old path after rename file created in overlay", async () => {
+      // Arrange
+      const ogPath = "/file.md";
+      const newPath = "/existing-file.md";
+      const content = "# Test content";
+
+      // Create and rename in the overlay
+      const ogFile = await vaultOverlay.create(ogPath, content);
+      await vaultOverlay.rename(ogFile, newPath);
+
+      // Expect not to get old path
+      expect(vaultOverlay.getFileByPath(ogPath)).toBeNull();
+    });
+
+    it("should not get file using old path after rename file created in vault", async () => {
+      // Arrange
+      const ogPath = "/file.md";
+      const newPath = "/existing-file.md";
+      const content = "# Test content";
+
+      // Create in vault and rename in the overlay
+      const ogFile = helpers.addFile(ogPath, content);
+      await vaultOverlay.rename(ogFile, newPath);
+
+      // Expect not to get old path
+      expect(vaultOverlay.getFileByPath(ogPath)).toBeNull();
     });
   });
 

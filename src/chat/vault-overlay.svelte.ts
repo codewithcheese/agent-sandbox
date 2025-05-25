@@ -281,6 +281,20 @@ export class VaultOverlay implements Vault {
       throw new Error(`Destination ${newPath} already exists.`);
     }
 
+    const destFile = this.vault.getAbstractFileByPath(normalizePath(newPath));
+    if (destFile) {
+      const newPathMasterNode = this.findNode("master", newPath);
+      const newPathStagingNode = this.findNode("staging", newPath);
+      // throw if destination exists in vault and is not tracked
+      // OR throw if destination exists in overlay and has not been renamed
+      // todo: should also check if deleted, but the current design would not
+      //  allow for a node to be renamed in the same place as a deleted node
+      //  should probably change how deleted works so that its not no longer "using" the path in staging
+      if (!newPathMasterNode || (newPathMasterNode && newPathStagingNode)) {
+        throw new Error(`Destination ${newPath} already exists.`);
+      }
+    }
+
     // Check if the file is tracked
     let stagingNode = this.findNode("staging", file.path);
 
