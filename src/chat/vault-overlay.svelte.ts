@@ -78,6 +78,11 @@ export class VaultOverlay implements Vault {
       return this.createTFile(path);
     }
 
+    const masterNode = this.findNode("master", path);
+    if (masterNode && !stagingNode) {
+      return null; // file in overlay but no longer accessible at this path
+    }
+
     // If the file is not tracked, check the vault
     const file = this.vault.getFileByPath(normalizePath(path));
     if (file) {
@@ -99,6 +104,11 @@ export class VaultOverlay implements Vault {
       return this.createTFolder(path);
     }
 
+    const masterNode = this.findNode("master", path);
+    if (masterNode && !stagingNode) {
+      return null; // file in overlay but no longer accessible at this path
+    }
+
     const folder = this.vault.getFolderByPath(normalizePath(path));
     if (folder) {
       folder.vault = this as unknown as Vault;
@@ -115,6 +125,11 @@ export class VaultOverlay implements Vault {
     } else if (stagingNode) {
       // If the file is tracked and exists, create a TFolder for it
       return this.createAbstractFile(path);
+    }
+
+    const masterNode = this.findNode("master", path);
+    if (masterNode && !stagingNode) {
+      return null; // file in overlay but no longer accessible at this path
     }
 
     const abstractFile = this.vault.getAbstractFileByPath(path);
