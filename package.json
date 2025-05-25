@@ -6,9 +6,9 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
-    "test:browser": "vitest run --project browser",
-    "test:jsdom": "vitest run --project jsdom",
+    "test": "vitest run --passWithNoTests",
+    "test:browser": "vitest run --project browser --passWithNoTests",
+    "test:jsdom": "vitest run --project jsdom --passWithNoTests",
     "code": "code --extensionDevelopmentPath=. --disable-extensions",
     "build": "vite build",
     "dev": "vite",

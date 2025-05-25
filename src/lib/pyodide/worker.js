@@ -5,8 +5,13 @@
 self.process = undefined;
 self.Deno = undefined;
 
-importScripts("https://unpkg.com/comlink/dist/umd/comlink.js");
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js");
+const COMLINK_URL =
+  self.COMLINK_URL || "https://unpkg.com/comlink/dist/umd/comlink.js";
+const PYODIDE_BASE_URL =
+  self.PYODIDE_BASE_URL || "https://cdn.jsdelivr.net/pyodide/v0.27.4/full/";
+
+importScripts(COMLINK_URL);
+importScripts(`${PYODIDE_BASE_URL}pyodide.js`);
 
 class Worker {
   pyodide = null;
@@ -14,7 +19,7 @@ class Worker {
 
   async init() {
     this.pyodide = await loadPyodide({
-      indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.4/full/",
+      indexURL: PYODIDE_BASE_URL,
     });
     // Save the original stdout write function
     this.pyodide.runPython(`

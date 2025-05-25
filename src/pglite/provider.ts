@@ -1,7 +1,14 @@
 import type { PGlite } from "@electric-sql/pglite";
 
 const PGLITE_VERSION = "0.2.17";
-const CDN_URL = `https://cdn.jsdelivr.net/npm/@electric-sql/pglite@${PGLITE_VERSION}/dist/index.js`;
+const DEFAULT_CDN_URL = `https://cdn.jsdelivr.net/npm/@electric-sql/pglite@${PGLITE_VERSION}/dist/index.js`;
+
+function getPgliteUrl() {
+  if (typeof window !== "undefined" && (window as any).PGLITE_URL) {
+    return (window as any).PGLITE_URL as string;
+  }
+  return DEFAULT_CDN_URL;
+}
 
 export class PGliteProvider {
   private pgClient: PGlite | null = null;
@@ -58,14 +65,15 @@ export class PGliteProvider {
       };
 
       // Create PGlite instance with options
-      const module = await import(/* @vite-ignore */ CDN_URL);
+      const module = await import(/* @vite-ignore */ getPgliteUrl());
       const PGliteClass: typeof PGlite = module.PGlite;
       return await PGliteClass.create({
         dataDir: "idb://agent-sandbox",
         relaxedDurability: this.relaxedDurability,
         extensions: {
           vector: new URL(
-            `https://unpkg.com/@electric-sql/pglite@${PGLITE_VERSION}/dist/vector.tar.gz`,
+            (typeof window !== "undefined" && (window as any).PGLITE_VECTOR_URL) ||
+              `https://unpkg.com/@electric-sql/pglite@${PGLITE_VERSION}/dist/vector.tar.gz`,
           ),
         },
       });
