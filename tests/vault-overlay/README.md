@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This system enables an AI agent to read and modify files while providing users with a staging and review mechanism 
+This system enables an AI agent to read and modify files while providing users with a proposed and review mechanism 
 before changes are applied. The system leverages git's versioning capabilities through isomorphic-git, creating an 
 efficient middleware layer between the AI agent and the Obsidian vault. This approach allows for accumulating proposed 
 changes in memory and enabling users to review, approve, or reject them through a visual diff interface.
@@ -16,7 +16,7 @@ ensuring that files can be properly managed even when they exist in the vault bu
 
 * **Vault Overlay**: A implements the Obsidian Vault interface
 * **Git-Based Version Control**: Uses isomorphic-git to track file operations
-* **In-Memory File System**: Volatile filesystem (LightningFS) for staging changes
+* **In-Memory File System**: Volatile filesystem (LightningFS) for proposed changes
 * **Import Mechanism**: Automatically imports files from the vault to version control when needed
 * **Diff & Merge System**: Git's native diff and merge capabilities
 * **Conflict Resolution System**: Handles divergences between staged and vault versions
@@ -27,10 +27,10 @@ ensuring that files can be properly managed even when they exist in the vault bu
 2. Agent performs file operations through the Vault Overlay
 3. Vault Overlay intercepts these operations and handles version control directly
 4. If a file exists in the vault but not in version control, it's automatically imported
-5. Changes are captured in the in-memory filesystem and committed to a staging branch
+5. Changes are captured in the in-memory filesystem and committed to a proposed branch
 6. User can review changes using git's diff capabilities
 7. User approves or rejects changes, potentially selectively
-8. Approved changes are merged from the staging branch to the main branch
+8. Approved changes are merged from the proposed branch to the main branch
 
 ## 3. Implementation Details
 
@@ -50,7 +50,7 @@ ensuring that files can be properly managed even when they exist in the vault bu
 
 * **VaultOverlayGit**: Implements Obsidian's Vault interface and directly handles git operations
 * **State Management**: Maintains a GitState to track whether changes are ready or staged
-* **Import Mechanism**: Methods like `importFileToMaster()` to import files from vault to git
+* **Import Mechanism**: Methods like `importFileToTracking()` to import files from vault to git
 * **File Operations**: Direct implementation of Vault interface methods (create, modify, delete, rename)
 * **Change Tracking**: Method `getFileChanges()` to identify differences between branches
 * **Message Association**: Commits tagged with message IDs through the `commit()` method
@@ -64,15 +64,15 @@ ensuring that files can be properly managed even when they exist in the vault bu
 * Contains all version control functionality within the same class
 * Manages the in-memory LightningFS filesystem
 * Tracks state changes between "blank", "ready", and "staged"
-* Uses two branches: "master" and "staging"
+* Uses two branches: "tracking" and "proposed"
 
 #### 3.2.2 Key Methods
 
-* **init()**: Initializes git repository with master and staging branches
+* **init()**: Initializes git repository with tracking and proposed branches
 * **File Access Methods**: Overrides Vault methods like `getFileByPath()`, `getFolderByPath()`
 * **File Operation Methods**: Implements `create()`, `modify()`, `delete()`, `rename()`
 * **Version Control Methods**: Provides `commit()`, `getFileChanges()`, `fileIsTracked()`
-* **Import Methods**: `importFileToMaster()` to bring vault files into version control
+* **Import Methods**: `importFileToTracking()` to bring vault files into version control
 * **Utility Methods**: `mkdirRecursive()`, `createTFile()`, `createTFolder()`
 
 #### 3.2.3 State Management & Workflow
@@ -80,7 +80,7 @@ ensuring that files can be properly managed even when they exist in the vault bu
 * Maintains a typed state system (`GitState`) to track repository status
 * Updates state after operations that modify files
 * Handles branch switching when importing files from the vault
-* Provides methods to identify changes between master and staging
+* Provides methods to identify changes between tracking and proposed
 
 ### 3.3 Diff & Merge
 
@@ -94,7 +94,7 @@ ensuring that files can be properly managed even when they exist in the vault bu
 
 * Import mechanism includes merge operations between branches
 * Handles potential merge conflicts during import process
-* Preserves staging state with stash operations when necessary
+* Preserves proposed state with stash operations when necessary
 
 ### 3.4 Lifecycle Management
 

@@ -333,8 +333,8 @@ describe("VaultOverlay", () => {
 
       // Assert
       // Verify the file is tracked as deleted in the overlay
-      const stagingNode = vaultOverlay.findDeletedNode(file.path);
-      expect(stagingNode.data.get("deletedFrom")).toEqual(file.path);
+      const proposedNode = vaultOverlay.findDeletedNode(file.path);
+      expect(proposedNode.data.get("deletedFrom")).toEqual(file.path);
 
       // Verify the file cannot
 

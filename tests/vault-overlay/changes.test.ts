@@ -25,13 +25,13 @@ describe("Vault Overlay Tracking", () => {
   describe(
     "getFileChanges",
     () => {
-      it("should return a list of file changes between main and staging branches", async () => {
+      it("should return a list of file changes between main and proposed branches", async () => {
         // Add files to the mock vault first
         helpers.addFile("modified-file.txt", "Original content");
         helpers.addFile("to-be-deleted.txt", "This will be deleted");
         helpers.addFile("before-rename.txt", "This will be renamed");
 
-        // Test add, modify, delete on staging
+        // Test add, modify, delete on proposed
         const modifyFile = overlay.getFileByPath("modified-file.txt");
         const deleteFile = overlay.getFileByPath("to-be-deleted.txt");
         const renameFile = overlay.getFileByPath("before-rename.txt");
@@ -40,7 +40,7 @@ describe("Vault Overlay Tracking", () => {
         await overlay.delete(deleteFile);
         await overlay.rename(renameFile, "after-rename.txt");
 
-        // Get the file changes between master and staging
+        // Get the file changes between tracking and proposed
         const changes = overlay.getFileChanges();
         console.log("Final changes:", JSON.stringify(changes, null, 2));
         expect(changes).toEqual([

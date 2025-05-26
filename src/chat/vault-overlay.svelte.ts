@@ -26,8 +26,8 @@ const trashPath = ".overlay-trash" as const;
 const deletedFrom = "deletedFrom" as const;
 const isDirectory = "isDirectory" as const;
 
-const masterPeerId = 1 as const;
-const stagingPeerId = 2 as const;
+const trackingPeerId = 1 as const;
+const proposedPeerId = 2 as const;
 
 export type Change = {
   path: string;
@@ -35,8 +35,8 @@ export type Change = {
 };
 
 export class VaultOverlay implements Vault {
-  masterDoc: LoroDoc;
-  stagingDoc: LoroDoc;
+  trackingDoc: LoroDoc;
+  proposedDoc: LoroDoc;
   changes = $state<Change[]>([]);
 
   constructor(
@@ -44,21 +44,21 @@ export class VaultOverlay implements Vault {
     snapshots?: CurrentChatFile["payload"]["overlay"],
   ) {
     if (snapshots) {
-      this.masterDoc = LoroDoc.fromSnapshot(snapshots.master);
-      this.stagingDoc = LoroDoc.fromSnapshot(snapshots.staging);
+      this.trackingDoc = LoroDoc.fromSnapshot(snapshots.tracking);
+      this.proposedDoc = LoroDoc.fromSnapshot(snapshots.proposed);
     } else {
-      this.masterDoc = new LoroDoc();
-      this.masterDoc.setPeerId(masterPeerId);
+      this.trackingDoc = new LoroDoc();
+      this.trackingDoc.setPeerId(trackingPeerId);
       // insert root not
-      const tree = this.masterDoc.getTree("vault");
+      const tree = this.trackingDoc.getTree("vault");
       const root = tree.createNode();
       root.data.set("name", "");
       root.data.set(isDirectory, true);
-      // create staging from snapshot of master
-      this.stagingDoc = LoroDoc.fromSnapshot(
-        this.masterDoc.export({ mode: "snapshot" }),
+      // create proposed from snapshot of tracking
+      this.proposedDoc = LoroDoc.fromSnapshot(
+        this.trackingDoc.export({ mode: "snapshot" }),
       );
-      this.stagingDoc.setPeerId(stagingPeerId);
+      this.proposedDoc.setPeerId(proposedPeerId);
     }
     this.computeChanges();
   }
@@ -76,14 +76,14 @@ export class VaultOverlay implements Vault {
     debug("getFileByPath", path);
     invariant(!path.endsWith("/"), "File path must not end with a slash");
 
-    const stagingNode = this.findNode("staging", path);
-    if (stagingNode) {
+    const proposedNode = this.findNode("proposed", path);
+    if (proposedNode) {
       // If the file is tracked and exists, create a TFile
       return this.createTFile(path);
     }
 
-    const masterNode = this.findNode("master", path);
-    if (masterNode && !stagingNode) {
+    const trackingNode = this.findNode("tracking", path);
+    if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
 
@@ -99,18 +99,18 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     debug("getFolderByPath", path);
 
-    const stagingNode = this.findNode("staging", path);
-    if (!stagingNode.data.get(isDirectory)) {
+    const proposedNode = this.findNode("proposed", path);
+    if (!proposedNode.data.get(isDirectory)) {
       return null;
     }
 
-    if (stagingNode) {
+    if (proposedNode) {
       // If the file is tracked and exists, create a TFolder for it
       return this.createTFolder(path);
     }
 
-    const masterNode = this.findNode("master", path);
-    if (masterNode && !stagingNode) {
+    const trackingNode = this.findNode("tracking", path);
+    if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
 
@@ -124,14 +124,14 @@ export class VaultOverlay implements Vault {
   getAbstractFileByPath(path: string) {
     path = normalizePath(path);
     debug("getAbstractFileByPath", path);
-    const stagingNode = this.findNode("staging", path);
-    if (stagingNode) {
+    const proposedNode = this.findNode("proposed", path);
+    if (proposedNode) {
       // If the file is tracked and exists, create a TFolder for it
       return this.createAbstractFile(path);
     }
 
-    const masterNode = this.findNode("master", path);
-    if (masterNode && !stagingNode) {
+    const trackingNode = this.findNode("tracking", path);
+    if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
 
@@ -159,15 +159,15 @@ export class VaultOverlay implements Vault {
     // todo: reject existing case insensitive file name
 
     // File/Folder must not yet exist.
-    const stagingNode = this.findNode("staging", path);
-    if (stagingNode) {
+    const proposedNode = this.findNode("proposed", path);
+    if (proposedNode) {
       throw new Error(`File ${path} already exists.`);
     }
     const existsInVault = this.vault.getFileByPath(normalizePath(path));
     invariant(!existsInVault, `File already exists`);
 
-    this.createTextFile("staging", path, data);
-    this.stagingDoc.commit();
+    this.createTextFile("proposed", path, data);
+    this.proposedDoc.commit();
     this.computeChanges();
 
     return this.createTFile(path);
@@ -191,8 +191,8 @@ export class VaultOverlay implements Vault {
       throw new Error("File already exists.");
     }
 
-    this.createNode("staging", path, { isDirectory: true });
-    this.stagingDoc.commit();
+    this.createNode("proposed", path, { isDirectory: true });
+    this.proposedDoc.commit();
     this.computeChanges();
 
     return this.createTFolder(path);
@@ -202,11 +202,11 @@ export class VaultOverlay implements Vault {
    *  Read
    */
   async read(file: TFile): Promise<string> {
-    const stagingNode = this.findNode("staging", file.path);
-    if (stagingNode) {
-      return (stagingNode.data.get("text") as LoroText).toString();
-    } else if (this.findNode("master", file.path)) {
-      // if no staging at path but master has been synced then staging has been renamed or deleted
+    const proposedNode = this.findNode("proposed", file.path);
+    if (proposedNode) {
+      return (proposedNode.data.get("text") as LoroText).toString();
+    } else if (this.findNode("tracking", file.path)) {
+      // if no proposed and tracking exists, then file has been renamed or deleted
       throw new Error(`File does not exist: ${file.path} `);
     }
 
@@ -228,12 +228,12 @@ export class VaultOverlay implements Vault {
 
   /**
    * Cannot delete a file already deleted.
-   * Cannot delete a file that does not exist in staging after sync.
-   * If staging exists, do not try sync
-   * If staging does not exist and master does not exist
+   * Cannot delete a file that does not exist in proposed after sync.
+   * If proposed exists, do not try sync
+   * If proposed does not exist and tracking does not exist
    *   - try sync if in vault
    *   - throw if not in vault
-   * If after sync staging does not exist then return.
+   * If after sync proposed does not exist then return.
    */
   async delete(file: TAbstractFile): Promise<void> {
     // If the file is already deleted, nothing to do
@@ -242,9 +242,9 @@ export class VaultOverlay implements Vault {
       return;
     }
 
-    let stagingNode = this.findNode("staging", file.path);
-    let masterNode = this.findNode("master", file.path);
-    if (!stagingNode && !masterNode) {
+    let proposedNode = this.findNode("proposed", file.path);
+    let trackingNode = this.findNode("tracking", file.path);
+    if (!proposedNode && !trackingNode) {
       const abstractFile = this.vault.getFileByPath(normalizePath(file.path));
       if (!abstractFile) {
         invariant(abstractFile, `Cannot delete file not found: ${file.path}`);
@@ -252,15 +252,15 @@ export class VaultOverlay implements Vault {
       await this.syncPath(file.path);
     }
 
-    stagingNode = this.findNode("staging", file.path);
-    invariant(stagingNode, `Cannot delete file not found: ${file.path} `);
+    proposedNode = this.findNode("proposed", file.path);
+    invariant(proposedNode, `Cannot delete file not found: ${file.path} `);
 
-    const trashFolder = this.createNode("staging", trashPath, {
+    const trashFolder = this.createNode("proposed", trashPath, {
       isDirectory: true,
     });
-    stagingNode.move(trashFolder);
-    stagingNode.data.set(deletedFrom, normalizePath(file.path));
-    this.stagingDoc.commit();
+    proposedNode.move(trashFolder);
+    proposedNode.data.set(deletedFrom, normalizePath(file.path));
+    this.proposedDoc.commit();
     this.computeChanges();
   }
 
@@ -276,8 +276,8 @@ export class VaultOverlay implements Vault {
       throw new Error("Path is outside the vault");
     }
 
-    const newPathNode = this.findNode("staging", newPath);
-    if (newPathNode) {
+    const destProposedNode = this.findNode("proposed", newPath);
+    if (destProposedNode) {
       throw new Error(`Cannot rename to path that already exists: ${newPath}`);
     }
 
@@ -287,16 +287,16 @@ export class VaultOverlay implements Vault {
     }
 
     // Check if new path exists in vault
-    const newPathMaster = this.findNode("master", newPath);
+    const newPathTracking = this.findNode("tracking", newPath);
     const newPathExists = this.vault.getFileByPath(newPath);
-    if (!newPathMaster && newPathExists) {
+    if (!newPathTracking && newPathExists) {
       throw new Error(`Cannot rename to path that already exists: ${newPath}`);
     }
 
     // Check if the file is tracked
-    let masterNode = this.findNode("staging", file.path);
+    let trackingNode = this.findNode("tracking", file.path);
     // Import if the file exists in the vault, but not in overlay
-    if (!masterNode) {
+    if (!trackingNode && !this.findNode("proposed", file.path)) {
       const vaultFile = this.vault.getFileByPath(normalizePath(file.path));
       invariant(
         vaultFile,
@@ -305,26 +305,26 @@ export class VaultOverlay implements Vault {
       await this.syncPath(file.path);
     }
 
-    const stagingNode = this.findNode("staging", file.path);
+    const proposedNode = this.findNode("proposed", file.path);
     invariant(
-      stagingNode,
+      proposedNode,
       `Cannot rename file not found after sync: ${file.path}`,
     );
     // todo: verify dirname gets parent/root
-    let newParent = this.findNode("staging", dirname(newPath));
+    let newParent = this.findNode("proposed", dirname(newPath));
     if (!newParent) {
-      newParent = this.createNode("staging", dirname(newPath), {
+      newParent = this.createNode("proposed", dirname(newPath), {
         isDirectory: true,
       });
     }
 
     // todo: test renaming a file and a folder
     const newName = basename(newPath);
-    stagingNode.data.set("name", newName);
-    if (stagingNode.parent().id !== newParent.id) {
-      stagingNode.move(newParent);
+    proposedNode.data.set("name", newName);
+    if (proposedNode.parent().id !== newParent.id) {
+      proposedNode.move(newParent);
     }
-    this.stagingDoc.commit();
+    this.proposedDoc.commit();
     this.computeChanges();
   }
 
@@ -333,15 +333,15 @@ export class VaultOverlay implements Vault {
     data: string,
     options?: DataWriteOptions,
   ): Promise<void> {
-    const masterNode = this.findNode("master", file.path);
+    const trackingNode = this.findNode("tracking", file.path);
     const existsInVault = this.vault.getFileByPath(normalizePath(file.path));
 
-    if (!masterNode && existsInVault) {
+    if (!trackingNode && existsInVault) {
       await this.syncPath(file.path);
     }
-    let node = this.findNode("staging", file.path);
+    let node = this.findNode("proposed", file.path);
     if (!node) {
-      node = this.createTextFile("staging", file.path, data);
+      node = this.createTextFile("proposed", file.path, data);
     }
     const text = node.data.get("text") as LoroText;
     // Loro recommends updateByLine for texts > 50_000 characters).
@@ -351,7 +351,7 @@ export class VaultOverlay implements Vault {
       text.update(data);
     }
     // todo: test modifying a file in a path that was deleted
-    this.stagingDoc.commit();
+    this.proposedDoc.commit();
     this.computeChanges();
   }
 
@@ -480,7 +480,7 @@ export class VaultOverlay implements Vault {
   }
 
   /**
-   * Sync path from disk and sync (LoroText merge) with staging.
+   * Sync path from disk and sync (LoroText merge) with proposed.
    */
   async syncPath(path: string): Promise<void> {
     path = normalizePath(path);
@@ -489,7 +489,7 @@ export class VaultOverlay implements Vault {
     const abstractFile = this.vault.getAbstractFileByPath(normalizePath(path));
     invariant(abstractFile, `${path} not found in vault`);
 
-    const node = this.findNode("master", path);
+    const node = this.findNode("tracking", path);
     if (abstractFile instanceof TFile) {
       const contents = await this.vault.read(abstractFile);
       if (node) {
@@ -505,7 +505,7 @@ export class VaultOverlay implements Vault {
           txtC.update(contents);
         }
       } else {
-        this.createTextFile("master", path, contents);
+        this.createTextFile("tracking", path, contents);
       }
     } else if (abstractFile instanceof TFolder) {
       invariant(
@@ -513,12 +513,12 @@ export class VaultOverlay implements Vault {
         `Expected node for ${path} to be a folder, got file.`,
       );
       if (!node) {
-        this.createNode("master", path, { isDirectory: true });
+        this.createNode("tracking", path, { isDirectory: true });
       }
     } else {
       throw new Error(`${path} is not a file or folder`);
     }
-    this.masterDoc.commit();
+    this.trackingDoc.commit();
     this.syncDocs();
   }
 
@@ -526,43 +526,43 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     const abstractFile = this.vault.getAbstractFileByPath(normalizePath(path));
     invariant(abstractFile, `${path} not found in vault`);
-    const node = this.findNode("master", path);
+    const node = this.findNode("tracking", path);
     if (node) {
-      this.masterDoc.getTree("vault").delete(node.id);
-      this.masterDoc.commit();
+      this.trackingDoc.getTree("vault").delete(node.id);
+      this.trackingDoc.commit();
     }
     this.syncDocs();
   }
 
   /**
-   * An approved change replaces staging (last write wins), not merge (default LoroText behavior).
+   * An approved change replaces proposed (last write wins), not merge (default LoroText behavior).
    */
   approveModify(path: string, contents?: string) {
     path = normalizePath(path);
     // Try to get the abstractFile from the vault
     debug("Force update", path);
-    let stagingNode = this.findNode("staging", path);
+    let proposedNode = this.findNode("proposed", path);
     invariant(
-      stagingNode,
-      `Cannot approve modify to path not found in staging: ${path}.`,
+      proposedNode,
+      `Cannot approve modify to path not found in proposed: ${path}.`,
     );
     invariant(
-      stagingNode.data.get(isDirectory) != contents,
+      proposedNode.data.get(isDirectory) != contents,
       `Cannot approve modify to folder when contents are provided: ${path}`,
     );
-    let masterNode = this.findNode("master", path);
-    if (!masterNode) {
-      if (stagingNode.data.get(isDirectory) === true) {
-        this.createNode("master", path, { isDirectory: true });
+    let trackingNode = this.findNode("tracking", path);
+    if (!trackingNode) {
+      if (proposedNode.data.get(isDirectory) === true) {
+        this.createNode("tracking", path, { isDirectory: true });
       } else {
-        this.createTextFile("master", path, contents);
+        this.createTextFile("tracking", path, contents);
       }
-    } else if (!masterNode.data.get(isDirectory)) {
+    } else if (!trackingNode.data.get(isDirectory)) {
       // recreate text container for last-write-wins not merge semantics
-      masterNode.data.delete("text");
-      const txtC = masterNode.data.setContainer("text", new LoroText());
+      trackingNode.data.delete("text");
+      const txtC = trackingNode.data.setContainer("text", new LoroText());
       txtC.insert(0, contents);
-      this.masterDoc.commit();
+      this.trackingDoc.commit();
     }
 
     this.syncDocs();
@@ -570,59 +570,59 @@ export class VaultOverlay implements Vault {
 
   approveDelete(path: string) {
     path = normalizePath(path);
-    const masterNode = this.findNode("master", path);
-    const stagingNode = this.findNodeById("staging", masterNode.id);
+    const trackingNode = this.findNode("tracking", path);
+    const proposedNode = this.findNodeById("proposed", trackingNode.id);
     invariant(
-      stagingNode,
-      `Cannot approve delete to path not found in staging: ${path}.`,
+      proposedNode,
+      `Cannot approve delete to path not found in proposed: ${path}.`,
     );
     invariant(
-      stagingNode.data.get(deletedFrom),
-      `Cannot approve delete to a path not deleted on staging: ${path}.`,
+      proposedNode.data.get(deletedFrom),
+      `Cannot approve delete to a path not deleted on proposed: ${path}.`,
     );
-    this.masterDoc.getTree("vault").delete(masterNode.id);
-    this.masterDoc.commit();
+    this.trackingDoc.getTree("vault").delete(trackingNode.id);
+    this.trackingDoc.commit();
     this.syncDocs();
   }
 
   approveRename(oldPath: string, newPath: string) {
     oldPath = normalizePath(oldPath);
     newPath = normalizePath(newPath);
-    const masterNode = this.findNode("master", oldPath);
+    const trackingNode = this.findNode("tracking", oldPath);
     invariant(
-      masterNode,
-      `Cannot approve rename from path not found in master: ${oldPath}.`,
+      trackingNode,
+      `Cannot approve rename from path not found in tracking: ${oldPath}.`,
     );
-    const stagingNode = this.findNode("staging", newPath);
+    const proposedNode = this.findNode("proposed", newPath);
     invariant(
-      stagingNode,
-      `Cannot approve rename to path not found in staging: ${newPath}.`,
+      proposedNode,
+      `Cannot approve rename to path not found in proposed: ${newPath}.`,
     );
     invariant(
-      masterNode.id === stagingNode.id,
+      trackingNode.id === proposedNode.id,
       "Cannot approve rename; new path not tracked to old path.",
     );
     // todo apply rename to vault
-    // move master node to same location as staging node
-    let masterFolder = this.findNode("master", dirname(newPath));
-    if (!masterFolder) {
-      masterFolder = this.createNode("master", dirname(newPath), {
+    // move tracking node to same location as proposed node
+    let trackingFolder = this.findNode("tracking", dirname(newPath));
+    if (!trackingFolder) {
+      trackingFolder = this.createNode("tracking", dirname(newPath), {
         isDirectory: true,
       });
     }
-    if (masterNode.parent().id !== masterFolder.id) {
-      masterNode.move(masterFolder);
+    if (trackingNode.parent().id !== trackingFolder.id) {
+      trackingNode.move(trackingFolder);
     }
-    masterNode.data.set("name", basename(newPath));
-    this.masterDoc.commit();
+    trackingNode.data.set("name", basename(newPath));
+    this.trackingDoc.commit();
     this.syncDocs();
   }
 
   syncDocs() {
-    this.stagingDoc.import(
-      this.masterDoc.export({
+    this.proposedDoc.import(
+      this.trackingDoc.export({
         mode: "update",
-        from: this.stagingDoc.version(),
+        from: this.proposedDoc.version(),
       }),
     );
     this.computeChanges();
@@ -638,21 +638,21 @@ export class VaultOverlay implements Vault {
   }
 
   getFileChanges(): Change[] {
-    const masterTree = this.masterDoc.getTree("vault");
+    const trackingTree = this.trackingDoc.getTree("vault");
 
     const nodes: Record<
       TreeID,
       { mNode: LoroTreeNode | undefined; sNode: LoroTreeNode }
     > = {};
-    const masterNodes = masterTree.getNodes();
-    for (const mNode of masterNodes) {
+    const trackingNodes = trackingTree.getNodes();
+    for (const mNode of trackingNodes) {
       nodes[mNode.id] = {
         mNode,
-        sNode: this.findNodeById("staging", mNode.id),
+        sNode: this.findNodeById("proposed", mNode.id),
       };
     }
-    const stagingNodes = this.stagingDoc.getTree("vault").getNodes();
-    for (const sNode of stagingNodes) {
+    const proposedNodes = this.proposedDoc.getTree("vault").getNodes();
+    for (const sNode of proposedNodes) {
       if (!(sNode.id in nodes)) {
         nodes[sNode.id] = { mNode: undefined, sNode };
       }
@@ -702,12 +702,12 @@ export class VaultOverlay implements Vault {
   }
 
   createNode(
-    branch: "master" | "staging",
+    branch: "tracking" | "proposed",
     path: string,
     data: { isDirectory?: boolean; text?: string },
   ) {
     path = normalizePath(path);
-    const doc = branch === "master" ? this.masterDoc : this.stagingDoc;
+    const doc = branch === "tracking" ? this.trackingDoc : this.proposedDoc;
     const tree = doc.getTree("vault");
     const root = tree.roots()[0];
     const parts = path.split("/").filter((part) => part.length > 0);
@@ -739,7 +739,7 @@ export class VaultOverlay implements Vault {
     return parent;
   }
 
-  createTextFile(branch: "master" | "staging", path: string, text: string) {
+  createTextFile(branch: "tracking" | "proposed", path: string, text: string) {
     path = normalizePath(path);
     return this.createNode(branch, path, {
       isDirectory: false,
@@ -748,11 +748,11 @@ export class VaultOverlay implements Vault {
   }
 
   findNode(
-    branch: "master" | "staging",
+    branch: "tracking" | "proposed",
     path: string,
   ): LoroTreeNode | undefined {
     path = normalizePath(path);
-    const doc = branch === "master" ? this.masterDoc : this.stagingDoc;
+    const doc = branch === "tracking" ? this.trackingDoc : this.proposedDoc;
     const tree = doc.getTree("vault");
     if (path === "." || path === "/" || path === "" || path === "./") {
       return tree.roots()[0];
@@ -767,15 +767,15 @@ export class VaultOverlay implements Vault {
     return cur;
   }
 
-  findNodeById(branch: "staging" | "master", id: TreeID) {
-    const doc = branch === "master" ? this.masterDoc : this.stagingDoc;
+  findNodeById(branch: "proposed" | "tracking", id: TreeID) {
+    const doc = branch === "tracking" ? this.trackingDoc : this.proposedDoc;
     const tree = doc.getTree("vault");
     return tree.getNodeByID(id);
   }
 
   findDeletedNode(path: string): LoroTreeNode | undefined {
     path = normalizePath(path);
-    const trashRoot = this.findNode("staging", trashPath);
+    const trashRoot = this.findNode("proposed", trashPath);
     if (!trashRoot) {
       return undefined;
     }
@@ -796,8 +796,8 @@ export class VaultOverlay implements Vault {
 
   snapshot() {
     return {
-      master: this.masterDoc.export({ mode: "snapshot" }),
-      staging: this.stagingDoc.export({ mode: "snapshot" }),
+      tracking: this.trackingDoc.export({ mode: "snapshot" }),
+      proposed: this.proposedDoc.export({ mode: "snapshot" }),
     };
   }
 

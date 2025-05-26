@@ -13,8 +13,8 @@ export type ChatFileV1 = {
     toolRequests: ToolRequest[];
     overlay:
       | {
-          master: Uint8Array;
-          staging: Uint8Array;
+          tracking: Uint8Array;
+          proposed: Uint8Array;
         }
       | undefined;
     createdAt: Date;

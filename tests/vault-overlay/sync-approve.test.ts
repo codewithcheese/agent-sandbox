@@ -24,17 +24,17 @@ describe("VaultOverlay sync & approve", () => {
     const approvedText = "Hello\n\nAI line\n\nApproved";
     overlay.approveModify("Notes/idea.md", approvedText);
 
-    const masterText = (
-      overlay.findNode("master", "Notes/idea.md").data.get("text") as LoroText
+    const trackingText = (
+      overlay.findNode("tracking", "Notes/idea.md").data.get("text") as LoroText
     ).toString();
-    expect(masterText).toBe(approvedText);
+    expect(trackingText).toBe(approvedText);
 
-    const stagingText = (
-      overlay.findNode("staging", "Notes/idea.md").data.get("text") as LoroText
+    const proposedText = (
+      overlay.findNode("proposed", "Notes/idea.md").data.get("text") as LoroText
     ).toString();
-    expect(stagingText).toBe(approvedText);
+    expect(proposedText).toBe(approvedText);
 
-    const draftNode = overlay.findNode("staging", "Notes/draft.md");
+    const draftNode = overlay.findNode("proposed", "Notes/draft.md");
     expect(draftNode).toBeDefined();
     const draftText = (draftNode.data.get("text") as LoroText).toString();
     expect(draftText).toBe("Work in progress");
@@ -45,16 +45,16 @@ describe("VaultOverlay sync & approve", () => {
 
     overlay.approveModify("Notes/draft.md", "Draft approved by Human");
 
-    const stagingNode = overlay.findNode("staging", "Notes/draft.md");
-    expect(text(stagingNode)).not.toContain("Draft from AI");
-    expect(text(stagingNode)).toEqual("Draft approved by Human");
+    const proposedNode = overlay.findNode("proposed", "Notes/draft.md");
+    expect(text(proposedNode)).not.toContain("Draft from AI");
+    expect(text(proposedNode)).toEqual("Draft approved by Human");
 
-    const masterNode = overlay.findNode("master", "Notes/draft.md");
-    expect(text(masterNode)).not.toContain("Draft from AI");
-    expect(text(masterNode)).toEqual("Draft approved by Human");
+    const trackingNode = overlay.findNode("tracking", "Notes/draft.md");
+    expect(text(trackingNode)).not.toContain("Draft from AI");
+    expect(text(trackingNode)).toEqual("Draft approved by Human");
   });
 
-  it("syncs vault edits into staging without losing AI edits", async () => {
+  it("syncs vault edits into proposed without losing AI edits", async () => {
     const ideaFile = helpers.addFile("Notes/idea.md", "Hello\n\nGoodbye");
 
     // AI edits
@@ -66,7 +66,7 @@ describe("VaultOverlay sync & approve", () => {
 
     /* assertions */
     const mergedText = (
-      overlay.findNode("staging", "Notes/idea.md").data.get("text") as LoroText
+      overlay.findNode("proposed", "Notes/idea.md").data.get("text") as LoroText
     ).toString();
 
     expect(mergedText).toEqual("Hello\n\nHuman line\n\nAI line\n\nGoodbye");
@@ -80,34 +80,40 @@ describe("VaultOverlay sync & approve", () => {
     await overlay.delete(ideaFile);
 
     // expect path is tracked before delete is accepted
-    const masterNode = overlay.findNode("master", "Notes/idea.md");
-    const stagingNode = overlay.findNodeById("staging", masterNode.id);
-    expect(masterNode).toBeDefined();
-    // expect staging node is marked as deleted
-    expect(stagingNode).toBeDefined();
-    expect(stagingNode.data.get("deletedFrom")).toEqual("Notes/idea.md");
+    const trackingNode = overlay.findNode("tracking", "Notes/idea.md");
+    console.log("Tracking node:", trackingNode.id);
+    const proposedNode = overlay.findNodeById("proposed", trackingNode.id);
+    console.log("Proposed node:", trackingNode.id);
+    expect(trackingNode).toBeDefined();
+    // expect proposed node is marked as deleted
+    expect(proposedNode).toBeDefined();
+    expect(proposedNode.data.get("deletedFrom")).toEqual("Notes/idea.md");
 
     // user approves deletion
     overlay.approveDelete("Notes/idea.md");
 
+    console.log(
+      "Tracking node:",
+      overlay.findNode("proposed", "Notes/idea.md").id,
+    );
     // expect path is no longer tracked
-    expect(overlay.findNodeById("master", masterNode.id)).not.toBeDefined();
-    expect(overlay.findNodeById("staging", masterNode.id)).not.toBeDefined();
+    expect(overlay.findNodeById("tracking", proposedNode.id)).not.toBeDefined();
+    expect(overlay.findNodeById("proposed", proposedNode.id)).not.toBeDefined();
     expect(overlay.findDeletedNode("Notes/idea.md")).not.toBeDefined();
   });
 
-  // todo: preferred behaviour may to be retain staging edits, and treat the staged file as a create
-  it("merges vault delete into staging, losing AI edits", async () => {
+  // todo: preferred behaviour may to be retain proposed edits, and treat the staged file as a create
+  it("merges vault delete into proposed, losing AI edits", async () => {
     const ideaFile = helpers.addFile("Notes/idea.md", "Hello\n\nGoodbye");
 
     await overlay.modify(ideaFile, "Hello\n\nAI line\n\nGoodbye");
 
     await overlay.syncDelete("Notes/idea.md");
 
-    const masterNode = overlay.findNode("master", "Notes/idea.md");
-    const stagingNode = overlay.findDeletedNode("Notes/idea.md");
-    expect(masterNode).not.toBeDefined();
-    expect(stagingNode).not.toBeDefined();
+    const trackingNode = overlay.findNode("tracking", "Notes/idea.md");
+    const proposedNode = overlay.findDeletedNode("Notes/idea.md");
+    expect(trackingNode).not.toBeDefined();
+    expect(proposedNode).not.toBeDefined();
   });
 
   it("user accepts an AI rename without losing vault edits", async () => {
@@ -133,14 +139,16 @@ describe("VaultOverlay sync & approve", () => {
     overlay.approveRename(ideaFile.path, renameFile.path);
     // todo: test approve modify before and after rename
 
-    const masterNode = overlay.findNode("master", "Notes/renamed.md");
-    const stagingNode = overlay.findNode("staging", "Notes/renamed.md");
-    expect(masterNode.id).toEqual(stagingNode.id);
-    expect(masterNode.data.get("name")).toEqual(stagingNode.data.get("name"));
+    const trackingNode = overlay.findNode("tracking", "Notes/renamed.md");
+    const proposedNode = overlay.findNode("proposed", "Notes/renamed.md");
+    expect(trackingNode.id).toEqual(proposedNode.id);
+    expect(trackingNode.data.get("name")).toEqual(
+      proposedNode.data.get("name"),
+    );
 
-    const oldPathMasterNode = overlay.findNode("master", "Notes/idea.md");
-    const oldPathStagingNode = overlay.findNode("staging", "Nodes/idea.md");
-    expect(oldPathMasterNode).not.toBeDefined();
-    expect(oldPathStagingNode).not.toBeDefined();
+    const oldPathTrackingNode = overlay.findNode("tracking", "Notes/idea.md");
+    const oldPathProposedNode = overlay.findNode("proposed", "Nodes/idea.md");
+    expect(oldPathTrackingNode).not.toBeDefined();
+    expect(oldPathProposedNode).not.toBeDefined();
   });
 });
