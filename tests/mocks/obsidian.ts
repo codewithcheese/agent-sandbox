@@ -8,6 +8,7 @@ if (typeof window !== "undefined" && typeof window.Buffer === "undefined") {
 
 import matter from "gray-matter";
 import type { TFile, TFolder, TAbstractFile, Vault } from "obsidian";
+import { normalizePath } from "./normalize-path.ts";
 
 export const fileSystem = new Map<
   string,
@@ -77,6 +78,7 @@ export const vault: Vault = {
     return fileData.content;
   }),
   getFileByPath: vi.fn((path: string) => {
+    path = normalizePath(path);
     if (fileSystem.has(path)) {
       const file = new MockTFile(path);
       file.vault = vault;
@@ -85,23 +87,23 @@ export const vault: Vault = {
     return null;
   }),
   getFolderByPath: vi.fn((path: string) => {
-    // Normalize path
-    const normalizedPath = path === "" ? "/" : path;
+    path = normalizePath(path);
 
     // Check if folder exists
-    if (folderSystem.has(normalizedPath)) {
-      return folderSystem.get(normalizedPath);
+    if (folderSystem.has(path)) {
+      return folderSystem.get(path);
     }
 
     // Check if it's the root folder
-    if (normalizedPath === "/") {
+    if (path === "/") {
       return rootFolder;
     }
 
     return null;
   }),
   getAbstractFileByPath: vi.fn((path: string) => {
-    // Check if it's a file
+    path = normalizePath(path);
+
     if (fileSystem.has(path)) {
       const file = new MockTFile(path);
       file.vault = vault;
@@ -109,9 +111,8 @@ export const vault: Vault = {
     }
 
     // Check if it's a folder
-    const normalizedPath = path === "" ? "/" : path;
-    if (folderSystem.has(normalizedPath)) {
-      return folderSystem.get(normalizedPath);
+    if (folderSystem.has(path)) {
+      return folderSystem.get(path);
     }
 
     return null;
@@ -268,6 +269,7 @@ export const plugin = {
 
 export const helpers = {
   addFile(path: string, content: string) {
+    path = normalizePath(path);
     fileSystem.set(path, { content });
 
     // Create file object

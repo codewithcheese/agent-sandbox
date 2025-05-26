@@ -5,7 +5,7 @@ import { vault, helpers, MockTFile } from "../mocks/obsidian.ts";
 import type { TFile, Vault, TAbstractFile } from "obsidian";
 import { nanoid } from "nanoid";
 
-describe("VaultOverlayGit", () => {
+describe("VaultOverlay", () => {
   let vaultOverlay: VaultOverlay;
   let chatId: string;
   beforeEach(async () => {
@@ -19,11 +19,6 @@ describe("VaultOverlayGit", () => {
 
   afterEach(async () => {
     await vaultOverlay.destroy();
-  });
-
-  it("should initialize the git repo once per chatId only", async () => {
-    // create and initialize the vault overlay again
-    vaultOverlay = new VaultOverlay(vault as unknown as Vault);
   });
 
   describe("Read File Test", () => {
@@ -48,9 +43,9 @@ describe("VaultOverlayGit", () => {
   });
 
   describe("Create File Test", () => {
-    it("should create a file in the version control system but not in the actual vault", async () => {
+    it("should create a file in the overlay but not in the actual vault", async () => {
       // Arrange
-      const filePath = "/test-file.md";
+      const filePath = "test-file.md";
       const fileContent = "# Test Content";
 
       // Act
@@ -61,7 +56,7 @@ describe("VaultOverlayGit", () => {
       expect(file).toBeTruthy();
       expect(file.path).toBe(filePath);
 
-      // Verify the file exists in the version control system
+      // Verify the file exists in the overlay
       const contentFromVC = await vaultOverlay.read(file);
       expect(contentFromVC).toBe(fileContent);
 
@@ -78,11 +73,6 @@ describe("VaultOverlayGit", () => {
       // Test path with directory traversal
       await expect(
         vaultOverlay.create("/../outside-vault.md", "Content"),
-      ).rejects.toThrow();
-
-      // Test path ending with a slash (would be a folder)
-      await expect(
-        vaultOverlay.create("/invalid-file/", "Content"),
       ).rejects.toThrow();
     });
 
@@ -103,7 +93,7 @@ describe("VaultOverlayGit", () => {
   });
 
   describe("Modify File Test", () => {
-    it("should modify a file in the version control system but not in the actual vault", async () => {
+    it("should modify a file in the overlay but not in the actual vault", async () => {
       // Arrange - Create a file in the actual vault
       const filePath = "/file-to-modify.md";
       const originalContent = "# Original Content";
@@ -116,9 +106,9 @@ describe("VaultOverlayGit", () => {
       await vaultOverlay.modify(file, modifiedContent);
 
       // Assert
-      // Verify the file was modified in the version control system
-      const contentFromVC = await vaultOverlay.read(file);
-      expect(contentFromVC).toBe(modifiedContent);
+      // Verify the file was modified in the overlay
+      const contents = await vaultOverlay.read(file);
+      expect(contents).toBe(modifiedContent);
 
       // Verify the file was NOT modified in the actual vault
       // The mock vault's modify method should not have been called
@@ -140,7 +130,7 @@ describe("VaultOverlayGit", () => {
       // Act - Modify the non-existent file
       await vaultOverlay.modify(nonExistentFile, newContent);
 
-      // Assert - The file should be created in the version control system
+      // Assert - The file should be created in the overlay
       const contentFromVC = await vaultOverlay.read(nonExistentFile);
       expect(contentFromVC).toBe(newContent);
 
@@ -163,7 +153,7 @@ describe("VaultOverlayGit", () => {
       await vaultOverlay.modify(file, secondModification);
 
       // Assert
-      // Verify the file has the second modification in the version control system
+      // Verify the file has the second modification in the overlay
       const contentFromVC = await vaultOverlay.read(file);
       expect(contentFromVC).toBe(secondModification);
 
@@ -174,7 +164,7 @@ describe("VaultOverlayGit", () => {
   });
 
   describe("Rename File Test", () => {
-    it("should create and rename a file in the version control system but not in the actual vault", async () => {
+    it("should create and rename a file in the overlay but not in the actual vault", async () => {
       // Arrange
       const filePath = "/test-rename-file.md";
       const newPath = "/renamed-test-file.md";
@@ -211,7 +201,7 @@ describe("VaultOverlayGit", () => {
 
       // Act & Assert
       await expect(vaultOverlay.rename(mockFile, newPath)).rejects.toThrow(
-        `Source ${nonExistentPath} does not exist.`,
+        `Cannot rename file not found in vault: /non-existent-file.md`,
       );
     });
 
@@ -228,7 +218,9 @@ describe("VaultOverlayGit", () => {
       // Act & Assert
       await expect(
         vaultOverlay.rename(sourceFile, existingPath),
-      ).rejects.toThrow("Destination /existing-file.md already exists.");
+      ).rejects.toThrow(
+        "Cannot rename to path that already exists: existing-file.md",
+      );
     });
 
     it("should throw an error when the new path already exists in vault", async () => {
@@ -245,7 +237,9 @@ describe("VaultOverlayGit", () => {
       // Act & Assert
       await expect(
         vaultOverlay.rename(sourceFile, existingPath),
-      ).rejects.toThrow("Destination /existing-file.md already exists.");
+      ).rejects.toThrow(
+        "Cannot rename to path that already exists: existing-file.md",
+      );
     });
 
     it("should allow rename when destination was renamed in overlay", async () => {
@@ -338,9 +332,9 @@ describe("VaultOverlayGit", () => {
       await vaultOverlay.delete(file);
 
       // Assert
-      // Verify the file is tracked as deleted in the version control system
-      const stagingNode = vaultOverlay.findNode("staging", file.path);
-      expect(stagingNode.data.get("isDeleted")).toEqual(true);
+      // Verify the file is tracked as deleted in the overlay
+      const stagingNode = vaultOverlay.findDeletedNode(file.path);
+      expect(stagingNode.data.get("deletedFrom")).toEqual(file.path);
 
       // Verify the file cannot
 
@@ -375,14 +369,14 @@ describe("VaultOverlayGit", () => {
       // Create the file through the overlay
       const file = await vaultOverlay.create(filePath, fileContent);
 
-      // Verify the file exists in the version control system
+      // Verify the file exists in the overlay
       const contentFromVC = await vaultOverlay.read(file);
       expect(contentFromVC).toBe(fileContent);
 
       // Act - Delete the file through the overlay
       await vaultOverlay.delete(file);
 
-      // Assert - The file should be deleted from the version control system
+      // Assert - The file should be deleted from the overlay
       await expect(vaultOverlay.read(file)).rejects.toThrow();
 
       // Verify the vault's delete method was not called

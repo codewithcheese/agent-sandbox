@@ -72,6 +72,7 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Diff: Undo changes when messages are deleted
 - [ ] Diff: Update Loro accept methods to have side effects.
 - [ ] Diff: Add vault change checking
 - [ ] Diff: Sync vault and display changes when user submits message
@@ -95,10 +96,10 @@ This project includes a version bumping script that automates the release proces
 - [ ] Live template preview action, poor experience reading template in modal
 - [ ] UI: Remove unused shadcn-svelte components 
 - [ ] Chat: Resume options for existing chat
-- [ ] Chat: Highly detailed and tunable logging solution
 - [ ] Schema editor: Support for defining array items
 - [ ] Schema editor: Fix don't clobber unsupported values
 - [ ] Tools: Text editor tools for non-Anthropic models
+- [x] Chat: Debug logging
 - [x] Chat: previous chats action
 - [x] Merge: Close merge view when complete
 - [x] Chat: Auto-scroll

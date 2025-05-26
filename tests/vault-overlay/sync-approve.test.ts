@@ -81,18 +81,19 @@ describe("VaultOverlay sync & approve", () => {
 
     // expect path is tracked before delete is accepted
     const masterNode = overlay.findNode("master", "Notes/idea.md");
-    const stagingNode = overlay.findNode("staging", "Notes/idea.md");
+    const stagingNode = overlay.findNodeById("staging", masterNode.id);
     expect(masterNode).toBeDefined();
     // expect staging node is marked as deleted
-    expect(stagingNode.data.get("isDeleted")).toEqual(true);
     expect(stagingNode).toBeDefined();
+    expect(stagingNode.data.get("deletedFrom")).toEqual("Notes/idea.md");
 
     // user approves deletion
     overlay.approveDelete("Notes/idea.md");
 
     // expect path is no longer tracked
-    expect(overlay.findNode("master", "Notes/idea.md")).not.toBeDefined();
-    expect(overlay.findNode("staging", "Notes/idea.md")).not.toBeDefined();
+    expect(overlay.findNodeById("master", masterNode.id)).not.toBeDefined();
+    expect(overlay.findNodeById("staging", masterNode.id)).not.toBeDefined();
+    expect(overlay.findDeletedNode("Notes/idea.md")).not.toBeDefined();
   });
 
   // todo: preferred behaviour may to be retain staging edits, and treat the staged file as a create
@@ -104,7 +105,7 @@ describe("VaultOverlay sync & approve", () => {
     await overlay.syncDelete("Notes/idea.md");
 
     const masterNode = overlay.findNode("master", "Notes/idea.md");
-    const stagingNode = overlay.findNode("staging", "Notes/idea.md");
+    const stagingNode = overlay.findDeletedNode("Notes/idea.md");
     expect(masterNode).not.toBeDefined();
     expect(stagingNode).not.toBeDefined();
   });
