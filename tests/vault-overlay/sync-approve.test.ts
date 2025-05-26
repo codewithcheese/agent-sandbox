@@ -81,25 +81,22 @@ describe("VaultOverlay sync & approve", () => {
 
     // expect path is tracked before delete is accepted
     const trackingNode = overlay.findNode("tracking", "Notes/idea.md");
-    console.log("Tracking node:", trackingNode.id);
-    const proposedNode = overlay.findNodeById("proposed", trackingNode.id);
-    console.log("Proposed node:", trackingNode.id);
+    expect(trackingNode.isDeleted()).toEqual(false);
     expect(trackingNode).toBeDefined();
     // expect proposed node is marked as deleted
+    const proposedNode = overlay.findNodeById("proposed", trackingNode.id);
     expect(proposedNode).toBeDefined();
+    expect(proposedNode.isDeleted()).toEqual(false);
     expect(proposedNode.data.get("deletedFrom")).toEqual("Notes/idea.md");
 
     // user approves deletion
     overlay.approveDelete("Notes/idea.md");
 
-    console.log(
-      "Tracking node:",
-      overlay.findNode("proposed", "Notes/idea.md").id,
-    );
     // expect path is no longer tracked
-    expect(overlay.findNodeById("tracking", proposedNode.id)).not.toBeDefined();
-    expect(overlay.findNodeById("proposed", proposedNode.id)).not.toBeDefined();
-    expect(overlay.findDeletedNode("Notes/idea.md")).not.toBeDefined();
+    expect(overlay.findNode("tracking", "Notes/idea.md")).not.toBeDefined();
+    expect(trackingNode.isDeleted()).toEqual(true);
+    expect(overlay.findNode("proposed", "Notes/idea.md")).not.toBeDefined();
+    expect(trackingNode.isDeleted()).toEqual(true);
   });
 
   // todo: preferred behaviour may to be retain proposed edits, and treat the staged file as a create

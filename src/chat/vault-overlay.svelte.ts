@@ -255,9 +255,12 @@ export class VaultOverlay implements Vault {
     proposedNode = this.findNode("proposed", file.path);
     invariant(proposedNode, `Cannot delete file not found: ${file.path} `);
 
-    const trashFolder = this.createNode("proposed", trashPath, {
-      isDirectory: true,
-    });
+    let trashFolder = this.findNode("proposed", trashPath);
+    if (!trashFolder) {
+      trashFolder = this.createNode("proposed", trashPath, {
+        isDirectory: true,
+      });
+    }
     proposedNode.move(trashFolder);
     proposedNode.data.set(deletedFrom, normalizePath(file.path));
     this.proposedDoc.commit();
@@ -580,6 +583,8 @@ export class VaultOverlay implements Vault {
       proposedNode.data.get(deletedFrom),
       `Cannot approve delete to a path not deleted on proposed: ${path}.`,
     );
+    // note: delete does not destroy the node, it removes it from its parent, and marks it as deleted
+    // it will no longer be found by path, but it will still be found by id
     this.trackingDoc.getTree("vault").delete(trackingNode.id);
     this.trackingDoc.commit();
     this.syncDocs();
