@@ -148,4 +148,84 @@ describe("VaultOverlay sync & approve", () => {
     expect(oldPathTrackingNode).not.toBeDefined();
     expect(oldPathProposedNode).not.toBeDefined();
   });
+
+  it("should handle syncPath for files with large content", async () => {
+    // Create large file in vault
+    const largeContent = "x".repeat(60000);
+    vault.create("large-vault-file.md", largeContent);
+
+    await overlay.syncPath("large-vault-file.md");
+
+    const file = overlay.getFileByPath("large-vault-file.md");
+    const content = await overlay.read(file);
+    expect(content).toBe(largeContent);
+  });
+
+  it("should handle syncPath for folders", async () => {
+    // Create folder in vault
+    await vault.createFolder("vault-folder");
+
+    await overlay.syncPath("vault-folder");
+
+    const folder = overlay.getFolderByPath("vault-folder");
+    expect(folder).toBeTruthy();
+  });
+
+  it("should throw error for invalid file types in syncPath", async () => {
+    // Mock an invalid file type
+    const originalGetAbstractFileByPath = vault.getAbstractFileByPath;
+    vault.getAbstractFileByPath = () => ({ path: "invalid" }) as any;
+
+    await expect(overlay.syncPath("invalid")).rejects.toThrow(
+      "invalid is not a file or folder",
+    );
+
+    // Restore original method
+    vault.getAbstractFileByPath = originalGetAbstractFileByPath;
+  });
+
+  it("should update existing tracking node text during syncPath", async () => {
+    // Create file in tracking with different content
+    overlay.createTextFile("tracking", "test.md", "old content");
+
+    // Create same file in vault with new content
+    vault.create("test.md", "new content");
+
+    await overlay.syncPath("test.md");
+
+    // Verify tracking was updated
+    const trackingNode = overlay.findNode("tracking", "test.md");
+    const text = trackingNode.data.get("text").toString();
+    expect(text).toBe("new content");
+  });
+
+  describe("Approve Modify Validation", () => {
+    it("should throw error when trying to approve modify on a directory with contents", () => {
+      // Create a directory in proposed
+      overlay.createNode("proposed", "test-folder", { isDirectory: true });
+
+      // Try to approve modify on the directory with contents - should throw error
+      expect(() => {
+        overlay.approveModify("test-folder", "some content");
+      }).toThrow(
+        "Cannot approve modify to folder when contents are provided: test-folder",
+      );
+    });
+
+    it("should create tracking node for directory when it doesn't exist", () => {
+      // Create a directory in proposed only (no tracking node)
+      overlay.createNode("proposed", "new-folder", { isDirectory: true });
+
+      // Verify no tracking node exists yet
+      expect(overlay.findNode("tracking", "new-folder")).toBeUndefined();
+
+      // Approve modify should create the tracking node as a directory
+      overlay.approveModify("new-folder");
+
+      // Verify tracking node was created as a directory
+      const trackingNode = overlay.findNode("tracking", "new-folder");
+      expect(trackingNode).toBeTruthy();
+      expect(trackingNode.data.get("isDirectory")).toBe(true);
+    });
+  });
 });

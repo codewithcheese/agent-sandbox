@@ -40,6 +40,15 @@ describe("VaultOverlay", () => {
       await vaultOverlay.delete(file);
       await expect(() => vaultOverlay.read(file)).rejects.toThrow();
     });
+
+    it("should read from vault when file not tracked", async () => {
+      // Create file in vault
+      helpers.addFile("vault-file.md", "vault content");
+      const vaultFile = vault.getFileByPath("vault-file.md");
+
+      const content = await vaultOverlay.read(vaultFile);
+      expect(content).toBe("vault content");
+    });
   });
 
   describe("Create File Test", () => {
@@ -160,6 +169,31 @@ describe("VaultOverlay", () => {
       // Verify the original content is still in the mock filesystem
       const contentFromVault = await vault.read(file);
       expect(contentFromVault).toBe(originalContent);
+    });
+
+    it("should sync file before modify when exists in vault but not overlay", async () => {
+      // Create file in vault
+      helpers.addFile("vault-file.md", "original content");
+      const vaultFile = vault.getFileByPath("vault-file.md");
+
+      // Modify should sync first
+      await vaultOverlay.modify(vaultFile, "modified content");
+
+      const content = await vaultOverlay.read(vaultFile);
+      expect(content).toBe("modified content");
+    });
+
+    it("should handle large text content using updateByLine", async () => {
+      // Create large content (>50,000 characters)
+      const largeContent = "x".repeat(60000);
+
+      await vaultOverlay.create("large-file.md", "initial");
+      const file = vaultOverlay.getFileByPath("large-file.md");
+
+      await vaultOverlay.modify(file, largeContent);
+
+      const content = await vaultOverlay.read(file);
+      expect(content).toBe(largeContent);
     });
   });
 
@@ -317,6 +351,87 @@ describe("VaultOverlay", () => {
       // Expect not to get old path
       expect(vaultOverlay.getFileByPath(ogPath)).toBeNull();
     });
+
+    it("should reject rename with directory traversal", async () => {
+      await vaultOverlay.create("test.md", "content");
+      const file = vaultOverlay.getFileByPath("test.md");
+
+      await expect(vaultOverlay.rename(file, "../outside.md")).rejects.toThrow(
+        "Path is outside the vault",
+      );
+      await expect(
+        vaultOverlay.rename(file, "folder/../test.md"),
+      ).rejects.toThrow("Path is outside the vault");
+    });
+
+    it("should reject rename of deleted file", async () => {
+      await vaultOverlay.create("test.md", "content");
+      const file = vaultOverlay.getFileByPath("test.md");
+      await vaultOverlay.delete(file);
+
+      await expect(vaultOverlay.rename(file, "renamed.md")).rejects.toThrow(
+        "Cannot rename file that was deleted",
+      );
+    });
+
+    it("should reject rename to path existing in vault", async () => {
+      // Create file in vault
+      helpers.addFile("vault-file.md", "vault content");
+
+      // Create file in overlay
+      await vaultOverlay.create("overlay-file.md", "overlay content");
+      const overlayFile = vaultOverlay.getFileByPath("overlay-file.md");
+
+      await expect(
+        vaultOverlay.rename(overlayFile, "vault-file.md"),
+      ).rejects.toThrow("Cannot rename to path that already exists");
+    });
+
+    it("should sync file before rename when not in overlay", async () => {
+      // Create file in vault
+      helpers.addFile("vault-file.md", "vault content");
+
+      const vaultFile = vault.getFileByPath("vault-file.md");
+
+      // Rename should sync first
+      await vaultOverlay.rename(vaultFile, "renamed-vault-file.md");
+
+      const renamedFile = vaultOverlay.getFileByPath("renamed-vault-file.md");
+      expect(renamedFile).toBeTruthy();
+      expect(await vaultOverlay.read(renamedFile)).toBe("vault content");
+    });
+
+    it("should create parent directories when renaming", async () => {
+      await vaultOverlay.create("test.md", "content");
+      const file = vaultOverlay.getFileByPath("test.md");
+
+      await vaultOverlay.rename(file, "new/nested/path/test.md");
+
+      const renamedFile = vaultOverlay.getFileByPath("new/nested/path/test.md");
+      expect(renamedFile).toBeTruthy();
+
+      const parentFolder = vaultOverlay.getFolderByPath("new/nested/path");
+      expect(parentFolder).toBeTruthy();
+    });
+
+    it("should handle rename within same parent (name change only)", async () => {
+      await vaultOverlay.create("folder/test.md", "content");
+      const file = vaultOverlay.getFileByPath("folder/test.md");
+
+      await vaultOverlay.rename(file, "folder/renamed.md");
+
+      const renamedFile = vaultOverlay.getFileByPath("folder/renamed.md");
+      expect(renamedFile).toBeTruthy();
+      const renamedNode = vaultOverlay.findNode(
+        "proposed",
+        "folder/renamed.md",
+      );
+      expect(renamedNode).toBeTruthy();
+      expect(renamedNode.data.get("name")).toBe("renamed.md");
+
+      const oldFile = vaultOverlay.getFileByPath("folder/test.md");
+      expect(oldFile).toBeNull();
+    });
   });
 
   describe("Delete File Test", () => {
@@ -381,6 +496,96 @@ describe("VaultOverlay", () => {
 
       // Verify the vault's delete method was not called
       expect(vault.delete).not.toHaveBeenCalled();
+    });
+
+    it("should return early when trying to delete already deleted file", async () => {
+      // Create and delete a file
+      await vaultOverlay.create("test.md", "content");
+      const file = vaultOverlay.getFileByPath("test.md");
+      await vaultOverlay.delete(file);
+
+      // Try to delete again - should return early
+      await vaultOverlay.delete(file);
+
+      // Verify file is still in deleted state
+      const deletedNode = vaultOverlay.findDeletedNode("test.md");
+      expect(deletedNode).toBeTruthy();
+    });
+
+    it("should sync file before deletion when not in overlay", async () => {
+      // Create file directly in vault (not in overlay)
+      helpers.addFile("vault-file.md", "vault content");
+      const vaultFile = vault.getFileByPath("vault-file.md");
+
+      // Delete should sync first, then delete
+      await vaultOverlay.delete(vaultFile);
+
+      // Verify file was synced and then deleted
+      const deletedNode = vaultOverlay.findDeletedNode("vault-file.md");
+      expect(deletedNode).toBeTruthy();
+    });
+  });
+
+  describe("Node Creation", () => {
+    it("should throw error when creating node that already exists", () => {
+      // Create node
+      vaultOverlay.createNode("proposed", "test.md", {
+        isDirectory: false,
+        text: "content",
+      });
+
+      // Try to create same node again
+      expect(() => {
+        vaultOverlay.createNode("proposed", "test.md", {
+          isDirectory: false,
+          text: "content",
+        });
+      }).toThrow("Node already exists: test.md");
+    });
+
+    it("should create intermediate directories when creating nested paths", () => {
+      const node = vaultOverlay.createNode("proposed", "deep/nested/path/file.md", {
+        isDirectory: false,
+        text: "content",
+      });
+
+      expect(node).toBeTruthy();
+
+      // Verify intermediate directories were created
+      const deepFolder = vaultOverlay.findNode("proposed", "deep");
+      const nestedFolder = vaultOverlay.findNode("proposed", "deep/nested");
+      const pathFolder = vaultOverlay.findNode("proposed", "deep/nested/path");
+
+      expect(deepFolder).toBeTruthy();
+      expect(nestedFolder).toBeTruthy();
+      expect(pathFolder).toBeTruthy();
+    });
+  });
+
+  describe("Trash Operations", () => {
+    it("should create trash folder when it doesn't exist", async () => {
+      await vaultOverlay.create("test.md", "content");
+      const file = vaultOverlay.getFileByPath("test.md");
+      await vaultOverlay.delete(file);
+
+      // Verify trash folder was created
+      const trashFolder = vaultOverlay.findNode("proposed", ".overlay-trash");
+      expect(trashFolder).toBeTruthy();
+      expect(trashFolder.data.get("isDirectory")).toBe(true);
+    });
+
+    it("should reuse existing trash folder", async () => {
+      // Create trash folder manually
+      vaultOverlay.createNode("proposed", ".overlay-trash", { isDirectory: true });
+      const originalTrashId = vaultOverlay.findNode("proposed", ".overlay-trash").id;
+
+      await vaultOverlay.create("test.md", "content");
+      const file = vaultOverlay.getFileByPath("test.md");
+      await vaultOverlay.delete(file);
+
+      // Verify same trash folder was used
+      const trashFolder = vaultOverlay.findNode("proposed", ".overlay-trash");
+      expect(trashFolder.id).toBe(originalTrashId);
     });
   });
 });

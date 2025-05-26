@@ -74,7 +74,6 @@ export class VaultOverlay implements Vault {
   getFileByPath(path: string): TFile {
     path = normalizePath(path);
     debug("getFileByPath", path);
-    invariant(!path.endsWith("/"), "File path must not end with a slash");
 
     const proposedNode = this.findNode("proposed", path);
     if (proposedNode) {
@@ -100,7 +99,7 @@ export class VaultOverlay implements Vault {
     debug("getFolderByPath", path);
 
     const proposedNode = this.findNode("proposed", path);
-    if (!proposedNode.data.get(isDirectory)) {
+    if (proposedNode && !proposedNode.data.get(isDirectory)) {
       return null;
     }
 
@@ -184,7 +183,6 @@ export class VaultOverlay implements Vault {
 
   async createFolder(path: string) {
     path = normalizePath(path);
-    invariant(path.endsWith("/"), "Path must be a folder");
 
     const existing = this.vault.getAbstractFileByPath(normalizePath(path));
     if (existing) {
@@ -443,16 +441,10 @@ export class VaultOverlay implements Vault {
   private createAbstractFile(path: string): TAbstractFile {
     path = normalizePath(path);
     let parentPath = dirname(path);
-    if (!parentPath.endsWith("/")) {
-      parentPath += "/";
-    }
-
-    const name = path.endsWith("/")
-      ? basename(path.substring(0, path.length - 1))
-      : basename(path);
+    const name = basename(path);
 
     const parent =
-      parentPath === "./" ? this.getRoot() : this.getFolderByPath(parentPath);
+      parentPath === "." ? this.getRoot() : this.getFolderByPath(parentPath);
 
     return {
       vault: this as unknown as Vault,
@@ -511,12 +503,12 @@ export class VaultOverlay implements Vault {
         this.createTextFile("tracking", path, contents);
       }
     } else if (abstractFile instanceof TFolder) {
-      invariant(
-        node.data.get(isDirectory) === true,
-        `Expected node for ${path} to be a folder, got file.`,
-      );
       if (!node) {
         this.createNode("tracking", path, { isDirectory: true });
+      } else if (node.data.get(isDirectory) === false) {
+        throw new Error(
+          `Path is folder in vault, but not in tracking: ${path}`,
+        );
       }
     } else {
       throw new Error(`${path} is not a file or folder`);
@@ -550,7 +542,7 @@ export class VaultOverlay implements Vault {
       `Cannot approve modify to path not found in proposed: ${path}.`,
     );
     invariant(
-      proposedNode.data.get(isDirectory) != contents,
+      !!proposedNode.data.get(isDirectory) !== !!contents,
       `Cannot approve modify to folder when contents are provided: ${path}`,
     );
     let trackingNode = this.findNode("tracking", path);
