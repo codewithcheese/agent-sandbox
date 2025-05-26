@@ -18,6 +18,7 @@ import {
   type TreeID,
 } from "loro-crdt/base64";
 import { basename, dirname } from "path-browserify";
+import type { CurrentChatFile } from "./chat-serializer.ts";
 
 const debug = createDebug();
 
@@ -40,7 +41,7 @@ export class VaultOverlay implements Vault {
 
   constructor(
     private vault: Vault,
-    snapshots?: { master: Uint8Array; staging: Uint8Array },
+    snapshots?: CurrentChatFile["payload"]["overlay"],
   ) {
     if (snapshots) {
       this.masterDoc = LoroDoc.fromSnapshot(snapshots.master);
