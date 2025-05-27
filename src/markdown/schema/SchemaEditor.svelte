@@ -10,7 +10,7 @@
     required: boolean;
     description: string;
     parentId: number | null;
-    arrayItemType?: "string" | "number" | "boolean" | "object";
+    arrayItemType?: "string" | "number" | "boolean";
     isArrayItem?: boolean;
   };
 
@@ -55,7 +55,6 @@
     { display: "Text", value: "string" },
     { display: "Number", value: "number" },
     { display: "True/False", value: "boolean" },
-    { display: "Object", value: "object" },
   ];
 
   function sourceToFields(source: string) {
@@ -97,8 +96,7 @@
                 field.arrayItemType = propDetails.items.type as
                   | "string"
                   | "number"
-                  | "boolean"
-                  | "object";
+                  | "boolean";
               } else {
                 field.arrayItemType = "string"; // Default to string if no items specified
               }
@@ -111,41 +109,6 @@
                 propDetails.properties,
                 propDetails.required || [],
                 fieldId,
-              );
-            } else if (
-              propDetails.type === "array" &&
-              propDetails.items &&
-              typeof propDetails.items === "object" &&
-              "type" in propDetails.items &&
-              propDetails.items.type === "object" &&
-              "properties" in propDetails.items &&
-              propDetails.items.properties
-            ) {
-              // Handle array of objects - create a special array item field
-              const arrayItemId = idCounter++;
-              const arrayItemField: Field = {
-                id: arrayItemId,
-                name: "item",
-                type: "object",
-                required: true,
-                description:
-                  typeof propDetails.items === "object" &&
-                  "description" in propDetails.items
-                    ? propDetails.items.description || ""
-                    : "",
-                parentId: fieldId,
-                isArrayItem: true,
-              };
-              newFields.push(arrayItemField);
-
-              // Parse the object properties for the array item
-              parseProperties(
-                propDetails.items.properties,
-                typeof propDetails.items === "object" &&
-                  "required" in propDetails.items
-                  ? propDetails.items.required || []
-                  : [],
-                arrayItemId,
               );
             }
           },
@@ -182,34 +145,13 @@
               properties[field.name].required = childRequired;
             }
           } else if (field.type === "array") {
-            const arrayItemField = fields.find(
-              (f) => f.isArrayItem && f.parentId === field.id,
-            );
-            if (arrayItemField) {
-              // Array of objects
-              const { properties: childProperties, required: childRequired } =
-                buildProperties(arrayItemField.id);
-              properties[field.name] = {
-                type: "array",
-                description: field.description || undefined,
-                items: {
-                  type: "object",
-                  properties: childProperties,
-                },
-              };
-              if (childRequired.length > 0) {
-                properties[field.name].items.required = childRequired;
-              }
-            } else {
-              // Array of primitives
-              properties[field.name] = {
-                type: "array",
-                description: field.description || undefined,
-                items: {
-                  type: field.arrayItemType || "string",
-                },
-              };
-            }
+            properties[field.name] = {
+              type: "array",
+              description: field.description || undefined,
+              items: {
+                type: field.arrayItemType || "string",
+              },
+            };
           } else {
             properties[field.name] = {
               type: field.type,
@@ -300,44 +242,12 @@
 
   function handleArrayItemTypeChange(
     arrayFieldId: number,
-    newItemType: "string" | "number" | "boolean" | "object",
+    newItemType: "string" | "number" | "boolean",
   ) {
     const arrayField = fields.find((f) => f.id === arrayFieldId);
     if (!arrayField) return;
 
-    const oldItemType = arrayField.arrayItemType;
     arrayField.arrayItemType = newItemType;
-
-    // If changing from object to primitive, remove the array item field and its children
-    if (oldItemType === "object" && newItemType !== "object") {
-      const arrayItemField = fields.find(
-        (f) => f.isArrayItem && f.parentId === arrayFieldId,
-      );
-      if (arrayItemField) {
-        const descendantIdsToRemove = getFullDescendantIds(
-          arrayItemField.id,
-          fields,
-        );
-        fields = fields.filter(
-          (f) =>
-            f.id !== arrayItemField.id && !descendantIdsToRemove.includes(f.id),
-        );
-      }
-    }
-
-    // If changing to object, create an array item field
-    if (newItemType === "object" && oldItemType !== "object") {
-      const arrayItemField: Field = {
-        id: fields.length > 0 ? Math.max(0, ...fields.map((f) => f.id)) + 1 : 1,
-        name: "item",
-        type: "object",
-        required: true,
-        description: "",
-        parentId: arrayFieldId,
-        isArrayItem: true,
-      };
-      fields.push(arrayItemField);
-    }
 
     saveChanges();
   }
@@ -404,17 +314,6 @@
           items = items.concat(
             fieldsWithLevels(currentFields, field.id, level + 1),
           );
-        } else if (field.type === "array" && field.arrayItemType === "object") {
-          // For arrays of objects, show the array item field and its children
-          const arrayItemField = currentFields.find(
-            (f) => f.isArrayItem && f.parentId === field.id,
-          );
-          if (arrayItemField) {
-            items.push({ field: arrayItemField, level: level + 1 });
-            items = items.concat(
-              fieldsWithLevels(currentFields, arrayItemField.id, level + 2),
-            );
-          }
         }
       });
     return items;
@@ -547,40 +446,6 @@
                 <line x1="8" y1="12" x2="16" y2="12"></line>
               </svg>
               <span class="ml-1">Add field</span>
-            </button>
-          </div>
-        {/if}
-
-        {#if isArray && field.arrayItemType === "object"}
-          <div class="flex mt-1 items-center">
-            <button
-              onclick={() => {
-                const arrayItemField = fields.find(
-                  (f) => f.isArrayItem && f.parentId === field.id,
-                );
-                if (arrayItemField) {
-                  addChildField(arrayItemField.id);
-                }
-              }}
-              class="text-xs flex items-center clickable-icon"
-              style="background-color: transparent; color: var(--text-accent); border: none; cursor: pointer;"
-              aria-label="Add object field"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="16"></line>
-                <line x1="8" y1="12" x2="16" y2="12"></line>
-              </svg>
-              <span class="ml-1">Configure object structure</span>
             </button>
           </div>
         {/if}
