@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { normalizePath, Notice } from "obsidian";
+  import { normalizePath, Notice, TFile } from "obsidian";
   import { Button } from "$lib/components/ui/button/index.js";
   import {
     ArrowLeft,
@@ -18,6 +18,8 @@
   import { onDestroy, tick } from "svelte";
   import { createModal } from "$lib/modals/create-modal.ts";
   import ChatSettingsModal from "./ChatSettingsModal.svelte";
+  import type { Chat } from "./chat.svelte.ts";
+  import { nanoid } from "nanoid";
 
   let realtime = new Realtime();
 
@@ -33,25 +35,52 @@
     }
   });
 
+  type Props = {
+    chat: Chat;
+    attachments: {
+      id: string;
+      path: string;
+    }[];
+    handleSubmit: (e) => void;
+    openFirstChange: () => void;
+    view: any;
+    openFile: (path: string) => void;
+    getBaseName: (path: string) => string;
+    submitOnEnter: (event: KeyboardEvent) => void;
+    handleModelChange: (event: Event) => void;
+    getModelAccountOptions: () => any[];
+    editState: {
+      index: number;
+      content: string;
+      originalContent: string;
+    } | null;
+    cancelEdit: () => void;
+    submitEdit: (content: string) => void;
+    submitBtn?: HTMLButtonElement;
+  };
   let {
     chat,
+    attachments = $bindable(),
     handleSubmit,
     openFirstChange,
     view,
     openFile,
     getBaseName,
     submitOnEnter,
-    selectDocument,
     handleModelChange,
     getModelAccountOptions,
     editState = null,
     cancelEdit = () => {},
     submitEdit = () => {},
     submitBtn = $bindable(),
-  } = $props();
+  }: Props = $props();
 
   let text = $state<string>("");
   let textareaRef: HTMLTextAreaElement | null = null;
+
+  let countChanges = $derived(
+    chat.vaultOverlay.changes.filter((c) => c.type !== "identical").length,
+  );
 
   // Set text to edit content when edit mode starts
   $effect(() => {
@@ -69,6 +98,26 @@
       }, 0);
     }
   });
+
+  onDestroy(() => {
+    if (realtime.state === "open") {
+      realtime.stopSession();
+    }
+  });
+
+  function selectDocument() {
+    const plugin = usePlugin();
+    plugin.openFileSelect((file) => {
+      addAttachment(file);
+    });
+  }
+
+  function addAttachment(file: TFile) {
+    attachments.push({
+      id: nanoid(),
+      path: file.path,
+    });
+  }
 
   function handleTranscribeClick() {
     // https://platform.openai.com/docs/guides/realtime-transcription
@@ -119,15 +168,12 @@
     modal.open();
   }
 
-  const countChanges = $derived(
-    chat.vaultOverlay.changes.filter((c) => c.status !== "identical").length,
-  );
-
-  onDestroy(() => {
-    if (realtime.state === "open") {
-      realtime.stopSession();
+  function removeAttachment(attachmentId: string) {
+    const index = attachments.findIndex((a) => a.id === attachmentId);
+    if (index !== -1) {
+      attachments.splice(index, 1);
     }
-  });
+  }
 </script>
 
 <div class={cn("chat-margin py-2 px-2", view.position === "right" && "pb-8")}>
@@ -144,6 +190,7 @@
           <button
             type="button"
             class="clickable-icon gap-2 items-center"
+            aria-label="View file changes"
             onclick={openFirstChange}
           >
             <ArrowLeft class="size-3.5" />
@@ -171,23 +218,23 @@
       </div>
     {/if}
 
-    {#if chat.attachments.length > 0}
+    {#if attachments.length > 0}
       <div class="flex flex-wrap gap-2 mb-2">
-        {#each chat.attachments as attachment}
+        {#each attachments as attachment}
           <button
             type="button"
-            onclick={() => openFile(normalizePath(attachment.file.path))}
+            onclick={() => openFile(normalizePath(attachment.path))}
             class="clickable-icon items-center gap-1"
           >
             <FileTextIcon class="size-3.5" />
             <span class="max-w-[200px] truncate"
-              >{getBaseName(attachment.file.path)}</span
+              >{getBaseName(attachment.path)}</span
             >
             <span
               class="flex items-center"
               onclick={(event) => {
                 event.stopPropagation();
-                chat.removeAttachment(attachment.id);
+                removeAttachment(attachment.id);
               }}
             >
               <XIcon class="size-3.5" />
@@ -198,30 +245,31 @@
     {/if}
 
     <Textarea
-      required
       bind:value={text}
       name="content"
       placeholder="How can I assist you today?"
+      aria-label="Chat message input"
       onkeypress={submitOnEnter}
       maxRows={10}
       bind:ref={textareaRef}
     />
     <div class="flex items-center justify-between mt-2">
       <div class="flex flex-row align-middle gap-2">
-        <Button size="sm" type="button" onclick={handleTranscribeClick}>
-          {#if realtime.state === "closed"}
-            <MicIcon class="size-4" />
-          {:else if realtime.state === "open"}
-            <MicOffIcon class="size-4" />
-          {:else if realtime.state === "connecting"}
-            <Loader2Icon class="size-4 animate-spin" />
-          {/if}
-        </Button>
+        <!--        <Button size="sm" type="button" onclick={handleTranscribeClick}>-->
+        <!--          {#if realtime.state === "closed"}-->
+        <!--            <MicIcon class="size-4" />-->
+        <!--          {:else if realtime.state === "open"}-->
+        <!--            <MicOffIcon class="size-4" />-->
+        <!--          {:else if realtime.state === "connecting"}-->
+        <!--            <Loader2Icon class="size-4 animate-spin" />-->
+        <!--          {/if}-->
+        <!--        </Button>-->
         <Button
           type="button"
           variant="outline"
           size="sm"
           class="gap-1.5 rounded"
+          aria-label="Select document"
           onclick={selectDocument}
         >
           <FileTextIcon class="size-3.5" />
@@ -231,6 +279,7 @@
           variant="outline"
           size="sm"
           class="gap-1.5 rounded"
+          aria-label="Open settings"
           onclick={handleSettingsClick}
         >
           <SettingsIcon class="size-3.5" />
@@ -240,6 +289,7 @@
         <select
           onchange={handleModelChange}
           name="model-account"
+          aria-label="Select AI model"
           class="w-[250px] h-9 rounded-md px-3 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           required
         >
@@ -256,29 +306,34 @@
         </select>
       </div>
       {#if editState}
-        <Button
-          type="button"
-          size="sm"
-          class="gap-1.5 rounded"
-          onclick={handleEditCancel}
-        >
-          <StopCircleIcon class="size-3.5" />
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          size="sm"
-          class="gap-1.5 rounded"
-          bind:ref={submitBtn}
-        >
-          Save
-          <CornerDownLeftIcon class="size-3.5" />
-        </Button>
+        <div class="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            class="gap-1.5 rounded"
+            aria-label="Cancel editing"
+            onclick={handleEditCancel}
+          >
+            <StopCircleIcon class="size-3.5" />
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            size="sm"
+            class="gap-1.5 rounded"
+            aria-label="Save edited message"
+            bind:ref={submitBtn}
+          >
+            Save
+            <CornerDownLeftIcon class="size-3.5" />
+          </Button>
+        </div>
       {:else if chat.state.type === "idle"}
         <Button
           type="submit"
           size="sm"
           class="gap-1.5 rounded"
+          aria-label="Send message"
           bind:ref={submitBtn}
         >
           Send
@@ -289,6 +344,7 @@
           type="button"
           size="sm"
           class="gap-1.5 rounded"
+          aria-label="Cancel"
           onclick={() => chat.cancel()}
         >
           <StopCircleIcon class="size-3.5" />

@@ -85,7 +85,6 @@ export class Chat {
   id = $state<string>();
   path = $state<string>();
   messages = $state<UIMessage[]>([]);
-  attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
   toolRequests = $state<ToolRequest[]>([]);
   vaultOverlay = $state<VaultOverlay>();
@@ -152,29 +151,8 @@ export class Chat {
     return this.save();
   }
 
-  addAttachment(file: TFile) {
-    this.attachments.push({
-      id: nanoid(),
-      file,
-    });
-    return this.save();
-  }
-
-  removeAttachment(attachmentId: string) {
-    const index = this.attachments.findIndex((a) => a.id === attachmentId);
-    if (index !== -1) {
-      this.attachments.splice(index, 1);
-      this.save();
-    }
-  }
-
-  async clearAttachments() {
-    this.attachments = [];
-    return this.save();
-  }
-
-  async submit(content: string) {
-    if (!content && this.attachments.length === 0) {
+  async submit(content: string, attachments: { id: string; path: string }[]) {
+    if (!content && attachments.length === 0) {
       new Notice("Please enter a message or attach a file.", 5000);
       return;
     }
@@ -182,16 +160,21 @@ export class Chat {
     const plugin = usePlugin();
 
     // Prepare any attachments as data URIs
-    const attachments: Attachment[] = [];
-    if (this.attachments.length > 0) {
-      for (const attachment of this.attachments) {
+    const experimental_attachments: Attachment[] = [];
+    if (attachments.length > 0) {
+      debug("Preparing attachments: ", $state.snapshot(attachments));
+      for (const attachment of attachments) {
         try {
-          const data = await plugin.app.vault.readBinary(attachment.file);
+          const file = plugin.app.vault.getFileByPath(attachment.path);
+          if (!file) {
+            throw Error(`Attachment not found: ${attachment.path}`);
+          }
+          const data = await plugin.app.vault.readBinary(file);
           const base64 = arrayBufferToBase64(data);
-          attachments.push({
-            name: attachment.file.path,
-            contentType: extensionToMimeType(attachment.file.extension),
-            url: `data:${extensionToMimeType(attachment.file.extension)};base64,${base64}`,
+          experimental_attachments.push({
+            name: attachment.path,
+            contentType: extensionToMimeType(file.extension),
+            url: `data:${extensionToMimeType(file.extension)};base64,${base64}`,
           });
         } catch (error) {
           console.error("Failed to load attachment data:", error);
@@ -206,11 +189,11 @@ export class Chat {
       content,
       parts: [{ type: "text", text: content }],
       experimental_attachments:
-        attachments.length > 0 ? attachments : undefined,
+        experimental_attachments.length > 0
+          ? experimental_attachments
+          : undefined,
       createdAt: new Date(),
     });
-
-    await this.clearAttachments();
 
     // Now run the conversation to completion
     await this.runConversation();
@@ -245,6 +228,8 @@ export class Chat {
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
 
+      debug("Submitting messages", $state.snapshot(this.messages));
+
       const messages: CoreMessage[] = [];
       if (system) {
         messages.push({
@@ -260,6 +245,8 @@ export class Chat {
           wrapTextAttachments($state.snapshot(this.messages)),
         ),
       );
+
+      debug("Core messages", messages);
 
       await this.callModel(
         messages,

@@ -16,7 +16,7 @@
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
-  import { normalizePath, Notice } from "obsidian";
+  import { normalizePath, Notice, TFile } from "obsidian";
   import { type ViewContext } from "$lib/obsidian/view.ts";
   import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
@@ -43,6 +43,7 @@
 
   let scrollContainer = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);
+  let attachments = $state<{ id: string; path: string }[]>([]);
   let editState = $state<{
     index: number;
     content: string;
@@ -93,7 +94,8 @@
     const formData = new FormData(form);
     const content = formData.get("content")?.toString() ?? "";
     form.reset();
-    chat.submit(content);
+    chat.submit(content, $state.snapshot(attachments));
+    attachments = [];
   }
 
   function handleModelChange(
@@ -105,13 +107,6 @@
     chat.options.modelId = modelId;
     chat.options.accountId = accountId;
     chat.save();
-  }
-
-  function selectDocument() {
-    const plugin = usePlugin();
-    plugin.openFileSelect((file) => {
-      chat.addAttachment(file);
-    });
   }
 
   function getBaseName(path: string): string {
@@ -260,8 +255,8 @@
         {#if selectedAgent}
           <button
             class="clickable-icon"
+            aria-label="Open agent note"
             onclick={() => openFile(selectedAgent.file.path)}
-            title="Open agent note"
           >
             <EyeIcon class="size-4" />
           </button>
@@ -350,7 +345,11 @@
                 class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 border bg-(--background-primary)"
               >
                 {#if message.role === "user"}
-                  <button class="clickable-icon" onclick={() => startEdit(i)}>
+                  <button
+                    class="clickable-icon"
+                    aria-label="Edit message"
+                    onclick={() => startEdit(i)}
+                  >
                     <PencilIcon class="size-4" />
                   </button>
                   <button
@@ -423,6 +422,7 @@
                     {#each message.experimental_attachments as attachment}
                       <button
                         class="clickable-icon gap-1"
+                        aria-label="Open attachment"
                         onclick={() => openFile(attachment.name)}
                       >
                         <FileTextIcon class="size-3.5" />
@@ -448,12 +448,15 @@
                       <button
                         type="button"
                         class="clickable-icon"
+                        aria-label="Open tool invocation info"
                         onclick={() =>
                           openToolInvocationInfoModal(
                             chat,
                             part.toolInvocation,
-                          )}><InfoIcon class="size-3" /></button
+                          )}
                       >
+                        <InfoIcon class="size-3" />
+                      </button>
                     </div>
                     <!-- fixme: new method for displaying changes made-->
                     <!--{#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}-->
@@ -488,13 +491,13 @@
   <!--footer-->
   <ChatInput
     {chat}
+    {attachments}
     {handleSubmit}
     {openFirstChange}
     {view}
     {openFile}
     {getBaseName}
     {submitOnEnter}
-    {selectDocument}
     {handleModelChange}
     {getModelAccountOptions}
     {editState}

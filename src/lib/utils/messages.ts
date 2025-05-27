@@ -1,5 +1,6 @@
 import type { Attachment, UIMessage } from "ai";
 import { extractDataFromDataUrl } from "$lib/utils/data-url.ts";
+import type { TextUIPart } from "@ai-sdk/ui-utils";
 
 function attachmentIsText(attachment: Attachment) {
   return attachment.contentType?.startsWith("text/");
@@ -14,13 +15,16 @@ export function wrapTextAttachments(messages: UIMessage[]): UIMessage[] {
     const textAttachments =
       message.experimental_attachments?.filter(attachmentIsText) ?? [];
     // update content with tagged text attachments
-    message.content = [
+    message.parts = [
       ...textAttachments.map((a) => {
         const file = extractDataFromDataUrl(a.url);
-        return `<Document path="${a.name}" type="${a.contentType}">\n${file.data}\n</Document>`;
+        return {
+          type: "text",
+          text: `<Document path="${a.name}" type="${a.contentType}">\n${file.data}\n</Document>`,
+        } satisfies TextUIPart;
       }),
-      message.content,
-    ].join("\n\n");
+      ...message.parts,
+    ];
     // remove text attachment
     message.experimental_attachments =
       message.experimental_attachments?.filter((a) => !attachmentIsText(a)) ??

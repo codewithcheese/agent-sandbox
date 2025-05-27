@@ -9,7 +9,6 @@ export type ChatFileV1 = {
   payload: {
     id: string;
     messages: UIMessage[];
-    attachments: DocumentAttachment[];
     toolRequests: ToolRequest[];
     overlay:
       | {
@@ -51,7 +50,6 @@ export class ChatSerializer {
     payload: {
       id: nanoid(),
       messages: [],
-      attachments: [],
       toolRequests: [],
       overlay: undefined,
       options: {
@@ -59,7 +57,7 @@ export class ChatSerializer {
         temperature: 0.7,
         thinkingEnabled: false,
         maxTokens: 4000,
-        thinkingTokensBudget: 1000
+        thinkingTokensBudget: 1000,
       },
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -79,7 +77,6 @@ export class ChatSerializer {
       payload: {
         id: chat.id,
         messages: chat.messages,
-        attachments: chat.attachments,
         toolRequests: chat.toolRequests,
         overlay: chat.vaultOverlay.snapshot(),
         options: chat.options,
