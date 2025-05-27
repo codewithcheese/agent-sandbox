@@ -26,6 +26,9 @@
   import type { Change } from "./vault-overlay.svelte.ts";
   import AgentMessage from "./AgentMessage.svelte";
   import { ChatView } from "./chat-view.svelte.ts";
+  import { createDebug } from "$lib/debug.ts";
+
+  const debug = createDebug();
 
   const plugin = usePlugin();
 
@@ -38,10 +41,10 @@
 
   $inspect("Chat path", chat.path);
 
-  let scrollContainer: HTMLElement | null = $state(null);
-  let sentinel: HTMLElement | null = $state(null);
-  let editIndex: number | null = $state(null);
-  let submitBtn: HTMLButtonElement | null = $state(null);
+  let scrollContainer = $state<HTMLElement | null>(null);
+  let sentinel = $state<HTMLElement | null>(null);
+  let editState = $state<{ index: number; content: string } | null>(null);
+  let submitBtn = $state<HTMLButtonElement | null>(null);
   let selectedAgent = $derived(
     agents.entries.find((c) => c.file.path === chat.options.agentPath),
   );
@@ -187,6 +190,24 @@
     }
     await openMergeView(firstChange);
   }
+
+  function updateMessageText({
+    index,
+    content,
+  }: {
+    index: number;
+    content: string;
+  }) {
+    chat.messages[index].content = content;
+    chat.messages[index].parts = chat.messages[index].parts.filter(
+      (p) => p.type !== "text",
+    );
+    chat.messages[index].parts.push({
+      type: "text",
+      text: content,
+    });
+    editState = null;
+  }
 </script>
 
 <div class="h-full max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto]">
@@ -246,22 +267,27 @@
               class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 border bg-(--background-primary)"
             >
               {#if message.role === "user"}
-                <button class="clickable-icon" onclick={() => (editIndex = i)}>
+                <button
+                  class="clickable-icon"
+                  onclick={() => {
+                    editState = { index: i, content: message.content };
+                  }}
+                >
                   <PencilIcon class="size-4" />
                 </button>
+                <button
+                  class="clickable-icon"
+                  aria-label={message.role === "user"
+                    ? "Regenerate assistant response"
+                    : "Regenerate this response"}
+                  onclick={() => regenerateFromMessage(i)}
+                >
+                  <RefreshCwIcon class="size-4" />
+                </button>
+                <!--              <button class="clickable-icon" onclick={() => deleteMessage(i)}>-->
+                <!--                <Trash2Icon class="size-4" />-->
+                <!--              </button>-->
               {/if}
-              <button
-                class="clickable-icon"
-                aria-label={message.role === "user"
-                  ? "Regenerate assistant response"
-                  : "Regenerate this response"}
-                onclick={() => regenerateFromMessage(i)}
-              >
-                <RefreshCwIcon class="size-4" />
-              </button>
-              <button class="clickable-icon" onclick={() => deleteMessage(i)}>
-                <Trash2Icon class="size-4" />
-              </button>
             </div>
             {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
               <div
@@ -311,15 +337,15 @@
                   </div>
                 {/if}
                 <!-- edit view -->
-                {#if editIndex === i}
+                {#if editState && editState.index === i}
                   <div class="mt-2 flex gap-2">
                     <textarea
                       class="flex-1 rounded border p-2 text-md"
-                      bind:value={message.content}
+                      bind:value={editState.content}
                     ></textarea>
                     <button
                       class="clickable-icon"
-                      onclick={() => (editIndex = null)}
+                      onclick={() => updateMessageText(editState)}
                     >
                       Save
                     </button>

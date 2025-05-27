@@ -10,6 +10,9 @@
     required: boolean;
     description: string;
     parentId: number | null;
+    arrayItemType?: "string" | "number" | "boolean";
+    enumValues?: string[];
+    isEnum?: boolean;
   };
 
   type FieldType =
@@ -49,6 +52,12 @@
     { display: "Object", value: "object" },
   ];
 
+  const arrayItemTypes = [
+    { display: "Text", value: "string" },
+    { display: "Number", value: "number" },
+    { display: "True/False", value: "boolean" },
+  ];
+
   function sourceToFields(source: string) {
     try {
       error = null;
@@ -77,6 +86,28 @@
               description: propDetails.description || "",
               parentId: parentId,
             };
+
+            if (propDetails.type === "array") {
+              // Set array item type based on items schema
+              if (
+                propDetails.items &&
+                typeof propDetails.items === "object" &&
+                "type" in propDetails.items
+              ) {
+                field.arrayItemType = propDetails.items.type as
+                  | "string"
+                  | "number"
+                  | "boolean";
+              } else {
+                field.arrayItemType = "string"; // Default to string if no items specified
+              }
+            }
+
+            if (propDetails.enum && Array.isArray(propDetails.enum)) {
+              field.enumValues = propDetails.enum.map(String);
+              field.isEnum = true;
+            }
+
             newFields.push(field);
 
             if (propDetails.type === "object" && propDetails.properties) {
@@ -119,6 +150,14 @@
             if (childRequired.length > 0) {
               properties[field.name].required = childRequired;
             }
+          } else if (field.type === "array") {
+            properties[field.name] = {
+              type: "array",
+              description: field.description || undefined,
+              items: {
+                type: field.arrayItemType || "string",
+              },
+            };
           } else {
             properties[field.name] = {
               type: field.type,
@@ -127,6 +166,14 @@
           }
           if (field.required) {
             required.push(field.name);
+          }
+          if (field.isEnum && field.enumValues && field.enumValues.length > 0) {
+            const validEnumValues = field.enumValues.filter(
+              (v) => v.trim() !== "",
+            );
+            if (validEnumValues.length > 0) {
+              properties[field.name].enum = validEnumValues;
+            }
           }
         });
       return { properties, required };
@@ -185,19 +232,37 @@
       let currentFields = fields.filter(
         (f) => !descendantIdsToRemove.includes(f.id),
       );
-      // Then update the field type in the filtered list
-      const updatedFieldIndexInRemaining = currentFields.findIndex(
-        (f) => f.id === id,
-      );
-      if (updatedFieldIndexInRemaining !== -1) {
-        currentFields[updatedFieldIndexInRemaining].type = newType;
-      }
+      // Update the field type
+      const updatedFieldIndex = currentFields.findIndex((f) => f.id === id);
+      currentFields[updatedFieldIndex].type = newType;
       fields = currentFields; // Assign the new array to trigger update
     } else {
       fieldToUpdate.type = newType;
     }
 
+    // Set default arrayItemType when changing to array
+    if (newType === "array" && !fieldToUpdate.arrayItemType) {
+      fieldToUpdate.arrayItemType = "string";
+    }
+
+    // Clear arrayItemType when changing away from array
+    if (newType !== "array") {
+      fieldToUpdate.arrayItemType = undefined;
+    }
+
     // Save changes for type change
+    saveChanges();
+  }
+
+  function handleArrayItemTypeChange(
+    arrayFieldId: number,
+    newItemType: "string" | "number" | "boolean",
+  ) {
+    const arrayField = fields.find((f) => f.id === arrayFieldId);
+    if (!arrayField) return;
+
+    arrayField.arrayItemType = newItemType;
+
     saveChanges();
   }
 
@@ -211,6 +276,9 @@
       required: true,
       description: "",
       parentId,
+      arrayItemType: undefined,
+      enumValues: undefined,
+      isEnum: undefined,
     } satisfies Field;
   }
 
@@ -270,6 +338,7 @@
 
 {#snippet renderFieldSnippet(field, level)}
   {@const isObject = field.type === "object"}
+  {@const isArray = field.type === "array"}
 
   <div
     class="field-row @container"
@@ -291,7 +360,6 @@
           <input
             type="text"
             bind:value={field.description}
-            onblur={() => saveChanges()}
             class="w-full mt-1"
             style="padding: var(--size-4-1) var(--size-4-1); border: 1px solid var(--background-modifier-border); border-radius: var(--input-radius); font-size: var(--font-ui-smaller); color: var(--text-muted); background-color: transparent;"
             placeholder="Description"
@@ -299,7 +367,6 @@
         </div>
       </div>
       <!-- field controls -->
-
       <div class="flex flex-col h-full">
         <div class="flex items-center gap-2">
           <!-- field type -->
@@ -314,6 +381,45 @@
               <option value={typeOpt.value}>{typeOpt.display}</option>
             {/each}
           </select>
+
+          {#if isArray}
+            <select
+              bind:value={field.arrayItemType}
+              onchange={() =>
+                handleArrayItemTypeChange(field.id, field.arrayItemType)}
+              class="w-full p-1 text-sm border"
+              style="background-color: var(--background-primary-alt); color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: var(--input-radius); font-size: var(--font-ui-small);"
+            >
+              {#each arrayItemTypes as typeOpt (typeOpt.value)}
+                <option value={typeOpt.value}>{typeOpt.display}</option>
+              {/each}
+            </select>
+          {/if}
+
+          {#if field.type === "string"}
+            <div>
+              <label
+                class="inline-flex items-center"
+                style="font-size: var(--font-ui-smaller); color: var(--text-muted); cursor: pointer;"
+              >
+                <input
+                  type="checkbox"
+                  bind:checked={field.isEnum}
+                  onchange={() => {
+                    if (field.isEnum && !field.enumValues) {
+                      field.enumValues = [];
+                    } else if (!field.isEnum) {
+                      field.enumValues = undefined;
+                    }
+                    saveChanges();
+                  }}
+                  class="form-checkbox mr-1"
+                  style="height: 14px; width: 14px; border-radius: var(--checkbox-radius); cursor: pointer;"
+                />
+                <span>Options</span>
+              </label>
+            </div>
+          {/if}
 
           <!-- field required -->
           <div>
@@ -382,8 +488,67 @@
             </button>
           </div>
         {/if}
+
+        {#if field.isEnum && field.enumValues}
+          <div class="flex items-center gap-1 flex-wrap mt-1">
+            <button
+              onclick={() => {
+                if (!field.enumValues) field.enumValues = [];
+                field.enumValues.push("");
+              }}
+              class="text-xs clickable-icon px-1 gap-1"
+              style="color: var(--text-accent);"
+              title="Add option"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+              </svg> Add option</button
+            >
+          </div>
+        {/if}
       </div>
     </div>
+    {#if field.isEnum && field.enumValues}
+      <div
+        class="flex w-full items-center gap-1 flex-wrap mt-1"
+        style="padding-left: 20px;"
+      >
+        {#each field.enumValues as value, index}
+          <div class="flex items-center">
+            <input
+              type="text"
+              bind:value={field.enumValues[index]}
+              class="w-16 p-1 text-xs"
+              style="border: 1px solid var(--background-modifier-border); border-radius: var(--input-radius); background-color: transparent;"
+              onblur={() => saveChanges()}
+              placeholder="value"
+            />
+            <button
+              onclick={() => {
+                field.enumValues = field.enumValues.filter(
+                  (_, i) => i !== index,
+                );
+                saveChanges();
+              }}
+              class="ml-1 text-xs clickable-icon"
+              style="color: var(--text-muted);"
+              title="Remove value"><Trash2Icon size="12" /></button
+            >
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 {/snippet}
 
