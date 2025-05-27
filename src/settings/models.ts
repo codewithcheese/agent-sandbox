@@ -58,11 +58,25 @@ export const models: (ChatModel | EmbeddingModel | TranscriptionModel)[] = [
     outputTokenLimit: 600,
   },
   {
+    id: "claude-opus-4-20250514",
+    provider: "anthropic",
+    type: "chat",
+    inputTokenLimit: 200000,
+    outputTokenLimit: 32000,
+  },
+  {
+    id: "claude-sonnet-4-20250514",
+    provider: "anthropic",
+    type: "chat",
+    inputTokenLimit: 200000,
+    outputTokenLimit: 64000,
+  },
+  {
     id: "claude-3-7-sonnet-20250219",
     provider: "anthropic",
     type: "chat",
     inputTokenLimit: 200000,
-    outputTokenLimit: 8192,
+    outputTokenLimit: 64000,
   },
   {
     id: "claude-3-5-sonnet-20241022",

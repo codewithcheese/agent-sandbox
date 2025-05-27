@@ -8,6 +8,7 @@
     Loader2Icon,
     MicIcon,
     MicOffIcon,
+    SettingsIcon,
     StopCircleIcon,
     XIcon,
   } from "lucide-svelte";
@@ -15,6 +16,8 @@
   import { Realtime } from "./realtime.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
   import { onDestroy } from "svelte";
+  import { createModal } from "$lib/modals/create-modal.ts";
+  import ChatSettingsModal from "./ChatSettingsModal.svelte";
 
   let realtime = new Realtime();
 
@@ -49,6 +52,18 @@
     }
   }
 
+  function handleSettingsClick() {
+    const modal = createModal(ChatSettingsModal, {
+      settings: chat.options,
+      onClose: () => modal.close(),
+      onSave: (newSettings: any) => {
+        chat.updateOptions(newSettings);
+        modal.close();
+      },
+    });
+    modal.open();
+  }
+
   let {
     chat,
     handleSubmit,
@@ -61,7 +76,6 @@
     handleModelChange,
     getModelAccountOptions,
     submitBtn = $bindable(),
-    options,
   } = $props();
 
   const countChanges = $derived(
@@ -170,6 +184,15 @@
         >
           <FileTextIcon class="size-3.5" />
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="gap-1.5 rounded"
+          onclick={handleSettingsClick}
+        >
+          <SettingsIcon class="size-3.5" />
+        </Button>
 
         <!-- model select -->
         <select
@@ -183,7 +206,7 @@
             <option
               value={option.value}
               selected={option.value ===
-                `${options.modelId}:${options.accountId}`}
+                `${chat.options.modelId}:${chat.options.accountId}`}
             >
               {option.label}
             </option>

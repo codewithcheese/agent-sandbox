@@ -66,3 +66,4 @@ Desktop.ini
 # Debug files
 debug/
 .debug/
+.windsurf/

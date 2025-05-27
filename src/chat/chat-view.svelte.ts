@@ -10,13 +10,13 @@ import {
 import { mount, unmount } from "svelte";
 import type { ViewContext } from "$lib/obsidian/view.ts";
 import ChatPage from "./ChatPage.svelte";
-import { Chat } from "./chat.svelte.ts";
+import { Chat, type ChatOptions } from "./chat.svelte.ts";
 import { Agents } from "./agents.svelte.ts";
 import superjson from "superjson";
 import { ChatSerializer } from "./chat-serializer.ts";
 import { usePlugin } from "$lib/utils";
-import { ChatOptions } from "./options.svelte.ts";
 import { ChatHistoryView } from "./chat-history-view.svelte.ts";
+import { DeleteChatModal } from "$lib/modals/delete-chat-modal.ts";
 
 export const CHAT_VIEW_TYPE = "sandbox-chat-view";
 
@@ -28,12 +28,10 @@ export class ChatView extends FileView {
     position: "center",
     name: "",
   });
-  options: ChatOptions;
+  chat: Chat | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
-    this.options = new ChatOptions();
-    this.register(() => this.options.cleanup());
     this.addAction("history", "View Chat History", async () => {
       await ChatHistoryView.openChatHistory();
     });
@@ -88,11 +86,26 @@ export class ChatView extends FileView {
     if (source === "more-options") {
       menu.addItem((item) => {
         item
-          .setTitle("Regenerate Title")
+          .setTitle("Regenerate title")
           .setIcon("refresh-cw")
           .onClick(async () => {
             const chat = await Chat.load(this.file.path);
             await chat.generateTitle();
+          });
+      });
+      menu.addItem((item) => {
+        item
+          .setTitle("Delete chat")
+          .setIcon("trash")
+          .onClick(async () => {
+            const modal = new DeleteChatModal(
+              usePlugin().app,
+              this.file,
+              () => {
+                return usePlugin().app.vault.trash(this.file);
+              },
+            );
+            modal.open();
           });
       });
     }
@@ -137,14 +150,15 @@ export class ChatView extends FileView {
     viewContent.style.padding = "0px";
     viewContent.style.backgroundColor = "var(--background-primary)";
 
+    this.chat = await Chat.load(file.path);
+
     // Mount the Svelte component with props
     this.component = mount(ChatPage, {
       target: this.containerEl.children[1],
       props: {
         agents: await Agents.load(),
-        chat: await Chat.load(file.path),
+        chat: this.chat,
         view: this.view,
-        options: this.options,
       },
     });
   }
@@ -189,13 +203,16 @@ export class ChatView extends FileView {
     );
   }
 
-  static async newChat(leaf?: WorkspaceLeaf): Promise<ChatView> {
+  static async newChat(
+    leaf?: WorkspaceLeaf,
+    options?: Partial<ChatOptions>,
+  ): Promise<ChatView> {
     const plugin = usePlugin();
     const baseName = "New chat";
     let fileName = baseName;
     let counter = 1;
 
-    // Get the chats path from settings
+    // Get the chatsPath from settings
     const chatsPath = normalizePath(plugin.settings.vault.chatsPath);
 
     // Ensure the directory exists
@@ -244,9 +261,8 @@ export class ChatView extends FileView {
       active: true,
       state: { mode: CHAT_VIEW_TYPE },
     });
-
     await plugin.app.workspace.revealLeaf(leaf);
-
+    await (leaf.view as ChatView).chat.updateOptions(options);
     return leaf.view as ChatView;
   }
 }

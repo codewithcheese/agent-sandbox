@@ -17,6 +17,16 @@ export type ChatFileV1 = {
           proposed: Uint8Array;
         }
       | undefined;
+    options: {
+      maxSteps: number;
+      modelId?: string;
+      accountId?: string;
+      agentPath?: string;
+      temperature: number;
+      thinkingEnabled: boolean;
+      maxTokens: number;
+      thinkingTokensBudget: number;
+    };
     createdAt: Date;
     updatedAt: Date;
   };
@@ -44,6 +54,13 @@ export class ChatSerializer {
       attachments: [],
       toolRequests: [],
       overlay: undefined,
+      options: {
+        maxSteps: 10,
+        temperature: 0.7,
+        thinkingEnabled: false,
+        maxTokens: 4000,
+        thinkingTokensBudget: 1000
+      },
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -65,6 +82,7 @@ export class ChatSerializer {
         attachments: chat.attachments,
         toolRequests: chat.toolRequests,
         overlay: chat.vaultOverlay.snapshot(),
+        options: chat.options,
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       },

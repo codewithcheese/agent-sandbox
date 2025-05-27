@@ -18,11 +18,12 @@ import { extensionToMimeType } from "$lib/utils/mime.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import type { ToolRequest } from "../tools/tool-request.ts";
-import type { ChatOptions } from "./options.svelte.ts";
 import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
 import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
+import type { ChatModel } from "../settings/models.ts";
+import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 
 const debug = createDebug();
 
@@ -69,6 +70,17 @@ export function registerChatRenameHandler() {
   );
 }
 
+export type ChatOptions = {
+  modelId?: string;
+  accountId?: string;
+  agentPath?: string;
+  maxSteps: number;
+  temperature: number;
+  thinkingEnabled: boolean;
+  maxTokens: number;
+  thinkingTokensBudget: number;
+};
+
 export class Chat {
   id = $state<string>();
   path = $state<string>();
@@ -79,7 +91,13 @@ export class Chat {
   vaultOverlay = $state<VaultOverlay>();
   createdAt: Date;
   updatedAt: Date;
-  options = $state<{ maxSteps: number }>({ maxSteps: 10 });
+  options = $state<ChatOptions>({
+    maxSteps: 10,
+    temperature: 0.7,
+    thinkingEnabled: false,
+    maxTokens: 4000,
+    thinkingTokensBudget: 1024,
+  });
 
   #abortController?: AbortController;
 
@@ -129,12 +147,17 @@ export class Chat {
     return chat;
   }
 
+  updateOptions(options: Partial<ChatOptions>) {
+    Object.assign(this.options, options);
+    return this.save();
+  }
+
   addAttachment(file: TFile) {
     this.attachments.push({
       id: nanoid(),
       file,
     });
-    this.save();
+    return this.save();
   }
 
   removeAttachment(attachmentId: string) {
@@ -150,7 +173,7 @@ export class Chat {
     return this.save();
   }
 
-  async submit(content: string, options: ChatOptions) {
+  async submit(content: string) {
     if (!content && this.attachments.length === 0) {
       new Notice("Please enter a message or attach a file.", 5000);
       return;
@@ -190,10 +213,10 @@ export class Chat {
     await this.clearAttachments();
 
     // Now run the conversation to completion
-    await this.runConversation(options);
+    await this.runConversation();
   }
 
-  async runConversation(options: ChatOptions) {
+  async runConversation() {
     try {
       this.state = { type: "loading" };
 
@@ -204,9 +227,9 @@ export class Chat {
       let metadata: CachedMetadata | null = null;
       let activeTools: Record<string, Tool> = {};
 
-      const agentFile = plugin.app.vault.getFileByPath(options.agentPath);
+      const agentFile = plugin.app.vault.getFileByPath(this.options.agentPath);
       if (!agentFile) {
-        throw Error(`Agent at ${options.agentPath} not found`);
+        throw Error(`Agent at ${this.options.agentPath} not found`);
       }
 
       metadata = plugin.app.metadataCache.getFileCache(agentFile);
@@ -214,7 +237,7 @@ export class Chat {
       activeTools = await loadToolsFromFrontmatter(
         metadata!,
         this,
-        options.getAccount().provider,
+        this.getAccount().provider,
       );
       debug("SYSTEM MESSAGE\n-----\n", system);
       debug("Active tools", activeTools);
@@ -240,8 +263,8 @@ export class Chat {
 
       await this.callModel(
         messages,
-        options.modelId,
-        options.getAccount(),
+        this.options.modelId!,
+        this.getAccount(),
         activeTools,
         this.#abortController?.signal,
       );
@@ -266,7 +289,7 @@ export class Chat {
         ) {
           console.error("Anthropic CORS error", error);
           throw new Error(
-            `Provider ${options.getAccount().id} is experiencing a CORS issue. This is a known issue with new individual Anthropic accounts.
+            `Provider ${this.getAccount().id} is experiencing a CORS issue. This is a known issue with new individual Anthropic accounts.
 
 To resolve this issue:
 
@@ -333,6 +356,19 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
           tools: Object.keys(activeTools).length > 0 ? activeTools : undefined,
           maxRetries: 0,
           maxSteps: this.options.maxSteps,
+          temperature: this.options.temperature,
+          providerOptions: {
+            anthropic: {
+              ...(this.options.thinkingEnabled
+                ? {
+                    thinking: {
+                      type: "enabled",
+                      budgetTokens: this.options.thinkingTokensBudget,
+                    },
+                  }
+                : {}),
+            } satisfies AnthropicProviderOptions,
+          },
           abortSignal,
           onStepFinish: async (step) => {
             debug("Step finish", step);
@@ -342,6 +378,9 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
             step.toolResults.forEach((toolResult) => {
               debug("Tool result", toolResult.toolName, toolResult.result);
             });
+          },
+          onFinish: async (result) => {
+            debug("Finished", result, $state.snapshot(this.messages));
           },
         });
 
@@ -561,5 +600,27 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     );
 
     await new Promise((resolve) => setTimeout(resolve, retryDelay));
+  }
+
+  getModel() {
+    const plugin = usePlugin();
+    const model = plugin.settings.models.find(
+      (m): m is ChatModel => m.type === "chat" && m.id === this.options.modelId,
+    );
+    if (!model) {
+      throw Error(`Chat model ${this.options.modelId} not found`);
+    }
+    return model;
+  }
+
+  getAccount() {
+    const plugin = usePlugin();
+    const account = plugin.settings.accounts.find(
+      (a) => a.id === this.options.accountId,
+    );
+    if (!account) {
+      throw Error(`AI account ${this.options.accountId} not found`);
+    }
+    return account;
   }
 }

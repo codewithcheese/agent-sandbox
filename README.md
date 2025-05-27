@@ -72,10 +72,15 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Agent: Tool validation
+
 - [ ] Diff: Undo changes when messages are deleted
+- [ ] Fix: Chat saving with attachments
 - [ ] Diff: Update Loro accept methods to have side effects.
 - [ ] Diff: Add vault change checking
 - [ ] Diff: Sync vault and display changes when user submits message
+- [ ] Diff: display separate rename confirmation for file and for folder
+- [ ] Settings: settings migration for useful new values like models
 - [ ] Chat: Tag based file editing
 - [ ] Chat: Chat homepage with agent selection
 - [ ] Chat: Token counting
@@ -92,13 +97,13 @@ This project includes a version bumping script that automates the release proces
 - [ ] Merge: use Obsidian semantic colors
 - [ ] Chat: Delete chat if empty when closed
 - [ ] Schema editor: Align design with Properties UI
-- [ ] Chat: Fix saving with attachments
 - [ ] Live template preview action, poor experience reading template in modal
 - [ ] UI: Remove unused shadcn-svelte components 
 - [ ] Chat: Resume options for existing chat
 - [ ] Schema editor: Support for defining array items
 - [ ] Schema editor: Fix don't clobber unsupported values
 - [ ] Tools: Text editor tools for non-Anthropic models
+- [x] Chat: extended settings, temperature, thinking toggle, thinking budget, cache control
 - [x] Chat: Debug logging
 - [x] Chat: previous chats action
 - [x] Merge: Close merge view when complete

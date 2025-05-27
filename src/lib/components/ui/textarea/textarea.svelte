@@ -24,7 +24,7 @@
     const resize = () => {
       node.style.height = "auto"; // collapse first
       const needed = Math.ceil(node.scrollHeight / lh);
-      const rows = Math.min(Math.max(needed, 1), max);
+      const rows = Math.min(Math.max(needed, 2), max);
       node.style.overflowY = needed > max ? "auto" : "hidden";
       node.style.height = `${rows * lh}px`;
 

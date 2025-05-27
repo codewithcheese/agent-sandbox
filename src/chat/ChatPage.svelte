@@ -8,6 +8,7 @@
     WrenchIcon,
     Trash2Icon,
     PencilIcon,
+    EyeIcon,
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
@@ -20,11 +21,11 @@
   import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
   import ChatInput from "./ChatInput.svelte";
-  import { ChatOptions } from "./options.svelte.ts";
-  import AgentMessage from "./AgentMessage.svelte";
   import type { Agents } from "./agents.svelte.ts";
   import Autoscroll from "./Autoscroll.svelte";
   import type { Change } from "./vault-overlay.svelte.ts";
+  import AgentMessage from "./AgentMessage.svelte";
+  import { ChatView } from "./chat-view.svelte.ts";
 
   const plugin = usePlugin();
 
@@ -32,9 +33,8 @@
     chat: Chat;
     view: ViewContext;
     agents: Agents;
-    options: ChatOptions;
   };
-  let { chat, view, agents, options }: Props = $props();
+  let { chat, view, agents }: Props = $props();
 
   $inspect("Chat path", chat.path);
 
@@ -43,12 +43,11 @@
   let editIndex: number | null = $state(null);
   let submitBtn: HTMLButtonElement | null = $state(null);
   let selectedAgent = $derived(
-    agents.entries.find((c) => c.file.path === options.agentPath),
+    agents.entries.find((c) => c.file.path === chat.options.agentPath),
   );
 
   onDestroy(() => {
     chat.cancel();
-    options.cleanup();
   });
 
   function deleteMessage(index: number) {
@@ -68,7 +67,7 @@
     chat.messages = chat.messages.slice(0, cutIndex);
 
     // Generate new response
-    await chat.runConversation(options);
+    await chat.runConversation();
 
     // Save the updated chat
     await chat.save();
@@ -83,14 +82,15 @@
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    if (!options.modelId || !options.accountId) {
+    if (!chat.options.modelId || !chat.options.accountId) {
+      new Notice("Please select a model before submitting", 3000);
       return;
     }
     const form = event.target as HTMLFormElement;
     const formData = new FormData(form);
     const content = formData.get("content")?.toString() ?? "";
     form.reset();
-    chat.submit(content, options);
+    chat.submit(content);
   }
 
   function handleModelChange(
@@ -99,8 +99,9 @@
     },
   ) {
     const [modelId, accountId] = e.currentTarget.value.split(":");
-    options.modelId = modelId;
-    options.accountId = accountId;
+    chat.options.modelId = modelId;
+    chat.options.accountId = accountId;
+    chat.save();
   }
 
   function selectDocument() {
@@ -108,11 +109,6 @@
     plugin.openFileSelect((file) => {
       chat.addAttachment(file);
     });
-  }
-
-  function startNewChat() {
-    const plugin = usePlugin();
-    plugin.openChatView();
   }
 
   function getBaseName(path: string): string {
@@ -203,13 +199,22 @@
       <div class="flex flex-row items-center gap-1">
         <select
           class="w-[150px] h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          bind:value={options.agentPath}
+          bind:value={chat.options.agentPath}
         >
           <option value={undefined}>Select an agent...</option>
           {#each agents.entries as agent}
             <option value={agent.file.path}>{agent.name}</option>
           {/each}
         </select>
+        {#if selectedAgent}
+          <button
+            class="clickable-icon"
+            onclick={() => openFile(selectedAgent.file.path)}
+            title="Open agent note"
+          >
+            <EyeIcon class="size-4" />
+          </button>
+        {/if}
       </div>
 
       <Button
@@ -217,7 +222,7 @@
         variant="outline"
         size="sm"
         class="gap-1.5 rounded"
-        onclick={startNewChat}
+        onclick={() => ChatView.newChat(undefined, chat.options)}
       >
         New Chat
         <PlusIcon class="size-3.5" />
@@ -226,7 +231,7 @@
   </div>
 
   <!-- body -->
-  <div bind:this={scrollContainer} class="min-h-0 overflow-y-scroll py-2">
+  <div bind:this={scrollContainer} class="min-h-0 overflow-y-auto py-2">
     <div class="chat-margin px-2">
       <!-- system message -->
       {#if selectedAgent}
@@ -236,31 +241,29 @@
       <div class="flex flex-col w-full flex-1 gap-1">
         {#each chat.messages as message, i}
           <div class="group relative">
-            {#if message.content}
-              <div
-                class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 border bg-(--background-primary)"
+            <!-- message buttons -->
+            <div
+              class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 border bg-(--background-primary)"
+            >
+              {#if message.role === "user"}
+                <button class="clickable-icon" onclick={() => (editIndex = i)}>
+                  <PencilIcon class="size-4" />
+                </button>
+              {/if}
+              <button
+                class="clickable-icon"
+                aria-label={message.role === "user"
+                  ? "Regenerate assistant response"
+                  : "Regenerate this response"}
+                onclick={() => regenerateFromMessage(i)}
               >
-                {#if message.role === "user"}
-                  <button
-                    class="clickable-icon"
-                    onclick={() => (editIndex = i)}
-                  >
-                    <PencilIcon class="size-4" />
-                  </button>
-                {/if}
-                <button
-                  class="clickable-icon"
-                  aria-label={message.role === "user"
-                    ? "Regenerate assistant response"
-                    : "Regenerate this response"}
-                  onclick={() => regenerateFromMessage(i)}
-                >
-                  <RefreshCwIcon class="size-4" />
-                </button>
-                <button class="clickable-icon" onclick={() => deleteMessage(i)}>
-                  <Trash2Icon class="size-4" />
-                </button>
-              </div>
+                <RefreshCwIcon class="size-4" />
+              </button>
+              <button class="clickable-icon" onclick={() => deleteMessage(i)}>
+                <Trash2Icon class="size-4" />
+              </button>
+            </div>
+            {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
               <div
                 class={cn(
                   `whitespace-pre-wrap prose leading-none select-text
@@ -295,9 +298,19 @@
                           prose-a:decoration-1 text-foreground max-w-full`,
                   message.role === "user"
                     ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-                    : "py-4",
+                    : "py-2",
                 )}
               >
+                <!-- thinking content -->
+                {#if message.role === "assistant" && message.parts?.some((part) => part.type === "reasoning")}
+                  <div class="py-1 text-sm text-(--text-muted)">
+                    {message.parts
+                      .filter((part) => part.type === "reasoning")
+                      .flatMap((part) => part.reasoning)
+                      .join("\n")}
+                  </div>
+                {/if}
+                <!-- edit view -->
                 {#if editIndex === i}
                   <div class="mt-2 flex gap-2">
                     <textarea
@@ -316,7 +329,6 @@
                 {/if}
               </div>
             {/if}
-
             {#if message.experimental_attachments && message.experimental_attachments.length > 0}
               <div class="mt-2">
                 <div class="flex flex-wrap gap-2">
@@ -395,7 +407,6 @@
     {handleModelChange}
     {getModelAccountOptions}
     bind:submitBtn
-    {options}
   />
 </div>
 

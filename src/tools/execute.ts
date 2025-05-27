@@ -103,6 +103,10 @@ export async function executePython({ code, installPackages = [] }) {
   }
 }
 
+export function echo(args: any) {
+  return args;
+}
+
 /**
  * Think tool for structured reasoning
  */

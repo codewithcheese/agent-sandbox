@@ -37,7 +37,7 @@
   }
 </script>
 
-<div class="h-full flex flex-col max-w-sm mx-auto">
+<div class="h-full flex flex-col max-w-md mx-4 mx-auto">
   <div class="py-1 px-2 border-b border-(--background-modifier-border)">
     <div class="flex justify-between items-center">
       <h2 class="text-lg font-medium">All Conversations</h2>
