@@ -10,6 +10,8 @@
     required: boolean;
     description: string;
     parentId: number | null;
+    arrayItemType?: "string" | "number" | "boolean" | "object";
+    isArrayItem?: boolean;
   };
 
   type FieldType =
@@ -49,6 +51,13 @@
     { display: "Object", value: "object" },
   ];
 
+  const arrayItemTypes = [
+    { display: "Text", value: "string" },
+    { display: "Number", value: "number" },
+    { display: "True/False", value: "boolean" },
+    { display: "Object", value: "object" },
+  ];
+
   function sourceToFields(source: string) {
     try {
       error = null;
@@ -77,6 +86,24 @@
               description: propDetails.description || "",
               parentId: parentId,
             };
+
+            if (propDetails.type === "array") {
+              // Set array item type based on items schema
+              if (
+                propDetails.items &&
+                typeof propDetails.items === "object" &&
+                "type" in propDetails.items
+              ) {
+                field.arrayItemType = propDetails.items.type as
+                  | "string"
+                  | "number"
+                  | "boolean"
+                  | "object";
+              } else {
+                field.arrayItemType = "string"; // Default to string if no items specified
+              }
+            }
+
             newFields.push(field);
 
             if (propDetails.type === "object" && propDetails.properties) {
@@ -84,6 +111,41 @@
                 propDetails.properties,
                 propDetails.required || [],
                 fieldId,
+              );
+            } else if (
+              propDetails.type === "array" &&
+              propDetails.items &&
+              typeof propDetails.items === "object" &&
+              "type" in propDetails.items &&
+              propDetails.items.type === "object" &&
+              "properties" in propDetails.items &&
+              propDetails.items.properties
+            ) {
+              // Handle array of objects - create a special array item field
+              const arrayItemId = idCounter++;
+              const arrayItemField: Field = {
+                id: arrayItemId,
+                name: "item",
+                type: "object",
+                required: true,
+                description:
+                  typeof propDetails.items === "object" &&
+                  "description" in propDetails.items
+                    ? propDetails.items.description || ""
+                    : "",
+                parentId: fieldId,
+                isArrayItem: true,
+              };
+              newFields.push(arrayItemField);
+
+              // Parse the object properties for the array item
+              parseProperties(
+                propDetails.items.properties,
+                typeof propDetails.items === "object" &&
+                  "required" in propDetails.items
+                  ? propDetails.items.required || []
+                  : [],
+                arrayItemId,
               );
             }
           },
@@ -118,6 +180,35 @@
             };
             if (childRequired.length > 0) {
               properties[field.name].required = childRequired;
+            }
+          } else if (field.type === "array") {
+            const arrayItemField = fields.find(
+              (f) => f.isArrayItem && f.parentId === field.id,
+            );
+            if (arrayItemField) {
+              // Array of objects
+              const { properties: childProperties, required: childRequired } =
+                buildProperties(arrayItemField.id);
+              properties[field.name] = {
+                type: "array",
+                description: field.description || undefined,
+                items: {
+                  type: "object",
+                  properties: childProperties,
+                },
+              };
+              if (childRequired.length > 0) {
+                properties[field.name].items.required = childRequired;
+              }
+            } else {
+              // Array of primitives
+              properties[field.name] = {
+                type: "array",
+                description: field.description || undefined,
+                items: {
+                  type: field.arrayItemType || "string",
+                },
+              };
             }
           } else {
             properties[field.name] = {
@@ -185,19 +276,69 @@
       let currentFields = fields.filter(
         (f) => !descendantIdsToRemove.includes(f.id),
       );
-      // Then update the field type in the filtered list
-      const updatedFieldIndexInRemaining = currentFields.findIndex(
-        (f) => f.id === id,
-      );
-      if (updatedFieldIndexInRemaining !== -1) {
-        currentFields[updatedFieldIndexInRemaining].type = newType;
-      }
+      // Update the field type
+      const updatedFieldIndex = currentFields.findIndex((f) => f.id === id);
+      currentFields[updatedFieldIndex].type = newType;
       fields = currentFields; // Assign the new array to trigger update
     } else {
       fieldToUpdate.type = newType;
     }
 
+    // Set default arrayItemType when changing to array
+    if (newType === "array" && !fieldToUpdate.arrayItemType) {
+      fieldToUpdate.arrayItemType = "string";
+    }
+
+    // Clear arrayItemType when changing away from array
+    if (newType !== "array") {
+      fieldToUpdate.arrayItemType = undefined;
+    }
+
     // Save changes for type change
+    saveChanges();
+  }
+
+  function handleArrayItemTypeChange(
+    arrayFieldId: number,
+    newItemType: "string" | "number" | "boolean" | "object",
+  ) {
+    const arrayField = fields.find((f) => f.id === arrayFieldId);
+    if (!arrayField) return;
+
+    const oldItemType = arrayField.arrayItemType;
+    arrayField.arrayItemType = newItemType;
+
+    // If changing from object to primitive, remove the array item field and its children
+    if (oldItemType === "object" && newItemType !== "object") {
+      const arrayItemField = fields.find(
+        (f) => f.isArrayItem && f.parentId === arrayFieldId,
+      );
+      if (arrayItemField) {
+        const descendantIdsToRemove = getFullDescendantIds(
+          arrayItemField.id,
+          fields,
+        );
+        fields = fields.filter(
+          (f) =>
+            f.id !== arrayItemField.id && !descendantIdsToRemove.includes(f.id),
+        );
+      }
+    }
+
+    // If changing to object, create an array item field
+    if (newItemType === "object" && oldItemType !== "object") {
+      const arrayItemField: Field = {
+        id: fields.length > 0 ? Math.max(0, ...fields.map((f) => f.id)) + 1 : 1,
+        name: "item",
+        type: "object",
+        required: true,
+        description: "",
+        parentId: arrayFieldId,
+        isArrayItem: true,
+      };
+      fields.push(arrayItemField);
+    }
+
     saveChanges();
   }
 
@@ -211,6 +352,7 @@
       required: true,
       description: "",
       parentId,
+      arrayItemType: undefined,
     } satisfies Field;
   }
 
@@ -262,6 +404,17 @@
           items = items.concat(
             fieldsWithLevels(currentFields, field.id, level + 1),
           );
+        } else if (field.type === "array" && field.arrayItemType === "object") {
+          // For arrays of objects, show the array item field and its children
+          const arrayItemField = currentFields.find(
+            (f) => f.isArrayItem && f.parentId === field.id,
+          );
+          if (arrayItemField) {
+            items.push({ field: arrayItemField, level: level + 1 });
+            items = items.concat(
+              fieldsWithLevels(currentFields, arrayItemField.id, level + 2),
+            );
+          }
         }
       });
     return items;
@@ -270,6 +423,8 @@
 
 {#snippet renderFieldSnippet(field, level)}
   {@const isObject = field.type === "object"}
+  {@const isArray = field.type === "array"}
+  {@const isArrayItem = field.isArrayItem}
 
   <div
     class="field-row @container"
@@ -284,14 +439,13 @@
             bind:value={field.name}
             class="w-full"
             style="padding: var(--size-4-1) var(--size-4-1); border: 1px solid var(--background-modifier-border); border-radius: var(--input-radius); font-size: var(--font-ui-small); color: var(--text-normal); background-color: transparent;"
-            placeholder="Field name"
+            placeholder={isArrayItem ? "Object property name" : "Field name"}
             onblur={() => saveChanges()}
           />
 
           <input
             type="text"
             bind:value={field.description}
-            onblur={() => saveChanges()}
             class="w-full mt-1"
             style="padding: var(--size-4-1) var(--size-4-1); border: 1px solid var(--background-modifier-border); border-radius: var(--input-radius); font-size: var(--font-ui-smaller); color: var(--text-muted); background-color: transparent;"
             placeholder="Description"
@@ -314,6 +468,20 @@
               <option value={typeOpt.value}>{typeOpt.display}</option>
             {/each}
           </select>
+
+          {#if isArray}
+            <select
+              bind:value={field.arrayItemType}
+              onchange={() =>
+                handleArrayItemTypeChange(field.id, field.arrayItemType)}
+              class="w-full p-1 text-sm border"
+              style="background-color: var(--background-primary-alt); color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: var(--input-radius); font-size: var(--font-ui-small);"
+            >
+              {#each arrayItemTypes as typeOpt (typeOpt.value)}
+                <option value={typeOpt.value}>{typeOpt.display}</option>
+              {/each}
+            </select>
+          {/if}
 
           <!-- field required -->
           <div>
@@ -379,6 +547,40 @@
                 <line x1="8" y1="12" x2="16" y2="12"></line>
               </svg>
               <span class="ml-1">Add field</span>
+            </button>
+          </div>
+        {/if}
+
+        {#if isArray && field.arrayItemType === "object"}
+          <div class="flex mt-1 items-center">
+            <button
+              onclick={() => {
+                const arrayItemField = fields.find(
+                  (f) => f.isArrayItem && f.parentId === field.id,
+                );
+                if (arrayItemField) {
+                  addChildField(arrayItemField.id);
+                }
+              }}
+              class="text-xs flex items-center clickable-icon"
+              style="background-color: transparent; color: var(--text-accent); border: none; cursor: pointer;"
+              aria-label="Add object field"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+              </svg>
+              <span class="ml-1">Configure object structure</span>
             </button>
           </div>
         {/if}

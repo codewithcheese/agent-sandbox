@@ -25,6 +25,8 @@
     "@ai-sdk/ui-utils": "^1.1.16",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tailwindcss/typography": "^0.5.16",
+    "@testing-library/svelte": "^5.2.7",
+    "@testing-library/user-event": "^14.6.1",
     "@types/debug": "^4.1.12",
     "@types/node": "^22.13.9",
     "@types/nunjucks": "^3.2.6",
