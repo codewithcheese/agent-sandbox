@@ -3,8 +3,8 @@ import { usePlugin } from "$lib/utils";
 import { fileTree } from "$lib/utils/file-tree.ts";
 import type { Artifact } from "$lib/artifacts/artifact-vew.svelte.ts";
 import type { ToolExecutionOptions } from "ai";
-import type { Vault } from "obsidian";
 import { errorToString } from "$lib/utils/error.ts";
+import type { Vault } from "obsidian";
 
 export * from "./reddit.ts";
 
@@ -201,7 +201,7 @@ export async function textEditor(
 
         // Create the file
         await vault.create(normalizedPath, file_text);
-        return { content: `Successfully created file: ${path}` };
+        return { content: `Created file ${path}` };
       }
 
       case "str_replace": {
@@ -242,7 +242,7 @@ export async function textEditor(
         await vault.modify(file, content.replace(old_str, new_str));
 
         return {
-          result: "str_replace operation applied. Pending human review.",
+          result: `Modified file ${file.path}.`,
         };
       }
 

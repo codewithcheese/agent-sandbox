@@ -52,8 +52,7 @@
   let {
     chat,
     handleSubmit,
-    countFilesWithRequests,
-    openFirstPendingToolRequest,
+    openFirstChange,
     view,
     openFile,
     getBaseName,
@@ -64,6 +63,10 @@
     submitBtn = $bindable(),
     options,
   } = $props();
+
+  const countChanges = $derived(
+    chat.vaultOverlay.changes.filter((c) => c.status !== "identical").length,
+  );
 
   onDestroy(() => {
     if (realtime.state === "open") {
@@ -78,7 +81,7 @@
     style="background-color: var(--background-primary)"
     onsubmit={handleSubmit}
   >
-    {#if countFilesWithRequests > 0}
+    {#if countChanges}
       <div
         class="w-full flex items-center gap-2 px-3 py-2 rounded border border-(--background-modifier-border) bg-(--background-secondary-alt) mb-2"
       >
@@ -86,10 +89,10 @@
           <button
             type="button"
             class="clickable-icon gap-2 items-center"
-            onclick={openFirstPendingToolRequest}
+            onclick={openFirstChange}
           >
             <ArrowLeft class="size-3.5" />
-            {countFilesWithRequests} file with changes
+            {countChanges} file with changes
           </button>
         </span>
         <!--          <button-->

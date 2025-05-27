@@ -11,21 +11,20 @@
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
-  import { onDestroy } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { normalizePath, Notice } from "obsidian";
-  import ToolRequestRow from "./ToolRequestRow.svelte";
   import { type ViewContext } from "$lib/obsidian/view.ts";
   import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
-  import type { ToolRequest } from "../tools/tool-request.ts";
   import ChatInput from "./ChatInput.svelte";
   import { ChatOptions } from "./options.svelte.ts";
   import AgentMessage from "./AgentMessage.svelte";
   import type { Agents } from "./agents.svelte.ts";
   import Autoscroll from "./Autoscroll.svelte";
+  import type { Change } from "./vault-overlay.svelte.ts";
 
   const plugin = usePlugin();
 
@@ -47,14 +46,6 @@
     agents.entries.find((c) => c.file.path === options.agentPath),
   );
 
-  let countFilesWithRequests = $derived(
-    new Set(
-      chat.toolRequests
-        .filter((r) => r.status === "pending")
-        .map((r) => r.path),
-    ).size,
-  );
-
   onDestroy(() => {
     chat.cancel();
     options.cleanup();
@@ -68,35 +59,16 @@
     const message = chat.messages[index];
     const isUserMessage = message.role === "user";
 
-    // If regenerating a user message, find the next user message (if any)
-    let nextUserMessageIndex = -1;
-    if (isUserMessage) {
-      for (let i = index + 1; i < chat.messages.length; i++) {
-        if (chat.messages[i].role === "user") {
-          nextUserMessageIndex = i;
-          break;
-        }
-      }
-    }
+    // todo: rollback vault changes
 
     // Determine where to cut the conversation for regeneration
     const cutIndex = isUserMessage ? index + 1 : index;
-
-    // Keep messages after the next user message (if any)
-    const messagesToKeep = nextUserMessageIndex !== -1 
-      ? chat.messages.slice(nextUserMessageIndex)
-      : [];
 
     // Truncate the conversation to the point where we want to regenerate
     chat.messages = chat.messages.slice(0, cutIndex);
 
     // Generate new response
     await chat.runConversation(options);
-
-    // Restore the saved messages (messages after the next user message)
-    if (messagesToKeep.length > 0) {
-      chat.messages = [...chat.messages, ...messagesToKeep];
-    }
 
     // Save the updated chat
     await chat.save();
@@ -186,7 +158,7 @@
       });
   }
 
-  async function openToolRequest(toolRequest: ToolRequest) {
+  async function openMergeView(change: Change) {
     try {
       const plugin = usePlugin();
       let leaf = plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];
@@ -197,7 +169,7 @@
         type: MERGE_VIEW_TYPE,
         state: {
           chatPath: chat.path,
-          toolRequestId: toolRequest.id,
+          change,
         },
       });
       leaf.setEphemeralState();
@@ -209,15 +181,15 @@
     }
   }
 
-  async function openFirstPendingToolRequest() {
-    const pendingToolRequest = chat.toolRequests.find(
-      (tr) => tr.status === "pending",
+  async function openFirstChange() {
+    const firstChange = chat.vaultOverlay.changes.find(
+      (c) => c.type !== "identical",
     );
-    if (!pendingToolRequest) {
-      new Notice("No pending tool requests found", 3000);
+    if (!firstChange) {
+      new Notice("No pending changes found", 3000);
       return;
     }
-    await openToolRequest(pendingToolRequest);
+    await openMergeView(firstChange);
   }
 </script>
 
@@ -265,6 +237,30 @@
         {#each chat.messages as message, i}
           <div class="group relative">
             {#if message.content}
+              <div
+                class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 border bg-(--background-primary)"
+              >
+                {#if message.role === "user"}
+                  <button
+                    class="clickable-icon"
+                    onclick={() => (editIndex = i)}
+                  >
+                    <PencilIcon class="size-4" />
+                  </button>
+                {/if}
+                <button
+                  class="clickable-icon"
+                  aria-label={message.role === "user"
+                    ? "Regenerate assistant response"
+                    : "Regenerate this response"}
+                  onclick={() => regenerateFromMessage(i)}
+                >
+                  <RefreshCwIcon class="size-4" />
+                </button>
+                <button class="clickable-icon" onclick={() => deleteMessage(i)}>
+                  <Trash2Icon class="size-4" />
+                </button>
+              </div>
               <div
                 class={cn(
                   `whitespace-pre-wrap prose leading-none select-text
@@ -317,33 +313,6 @@
                   </div>
                 {:else}
                   <Markdown md={message.content} />
-                  <div
-                    class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1"
-                  >
-                    {#if message.role === "user"}
-                      <button
-                        class="clickable-icon"
-                        onclick={() => (editIndex = i)}
-                      >
-                        <PencilIcon class="size-4" />
-                      </button>
-                    {/if}
-                    <button
-                      class="clickable-icon"
-                      aria-label={message.role === "user"
-                        ? "Regenerate assistant response"
-                        : "Regenerate this response"}
-                      onclick={() => regenerateFromMessage(i)}
-                    >
-                      <RefreshCwIcon class="size-4" />
-                    </button>
-                    <button
-                      class="clickable-icon"
-                      onclick={() => deleteMessage(i)}
-                    >
-                      <Trash2Icon class="size-4" />
-                    </button>
-                  </div>
                 {/if}
               </div>
             {/if}
@@ -384,16 +353,17 @@
                       ><InfoIcon class="size-3" /></button
                     >
                   </div>
-                  {#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}
-                    <!-- Handle tool invocations -->
-                    <div class="border-t border-(--background-modifier-border)">
-                      <ToolRequestRow
-                        toolCallId={part.toolInvocation.toolCallId}
-                        {toolRequest}
-                        onReviewClick={() => openToolRequest(toolRequest)}
-                      />
-                    </div>
-                  {/each}
+                  <!-- fixme: new method for displaying changes made-->
+                  <!--{#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}-->
+                  <!--  &lt;!&ndash; Handle tool invocations &ndash;&gt;-->
+                  <!--  <div class="border-t border-(&#45;&#45;background-modifier-border)">-->
+                  <!--    <ToolRequestRow-->
+                  <!--      toolCallId={part.toolInvocation.toolCallId}-->
+                  <!--      {toolRequest}-->
+                  <!--      onReviewClick={() => openMergeView(toolRequest)}-->
+                  <!--    />-->
+                  <!--  </div>-->
+                  <!--{/each}-->
                 </div>
               {/if}
             {/each}
@@ -416,8 +386,7 @@
   <ChatInput
     {chat}
     {handleSubmit}
-    {countFilesWithRequests}
-    {openFirstPendingToolRequest}
+    {openFirstChange}
     {view}
     {openFile}
     {getBaseName}

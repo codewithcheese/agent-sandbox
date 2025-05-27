@@ -2,6 +2,9 @@ import type { TextStreamPart, UIMessage } from "ai";
 import { nanoid } from "nanoid";
 import { getToolCall, updateToolInvocationPart } from "../../tools";
 import { parsePartialJson } from "@ai-sdk/ui-utils";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 export function applyStreamPartToMessages(
   messages: UIMessage[],
@@ -171,10 +174,10 @@ export function applyStreamPartToMessages(
       break;
     }
     case "finish":
-      console.log("finish", part);
+      debug("finish", part);
       break;
     case "step-finish":
-      console.log("step-finish", part);
+      debug("step-finish", part);
       break;
     default: {
       const exhaustiveCheck: never = part;

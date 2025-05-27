@@ -21,6 +21,10 @@ import type { ToolRequest } from "../tools/tool-request.ts";
 import type { ChatOptions } from "./options.svelte.ts";
 import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
+import { VaultOverlay } from "./vault-overlay.svelte.ts";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 export interface DocumentAttachment {
   id: string;
@@ -40,7 +44,7 @@ export type LoadingState =
 const chatCache = new Map<string, WeakRef<Chat | Promise<Chat>>>();
 
 const chatRegistry = new FinalizationRegistry((path: string) => {
-  console.log("Finalizing chat", path);
+  debug("Finalizing chat", path);
   chatCache.delete(path);
 });
 
@@ -66,11 +70,13 @@ export function registerChatRenameHandler() {
 }
 
 export class Chat {
+  id = $state<string>();
   path = $state<string>();
   messages = $state<UIMessage[]>([]);
   attachments = $state<DocumentAttachment[]>([]);
   state = $state<LoadingState>({ type: "idle" });
   toolRequests = $state<ToolRequest[]>([]);
+  vaultOverlay = $state<VaultOverlay>();
   createdAt: Date;
   updatedAt: Date;
   options = $state<{ maxSteps: number }>({ maxSteps: 10 });
@@ -79,6 +85,10 @@ export class Chat {
 
   constructor(path: string, data: CurrentChatFile) {
     Object.assign(this, data.payload);
+    this.vaultOverlay = new VaultOverlay(
+      usePlugin().app.vault,
+      data.payload.overlay,
+    );
     this.path = path;
   }
 
@@ -98,15 +108,15 @@ export class Chat {
     if (cachedRef) {
       const cachedValue = cachedRef.deref();
       if (cachedValue) {
-        console.log("Loading chat from cache", path);
+        debug("Loading chat from cache", path);
         return cachedValue;
       } else {
         // Reference was garbage collected
-        console.log("Chat was garbage collected, reloading", path);
+        debug("Chat was garbage collected, reloading", path);
         chatCache.delete(path);
       }
     }
-    console.log("Loading chat from file", path);
+    debug("Loading chat from file", path);
     // synchronously cache the promise to prevent multiple loads
     const chatPromise = Chat.create(path);
     chatCache.set(path, new WeakRef(chatPromise));
@@ -135,9 +145,9 @@ export class Chat {
     }
   }
 
-  clearAttachments() {
+  async clearAttachments() {
     this.attachments = [];
-    this.save();
+    return this.save();
   }
 
   async submit(content: string, options: ChatOptions) {
@@ -177,7 +187,7 @@ export class Chat {
       createdAt: new Date(),
     });
 
-    this.clearAttachments();
+    await this.clearAttachments();
 
     // Now run the conversation to completion
     await this.runConversation(options);
@@ -201,9 +211,13 @@ export class Chat {
 
       metadata = plugin.app.metadataCache.getFileCache(agentFile);
       system = await createSystemContent(agentFile);
-      activeTools = await loadToolsFromFrontmatter(metadata!, this, options.getAccount().provider);
-      console.log("SYSTEM MESSAGE\n-----\n", system);
-      console.log("Active tools", activeTools);
+      activeTools = await loadToolsFromFrontmatter(
+        metadata!,
+        this,
+        options.getAccount().provider,
+      );
+      debug("SYSTEM MESSAGE\n-----\n", system);
+      debug("Active tools", activeTools);
 
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
@@ -320,6 +334,15 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
           maxRetries: 0,
           maxSteps: this.options.maxSteps,
           abortSignal,
+          onStepFinish: async (step) => {
+            debug("Step finish", step);
+            step.toolCalls.forEach((toolCall) => {
+              debug("Tool call", toolCall.toolName, toolCall.args);
+            });
+            step.toolResults.forEach((toolResult) => {
+              debug("Tool result", toolResult.toolName, toolResult.result);
+            });
+          },
         });
 
         // As we receive partial tokens, we apply them to `this.messages`
@@ -332,7 +355,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       } catch (error: any) {
         // Handle user abort
         if (error instanceof DOMException && error.name === "AbortError") {
-          console.log("Request aborted by user");
+          debug("Request aborted by user");
           throw error;
         }
         // Check for rate limit
@@ -376,7 +399,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     const plugin = usePlugin();
     const { title } = plugin.settings;
     if (!title.accountId || !title.modelId) {
-      console.log("Account and model not configured for chat title generation");
+      debug("Account and model not configured for chat title generation");
       return false;
     }
 
@@ -533,7 +556,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       delay: retryDelay,
     };
 
-    console.log(
+    debug(
       `Rate limited (429). Retrying in ${retryDelay / 1000} seconds... (Attempt ${attempt} of ${maxAttempts})`,
     );
 

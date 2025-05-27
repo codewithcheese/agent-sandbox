@@ -2,13 +2,21 @@ import type { UIMessage } from "ai";
 import { Chat, type DocumentAttachment } from "./chat.svelte";
 import superjson from "superjson";
 import type { ToolRequest } from "../tools/tool-request.ts";
+import { nanoid } from "nanoid";
 
 export type ChatFileV1 = {
   version: 1;
   payload: {
+    id: string;
     messages: UIMessage[];
     attachments: DocumentAttachment[];
     toolRequests: ToolRequest[];
+    overlay:
+      | {
+          tracking: Uint8Array;
+          proposed: Uint8Array;
+        }
+      | undefined;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -31,9 +39,11 @@ export class ChatSerializer {
   static INITIAL_DATA = {
     version: 1,
     payload: {
+      id: nanoid(),
       messages: [],
       attachments: [],
       toolRequests: [],
+      overlay: undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -50,9 +60,11 @@ export class ChatSerializer {
     return superjson.stringify({
       version: this.CURRENT_VERSION,
       payload: {
+        id: chat.id,
         messages: chat.messages,
         attachments: chat.attachments,
         toolRequests: chat.toolRequests,
+        overlay: chat.vaultOverlay.snapshot(),
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       },

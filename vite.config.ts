@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 import { resolve } from "path";
 import * as fs from "fs";
 import * as path from "node:path";
-import { configDefaults, defineProject } from "vitest/config";
+import { configDefaults } from "vitest/config";
 import builtins from "builtin-modules";
 import slugify from "@sindresorhus/slugify";
 import tailwindcss from "@tailwindcss/vite";
@@ -148,6 +148,7 @@ export default defineConfig(({ command }) => {
     },
     assetsInclude: ["**/*.md"],
     test: {
+      setupFiles: "tests/setup.ts",
       passWithNoTests: true,
       exclude: [...configDefaults.exclude, "e2e/*"],
 

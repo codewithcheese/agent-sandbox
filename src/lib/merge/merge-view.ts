@@ -1,4 +1,4 @@
-import { ItemView, MarkdownView } from "obsidian";
+import { ItemView, MarkdownView, normalizePath } from "obsidian";
 import { mount, unmount } from "svelte";
 import MergePage from "./MergePage.svelte";
 import { Chat } from "../../chat/chat.svelte.ts";
@@ -6,12 +6,16 @@ import * as diff from "diff";
 import { getBaseName } from "$lib/utils/path.ts";
 import { getPatchStats } from "../../tools/tool-request.ts";
 import { findMatchingView } from "$lib/obsidian/leaf.ts";
+import type { Change } from "../../chat/vault-overlay.svelte.ts";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
 export interface MergeViewState {
   chatPath: string;
-  toolRequestId: string;
+  change: Change;
 }
 
 export class MergeView extends ItemView {
@@ -44,24 +48,18 @@ export class MergeView extends ItemView {
     viewContent.style.padding = "0px";
     viewContent.style.backgroundColor = "var(--background-primary)";
 
-    console.log("Mount", this.state);
+    debug("Mount", this.state);
 
     const chat = await Chat.load(this.state.chatPath);
 
-    const toolRequest = chat.toolRequests.find(
-      (tr) => tr.id === this.state.toolRequestId,
+    const file = this.app.vault.getFileByPath(
+      normalizePath(this.state.change.path),
     );
-    if (!toolRequest) {
-      throw new Error("Tool request not found");
-    }
-    if (toolRequest.type !== "modify") {
-      throw new Error(`Merge does not support ${toolRequest.type} operations.`);
-    }
-
-    const file = this.app.vault.getAbstractFileByPath(toolRequest.path);
     const ogContent = await this.app.vault.adapter.read(file.path);
+    const newContent = await chat.vaultOverlay.read(file);
 
-    const newContent = diff.applyPatch(ogContent, toolRequest.patch);
+    debug(`${this.state.change.path} content on disk`, ogContent);
+    debug(`${this.state.change.path} modified content`, newContent);
 
     // Mount the Svelte component with props
     this.component = mount(MergePage, {
@@ -69,24 +67,34 @@ export class MergeView extends ItemView {
       props: {
         ogContent,
         newContent,
-        name: getBaseName(toolRequest.path),
+        name: getBaseName(this.state.change.path),
         onSave: async (resolvedContent: string, pendingContent: string) => {
+          debug("On save", resolvedContent, pendingContent);
+          // todo: move write into approveModify
+          await this.app.vault.adapter.write(
+            this.state.change.path,
+            resolvedContent,
+          );
+          chat.vaultOverlay.approveModify(file.path, resolvedContent);
+          // if some changes are remaining then apply them to the overlay
+          if (resolvedContent !== pendingContent) {
+            await chat.vaultOverlay.modify(file, pendingContent);
+          }
+          debug("Remaining changes", chat.vaultOverlay.getFileChanges());
+          await chat.save();
+
           const remaining = diff.createPatch(
-            toolRequest.path,
+            this.state.change.path,
             resolvedContent,
             pendingContent,
           );
-          await this.app.vault.adapter.write(toolRequest.path, resolvedContent);
-          toolRequest.patch = remaining;
-          toolRequest.stats = getPatchStats(remaining);
-          if (toolRequest.stats.removed < 1 && toolRequest.stats.added < 1) {
-            toolRequest.status = "success";
-          }
-          await chat.save();
+          const stats = getPatchStats(remaining);
 
-          if (toolRequest.status === "success") {
-            console.log("Closing merge view for path: ", toolRequest.path);
-            const file = this.app.vault.getFileByPath(toolRequest.path);
+          if (!stats.added && !stats.removed) {
+            debug("Closing merge view for path: ", this.state.change.path);
+            const file = this.app.vault.getFileByPath(
+              normalizePath(this.state.change.path),
+            );
             const view = findMatchingView(
               MarkdownView,
               (view) => view.file.path === file.path,
@@ -114,7 +122,7 @@ export class MergeView extends ItemView {
   }
 
   getState(): Record<string, undefined> {
-    console.log("Getting state", this.state);
+    debug("State", this.state);
     return this.state as any;
   }
 

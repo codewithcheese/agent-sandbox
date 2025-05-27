@@ -50,7 +50,6 @@ export class AgentBannerComponent extends Component {
     });
 
     const refresh = async (file: TFile) => {
-      console.log("refresh", file.path, this.getFile().path);
       if (file.path === this.getFile().path) await this.update();
     };
 
