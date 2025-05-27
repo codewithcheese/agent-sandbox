@@ -15,7 +15,7 @@
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import { Realtime } from "./realtime.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick } from "svelte";
   import { createModal } from "$lib/modals/create-modal.ts";
   import ChatSettingsModal from "./ChatSettingsModal.svelte";
 
@@ -33,7 +33,42 @@
     }
   });
 
+  let {
+    chat,
+    handleSubmit,
+    openFirstChange,
+    view,
+    openFile,
+    getBaseName,
+    submitOnEnter,
+    selectDocument,
+    handleModelChange,
+    getModelAccountOptions,
+    editState = null,
+    cancelEdit = () => {},
+    submitEdit = () => {},
+    submitBtn = $bindable(),
+  } = $props();
+
   let text = $state<string>("");
+  let textareaRef: HTMLTextAreaElement | null = null;
+
+  // Set text to edit content when edit mode starts
+  $effect(() => {
+    if (editState) {
+      console.log("editState", editState);
+      text = editState.content;
+      // Focus the textarea and set cursor to end after setting the text
+      setTimeout(() => {
+        if (textareaRef) {
+          textareaRef.focus();
+          // Set cursor to end of text
+          const length = textareaRef.value.length;
+          textareaRef.setSelectionRange(length, length);
+        }
+      }, 0);
+    }
+  });
 
   function handleTranscribeClick() {
     // https://platform.openai.com/docs/guides/realtime-transcription
@@ -52,6 +87,26 @@
     }
   }
 
+  function handleEditSubmit(event) {
+    event.preventDefault();
+    if (!editState) return;
+
+    const form = event.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const content = formData.get("content")?.toString() ?? "";
+
+    if (content.trim()) {
+      submitEdit(content);
+      form.reset();
+      text = "";
+    }
+  }
+
+  function handleEditCancel() {
+    cancelEdit();
+    text = "";
+  }
+
   function handleSettingsClick() {
     const modal = createModal(ChatSettingsModal, {
       settings: chat.options,
@@ -63,20 +118,6 @@
     });
     modal.open();
   }
-
-  let {
-    chat,
-    handleSubmit,
-    openFirstChange,
-    view,
-    openFile,
-    getBaseName,
-    submitOnEnter,
-    selectDocument,
-    handleModelChange,
-    getModelAccountOptions,
-    submitBtn = $bindable(),
-  } = $props();
 
   const countChanges = $derived(
     chat.vaultOverlay.changes.filter((c) => c.status !== "identical").length,
@@ -93,7 +134,7 @@
   <form
     name="input"
     style="background-color: var(--background-primary)"
-    onsubmit={handleSubmit}
+    onsubmit={editState ? handleEditSubmit : handleSubmit}
   >
     {#if countChanges}
       <div
@@ -144,8 +185,8 @@
             >
             <span
               class="flex items-center"
-              onclick={(e) => {
-                e.stopPropagation();
+              onclick={(event) => {
+                event.stopPropagation();
                 chat.removeAttachment(attachment.id);
               }}
             >
@@ -163,6 +204,7 @@
       placeholder="How can I assist you today?"
       onkeypress={submitOnEnter}
       maxRows={10}
+      bind:ref={textareaRef}
     />
     <div class="flex items-center justify-between mt-2">
       <div class="flex flex-row align-middle gap-2">
@@ -213,7 +255,26 @@
           {/each}
         </select>
       </div>
-      {#if chat.state.type === "idle"}
+      {#if editState}
+        <Button
+          type="button"
+          size="sm"
+          class="gap-1.5 rounded"
+          onclick={handleEditCancel}
+        >
+          <StopCircleIcon class="size-3.5" />
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          class="gap-1.5 rounded"
+          bind:ref={submitBtn}
+        >
+          Save
+          <CornerDownLeftIcon class="size-3.5" />
+        </Button>
+      {:else if chat.state.type === "idle"}
         <Button
           type="submit"
           size="sm"

@@ -1,62 +1,85 @@
 <script lang="ts">
-  import type { WithElementRef, WithoutChildren } from "bits-ui";
-  import type { HTMLTextareaAttributes } from "svelte/elements";
   import { cn } from "$lib/utils";
-  import type { Action, ActionReturn } from "svelte/action";
-
   let {
-    maxRows = 8,
-    ref = $bindable(null),
-    value = $bindable(),
     class: className,
+    value = $bindable(),
+    ref = $bindable(),
+    maxRows = 10,
     ...restProps
-  }: WithoutChildren<WithElementRef<HTMLTextareaAttributes>> & {
+  }: {
+    class?: string;
+    value?: string;
+    ref?: HTMLTextAreaElement;
     maxRows?: number;
-  } = $props();
+  } & import("svelte/elements").HTMLTextareaAttributes = $props();
 
-  export const autosize: Action<
-    HTMLTextAreaElement,
-    { maxRows: number } | undefined
-  > = (node, param = { maxRows: 8 }) => {
-    let max = param.maxRows;
-    const lh = parseFloat(getComputedStyle(node).lineHeight);
+  let wrapperRef: HTMLDivElement;
 
-    const resize = () => {
-      node.style.height = "auto"; // collapse first
-      const needed = Math.ceil(node.scrollHeight / lh);
-      const rows = Math.min(Math.max(needed, 2), max);
-      node.style.overflowY = needed > max ? "auto" : "hidden";
-      node.style.height = `${rows * lh}px`;
+  // Update the data attribute when value changes
+  $effect(() => {
+    if (wrapperRef && value !== undefined) {
+      wrapperRef.dataset.replicatedValue = value;
+    }
+  });
 
-      console.log(
-        "On resize",
-        lh,
-        node.scrollHeight,
-        needed,
-        rows,
-        node.style.height,
-      );
-    };
-
-    node.addEventListener("input", resize);
-
-    return {
-      update({ maxRows }) {
-        max = maxRows;
-        resize();
-      },
-      destroy() {
-        node.removeEventListener("input", resize);
-      },
-    };
-  };
+  function handleInput(event: Event) {
+    const target = event.target as HTMLTextAreaElement;
+    if (wrapperRef) {
+      wrapperRef.dataset.replicatedValue = target.value;
+    }
+  }
 </script>
 
-<textarea
-  use:autosize={{ maxRows }}
-  rows="1"
-  bind:this={ref}
-  class={cn("w-full", className)}
-  bind:value
-  {...restProps}
-></textarea>
+<div
+  class="grow-wrap"
+  bind:this={wrapperRef}
+  data-replicated-value={value || ""}
+  style={`--max-height: ${maxRows * 1.4}rem;`}
+>
+  <textarea
+    rows="1"
+    bind:this={ref}
+    class={cn("w-full resize-none overflow-hidden", className)}
+    bind:value
+    oninput={handleInput}
+    {...restProps}
+  ></textarea>
+</div>
+
+<style>
+  .grow-wrap {
+    display: grid;
+    max-height: calc(var(--max-height, 10 * 1.4rem));
+  }
+
+  .grow-wrap::after {
+    content: attr(data-replicated-value) " ";
+    white-space: pre-wrap;
+    visibility: hidden;
+    max-height: calc(var(--max-height, 10 * 1.4rem));
+    overflow: hidden;
+  }
+
+  .grow-wrap > textarea,
+  .grow-wrap::after {
+    border: 1px solid hsl(var(--border));
+    padding: 0.75rem;
+    font: inherit;
+    line-height: 1.4;
+    grid-area: 1 / 1 / 2 / 2;
+    border-radius: calc(var(--radius) - 2px);
+    background-color: var(--background);
+    font-size: 0.875rem;
+  }
+
+  .grow-wrap > textarea {
+    resize: none;
+    overflow-y: auto;
+    max-height: calc(var(--max-height, 10 * 1.4rem));
+  }
+
+  .grow-wrap > textarea:focus-visible {
+    outline: 2px solid var(--text-accent);
+    /*outline-offset: 2px;*/
+  }
+</style>

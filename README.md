@@ -73,7 +73,8 @@ This project includes a version bumping script that automates the release proces
 ## Todo
 
 - [ ] Agent: Tool validation
-
+- [ ] Chat: Save last model select, load when opening chat if previous chat options not available
+- [ ] Agent: New chat button
 - [ ] Diff: Undo changes when messages are deleted
 - [ ] Fix: Chat saving with attachments
 - [ ] Diff: Update Loro accept methods to have side effects.

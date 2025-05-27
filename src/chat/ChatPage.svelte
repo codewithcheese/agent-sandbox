@@ -43,7 +43,11 @@
 
   let scrollContainer = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);
-  let editState = $state<{ index: number; content: string } | null>(null);
+  let editState = $state<{
+    index: number;
+    content: string;
+    originalContent: string;
+  } | null>(null);
   let submitBtn = $state<HTMLButtonElement | null>(null);
   let selectedAgent = $derived(
     agents.entries.find((c) => c.file.path === chat.options.agentPath),
@@ -52,10 +56,6 @@
   onDestroy(() => {
     chat.cancel();
   });
-
-  function deleteMessage(index: number) {
-    chat.messages = chat.messages.filter((_, i) => i !== index);
-  }
 
   async function regenerateFromMessage(index: number) {
     const message = chat.messages[index];
@@ -191,6 +191,37 @@
     await openMergeView(firstChange);
   }
 
+  function startEdit(index: number) {
+    const message = chat.messages[index];
+    editState = {
+      index,
+      content: message.content,
+      originalContent: message.content,
+    };
+  }
+
+  function cancelEdit() {
+    editState = null;
+  }
+
+  function submitEdit(content: string) {
+    if (!editState) return;
+
+    const { index } = editState;
+
+    // Update the message content
+    updateMessageText({ index, content });
+
+    // Remove all messages after the edited one
+    chat.messages = chat.messages.slice(0, index + 1);
+
+    // Clear edit state
+    editState = null;
+
+    // Regenerate the assistant response from this point
+    regenerateFromMessage(index);
+  }
+
   function updateMessageText({
     index,
     content,
@@ -206,7 +237,6 @@
       type: "text",
       text: content,
     });
-    editState = null;
   }
 </script>
 
@@ -261,35 +291,11 @@
       <!-- messages -->
       <div class="flex flex-col w-full flex-1 gap-1">
         {#each chat.messages as message, i}
-          <div class="group relative">
-            <!-- message buttons -->
-            <div
-              class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 border bg-(--background-primary)"
-            >
-              {#if message.role === "user"}
-                <button
-                  class="clickable-icon"
-                  onclick={() => {
-                    editState = { index: i, content: message.content };
-                  }}
-                >
-                  <PencilIcon class="size-4" />
-                </button>
-                <button
-                  class="clickable-icon"
-                  aria-label={message.role === "user"
-                    ? "Regenerate assistant response"
-                    : "Regenerate this response"}
-                  onclick={() => regenerateFromMessage(i)}
-                >
-                  <RefreshCwIcon class="size-4" />
-                </button>
-                <!--              <button class="clickable-icon" onclick={() => deleteMessage(i)}>-->
-                <!--                <Trash2Icon class="size-4" />-->
-                <!--              </button>-->
-              {/if}
-            </div>
-            {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
+          {#if editState && i > editState.index}
+            <!-- Hide messages below the one being edited -->
+          {:else if editState && editState.index === i}
+            <!-- Show greyed out message being edited -->
+            <div class="group relative opacity-50">
               <div
                 class={cn(
                   `whitespace-pre-wrap prose leading-none select-text
@@ -327,84 +333,143 @@
                     : "py-2",
                 )}
               >
-                <!-- thinking content -->
-                {#if message.role === "assistant" && message.parts?.some((part) => part.type === "reasoning")}
-                  <div class="py-1 text-sm text-(--text-muted)">
-                    {message.parts
-                      .filter((part) => part.type === "reasoning")
-                      .flatMap((part) => part.reasoning)
-                      .join("\n")}
-                  </div>
-                {/if}
-                <!-- edit view -->
-                {#if editState && editState.index === i}
-                  <div class="mt-2 flex gap-2">
-                    <textarea
-                      class="flex-1 rounded border p-2 text-md"
-                      bind:value={editState.content}
-                    ></textarea>
-                    <button
-                      class="clickable-icon"
-                      onclick={() => updateMessageText(editState)}
-                    >
-                      Save
-                    </button>
-                  </div>
-                {:else}
-                  <Markdown md={message.content} />
-                {/if}
-              </div>
-            {/if}
-            {#if message.experimental_attachments && message.experimental_attachments.length > 0}
-              <div class="mt-2">
-                <div class="flex flex-wrap gap-2">
-                  {#each message.experimental_attachments as attachment}
-                    <button
-                      class="clickable-icon gap-1"
-                      onclick={() => openFile(attachment.name)}
-                    >
-                      <FileTextIcon class="size-3.5" />
-                      <span class="max-w-[200px] truncate"
-                        >{getBaseName(attachment.name)}</span
-                      >
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-          </div>
-          <!-- todo display partial tool calls before invocation -->
-          {#if message.parts?.some((part) => part.type === "tool-invocation")}
-            {#each message.parts as part}
-              {#if part.type === "tool-invocation"}
                 <div
-                  class="rounded border border-(--background-modifier-border)"
+                  class="flex items-center gap-2 mb-2 text-sm text-(--text-accent)"
                 >
-                  <div class="flex flex-row gap-1 text-xs p-1 items-center">
-                    <WrenchIcon class="size-3" />
-                    <div class="flex-1">{part.toolInvocation.toolName}</div>
-                    <button
-                      type="button"
-                      class="clickable-icon"
-                      onclick={() =>
-                        openToolInvocationInfoModal(chat, part.toolInvocation)}
-                      ><InfoIcon class="size-3" /></button
-                    >
-                  </div>
-                  <!-- fixme: new method for displaying changes made-->
-                  <!--{#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}-->
-                  <!--  &lt;!&ndash; Handle tool invocations &ndash;&gt;-->
-                  <!--  <div class="border-t border-(&#45;&#45;background-modifier-border)">-->
-                  <!--    <ToolRequestRow-->
-                  <!--      toolCallId={part.toolInvocation.toolCallId}-->
-                  <!--      {toolRequest}-->
-                  <!--      onReviewClick={() => openMergeView(toolRequest)}-->
-                  <!--    />-->
-                  <!--  </div>-->
-                  <!--{/each}-->
+                  <PencilIcon class="size-4" />
+                  <span>Editing...</span>
+                </div>
+                <Markdown md={message.content} />
+              </div>
+            </div>
+          {:else}
+            <!-- Normal message display -->
+            <div class="group relative">
+              <!-- message buttons -->
+              <div
+                class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 border bg-(--background-primary)"
+              >
+                {#if message.role === "user"}
+                  <button class="clickable-icon" onclick={() => startEdit(i)}>
+                    <PencilIcon class="size-4" />
+                  </button>
+                  <button
+                    class="clickable-icon"
+                    aria-label={message.role === "user"
+                      ? "Regenerate assistant response"
+                      : "Regenerate this response"}
+                    onclick={() => regenerateFromMessage(i)}
+                  >
+                    <RefreshCwIcon class="size-4" />
+                  </button>
+                  <!--              <button class="clickable-icon" onclick={() => deleteMessage(i)}>-->
+                  <!--                <Trash2Icon class="size-4" />-->
+                  <!--              </button>-->
+                {/if}
+              </div>
+              {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
+                <div
+                  class={cn(
+                    `whitespace-pre-wrap prose leading-none select-text
+                  prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
+                            prose-h1:m-0
+                            prose-h2:m-0
+                            prose-h3:m-0
+                            prose-h4:m-0
+                            prose-h5:m-0
+                            prose-h6:m-0
+                            prose-p:m-0
+                            prose-blockquote:m-0
+                            prose-figure:m-0
+                            prose-figcaption:m-0
+                            prose-ul:m-0
+                            prose-ol:m-0
+                            prose-li:m-0
+                            prose-table:m-0
+                            prose-thead:m-0
+                            prose-tbody:m-0
+                            prose-dl:m-0
+                            prose-dt:m-0
+                            prose-dd:m-0
+                            prose-hr:my-2
+                            prose-pre:m-0
+                            prose-code:px-1
+                            prose-lead:m-0
+                            prose-strong:font-semibold
+                            prose-img:m-0
+                            prose-video:m-0
+                            [body.theme-dark_&]:prose-invert
+                            prose-a:decoration-1 text-foreground max-w-full`,
+                    message.role === "user"
+                      ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
+                      : "py-2",
+                  )}
+                >
+                  <!-- thinking content -->
+                  {#if message.role === "assistant" && message.parts?.some((part) => part.type === "reasoning")}
+                    <div class="py-1 text-sm text-(--text-muted)">
+                      {message.parts
+                        .filter((part) => part.type === "reasoning")
+                        .flatMap((part) => part.reasoning)
+                        .join("\n")}
+                    </div>
+                  {/if}
+                  <Markdown md={message.content} />
                 </div>
               {/if}
-            {/each}
+              {#if message.experimental_attachments && message.experimental_attachments.length > 0}
+                <div class="mt-2">
+                  <div class="flex flex-wrap gap-2">
+                    {#each message.experimental_attachments as attachment}
+                      <button
+                        class="clickable-icon gap-1"
+                        onclick={() => openFile(attachment.name)}
+                      >
+                        <FileTextIcon class="size-3.5" />
+                        <span class="max-w-[200px] truncate"
+                          >{getBaseName(attachment.name)}</span
+                        >
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            </div>
+            <!-- todo display partial tool calls before invocation -->
+            {#if message.parts?.some((part) => part.type === "tool-invocation")}
+              {#each message.parts as part}
+                {#if part.type === "tool-invocation"}
+                  <div
+                    class="rounded border border-(--background-modifier-border)"
+                  >
+                    <div class="flex flex-row gap-1 text-xs p-1 items-center">
+                      <WrenchIcon class="size-3" />
+                      <div class="flex-1">{part.toolInvocation.toolName}</div>
+                      <button
+                        type="button"
+                        class="clickable-icon"
+                        onclick={() =>
+                          openToolInvocationInfoModal(
+                            chat,
+                            part.toolInvocation,
+                          )}><InfoIcon class="size-3" /></button
+                      >
+                    </div>
+                    <!-- fixme: new method for displaying changes made-->
+                    <!--{#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}-->
+                    <!--  &lt;!&ndash; Handle tool invocations &ndash;&gt;-->
+                    <!--  <div class="border-t border-(&#45;&#45;background-modifier-border)">-->
+                    <!--    <ToolRequestRow-->
+                    <!--      toolCallId={part.toolInvocation.toolCallId}-->
+                    <!--      {toolRequest}-->
+                    <!--      onReviewClick={() => openMergeView(toolRequest)}-->
+                    <!--    />-->
+                    <!--  </div>-->
+                    <!--{/each}-->
+                  </div>
+                {/if}
+              {/each}
+            {/if}
           {/if}
         {/each}
 
@@ -432,6 +497,9 @@
     {selectDocument}
     {handleModelChange}
     {getModelAccountOptions}
+    {editState}
+    {cancelEdit}
+    {submitEdit}
     bind:submitBtn
   />
 </div>
