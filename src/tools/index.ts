@@ -1,9 +1,12 @@
 import type { UIMessage, Tool, CoreMessage, ToolExecutionOptions } from "ai";
-import type { ToolInvocation, ToolInvocationUIPart } from "@ai-sdk/ui-utils";
+import {
+  jsonSchema,
+  type ToolInvocation,
+  type ToolInvocationUIPart,
+} from "@ai-sdk/ui-utils";
 import { type CachedMetadata, Notice, type TFile, Vault } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { tool } from "ai";
-import { JSONSchemaToZod } from "@dmitryrechkin/json-schema-to-zod";
 import { anthropic } from "@ai-sdk/anthropic";
 import { textEditor } from "./execute.ts";
 import { resolveInternalLink } from "../lib/utils/obsidian";
@@ -203,7 +206,8 @@ export async function createTool(
         // For other model providers, use the schema-based approach if schema is available
         return tool({
           description: vaultTool.description,
-          parameters: JSONSchemaToZod.convert(vaultTool.schema),
+          // @ts-expect-error jsonSchema type not compatible with parameters
+          parameters: jsonSchema(vaultTool.schema),
           execute: await createExecutor(vaultTool, chat),
         });
       } else {
@@ -219,7 +223,8 @@ export async function createTool(
 
   return tool({
     description: vaultTool.description,
-    parameters: JSONSchemaToZod.convert(vaultTool.schema),
+    // @ts-expect-error jsonSchema type not compatible with parameters
+    parameters: jsonSchema(vaultTool.schema),
     execute: await createExecutor(vaultTool, chat),
   });
 }
