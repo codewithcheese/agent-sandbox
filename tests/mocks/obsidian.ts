@@ -87,7 +87,7 @@ export const vault: Vault = {
     return null;
   }),
   getFolderByPath: vi.fn((path: string) => {
-    path = normalizePath(path);
+    path = normalizePath(path) || "/";
 
     // Check if folder exists
     if (folderSystem.has(path)) {
