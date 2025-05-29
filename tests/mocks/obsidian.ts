@@ -40,7 +40,6 @@ export class MockTFile implements TFile {
 export class MockTFolder implements TFolder {
   path: string;
   name: string;
-  children: Array<MockTFile | MockTFolder>;
   vault: any;
   parent: any;
   basename: string;
@@ -51,8 +50,41 @@ export class MockTFolder implements TFolder {
     const parts = path.split("/");
     this.name = parts[parts.length - 1] || "/";
     this.basename = this.name;
-    this.children = [];
     this.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
+  }
+
+  get children(): Array<MockTFile | MockTFolder> {
+    const children: Array<MockTFile | MockTFolder> = [];
+    const folderPath = this.path === "/" ? "" : this.path;
+    
+    // Find all files that are direct children of this folder
+    for (const [filePath] of fileSystem) {
+      const normalizedFilePath = normalizePath(filePath);
+      if (normalizedFilePath.startsWith(folderPath + "/")) {
+        const relativePath = normalizedFilePath.slice(folderPath.length + 1);
+        // Only direct children (no additional slashes)
+        if (!relativePath.includes("/")) {
+          const file = new MockTFile(normalizedFilePath);
+          file.vault = this.vault;
+          file.parent = this;
+          children.push(file);
+        }
+      }
+    }
+    
+    // Find all folders that are direct children of this folder
+    for (const [subFolderPath, subFolder] of folderSystem) {
+      if (subFolderPath !== this.path && subFolderPath.startsWith(folderPath + "/")) {
+        const relativePath = subFolderPath.slice(folderPath.length + 1);
+        // Only direct children (no additional slashes)
+        if (!relativePath.includes("/")) {
+          subFolder.parent = this;
+          children.push(subFolder);
+        }
+      }
+    }
+    
+    return children;
   }
 
   isRoot() {

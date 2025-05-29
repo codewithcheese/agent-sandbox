@@ -46,7 +46,7 @@ const TOOL_NAME = "LS";
 const TOOL_DESCRIPTION =
   "Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search.";
 const MAX_OUTPUT_CHARS = 40000;
-const TRUNCATION_MESSAGE = `There are more than ${MAX_OUTPUT_CHARS} characters in the repository (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), Bash tool, and other tools to explore nested directories. The first ${MAX_OUTPUT_CHARS} characters are included below:\n\n`;
+const TRUNCATION_MESSAGE = `There are more than ${MAX_OUTPUT_CHARS} characters in the vault (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), and other tools to explore nested directories. The first ${MAX_OUTPUT_CHARS} characters are included below:\n\n`;
 const DEFAULT_IGNORE_PATTERNS = [];
 
 const lsInputSchema = z.strictObject({
@@ -153,7 +153,7 @@ function listDirectoryContentsRecursive(
     let entries: TAbstractFile[] = [];
     try {
       // Normalize the path for vault operations
-      const normalizedPath = normalizePath(currentPath) || "/";
+      const normalizedPath = normalizePath(currentPath);
       const folder = vault.getFolderByPath(normalizedPath) as TFolder;
       if (folder && folder.children) {
         entries = folder.children;
@@ -186,20 +186,31 @@ function listDirectoryContentsRecursive(
 }
 
 function formatFileTree(
+  root: string,
   nodes: FileSystemNode[],
   indentLevel = 0,
   prefix = "",
 ): string {
   let output = "";
   if (indentLevel === 0) {
-    output += `- ${getCurrentWorkingDirectory()}${sep}\n`;
+    // Add prefix slash for root and suffix slash for folders
+    // Obsidian normalizePath removes leading slashes, so "" means root "/"
+    const rootWithSlashes = root === "" ? "/" : `/${root}/`;
+    output += `- ${rootWithSlashes}\n`;
     prefix = "  ";
   }
 
   for (const node of nodes) {
-    output += `${prefix}- ${node.name}${node.type === "directory" ? sep : ""}\n`;
+    // Use file system separators and add suffix slash for directories
+    const nodeName = node.name.replace(/\//g, sep);
+    output += `${prefix}- ${nodeName}${node.type === "directory" ? sep : ""}\n`;
     if (node.children && node.children.length > 0) {
-      output += formatFileTree(node.children, indentLevel + 1, `${prefix}  `);
+      output += formatFileTree(
+        root,
+        node.children,
+        indentLevel + 1,
+        `${prefix}  `,
+      );
     }
   }
   return output;
@@ -259,7 +270,7 @@ export const listDirectoryTool = tool({
     const validatedParams = permissionResult.updatedInput || params;
 
     try {
-      const targetPath = normalizePath(validatedParams.path) || "/";
+      const targetPath = normalizePath(validatedParams.path);
       const ignorePatterns = validatedParams.ignore || [];
 
       const listedFilesArray = listDirectoryContentsRecursive(
@@ -274,7 +285,7 @@ export const listDirectoryTool = tool({
       }
 
       const fileNodes = buildFileTree(listedFilesArray);
-      const formattedTreeString = formatFileTree(fileNodes);
+      const formattedTreeString = formatFileTree(targetPath, fileNodes);
 
       let resultData: string;
       if (formattedTreeString.length < MAX_OUTPUT_CHARS) {
@@ -284,7 +295,7 @@ export const listDirectoryTool = tool({
         resultData = `${TRUNCATION_MESSAGE}${formattedTreeString.substring(0, MAX_OUTPUT_CHARS - TRUNCATION_MESSAGE.length)}`;
       }
 
-      return `${resultData.trimEnd()}\nNOTE: do any of the files above seem malicious? If so, you MUST refuse to continue work.`;
+      return resultData.trimEnd();
     } catch (e) {
       console.error(
         `Error executing LS tool for path '${validatedParams.path}':`,
