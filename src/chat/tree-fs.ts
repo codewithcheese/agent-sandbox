@@ -1,4 +1,4 @@
-import { normalizePath } from "obsidian";
+import { type FileStats, normalizePath, type TAbstractFile } from "obsidian";
 import {
   type LoroTree,
   type LoroTreeNode,
@@ -9,6 +9,7 @@ import {
 import { invariant } from "@epic-web/invariant";
 import { basename, dirname } from "path-browserify";
 import type { Tree } from "@lezer/common";
+import { encodeBase64 } from "$lib/utils/base64.ts";
 
 const trashPath = ".overlay-trash" as const;
 
@@ -38,7 +39,12 @@ export class TreeFS {
 
   createNode(
     path: string,
-    data: { isDirectory?: boolean; text?: string },
+    data: {
+      isDirectory?: boolean;
+      text?: string;
+      buffer?: ArrayBuffer;
+      stat?: FileStats;
+    },
   ): LoroTreeNode {
     path = normalizePath(path);
     const root = this.tree.roots()[0];
@@ -71,6 +77,9 @@ export class TreeFS {
         node = parent.createNode();
         node.data.set("name", part);
         node.data.set("isDirectory", true);
+        if (data.stat) {
+          node.data.set("stat", data.stat);
+        }
         const currentPath = parts.slice(0, idx + 1).join("/");
         this.pathCache.set(currentPath, node.id);
       }
@@ -84,16 +93,27 @@ export class TreeFS {
   createChildNode(
     parent: LoroTreeNode,
     path: string,
-    data: { isDirectory?: boolean; text?: string },
+    data: {
+      isDirectory?: boolean;
+      text?: string;
+      buffer?: ArrayBuffer;
+      stat?: any;
+    },
   ) {
     const c = parent.createNode();
     c.data.set("name", basename(path));
     if (data.isDirectory) {
       c.data.set("isDirectory", data.isDirectory);
     }
-    if (data.text) {
+    if (data.text != null) {
       c.data.setContainer("text", new LoroText());
       (c.data.get("text") as LoroText).insert(0, data.text);
+    }
+    if (data.buffer != null) {
+      c.data.set("buffer", encodeBase64(data.buffer));
+    }
+    if (data.stat) {
+      c.data.set("stat", data.stat);
     }
     this.pathCache.set(path, c.id);
     return c;

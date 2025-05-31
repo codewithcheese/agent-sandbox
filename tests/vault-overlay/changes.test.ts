@@ -50,12 +50,12 @@ describe("Vault Overlay Tracking", () => {
             type: "modified",
           },
           {
-            id: "25@1",
+            id: "26@1",
             path: "to-be-deleted.txt",
             type: "deleted",
           },
           {
-            id: "48@1",
+            id: "50@1",
             path: "after-rename.txt",
             type: "modified",
           },

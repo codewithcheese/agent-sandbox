@@ -2,6 +2,7 @@ import {
   type DataAdapter,
   type DataWriteOptions,
   type EventRef,
+  type FileStats,
   normalizePath,
   TAbstractFile,
   TFile,
@@ -19,7 +20,7 @@ import {
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
 import { TreeFS } from "./tree-fs.ts";
-import { text } from "$lib/utils/loro.ts";
+import { buffer, text } from "$lib/utils/loro.ts";
 
 const debug = createDebug();
 
@@ -87,7 +88,7 @@ export class VaultOverlay implements Vault {
     const proposedNode = this.proposedFS.findByPath(path);
     if (proposedNode) {
       // If the file is tracked and exists, create a TFile
-      return this.createTFile(path);
+      return this.createTFile(path, proposedNode.data.get("stat") as FileStats);
     }
 
     const trackingNode = this.trackingFS.findByPath(path);
@@ -174,10 +175,16 @@ export class VaultOverlay implements Vault {
     const existsInVault = this.vault.getFileByPath(normalizePath(path));
     invariant(!existsInVault, `File already exists`);
 
-    this.proposedFS.createNode(path, { text: data });
+    const stat: FileStats = {
+      size: data.length,
+      mtime: Date.now(),
+      ctime: Date.now(),
+    };
+
+    this.proposedFS.createNode(path, { text: data, stat });
     this.proposedDoc.commit();
 
-    return this.createTFile(path);
+    return this.createTFile(path, stat);
   }
 
   async createBinary(
@@ -186,7 +193,30 @@ export class VaultOverlay implements Vault {
     options?: DataWriteOptions,
   ): Promise<TFile> {
     path = normalizePath(path);
-    throw new Error("createBinary not supported");
+    // Prevent directory traversal – any ".." segment escapes the vault root.
+    if (path.split("/").some((seg) => seg === "..")) {
+      throw new Error("Path is outside the vault");
+    }
+    // todo: reject existing case insensitive file name
+
+    // File/Folder must not yet exist.
+    const proposedNode = this.proposedFS.findByPath(path);
+    if (proposedNode) {
+      throw new Error(`File ${path} already exists.`);
+    }
+    const existsInVault = this.vault.getFileByPath(normalizePath(path));
+    invariant(!existsInVault, `File already exists`);
+
+    const stat: FileStats = {
+      size: data.byteLength,
+      mtime: Date.now(),
+      ctime: Date.now(),
+    };
+
+    this.proposedFS.createNode(path, { buffer: data, stat });
+    this.proposedDoc.commit();
+
+    return this.createTFile(path, stat);
   }
 
   async createFolder(path: string) {
@@ -228,7 +258,21 @@ export class VaultOverlay implements Vault {
   }
 
   async readBinary(file: TFile): Promise<ArrayBuffer> {
-    throw new Error("readBinary not supported");
+    const proposedNode = this.proposedFS.findByPath(file.path);
+
+    if (proposedNode && proposedNode.data.get(deletedFrom)) {
+      throw new Error(`File was deleted: ${file.path} `);
+    } else if (proposedNode && proposedNode.data.get("buffer") === undefined) {
+      throw Error(`Cannot read file as binary, buffer not found: ${file.path}`);
+    } else if (proposedNode) {
+      return buffer(proposedNode);
+    } else if (this.trackingFS.findByPath(file.path)) {
+      // if no proposed and tracking exists, then file has been renamed or deleted
+      throw new Error(`File does not exist: ${file.path} `);
+    }
+
+    // If not tracked, read from vault
+    return this.vault.readBinary(file);
   }
 
   getResourcePath(file: TFile): string {
@@ -427,19 +471,20 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     const abstractFile = this.createAbstractFile(path);
 
-    // Get children from the proposed branch
     const folderNode = this.proposedFS.findByPath(path);
     invariant(
       folderNode.data.get(isDirectory),
       `Failed to create TFolder path is not a directory: ${path}`,
     );
 
-    const folder = {
-      ...abstractFile,
-      isRoot: () => path === "/",
-    } as TFolder;
+    const folder = Object.assign(
+      Object.create(TFolder.prototype),
+      abstractFile,
+      {
+        isRoot: () => path === "/",
+      },
+    );
 
-    // Define children as a lazy getter to avoid infinite recursion
     Object.defineProperty(folder, "children", {
       get: () => {
         const children: TAbstractFile[] = [];
@@ -451,7 +496,12 @@ export class VaultOverlay implements Vault {
             if (isDir) {
               children.push(this.createTFolder(childPath));
             } else {
-              children.push(this.createTFile(childPath));
+              children.push(
+                this.createTFile(
+                  childPath,
+                  childNode.data.get("stat") as FileStats,
+                ),
+              );
             }
           }
         }
@@ -464,7 +514,7 @@ export class VaultOverlay implements Vault {
     return folder;
   }
 
-  private createTFile(path: string): TFile {
+  private createTFile(path: string, stat: FileStats): TFile {
     path = normalizePath(path);
     const abstractFile = this.createAbstractFile(path);
 
@@ -477,30 +527,27 @@ export class VaultOverlay implements Vault {
       ? name.substring(0, name.lastIndexOf("."))
       : name;
 
-    return {
-      ...abstractFile,
+    return Object.assign(Object.create(TFile.prototype), abstractFile, {
       basename,
       extension,
-      // todo: decide how/if stat should be implemented
-      stat: {} as any,
-      // stat: { ...stat, mtime: stat.mtimeMs, ctime: stat.ctimeMs },
-    };
+      stat,
+    });
   }
 
   private createAbstractFile(path: string): TAbstractFile {
     path = normalizePath(path);
-    let parentPath = dirname(path);
+    const parentPath = dirname(path);
     const name = basename(path);
 
     const parent =
       parentPath === "." ? this.getRoot() : this.getFolderByPath(parentPath);
 
-    return {
+    return Object.assign(Object.create(TAbstractFile.prototype), {
       vault: this as unknown as Vault,
       path,
       name,
       parent,
-    } as TAbstractFile;
+    });
   }
 
   get adapter(): DataAdapter {
@@ -549,11 +596,16 @@ export class VaultOverlay implements Vault {
           txtC.update(contents);
         }
       } else {
-        this.trackingFS.createNode(path, { text: contents });
+        this.trackingFS.createNode(path, {
+          text: contents,
+          stat: abstractFile.stat,
+        });
       }
     } else if (abstractFile instanceof TFolder) {
       if (!node) {
-        this.trackingFS.createNode(path, { isDirectory: true });
+        this.trackingFS.createNode(path, {
+          isDirectory: true,
+        });
       } else if (node.data.get(isDirectory) === false) {
         throw new Error(
           `Path is folder in vault, but not in tracking: ${path}`,
@@ -660,6 +712,7 @@ export class VaultOverlay implements Vault {
             | boolean
             | undefined,
           text: op.contents ?? text(proposedNode),
+          buffer: buffer(proposedNode),
         });
       } else if (op.type === "delete") {
         this.trackingFS.deleteNode(trackingNode.id);

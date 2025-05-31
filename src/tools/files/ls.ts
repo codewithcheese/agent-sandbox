@@ -4,43 +4,16 @@ import { relative, sep, join, basename } from "path-browserify";
 import { createDebug } from "$lib/debug.ts";
 import { type Vault, type TAbstractFile, normalizePath } from "obsidian";
 import { TFolder, TFile } from "obsidian";
+import type { ToolExecutionOptionsWithContext } from "./types.ts";
 
-const debug = createDebug();
-
-type ToolExecContext = {
-  vault: Vault;
-  permissions: {
-    mode: "default";
-    alwaysAllowRules: {};
-    alwaysDenyRules: {};
-  };
-};
-
-type ToolExecutionOptionsWithContext = ToolExecutionOptions & {
-  getContext: () => ToolExecContext;
-};
-
-interface FileSystemNode {
+export interface FileSystemNode {
   name: string;
   path: string;
   type: "file" | "directory";
   children?: FileSystemNode[];
 }
 
-interface ToolPermissionRule {
-  source: string; // e.g., 'localSettings', 'projectSettings'
-  ruleBehavior: "allow" | "deny";
-  ruleValue: {
-    toolName: string;
-    ruleContent?: string;
-  };
-}
-
-interface ToolPermissionContext {
-  mode: "default" | "acceptEdits" | "bypassPermissions";
-  alwaysAllowRules: Record<string, string[] | undefined>;
-  alwaysDenyRules: Record<string, string[] | undefined>;
-}
+const debug = createDebug();
 
 export const TOOL_NAME = "LS";
 export const TOOL_DESCRIPTION =
@@ -60,25 +33,6 @@ const lsInputSchema = z.strictObject({
     .optional()
     .describe("List of glob patterns to ignore"),
 });
-
-function getCurrentWorkingDirectory(): string {
-  return "/";
-}
-
-// stub: for future possible implementation
-async function checkPermissions(
-  params: z.infer<typeof lsInputSchema>,
-  toolPermissionContext: ToolPermissionContext,
-): Promise<{
-  behavior: "allow" | "deny" | "ask";
-  message?: string;
-  updatedInput?: typeof params;
-  decisionReason?: any;
-}> {
-  return {
-    behavior: "allow",
-  };
-}
 
 function listDirectoryContentsRecursive(
   targetPath: string,
@@ -255,23 +209,11 @@ export const listDirectoryTool = tool({
   execute: async (params, options: ToolExecutionOptionsWithContext) => {
     const { getContext, abortSignal } = options;
 
-    const { vault, permissions } = getContext();
-
-    const permissionResult = await checkPermissions(params, permissions);
-
-    if (permissionResult.behavior !== "allow") {
-      return {
-        error: "Permission Denied",
-        message:
-          permissionResult.message ||
-          `Permission to list directory '${params.path}' denied.`,
-      };
-    }
-    const validatedParams = permissionResult.updatedInput || params;
+    const { vault } = getContext();
 
     try {
-      const targetPath = normalizePath(validatedParams.path);
-      const ignorePatterns = validatedParams.ignore || [];
+      const targetPath = normalizePath(params.path);
+      const ignorePatterns = params.ignore || [];
 
       const listedFilesArray = listDirectoryContentsRecursive(
         targetPath,
@@ -297,10 +239,7 @@ export const listDirectoryTool = tool({
 
       return resultData.trimEnd();
     } catch (e) {
-      console.error(
-        `Error executing LS tool for path '${validatedParams.path}':`,
-        e,
-      );
+      console.error(`Error executing LS tool for path '${params.path}':`, e);
       return {
         error: "Tool execution failed",
         message: e instanceof Error ? e.message : String(e),

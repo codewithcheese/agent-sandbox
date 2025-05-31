@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { MockTFile, MockTFolder } from "./mocks/obsidian.ts";
+import { MockTAbstractFile, MockTFile, MockTFolder } from "./mocks/obsidian.ts";
 import { normalizePath } from "./mocks/normalize-path.ts";
 
 // Mock normalizePath function from obsidian
@@ -10,5 +10,6 @@ vi.mock("obsidian", async (importOriginal) => {
     normalizePath,
     TFile: MockTFile,
     TFolder: MockTFolder,
+    TAbstractFile: MockTAbstractFile,
   };
 });

@@ -3,6 +3,7 @@ import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 import { LoroText, LoroTreeNode } from "loro-crdt";
 import type { TreeFS } from "../../src/chat/tree-fs.ts";
+import { buffer } from "$lib/utils/loro.ts";
 
 function text(node: LoroTreeNode) {
   return (node.data.get("text") as LoroText).toString();
@@ -238,6 +239,27 @@ describe("Approve changes", () => {
     expect(trackingNode).toBeDefined();
     expect(text(trackingNode)).toEqual("Initial content");
     expect(text(trackingNode)).toEqual(text(proposedNode));
+  });
+
+  it("should approve create binary file", async () => {
+    // Create file in overlay (proposed state only)
+    const data = new ArrayBuffer(32);
+    await overlay.createBinary("test/image.jpg", data);
+
+    // Verify it exists in proposed but not tracking before approval
+    const proposedNode = proposedFS.findByPath("test/image.jpg");
+    expect(proposedNode).toBeDefined();
+    expect(buffer(proposedNode)).toEqual(data);
+    expect(trackingFS.findByPath("test/image.jpg")).toBeUndefined();
+
+    // Approve the creation
+    overlay.approve([{ id: proposedNode.id }]);
+
+    // Verify it now exists in tracking with correct content
+    const trackingNode = trackingFS.findByPath("test/image.jpg");
+    expect(trackingNode).toBeDefined();
+    expect(buffer(proposedNode)).toEqual(data);
+    expect(buffer(trackingNode)).toEqual(buffer(proposedNode));
   });
 
   it("should approve create folder");
