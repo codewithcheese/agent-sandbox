@@ -158,7 +158,7 @@ export class VaultOverlay implements Vault {
   async create(
     path: string,
     data: string,
-    options?: DataWriteOptions,
+    _options?: DataWriteOptions,
   ): Promise<TFile> {
     path = normalizePath(path);
     // Prevent directory traversal – any ".." segment escapes the vault root.
@@ -190,7 +190,7 @@ export class VaultOverlay implements Vault {
   async createBinary(
     path: string,
     data: ArrayBuffer,
-    options?: DataWriteOptions,
+    _options?: DataWriteOptions,
   ): Promise<TFile> {
     path = normalizePath(path);
     // Prevent directory traversal – any ".." segment escapes the vault root.
@@ -253,7 +253,7 @@ export class VaultOverlay implements Vault {
     return this.vault.read(file);
   }
 
-  async cachedRead(file: TFile): Promise<string> {
+  async cachedRead(_file: TFile): Promise<string> {
     throw new Error("cachedRead not supported");
   }
 
@@ -275,7 +275,7 @@ export class VaultOverlay implements Vault {
     return this.vault.readBinary(file);
   }
 
-  getResourcePath(file: TFile): string {
+  getResourcePath(_file: TFile): string {
     throw new Error("getResourcePath not supported");
   }
 
@@ -321,7 +321,7 @@ export class VaultOverlay implements Vault {
     this.computeChanges();
   }
 
-  async trash(file: TAbstractFile): Promise<void> {
+  async trash(_file: TAbstractFile): Promise<void> {
     throw new Error("trash not supported");
   }
 
@@ -391,7 +391,7 @@ export class VaultOverlay implements Vault {
   async modify(
     file: TFile,
     data: string,
-    options?: DataWriteOptions,
+    _options?: DataWriteOptions,
   ): Promise<void> {
     const trackingNode = this.trackingFS.findByPath(file.path);
     const existsInVault = this.vault.getFileByPath(normalizePath(file.path));
@@ -416,30 +416,30 @@ export class VaultOverlay implements Vault {
   }
 
   async modifyBinary(
-    file: TFile,
-    data: ArrayBuffer,
-    options?: DataWriteOptions,
+    _file: TFile,
+    _data: ArrayBuffer,
+    _options?: DataWriteOptions,
   ): Promise<void> {
     throw new Error("modifyBinary not supported");
   }
 
   async append(
-    file: TFile,
-    data: string,
-    options?: DataWriteOptions,
+    _file: TFile,
+    _data: string,
+    _options?: DataWriteOptions,
   ): Promise<void> {
     throw new Error("append not supported");
   }
 
   async process(
-    file: TFile,
-    fn: (data: string) => string,
-    options?: DataWriteOptions,
+    _file: TFile,
+    _fn: (data: string) => string,
+    _options?: DataWriteOptions,
   ): Promise<string> {
     throw new Error("process not supported");
   }
 
-  async copy<T extends TAbstractFile>(file: T, newPath: string): Promise<T> {
+  async copy<T extends TAbstractFile>(_file: T, _newPath: string): Promise<T> {
     throw new Error("copy not supported");
   }
 
@@ -447,7 +447,7 @@ export class VaultOverlay implements Vault {
     throw new Error("getAllLoadedFiles not supported");
   }
 
-  getAllFolders(includeRoot?: boolean): TFolder[] {
+  getAllFolders(_includeRoot?: boolean): TFolder[] {
     throw new Error("getAllFolders not supported");
   }
 
@@ -460,9 +460,9 @@ export class VaultOverlay implements Vault {
   }
 
   on(
-    name: "create" | "modify" | "delete" | "rename",
-    callback: (...args: any[]) => any,
-    ctx?: any,
+    _name: "create" | "modify" | "delete" | "rename",
+    _callback: (...args: any[]) => any,
+    _ctx?: any,
   ): EventRef {
     throw new Error("on not supported");
   }
@@ -554,19 +554,19 @@ export class VaultOverlay implements Vault {
     throw new Error("access to adapter not supported.");
   }
 
-  off(name: string, callback: (...data: unknown[]) => unknown): void {
+  off(_name: string, _callback: (...data: unknown[]) => unknown): void {
     throw new Error("off not supported.");
   }
 
-  offref(ref: EventRef): void {
+  offref(_ref: EventRef): void {
     throw new Error("offref not support.");
   }
 
-  trigger(name: string, ...data: unknown[]): void {
+  trigger(_name: string, ..._data: unknown[]): void {
     throw new Error("trigger not support.");
   }
 
-  tryTrigger(evt: EventRef, args: unknown[]): void {
+  tryTrigger(_evt: EventRef, _args: unknown[]): void {
     throw new Error("tryTrigger not support.");
   }
 
@@ -775,7 +775,7 @@ export class VaultOverlay implements Vault {
 
     const changes: PathChange[] = [];
 
-    for (const [id, { trackingNode, proposedNode }] of Object.entries(nodes)) {
+    for (const [_id, { trackingNode, proposedNode }] of Object.entries(nodes)) {
       let type: PathChange["type"];
 
       // omit if root
