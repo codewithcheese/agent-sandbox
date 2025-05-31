@@ -11,14 +11,10 @@ import {
 import { invariant } from "@epic-web/invariant";
 import { createDebug } from "$lib/debug.ts";
 import {
-  type ContainerID,
   LoroDoc,
   LoroText,
-  LoroTree,
   type LoroTreeNode,
-  type PeerID,
   type TreeID,
-  type Change,
 } from "loro-crdt/base64";
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
@@ -33,7 +29,6 @@ const isDirectory = "isDirectory" as const;
 
 const trackingPeerId = 1 as const;
 const proposedPeerId = 2 as const;
-const approvedPeerId = 3 as const;
 
 export type PathChange = {
   id: TreeID;
@@ -172,22 +167,15 @@ export class VaultOverlay implements Vault {
     // todo: reject existing case insensitive file name
 
     // File/Folder must not yet exist.
-    console.time(`findNode ${path}`);
     const proposedNode = this.proposedFS.findByPath(path);
     if (proposedNode) {
       throw new Error(`File ${path} already exists.`);
     }
-    console.timeEnd(`findNode ${path}`);
-    console.time(`getFileByPath ${path}`);
     const existsInVault = this.vault.getFileByPath(normalizePath(path));
     invariant(!existsInVault, `File already exists`);
-    console.timeEnd(`getFileByPath ${path}`);
 
-    console.time(`createTextFile ${path}`);
     this.proposedFS.createNode(path, { text: data });
-    console.timeEnd(`createTextFile ${path}`);
-    // this.proposedDoc.commit();
-    // this.computeChanges();
+    this.proposedDoc.commit();
 
     return this.createTFile(path);
   }
