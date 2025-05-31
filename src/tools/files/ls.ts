@@ -42,12 +42,12 @@ interface ToolPermissionContext {
   alwaysDenyRules: Record<string, string[] | undefined>;
 }
 
-const TOOL_NAME = "LS";
-const TOOL_DESCRIPTION =
+export const TOOL_NAME = "LS";
+export const TOOL_DESCRIPTION =
   "Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search.";
-const MAX_OUTPUT_CHARS = 40000;
-const TRUNCATION_MESSAGE = `There are more than ${MAX_OUTPUT_CHARS} characters in the vault (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), and other tools to explore nested directories. The first ${MAX_OUTPUT_CHARS} characters are included below:\n\n`;
-const DEFAULT_IGNORE_PATTERNS = [];
+export const MAX_OUTPUT_CHARS = 40000;
+export const TRUNCATION_MESSAGE = `There are more than ${MAX_OUTPUT_CHARS} characters in the vault (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), and other tools to explore nested directories. The first ${MAX_OUTPUT_CHARS} characters are included below:\n\n`;
+export const DEFAULT_IGNORE_PATTERNS = [];
 
 const lsInputSchema = z.strictObject({
   path: z
@@ -173,8 +173,8 @@ function listDirectoryContentsRecursive(
         continue;
       }
 
-      if (entry instanceof TFolder || (entry as any).children !== undefined) {
-        queue.push(entryFullPath + sep);
+      if ("children" in entry) {
+        queue.push(entryFullPath);
       } else {
         listedPaths.push(entryRelativePath);
         currentOutputLength += entryRelativePath.length;

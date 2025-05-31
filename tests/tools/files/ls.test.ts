@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { listDirectoryTool } from "../../../src/tools/files/ls";
-import { vault, helpers } from "../../mocks/obsidian";
+import { vault as mockVault, helpers } from "../../mocks/obsidian";
+import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
+import type { Vault } from "obsidian";
 
 describe("listDirectoryTool.execute", () => {
   let toolExecOptions;
+
+  let vault: VaultOverlay;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -25,11 +29,12 @@ describe("listDirectoryTool.execute", () => {
       abortSignal: new AbortController().signal,
     };
 
+    vault = new VaultOverlay(mockVault);
     // Set up mock vault files for testing
-    helpers.addFile("/test/project/file1.txt", "Content of file1");
-    helpers.addFolder("/test/project/subdir");
-    helpers.addFile("/test/project/subdir/file2.ts", "Content of file2");
-    helpers.addFile("/test/project/.hiddenfile", "Hidden content");
+    vault.create("/test/project/file1.txt", "Content of file1");
+    vault.createFolder("/test/project/subdir");
+    vault.create("/test/project/subdir/file2.ts", "Content of file2");
+    vault.create("/test/project/.hiddenfile", "Hidden content");
   });
 
   it('should list contents of the root directory if path is empty or "."', async () => {
@@ -48,10 +53,26 @@ describe("listDirectoryTool.execute", () => {
     expect(result).toBe(expectedOutput);
   });
 
+  it("should list empty subdirectories", async () => {
+    // Add an empty directory to the mock vault
+    await vault.createFolder("/test/project/empty_dir");
+    await vault.create("/test/project/readable.txt", "Readable content");
+
+    const params = { path: "/test/project" };
+    const result = await listDirectoryTool.execute(params, toolExecOptions);
+
+    // Should show readable files and all directories (including empty ones)
+    expect(result).toContain("readable.txt");
+    expect(result).toContain("file1.txt");
+    expect(result).toContain("subdir/");
+    // Empty directories SHOULD appear in the listing
+    expect(result).toContain("empty_dir/");
+  });
+
   it("should handle unreadable subdirectories gracefully", async () => {
     // Add an unreadable directory to the mock vault
-    helpers.addFolder("/test/project/unreadable");
-    helpers.addFile("/test/project/readable.txt", "Readable content");
+    await vault.createFolder("/test/project/unreadable");
+    await vault.create("/test/project/readable.txt", "Readable content");
 
     const params = { path: "/test/project" };
     const result = await listDirectoryTool.execute(params, toolExecOptions);
@@ -104,10 +125,12 @@ describe("listDirectoryTool.execute", () => {
 
     // Create many files in the mock vault to exceed the limit
     for (let i = 0; i < 2000; i++) {
-      helpers.addFile(
+      console.time(`Create file ${i}`);
+      await vault.create(
         `/test/project/long_file_name_${i}_to_ensure_we_hit_the_limit.txt`,
         `Content ${i}`,
       );
+      console.timeEnd(`Create file ${i}`);
     }
 
     const params = { path: "/test/project" };
@@ -119,7 +142,7 @@ describe("listDirectoryTool.execute", () => {
   });
 
   it("should handle empty directory", async () => {
-    helpers.addFolder("/test/project/empty_subdir");
+    await vault.createFolder("/test/project/empty_subdir");
 
     const params = { path: "/test/project/empty_subdir" };
     const result = await listDirectoryTool.execute(params, toolExecOptions);

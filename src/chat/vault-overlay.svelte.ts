@@ -11,14 +11,19 @@ import {
 import { invariant } from "@epic-web/invariant";
 import { createDebug } from "$lib/debug.ts";
 import {
+  type ContainerID,
   LoroDoc,
   LoroText,
   LoroTree,
   type LoroTreeNode,
+  type PeerID,
   type TreeID,
+  type Change,
 } from "loro-crdt/base64";
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
+import { TreeFS } from "./tree-fs.ts";
+import { text } from "$lib/utils/loro.ts";
 
 const debug = createDebug();
 
@@ -28,8 +33,10 @@ const isDirectory = "isDirectory" as const;
 
 const trackingPeerId = 1 as const;
 const proposedPeerId = 2 as const;
+const approvedPeerId = 3 as const;
 
-export type Change = {
+export type PathChange = {
+  id: TreeID;
   path: string;
   type: "added" | "deleted" | "modified" | "identical";
 };
@@ -37,7 +44,9 @@ export type Change = {
 export class VaultOverlay implements Vault {
   trackingDoc: LoroDoc;
   proposedDoc: LoroDoc;
-  changes = $state<Change[]>([]);
+  changes = $state<PathChange[]>([]);
+  trackingFS: TreeFS;
+  proposedFS: TreeFS;
 
   constructor(
     private vault: Vault,
@@ -54,12 +63,17 @@ export class VaultOverlay implements Vault {
       const root = tree.createNode();
       root.data.set("name", "");
       root.data.set(isDirectory, true);
+      const trash = root.createNode();
+      trash.data.set("name", trashPath);
+      trash.data.set(isDirectory, true);
       // create proposed from snapshot of tracking
       this.proposedDoc = LoroDoc.fromSnapshot(
         this.trackingDoc.export({ mode: "snapshot" }),
       );
       this.proposedDoc.setPeerId(proposedPeerId);
     }
+    this.trackingFS = new TreeFS(this.trackingDoc);
+    this.proposedFS = new TreeFS(this.proposedDoc);
     this.computeChanges();
   }
 
@@ -75,13 +89,13 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     debug("getFileByPath", path);
 
-    const proposedNode = this.findNode("proposed", path);
+    const proposedNode = this.proposedFS.findByPath(path);
     if (proposedNode) {
       // If the file is tracked and exists, create a TFile
       return this.createTFile(path);
     }
 
-    const trackingNode = this.findNode("tracking", path);
+    const trackingNode = this.trackingFS.findByPath(path);
     if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
@@ -98,7 +112,7 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     debug("getFolderByPath", path);
 
-    const proposedNode = this.findNode("proposed", path);
+    const proposedNode = this.proposedFS.findByPath(path);
     if (proposedNode && !proposedNode.data.get(isDirectory)) {
       return null;
     }
@@ -108,7 +122,7 @@ export class VaultOverlay implements Vault {
       return this.createTFolder(path);
     }
 
-    const trackingNode = this.findNode("tracking", path);
+    const trackingNode = this.trackingFS.findByPath(path);
     if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
@@ -123,13 +137,13 @@ export class VaultOverlay implements Vault {
   getAbstractFileByPath(path: string) {
     path = normalizePath(path);
     debug("getAbstractFileByPath", path);
-    const proposedNode = this.findNode("proposed", path);
+    const proposedNode = this.proposedFS.findByPath(path);
     if (proposedNode) {
       // If the file is tracked and exists, create a TFolder for it
       return this.createAbstractFile(path);
     }
 
-    const trackingNode = this.findNode("tracking", path);
+    const trackingNode = this.trackingFS.findByPath(path);
     if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
@@ -158,16 +172,22 @@ export class VaultOverlay implements Vault {
     // todo: reject existing case insensitive file name
 
     // File/Folder must not yet exist.
-    const proposedNode = this.findNode("proposed", path);
+    console.time(`findNode ${path}`);
+    const proposedNode = this.proposedFS.findByPath(path);
     if (proposedNode) {
       throw new Error(`File ${path} already exists.`);
     }
+    console.timeEnd(`findNode ${path}`);
+    console.time(`getFileByPath ${path}`);
     const existsInVault = this.vault.getFileByPath(normalizePath(path));
     invariant(!existsInVault, `File already exists`);
+    console.timeEnd(`getFileByPath ${path}`);
 
-    this.createTextFile("proposed", path, data);
-    this.proposedDoc.commit();
-    this.computeChanges();
+    console.time(`createTextFile ${path}`);
+    this.proposedFS.createNode(path, { text: data });
+    console.timeEnd(`createTextFile ${path}`);
+    // this.proposedDoc.commit();
+    // this.computeChanges();
 
     return this.createTFile(path);
   }
@@ -189,7 +209,7 @@ export class VaultOverlay implements Vault {
       throw new Error("File already exists.");
     }
 
-    this.createNode("proposed", path, { isDirectory: true });
+    this.proposedFS.createNode(path, { isDirectory: true });
     this.proposedDoc.commit();
     this.computeChanges();
 
@@ -200,10 +220,13 @@ export class VaultOverlay implements Vault {
    *  Read
    */
   async read(file: TFile): Promise<string> {
-    const proposedNode = this.findNode("proposed", file.path);
-    if (proposedNode) {
+    const proposedNode = this.proposedFS.findByPath(file.path);
+
+    if (proposedNode && proposedNode.data.get(deletedFrom)) {
+      throw new Error(`File was deleted: ${file.path} `);
+    } else if (proposedNode) {
       return (proposedNode.data.get("text") as LoroText).toString();
-    } else if (this.findNode("tracking", file.path)) {
+    } else if (this.trackingFS.findByPath(file.path)) {
       // if no proposed and tracking exists, then file has been renamed or deleted
       throw new Error(`File does not exist: ${file.path} `);
     }
@@ -235,30 +258,31 @@ export class VaultOverlay implements Vault {
    */
   async delete(file: TAbstractFile): Promise<void> {
     // If the file is already deleted, nothing to do
-    const deleted = this.findDeletedNode(file.path);
+    const deleted = this.proposedFS.findDeleted(file.path);
     if (deleted) {
       return;
     }
 
-    let proposedNode = this.findNode("proposed", file.path);
-    let trackingNode = this.findNode("tracking", file.path);
+    let proposedNode = this.proposedFS.findByPath(file.path);
+    let trackingNode = this.trackingFS.findByPath(file.path);
     if (!proposedNode && !trackingNode) {
-      const abstractFile = this.vault.getFileByPath(normalizePath(file.path));
+      const abstractFile = this.vault.getAbstractFileByPath(
+        normalizePath(file.path),
+      );
       if (!abstractFile) {
         invariant(abstractFile, `Cannot delete file not found: ${file.path}`);
       }
       await this.syncPath(file.path);
     }
 
-    proposedNode = this.findNode("proposed", file.path);
+    proposedNode = this.proposedFS.findByPath(file.path);
     invariant(proposedNode, `Cannot delete file not found: ${file.path} `);
 
-    let trashFolder = this.findNode("proposed", trashPath);
-    if (!trashFolder) {
-      trashFolder = this.createNode("proposed", trashPath, {
-        isDirectory: true,
-      });
-    }
+    let trashFolder = this.proposedFS.findByPath(trashPath);
+    invariant(
+      trashFolder,
+      `Trash folder not found, should be created during overlay init.`,
+    );
     proposedNode.move(trashFolder);
     proposedNode.data.set(deletedFrom, normalizePath(file.path));
     this.proposedDoc.commit();
@@ -277,27 +301,27 @@ export class VaultOverlay implements Vault {
       throw new Error("Path is outside the vault");
     }
 
-    const destProposedNode = this.findNode("proposed", newPath);
+    const destProposedNode = this.proposedFS.findByPath(newPath);
     if (destProposedNode) {
       throw new Error(`Cannot rename to path that already exists: ${newPath}`);
     }
 
-    const deletedNode = this.findDeletedNode(file.path);
+    const deletedNode = this.proposedFS.findDeleted(file.path);
     if (deletedNode) {
       throw new Error(`Cannot rename file that was deleted: ${file.path}`);
     }
 
     // Check if new path exists in vault
-    const newPathTracking = this.findNode("tracking", newPath);
+    const newPathTracking = this.trackingFS.findByPath(newPath);
     const newPathExists = this.vault.getFileByPath(newPath);
     if (!newPathTracking && newPathExists) {
       throw new Error(`Cannot rename to path that already exists: ${newPath}`);
     }
 
     // Check if the file is tracked
-    let trackingNode = this.findNode("tracking", file.path);
+    let trackingNode = this.trackingFS.findByPath(file.path);
     // Import if the file exists in the vault, but not in overlay
-    if (!trackingNode && !this.findNode("proposed", file.path)) {
+    if (!trackingNode && !this.proposedFS.findByPath(file.path)) {
       const vaultFile = this.vault.getFileByPath(normalizePath(file.path));
       invariant(
         vaultFile,
@@ -306,18 +330,21 @@ export class VaultOverlay implements Vault {
       await this.syncPath(file.path);
     }
 
-    const proposedNode = this.findNode("proposed", file.path);
+    const proposedNode = this.proposedFS.findByPath(file.path);
     invariant(
       proposedNode,
       `Cannot rename file not found after sync: ${file.path}`,
     );
     // todo: verify dirname gets parent/root
-    let newParent = this.findNode("proposed", dirname(newPath));
+    let newParent = this.proposedFS.findByPath(dirname(newPath));
     if (!newParent) {
-      newParent = this.createNode("proposed", dirname(newPath), {
+      newParent = this.proposedFS.createNode(dirname(newPath), {
         isDirectory: true,
       });
     }
+
+    // Update cache
+    this.proposedFS.updateNodePath(file.path, newPath, proposedNode.id);
 
     // todo: test renaming a file and a folder
     const newName = basename(newPath);
@@ -334,15 +361,15 @@ export class VaultOverlay implements Vault {
     data: string,
     options?: DataWriteOptions,
   ): Promise<void> {
-    const trackingNode = this.findNode("tracking", file.path);
+    const trackingNode = this.trackingFS.findByPath(file.path);
     const existsInVault = this.vault.getFileByPath(normalizePath(file.path));
 
     if (!trackingNode && existsInVault) {
       await this.syncPath(file.path);
     }
-    let node = this.findNode("proposed", file.path);
+    let node = this.proposedFS.findByPath(file.path);
     if (!node) {
-      node = this.createTextFile("proposed", file.path, data);
+      node = this.proposedFS.createNode(file.path, { text: data });
     }
     const text = node.data.get("text") as LoroText;
     // Loro recommends updateByLine for texts > 50_000 characters).
@@ -353,7 +380,7 @@ export class VaultOverlay implements Vault {
     }
     // todo: test modifying a file in a path that was deleted
     this.proposedDoc.commit();
-    this.computeChanges();
+    // this.computeChanges();
   }
 
   async modifyBinary(
@@ -411,8 +438,42 @@ export class VaultOverlay implements Vault {
   private createTFolder(path: string): TFolder {
     path = normalizePath(path);
     const abstractFile = this.createAbstractFile(path);
-    // todo: implement children
-    return { ...abstractFile, children: [], isRoot: () => path === "/" };
+
+    // Get children from the proposed branch
+    const folderNode = this.proposedFS.findByPath(path);
+    invariant(
+      folderNode.data.get(isDirectory),
+      `Failed to create TFolder path is not a directory: ${path}`,
+    );
+
+    const folder = {
+      ...abstractFile,
+      isRoot: () => path === "/",
+    } as TFolder;
+
+    // Define children as a lazy getter to avoid infinite recursion
+    Object.defineProperty(folder, "children", {
+      get: () => {
+        const children: TAbstractFile[] = [];
+        if (folderNode) {
+          const childNodes = folderNode.children() || [];
+          for (const childNode of childNodes) {
+            const childPath = this.proposedFS.getNodePath(childNode);
+            const isDir = childNode.data.get(isDirectory);
+            if (isDir) {
+              children.push(this.createTFolder(childPath));
+            } else {
+              children.push(this.createTFile(childPath));
+            }
+          }
+        }
+        return children;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+
+    return folder;
   }
 
   private createTFile(path: string): TFile {
@@ -484,12 +545,12 @@ export class VaultOverlay implements Vault {
     const abstractFile = this.vault.getAbstractFileByPath(normalizePath(path));
     invariant(abstractFile, `${path} not found in vault`);
 
-    const node = this.findNode("tracking", path);
+    const node = this.trackingFS.findByPath(path);
     if (abstractFile instanceof TFile) {
       const contents = await this.vault.read(abstractFile);
       if (node) {
         invariant(
-          node.data.get(isDirectory) === false,
+          node.data.get(isDirectory) !== true,
           `Expected node for ${path} to be a file, got folder.`,
         );
         const txtC = node.data.get("text") as LoroText;
@@ -500,11 +561,11 @@ export class VaultOverlay implements Vault {
           txtC.update(contents);
         }
       } else {
-        this.createTextFile("tracking", path, contents);
+        this.trackingFS.createNode(path, { text: contents });
       }
     } else if (abstractFile instanceof TFolder) {
       if (!node) {
-        this.createNode("tracking", path, { isDirectory: true });
+        this.trackingFS.createNode(path, { isDirectory: true });
       } else if (node.data.get(isDirectory) === false) {
         throw new Error(
           `Path is folder in vault, but not in tracking: ${path}`,
@@ -521,96 +582,111 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     const abstractFile = this.vault.getAbstractFileByPath(normalizePath(path));
     invariant(abstractFile, `${path} not found in vault`);
-    const node = this.findNode("tracking", path);
+    const node = this.trackingFS.findByPath(path);
     if (node) {
-      this.trackingDoc.getTree("vault").delete(node.id);
+      this.trackingFS.deleteNode(node.id);
       this.trackingDoc.commit();
+      this.syncDocs();
     }
-    this.syncDocs();
   }
 
-  /**
-   * An approved change replaces proposed (last write wins), not merge (default LoroText behavior).
-   */
-  approveModify(path: string, contents?: string) {
-    path = normalizePath(path);
-    // Try to get the abstractFile from the vault
-    debug("Force update", path);
-    let proposedNode = this.findNode("proposed", path);
-    invariant(
-      proposedNode,
-      `Cannot approve modify to path not found in proposed: ${path}.`,
-    );
-    invariant(
-      !!proposedNode.data.get(isDirectory) !== !!contents,
-      `Cannot approve modify to folder when contents are provided: ${path}`,
-    );
-    let trackingNode = this.findNode("tracking", path);
-    if (!trackingNode) {
-      if (proposedNode.data.get(isDirectory) === true) {
-        this.createNode("tracking", path, { isDirectory: true });
-      } else {
-        this.createTextFile("tracking", path, contents);
+  approve(approvals: { id: TreeID; contents?: string }[]) {
+    type ApprovalOp =
+      | { type: "create"; id: TreeID; contents: string }
+      | { type: "modify"; id: TreeID; contents: string }
+      | { type: "delete"; id: TreeID }
+      | { type: "rename"; id: TreeID }
+      | { type: "move"; id: TreeID; parentId: TreeID };
+
+    const ops: ApprovalOp[] = [];
+    for (const approval of approvals) {
+      const proposedNode = this.proposedFS.findById(approval.id);
+      const trackingNode = this.trackingFS.findById(approval.id);
+      invariant(
+        proposedNode,
+        `Proposed node not found for approval: ${approval.id}`,
+      );
+      const proposedPath = this.proposedFS.getNodePath(proposedNode);
+      const trackingPath = this.trackingFS.getNodePath(trackingNode);
+      const deletedPath = proposedNode.data.get(deletedFrom);
+
+      if (approval.contents && proposedNode.data.get("isDirectory")) {
+        throw Error(
+          `Cannot approve new contents on directory: ${this.proposedFS.getNodePath(proposedNode)}`,
+        );
       }
-    } else if (!trackingNode.data.get(isDirectory)) {
-      // recreate text container for last-write-wins not merge semantics
-      trackingNode.data.delete("text");
-      const txtC = trackingNode.data.setContainer("text", new LoroText());
-      txtC.insert(0, contents);
-      this.trackingDoc.commit();
+
+      if (!deletedPath && !trackingNode) {
+        ops.push({
+          id: proposedNode.id,
+          type: "create",
+          contents: approval.contents,
+        });
+      }
+
+      if (deletedPath != null) {
+        ops.push({
+          id: proposedNode.id,
+          type: "delete",
+        });
+      } else if (trackingNode) {
+        // if path has changed
+        if (proposedPath !== trackingPath) {
+          ops.push({
+            id: proposedNode.id,
+            type: "rename",
+          });
+        }
+
+        // if parent has changed
+        if (proposedNode.parent()?.id !== trackingNode.parent()?.id) {
+          ops.push({
+            id: proposedNode.id,
+            type: "move",
+            parentId: proposedNode.parent().id,
+          });
+        }
+
+        // if not directory and text changed
+        if (
+          !proposedNode.data.get(isDirectory) &&
+          (text(proposedNode) !== text(trackingNode) ||
+            (approval.contents && approval.contents !== text(trackingNode)))
+        ) {
+          ops.push({
+            id: proposedNode.id,
+            type: "modify",
+            contents: approval?.contents || text(proposedNode),
+          });
+        }
+      }
     }
 
-    this.syncDocs();
-  }
-
-  approveDelete(path: string) {
-    path = normalizePath(path);
-    const trackingNode = this.findNode("tracking", path);
-    const proposedNode = this.findNodeById("proposed", trackingNode.id);
-    invariant(
-      proposedNode,
-      `Cannot approve delete to path not found in proposed: ${path}.`,
-    );
-    invariant(
-      proposedNode.data.get(deletedFrom),
-      `Cannot approve delete to a path not deleted on proposed: ${path}.`,
-    );
-    // note: delete does not destroy the node, it removes it from its parent, and marks it as deleted
-    // it will no longer be found by path, but it will still be found by id
-    this.trackingDoc.getTree("vault").delete(trackingNode.id);
-    this.trackingDoc.commit();
-    this.syncDocs();
-  }
-
-  approveRename(oldPath: string, newPath: string) {
-    oldPath = normalizePath(oldPath);
-    newPath = normalizePath(newPath);
-    const trackingNode = this.findNode("tracking", oldPath);
-    invariant(
-      trackingNode,
-      `Cannot approve rename from path not found in tracking: ${oldPath}.`,
-    );
-    const proposedNode = this.findNode("proposed", newPath);
-    invariant(
-      proposedNode,
-      `Cannot approve rename to path not found in proposed: ${newPath}.`,
-    );
-    invariant(
-      trackingNode.id === proposedNode.id,
-      "Cannot approve rename; new path not tracked to old path.",
-    );
-    // todo apply rename to vault
-    // move tracking node to same location as proposed node
-    let trackingFolder = this.findNode("tracking", dirname(newPath));
-    if (!trackingFolder) {
-      trackingFolder = this.createNode("tracking", dirname(newPath), {
-        isDirectory: true,
-      });
+    for (const op of ops) {
+      const proposedNode = this.proposedFS.findById(op.id);
+      const trackingNode = this.trackingFS.findById(op.id);
+      const proposedPath = this.proposedFS.getNodePath(proposedNode);
+      if (op.type === "create") {
+        this.trackingFS.createNode(proposedPath, {
+          isDirectory: proposedNode.data.get(isDirectory) as
+            | boolean
+            | undefined,
+          text: op.contents ?? text(proposedNode),
+        });
+      } else if (op.type === "delete") {
+        this.trackingFS.deleteNode(trackingNode.id);
+      } else if (op.type === "rename") {
+        this.trackingFS.renameNode(trackingNode.id, proposedPath);
+      } else if (op.type === "move") {
+        this.trackingFS.moveNode(trackingNode, op.parentId);
+      } else if (op.type === "modify") {
+        // recreate text container for last-write-wins not merge semantics
+        trackingNode.data.delete("text");
+        const txtC = trackingNode.data.setContainer("text", new LoroText());
+        txtC.insert(0, op.contents ?? text(proposedNode));
+      }
     }
-    if (trackingNode.parent().id !== trackingFolder.id) {
-      trackingNode.move(trackingFolder);
-    }
-    trackingNode.data.set("name", basename(newPath));
+
     this.trackingDoc.commit();
     this.syncDocs();
   }
@@ -622,6 +698,7 @@ export class VaultOverlay implements Vault {
         from: this.proposedDoc.version(),
       }),
     );
+    this.proposedFS.invalidateCache();
     this.computeChanges();
   }
 
@@ -634,161 +711,71 @@ export class VaultOverlay implements Vault {
     this.changes = this.getFileChanges();
   }
 
-  getFileChanges(): Change[] {
+  getFileChanges(): PathChange[] {
     const trackingTree = this.trackingDoc.getTree("vault");
 
     const nodes: Record<
       TreeID,
-      { mNode: LoroTreeNode | undefined; sNode: LoroTreeNode }
+      { trackingNode: LoroTreeNode | undefined; proposedNode: LoroTreeNode }
     > = {};
     const trackingNodes = trackingTree.getNodes();
     for (const mNode of trackingNodes) {
       nodes[mNode.id] = {
-        mNode,
-        sNode: this.findNodeById("proposed", mNode.id),
+        trackingNode: mNode,
+        proposedNode: this.proposedFS.findById(mNode.id),
       };
     }
     const proposedNodes = this.proposedDoc.getTree("vault").getNodes();
     for (const sNode of proposedNodes) {
       if (!(sNode.id in nodes)) {
-        nodes[sNode.id] = { mNode: undefined, sNode };
+        nodes[sNode.id] = { trackingNode: undefined, proposedNode: sNode };
       }
     }
 
-    const changes: Change[] = [];
+    const changes: PathChange[] = [];
 
-    for (const [id, { mNode, sNode }] of Object.entries(nodes)) {
-      let type: Change["type"];
+    for (const [id, { trackingNode, proposedNode }] of Object.entries(nodes)) {
+      let type: PathChange["type"];
 
       // omit if root
-      if (!sNode.parent()) {
+      if (!proposedNode.parent()) {
         continue;
       }
-      if (sNode?.data.get("name") === trashPath) {
+      if (proposedNode?.data.get("name") === trashPath) {
         continue;
       }
 
-      const path = this.getNodePath(sNode);
+      const path = this.proposedFS.getNodePath(proposedNode);
 
-      if (!mNode && sNode) {
-        changes.push({ path, type: "added" });
-      } else if (mNode && sNode?.data.get(deletedFrom)) {
+      if (!trackingNode && proposedNode) {
+        changes.push({ id: proposedNode.id, path, type: "added" });
+      } else if (trackingNode && proposedNode?.data.get(deletedFrom)) {
         changes.push({
-          path: sNode.data.get(deletedFrom) as string,
+          id: proposedNode.id,
+          path: proposedNode.data.get(deletedFrom) as string,
           type: "deleted",
         });
-      } else if (mNode && sNode) {
-        if (mNode.data.get("name") !== sNode.data.get("name")) {
-          changes.push({ path, type: "modified" });
+      } else if (trackingNode && proposedNode) {
+        if (trackingNode.data.get("name") !== proposedNode.data.get("name")) {
+          changes.push({ id: proposedNode.id, path, type: "modified" });
           continue;
-        } else if (mNode.parent()?.id !== sNode.parent()?.id) {
-          changes.push({ path, type: "modified" });
+        } else if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
+          changes.push({ id: proposedNode.id, path, type: "modified" });
           continue;
         }
 
         const mText =
-          (mNode.data.get("text") as LoroText | undefined)?.toString() ?? "";
+          (trackingNode.data.get("text") as LoroText | undefined)?.toString() ??
+          "";
         const sText =
-          (sNode.data.get("text") as LoroText | undefined)?.toString() ?? "";
+          (proposedNode.data.get("text") as LoroText | undefined)?.toString() ??
+          "";
         type = mText === sText ? "identical" : "modified";
-        changes.push({ path, type });
+        changes.push({ id: proposedNode.id, path, type });
       }
     }
 
     return changes.filter((c) => c.type !== "identical");
-  }
-
-  createNode(
-    branch: "tracking" | "proposed",
-    path: string,
-    data: { isDirectory?: boolean; text?: string },
-  ) {
-    path = normalizePath(path);
-    const doc = branch === "tracking" ? this.trackingDoc : this.proposedDoc;
-    const tree = doc.getTree("vault");
-    const root = tree.roots()[0];
-    const parts = path.split("/").filter((part) => part.length > 0);
-    let parent = root;
-    for (const [idx, part] of parts.entries()) {
-      const isLeaf = idx === parts.length - 1;
-      const children = parent.children();
-      let node = children?.find((n) => n.data.get("name") === part);
-      if (node && isLeaf) {
-        throw Error(`Node already exists: ${path}`);
-      }
-      if (isLeaf) {
-        const c = parent.createNode();
-        c.data.set("name", part);
-        c.data.set(isDirectory, data.isDirectory);
-        if (data.text) {
-          c.data.setContainer("text", new LoroText());
-          (c.data.get("text") as LoroText).insert(0, data.text);
-        }
-        return c;
-      }
-      if (!node) {
-        node = parent.createNode();
-        node.data.set("name", part);
-        node.data.set(isDirectory, true);
-      }
-      parent = node;
-    }
-    return parent;
-  }
-
-  createTextFile(branch: "tracking" | "proposed", path: string, text: string) {
-    path = normalizePath(path);
-    return this.createNode(branch, path, {
-      isDirectory: false,
-      text,
-    });
-  }
-
-  findNode(
-    branch: "tracking" | "proposed",
-    path: string,
-  ): LoroTreeNode | undefined {
-    path = normalizePath(path);
-    const doc = branch === "tracking" ? this.trackingDoc : this.proposedDoc;
-    const tree = doc.getTree("vault");
-    if (path === "." || path === "/" || path === "" || path === "./") {
-      return tree.roots()[0];
-    }
-    const parts = path.split("/");
-    let cur: LoroTreeNode | undefined = tree.roots()[0];
-    for (const part of parts) {
-      if (!part) continue; // Skip empty parts (e.g., from leading/trailing slashes)
-      cur = cur?.children()?.find((n) => n.data.get("name") === part);
-      if (!cur) break;
-    }
-    return cur;
-  }
-
-  findNodeById(branch: "proposed" | "tracking", id: TreeID) {
-    const doc = branch === "tracking" ? this.trackingDoc : this.proposedDoc;
-    const tree = doc.getTree("vault");
-    return tree.getNodeByID(id);
-  }
-
-  findDeletedNode(path: string): LoroTreeNode | undefined {
-    path = normalizePath(path);
-    const trashRoot = this.findNode("proposed", trashPath);
-    if (!trashRoot) {
-      return undefined;
-    }
-
-    // walk just this subtree; tomb-stones are direct children
-    return trashRoot.children()?.find((n) => n.data.get(deletedFrom) === path);
-  }
-
-  getNodePath(node: LoroTreeNode) {
-    const parts = [];
-    let cur = node;
-    while (cur) {
-      parts.unshift(cur.data.get("name"));
-      cur = cur.parent();
-    }
-    return normalizePath(parts.join("/"));
   }
 
   snapshot() {
