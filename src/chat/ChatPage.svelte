@@ -23,7 +23,7 @@
   import ChatInput from "./ChatInput.svelte";
   import type { Agents } from "./agents.svelte.ts";
   import Autoscroll from "./Autoscroll.svelte";
-  import type { Change } from "./vault-overlay.svelte.ts";
+  import type { PathChange } from "./vault-overlay.svelte.ts";
   import AgentMessage from "./AgentMessage.svelte";
   import { ChatView } from "./chat-view.svelte.ts";
   import { createDebug } from "$lib/debug.ts";
@@ -152,7 +152,7 @@
       });
   }
 
-  async function openMergeView(change: Change) {
+  async function openMergeView(change: PathChange) {
     try {
       const plugin = usePlugin();
       let leaf = plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];

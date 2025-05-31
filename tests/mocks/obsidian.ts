@@ -2,19 +2,32 @@ import { vi } from "vitest";
 
 // polyfill for grey-matter
 import { Buffer } from "buffer";
+import matter from "gray-matter";
+import type { TAbstractFile, TFile, TFolder, Vault } from "obsidian";
+import { normalizePath } from "./normalize-path.ts";
+
 if (typeof window !== "undefined" && typeof window.Buffer === "undefined") {
   window.Buffer = Buffer;
 }
-
-import matter from "gray-matter";
-import type { TFile, TFolder, TAbstractFile, Vault } from "obsidian";
-import { normalizePath } from "./normalize-path.ts";
 
 export const fileSystem = new Map<
   string,
   { content: string; metadata?: any }
 >();
 export const fileCache = new Map<string, any>();
+
+export class MockTAbstractFile implements TAbstractFile {
+  path: string;
+  name: string;
+  vault: any;
+  parent: any;
+
+  constructor(path: string) {
+    this.path = path;
+    const parts = path.split("/");
+    this.name = parts[parts.length - 1];
+  }
+}
 
 export class MockTFile implements TFile {
   path: string;
@@ -40,7 +53,6 @@ export class MockTFile implements TFile {
 export class MockTFolder implements TFolder {
   path: string;
   name: string;
-  children: Array<MockTFile | MockTFolder>;
   vault: any;
   parent: any;
   basename: string;
@@ -51,8 +63,44 @@ export class MockTFolder implements TFolder {
     const parts = path.split("/");
     this.name = parts[parts.length - 1] || "/";
     this.basename = this.name;
-    this.children = [];
     this.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
+  }
+
+  get children(): Array<MockTFile | MockTFolder> {
+    const children: Array<MockTFile | MockTFolder> = [];
+    const folderPath = this.path === "/" ? "" : this.path;
+
+    // Find all files that are direct children of this folder
+    for (const [filePath] of fileSystem) {
+      const normalizedFilePath = normalizePath(filePath);
+      if (normalizedFilePath.startsWith(folderPath + "/")) {
+        const relativePath = normalizedFilePath.slice(folderPath.length + 1);
+        // Only direct children (no additional slashes)
+        if (!relativePath.includes("/")) {
+          const file = new MockTFile(normalizedFilePath);
+          file.vault = this.vault;
+          file.parent = this;
+          children.push(file);
+        }
+      }
+    }
+
+    // Find all folders that are direct children of this folder
+    for (const [subFolderPath, subFolder] of folderSystem) {
+      if (
+        subFolderPath !== this.path &&
+        subFolderPath.startsWith(folderPath + "/")
+      ) {
+        const relativePath = subFolderPath.slice(folderPath.length + 1);
+        // Only direct children (no additional slashes)
+        if (!relativePath.includes("/")) {
+          subFolder.parent = this;
+          children.push(subFolder);
+        }
+      }
+    }
+
+    return children;
   }
 
   isRoot() {
@@ -87,7 +135,7 @@ export const vault: Vault = {
     return null;
   }),
   getFolderByPath: vi.fn((path: string) => {
-    path = normalizePath(path);
+    path = normalizePath(path) || "/";
 
     // Check if folder exists
     if (folderSystem.has(path)) {

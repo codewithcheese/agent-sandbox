@@ -13,7 +13,6 @@ import { type CachedMetadata, Notice, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { loadToolsFromFrontmatter } from "../tools";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
-import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
@@ -24,6 +23,7 @@ import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { ChatModel } from "../settings/models.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import { encodeBase64 } from "$lib/utils/base64.ts";
 
 const debug = createDebug();
 
@@ -170,7 +170,7 @@ export class Chat {
             throw Error(`Attachment not found: ${attachment.path}`);
           }
           const data = await plugin.app.vault.readBinary(file);
-          const base64 = arrayBufferToBase64(data);
+          const base64 = encodeBase64(data);
           experimental_attachments.push({
             name: attachment.path,
             contentType: extensionToMimeType(file.extension),

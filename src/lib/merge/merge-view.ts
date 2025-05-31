@@ -6,7 +6,7 @@ import * as diff from "diff";
 import { getBaseName } from "$lib/utils/path.ts";
 import { getPatchStats } from "../../tools/tool-request.ts";
 import { findMatchingView } from "$lib/obsidian/leaf.ts";
-import type { Change } from "../../chat/vault-overlay.svelte.ts";
+import type { PathChange } from "../../chat/vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 
 const debug = createDebug();
@@ -15,7 +15,7 @@ export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
 export interface MergeViewState {
   chatPath: string;
-  change: Change;
+  change: PathChange;
 }
 
 export class MergeView extends ItemView {
@@ -71,11 +71,14 @@ export class MergeView extends ItemView {
         onSave: async (resolvedContent: string, pendingContent: string) => {
           debug("On save", resolvedContent, pendingContent);
           // todo: move write into approveModify
-          await this.app.vault.adapter.write(
-            this.state.change.path,
-            resolvedContent,
-          );
-          chat.vaultOverlay.approveModify(file.path, resolvedContent);
+          // await this.app.vault.adapter.write(
+          //   this.state.change.path,
+          //   resolvedContent,
+          // );
+          chat.vaultOverlay.approve([
+            { id: this.state.change.id, contents: resolvedContent },
+          ]);
+          // chat.vaultOverlay.approveModify(file.path, resolvedContent);
           // if some changes are remaining then apply them to the overlay
           if (resolvedContent !== pendingContent) {
             await chat.vaultOverlay.modify(file, pendingContent);
