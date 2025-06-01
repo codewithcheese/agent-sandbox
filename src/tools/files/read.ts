@@ -2,7 +2,26 @@ import { z } from "zod";
 import { tool } from "ai";
 import { normalizePath, TFile, TFolder, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type { ToolExecutionOptionsWithContext } from "./types.ts"; // Assuming this is your debug utility
+import type { ToolExecutionOptionsWithContext } from "./types.ts";
+
+/**
+ * Features:
+ * - Reads text and image files (common formats like PNG, JPG, GIF, WEBP).
+ * - Expects absolute paths within the vault (e.g., "/folder/file.md").
+ * - For text files:
+ *   - Supports reading a specified range of lines (offset & limit).
+ *   - Defaults to reading up to `DEFAULT_LINE_LIMIT` lines.
+ *   - Truncates individual lines longer than `MAX_LINE_LENGTH`.
+ *   - Formats output with 1-indexed line numbers (similar to `cat -n`).
+ *   - Returns an error for text files larger than `MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT` if no offset/limit is given.
+ *   - Truncates overall text output if it becomes excessively long after formatting.
+ * - For image files:
+ *   - Returns base64 encoded data and metadata for images up to `MAX_IMAGE_SIZE_BYTES`.
+ *   - Returns a placeholder/error for images exceeding this size.
+ * - Validates against disallowed binary file types (e.g., executables, archives).
+ * - Returns specific error messages for common issues (file not found, path is directory, empty image, etc.).
+ * - Cancellation using abort signal from tool execution options.
+ */
 
 const debug = createDebug();
 

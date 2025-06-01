@@ -536,11 +536,11 @@ export class VaultOverlay implements Vault {
 
   private createAbstractFile(path: string): TAbstractFile {
     path = normalizePath(path);
-    const parentPath = dirname(path);
+    const parentPath = dirname(path) || "/";
     const name = basename(path);
 
-    const parent =
-      parentPath === "." ? this.getRoot() : this.getFolderByPath(parentPath);
+    // parent null if path is root
+    const parent = parentPath === "." ? null : this.getFolderByPath(parentPath);
 
     return Object.assign(Object.create(TAbstractFile.prototype), {
       vault: this as unknown as Vault,

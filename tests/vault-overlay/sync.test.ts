@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { LoroText, LoroTreeNode } from "loro-crdt";
+import { LoroText, LoroTreeNode } from "loro-crdt/base64";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 

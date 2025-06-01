@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
-import { LoroText, LoroTreeNode } from "loro-crdt";
+import { LoroText, LoroTreeNode } from "loro-crdt/base64";
 import type { TreeFS } from "../../src/chat/tree-fs.ts";
 import { buffer } from "$lib/utils/loro.ts";
 

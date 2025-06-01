@@ -1,10 +1,28 @@
 import { z } from "zod";
 import { tool, type ToolExecutionOptions } from "ai";
 import { relative, sep, join, basename } from "path-browserify";
+import { minimatch } from "minimatch";
 import { createDebug } from "$lib/debug.ts";
 import { type Vault, type TAbstractFile, normalizePath } from "obsidian";
 import { TFolder, TFile } from "obsidian";
 import type { ToolExecutionOptionsWithContext } from "./types.ts";
+
+/**
+ *
+ * Features:
+ * - Lists contents of a directory specified by an absolute path within the vault (e.g., "/folder/notes").
+ * - If no path is provided, or "." is used, it lists contents of the vault's root directory.
+ * - Output is formatted as a hierarchical tree structure, showing nesting.
+ * - Directories are indicated with a trailing path separator (e.g., "folder/").
+ * - **Ignoring Files/Directories:**
+ *   - Ignores dotfiles and dot-directories by default (e.g., ".hiddenfile", ".obsidian/").
+ *   - Supports custom ignore patterns (basic string matching for includes/excludes, not full glob).
+ *   - Skips configured `DEFAULT_IGNORE_PATTERNS` (e.g., common large binary/cache directories) to improve performance and relevance, unless they are the target path itself.
+ * - **Output Truncation:**
+ *   - If the total character length of the formatted file list exceeds `MAX_OUTPUT_CHARS`, the output is truncated, and a message indicating truncation is appended.
+ * - Handles unreadable subdirectories gracefully by skipping them without halting the entire listing.
+ * - Cancellation using abort signal from tool execution options.
+ */
 
 export interface FileSystemNode {
   name: string;
@@ -50,20 +68,13 @@ function listDirectoryContentsRecursive(
 
   function isIgnored(itemPath: string, relativeItemPath: string): boolean {
     const itemName = basename(itemPath);
-    if (itemName.startsWith(".")) return true; // Simple dotfile ignore
+    
+    // Check if any part of the path starts with a dot
+    const pathParts = relativeItemPath.split(sep);
+    if (pathParts.some(part => part.startsWith("."))) return true;
 
     return effectiveIgnorePatterns.some((pattern) => {
-      // This is a very basic glob-like check, not a full glob implementation
-      if (pattern.startsWith("*") && pattern.endsWith("*")) {
-        return relativeItemPath.includes(pattern.slice(1, -1));
-      }
-      if (pattern.startsWith("*")) {
-        return relativeItemPath.endsWith(pattern.slice(1));
-      }
-      if (pattern.endsWith("*")) {
-        return relativeItemPath.startsWith(pattern.slice(0, -1));
-      }
-      return relativeItemPath === pattern || itemName === pattern;
+      return minimatch(relativeItemPath, pattern) || minimatch(itemName, pattern);
     });
   }
 
@@ -202,7 +213,7 @@ function buildFileTree(paths: string[]): FileSystemNode[] {
   return rootNodes;
 }
 
-export const listDirectoryTool = tool({
+export const lsTool = tool({
   description: TOOL_DESCRIPTION,
   parameters: lsInputSchema,
 

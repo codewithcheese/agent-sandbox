@@ -1,10 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { listDirectoryTool } from "../../../src/tools/files/ls";
-import { vault as mockVault, helpers } from "../../mocks/obsidian";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { lsTool } from "../../../src/tools/files/ls";
+import { helpers, vault as mockVault } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import type { Vault } from "obsidian";
 
-describe("listDirectoryTool.execute", () => {
+describe("LS Tool", () => {
   let toolExecOptions;
 
   let vault: VaultOverlay;
@@ -19,11 +18,6 @@ describe("listDirectoryTool.execute", () => {
       getContext: () => {
         return {
           vault,
-          permissions: {
-            mode: "default",
-            alwaysAllowRules: {},
-            alwaysDenyRules: {},
-          },
         };
       },
       abortSignal: new AbortController().signal,
@@ -39,7 +33,7 @@ describe("listDirectoryTool.execute", () => {
 
   it('should list contents of the root directory if path is empty or "."', async () => {
     const params = { path: "/" };
-    const result = await listDirectoryTool.execute(params, toolExecOptions);
+    const result = await lsTool.execute(params, toolExecOptions);
 
     const expectedOutput = `- /\n  - test/\n    - project/\n      - file1.txt\n      - subdir/\n        - file2.ts`;
     expect(result).toBe(expectedOutput);
@@ -47,7 +41,7 @@ describe("listDirectoryTool.execute", () => {
 
   it("should list contents of a specified absolute path", async () => {
     const params = { path: "/test/project" };
-    const result = await listDirectoryTool.execute(params, toolExecOptions);
+    const result = await lsTool.execute(params, toolExecOptions);
 
     const expectedOutput = `- /test/project/\n  - file1.txt\n  - subdir/\n    - file2.ts`;
     expect(result).toBe(expectedOutput);
@@ -59,7 +53,7 @@ describe("listDirectoryTool.execute", () => {
     await vault.create("/test/project/readable.txt", "Readable content");
 
     const params = { path: "/test/project" };
-    const result = await listDirectoryTool.execute(params, toolExecOptions);
+    const result = await lsTool.execute(params, toolExecOptions);
 
     // Should show readable files and all directories (including empty ones)
     expect(result).toContain("readable.txt");
@@ -75,7 +69,7 @@ describe("listDirectoryTool.execute", () => {
     await vault.create("/test/project/readable.txt", "Readable content");
 
     const params = { path: "/test/project" };
-    const result = await listDirectoryTool.execute(params, toolExecOptions);
+    const result = await lsTool.execute(params, toolExecOptions);
 
     // Should still show readable files and directories
     expect(result).toContain("readable.txt");
@@ -83,21 +77,31 @@ describe("listDirectoryTool.execute", () => {
     expect(result).toContain("subdir/");
   });
 
-  it("should respect ignore patterns (basic check)", async () => {
-    const params = { path: "/test/project", ignore: ["file1.txt"] };
-    const result = await listDirectoryTool.execute(params, toolExecOptions);
-    const expectedOutput = `- /test/project/\n  - subdir/\n    - file2.ts`;
+  it("should respect ignore patterns", async () => {
+    await vault.create(
+      "/.obsidian/data.json",
+      JSON.stringify({ sensitive: true }),
+    );
+    const params = { path: "/", ignore: [] };
+    const result = await lsTool.execute(params, toolExecOptions);
+    // should not include .obsidian/data.json
+    const expectedOutput = `- /\n  - test/\n    - project/\n      - file1.txt\n      - subdir/\n        - file2.ts`;
     expect(result).toBe(expectedOutput);
 
-    const params2 = { path: "/test/project", ignore: ["subdir"] };
-    const result2 = await listDirectoryTool.execute(params2, toolExecOptions);
-    const expectedOutput2 = `- /test/project/\n  - file1.txt`;
+    const params2 = { path: "/test/project", ignore: ["file1.txt"] };
+    const result2 = await lsTool.execute(params2, toolExecOptions);
+    const expectedOutput2 = `- /test/project/\n  - subdir/\n    - file2.ts`;
     expect(result2).toBe(expectedOutput2);
+
+    const params3 = { path: "/test/project", ignore: ["subdir"] };
+    const result3 = await lsTool.execute(params3, toolExecOptions);
+    const expectedOutput3 = `- /test/project/\n  - file1.txt`;
+    expect(result3).toBe(expectedOutput3);
   });
 
   it("should ignore dotfiles by default", async () => {
     const params = { path: "/test/project" };
-    const result = await listDirectoryTool.execute(params, toolExecOptions);
+    const result = await lsTool.execute(params, toolExecOptions);
     expect(result).not.toContain(".hiddenfile");
   });
 
@@ -111,15 +115,12 @@ describe("listDirectoryTool.execute", () => {
     };
 
     const params = { path: "/test/project" };
-    const result = await listDirectoryTool.execute(
-      params,
-      abortedToolExecOptions,
-    );
+    const result = await lsTool.execute(params, abortedToolExecOptions);
     expect((result as any).error).toBe("Tool execution failed");
     expect((result as any).message).toBe("Operation aborted");
   });
 
-  it("should truncate output if it exceeds MAX_LS_OUTPUT_CHARS", async () => {
+  it("should truncate output if it exceeds MAX_OUTPUT_CHARS", async () => {
     const MAX_CHARS = 40000; // Should match constant in ls.ts
     const TRUNC_MSG_START = "There are more than"; // Start of truncation message
 
@@ -134,7 +135,7 @@ describe("listDirectoryTool.execute", () => {
     }
 
     const params = { path: "/test/project" };
-    const result = await listDirectoryTool.execute(params, toolExecOptions);
+    const result = await lsTool.execute(params, toolExecOptions);
 
     expect(result).toContain(TRUNC_MSG_START);
     // The actual length check is tricky due to formatting, but it should be around MAX_CHARS
@@ -145,7 +146,7 @@ describe("listDirectoryTool.execute", () => {
     await vault.createFolder("/test/project/empty_subdir");
 
     const params = { path: "/test/project/empty_subdir" };
-    const result = await listDirectoryTool.execute(params, toolExecOptions);
+    const result = await lsTool.execute(params, toolExecOptions);
     const expectedOutput = `- /test/project/empty_subdir/`;
     expect(result).toBe(expectedOutput);
   });

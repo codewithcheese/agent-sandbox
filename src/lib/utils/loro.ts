@@ -1,4 +1,4 @@
-import { LoroText, LoroTreeNode } from "loro-crdt";
+import { LoroText, LoroTreeNode } from "loro-crdt/base64";
 import { decodeBase64 } from "$lib/utils/base64.ts";
 
 export function text(node: LoroTreeNode): string | undefined {
