@@ -78,7 +78,7 @@ type EditToolOutput =
       meta?: any;
     };
 
-async function validateEditInput(
+async function validateInput(
   params: z.infer<typeof editInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
@@ -168,7 +168,7 @@ export async function execute(
 
   invariant(vault, "Vault not available in execution context.");
 
-  const validation = await validateEditInput(params, vault, config);
+  const validation = await validateInput(params, vault, config);
   if (!validation.result) {
     return {
       error: "Input Validation Failed",

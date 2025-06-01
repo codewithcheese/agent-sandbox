@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  execute as editToolExecute, // Assuming execute is exported from your edit.ts
-} from "../../../src/tools/files/edit"; // Adjust path
+import { execute as editToolExecute } from "../../../src/tools/files/edit";
 import {
   vault as mockVault,
   helpers as mockVaultHelpers,
 } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/files/types"; // Adjust path
+import type { ToolExecutionOptionsWithContext } from "../../../src/tools/files/types";
 import { invariant } from "@epic-web/invariant";
 import type { TFile } from "obsidian";
 import { escapeRegExp } from "$lib/utils/regexp.ts";

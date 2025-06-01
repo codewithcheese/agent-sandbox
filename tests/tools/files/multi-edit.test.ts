@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { execute as multiEditToolExecute } from "../../../src/tools/files/multi-edit.ts"; // Adjust path
+import { execute as multiEditToolExecute } from "../../../src/tools/files/multi-edit.ts";
 import {
   vault as mockVault,
   helpers as mockVaultHelpers,
 } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/files/types"; // Adjust path
+import type { ToolExecutionOptionsWithContext } from "../../../src/tools/files/types";
 import { invariant } from "@epic-web/invariant";
 import type { TFile } from "obsidian";
 

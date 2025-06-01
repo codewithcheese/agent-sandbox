@@ -1,15 +1,7 @@
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeEach,
-  afterEach,
-  expectTypeOf,
-} from "vitest";
-import { readTool, TOOL_NAME } from "../../../src/tools/files/read"; // Adjust path as needed
-import { vault as mockVault, helpers, MockTFile } from "../../mocks/obsidian";
-import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts"; // Assuming this is your overlay
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readTool } from "../../../src/tools/files/read";
+import { helpers, vault as mockVault } from "../../mocks/obsidian";
+import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/files/types.ts";
 import { invariant } from "@epic-web/invariant";
 import { encodeBase64 } from "$lib/utils/base64.ts";

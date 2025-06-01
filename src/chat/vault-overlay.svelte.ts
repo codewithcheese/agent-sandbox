@@ -135,8 +135,11 @@ export class VaultOverlay implements Vault {
     debug("getAbstractFileByPath", path);
     const proposedNode = this.proposedFS.findByPath(path);
     if (proposedNode) {
-      // If the file is tracked and exists, create a TFolder for it
-      return this.createAbstractFile(path);
+      // if the file is tracked and exists
+      return this.createAbstractFile(
+        path,
+        proposedNode.data.get(isDirectory) === true,
+      );
     }
 
     const trackingNode = this.trackingFS.findByPath(path);
@@ -158,7 +161,7 @@ export class VaultOverlay implements Vault {
   async create(
     path: string,
     data: string,
-    _options?: DataWriteOptions,
+    options?: DataWriteOptions,
   ): Promise<TFile> {
     path = normalizePath(path);
     // Prevent directory traversal – any ".." segment escapes the vault root.
@@ -179,6 +182,7 @@ export class VaultOverlay implements Vault {
       size: data.length,
       mtime: Date.now(),
       ctime: Date.now(),
+      ...(options ?? {}),
     };
 
     this.proposedFS.createNode(path, { text: data, stat });
@@ -190,7 +194,7 @@ export class VaultOverlay implements Vault {
   async createBinary(
     path: string,
     data: ArrayBuffer,
-    _options?: DataWriteOptions,
+    options?: DataWriteOptions,
   ): Promise<TFile> {
     path = normalizePath(path);
     // Prevent directory traversal – any ".." segment escapes the vault root.
@@ -211,6 +215,7 @@ export class VaultOverlay implements Vault {
       size: data.byteLength,
       mtime: Date.now(),
       ctime: Date.now(),
+      ...(options ?? {}),
     };
 
     this.proposedFS.createNode(path, { buffer: data, stat });
@@ -391,7 +396,7 @@ export class VaultOverlay implements Vault {
   async modify(
     file: TFile,
     data: string,
-    _options?: DataWriteOptions,
+    options?: DataWriteOptions,
   ): Promise<void> {
     const trackingNode = this.trackingFS.findByPath(file.path);
     const existsInVault = this.vault.getFileByPath(normalizePath(file.path));
@@ -401,14 +406,21 @@ export class VaultOverlay implements Vault {
     }
     let node = this.proposedFS.findByPath(file.path);
     if (!node) {
-      node = this.proposedFS.createNode(file.path, { text: data });
-    }
-    const text = node.data.get("text") as LoroText;
-    // Loro recommends updateByLine for texts > 50_000 characters).
-    if (data.length > 50_000) {
-      text.updateByLine(data);
+      const stat: FileStats = {
+        size: data.length,
+        mtime: Date.now(),
+        ctime: Date.now(),
+        ...(options ?? {}),
+      };
+      this.proposedFS.createNode(file.path, { text: data, stat });
     } else {
-      text.update(data);
+      const text = node.data.get("text") as LoroText;
+      // Loro recommends updateByLine for texts > 50_000 characters).
+      if (data.length > 50_000) {
+        text.updateByLine(data);
+      } else {
+        text.update(data);
+      }
     }
     // todo: test modifying a file in a path that was deleted
     this.proposedDoc.commit();
@@ -469,7 +481,7 @@ export class VaultOverlay implements Vault {
 
   private createTFolder(path: string): TFolder {
     path = normalizePath(path);
-    const abstractFile = this.createAbstractFile(path);
+    const abstractFile = this.createAbstractFile(path, true);
 
     const folderNode = this.proposedFS.findByPath(path);
     invariant(
@@ -516,7 +528,7 @@ export class VaultOverlay implements Vault {
 
   private createTFile(path: string, stat: FileStats): TFile {
     path = normalizePath(path);
-    const abstractFile = this.createAbstractFile(path);
+    const abstractFile = this.createAbstractFile(path, false);
 
     const lastSlash = path.lastIndexOf("/");
     const name = lastSlash === -1 ? path : path.substring(lastSlash + 1);
@@ -534,20 +546,29 @@ export class VaultOverlay implements Vault {
     });
   }
 
-  private createAbstractFile(path: string): TAbstractFile {
+  private createAbstractFile(
+    path: string,
+    isDirectory: boolean,
+  ): TAbstractFile {
     path = normalizePath(path);
-    const parentPath = dirname(path) || "/";
-    const name = basename(path);
+    let parentPath = dirname(path);
+    if (parentPath === ".") {
+      parentPath = "/";
+    }
+    const name = basename(path) || "/";
 
     // parent null if path is root
-    const parent = parentPath === "." ? null : this.getFolderByPath(parentPath);
+    const parent = parentPath === "/" ? null : this.getFolderByPath(parentPath);
 
-    return Object.assign(Object.create(TAbstractFile.prototype), {
-      vault: this as unknown as Vault,
-      path,
-      name,
-      parent,
-    });
+    return Object.assign(
+      Object.create(isDirectory ? TFolder.prototype : TFile.prototype),
+      {
+        vault: this as unknown as Vault,
+        path: path || "/",
+        name,
+        parent,
+      },
+    );
   }
 
   get adapter(): DataAdapter {
