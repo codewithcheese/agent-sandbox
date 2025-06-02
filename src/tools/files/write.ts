@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { tool } from "ai";
 import { normalizePath, TFile, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type { ToolExecutionOptionsWithContext } from "./types";
+import type {
+  ToolDefinition,
+  ToolExecutionOptionsWithContext,
+} from "../types.ts";
 import { invariant } from "@epic-web/invariant";
-import { basename } from "path-browserify";
 
 /**
  * Features:
@@ -145,8 +146,10 @@ export async function execute(
   }
 }
 
-export const writeTool = tool({
+export const writeTool: ToolDefinition = {
+  name: TOOL_NAME,
   description: TOOL_DESCRIPTION,
-  parameters: writeInputSchema,
+  prompt: TOOL_PROMPT_GUIDANCE,
+  inputSchema: writeInputSchema,
   execute,
-});
+};

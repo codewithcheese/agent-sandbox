@@ -73,7 +73,10 @@ export class MockTFolder implements TFolder {
     // Find all files that are direct children of this folder
     for (const [filePath] of fileSystem) {
       const normalizedFilePath = normalizePath(filePath);
-      if (normalizedFilePath.startsWith(folderPath + "/")) {
+      if (
+        (folderPath === "" && !normalizedFilePath.includes("/")) ||
+        normalizedFilePath.startsWith(folderPath + "/")
+      ) {
         const relativePath = normalizedFilePath.slice(folderPath.length + 1);
         // Only direct children (no additional slashes)
         if (!relativePath.includes("/")) {

@@ -315,13 +315,7 @@ export class VaultOverlay implements Vault {
     proposedNode = this.proposedFS.findByPath(file.path);
     invariant(proposedNode, `Cannot delete file not found: ${file.path} `);
 
-    let trashFolder = this.proposedFS.findByPath(trashPath);
-    invariant(
-      trashFolder,
-      `Trash folder not found, should be created during overlay init.`,
-    );
-    proposedNode.move(trashFolder);
-    proposedNode.data.set(deletedFrom, normalizePath(file.path));
+    this.proposedFS.trashNode(proposedNode, file.path);
     this.proposedDoc.commit();
     this.computeChanges();
   }
@@ -500,10 +494,29 @@ export class VaultOverlay implements Vault {
     Object.defineProperty(folder, "children", {
       get: () => {
         const children: TAbstractFile[] = [];
+        const seenPaths = new Set<string>();
+
+        // First, add overlay nodes (excluding deleted/trash)
         if (folderNode) {
           const childNodes = folderNode.children() || [];
           for (const childNode of childNodes) {
+            if (
+              childNode.data.get(deletedFrom) ||
+              childNode.data.get("name") === trashPath
+            ) {
+              continue;
+            }
+
+            const trackingNode = this.trackingFS.findById(childNode.id);
+            // If file was synced (not created in overlay), mark tracking path as seen
+            // If file was not synced (created in overlay), mark proposed path as seen
             const childPath = this.proposedFS.getNodePath(childNode);
+            seenPaths.add(
+              trackingNode
+                ? this.trackingFS.getNodePath(trackingNode)
+                : childPath,
+            );
+
             const isDir = childNode.data.get(isDirectory);
             if (isDir) {
               children.push(this.createTFolder(childPath));
@@ -517,6 +530,21 @@ export class VaultOverlay implements Vault {
             }
           }
         }
+
+        // Then, add vault files not already in overlay
+        const vaultFolder = this.vault.getFolderByPath(path);
+        if (vaultFolder) {
+          for (const child of vaultFolder.children) {
+            if (
+              !seenPaths.has(child.path) &&
+              !this.proposedFS.isDeleted(child.path)
+            ) {
+              child.vault = this as unknown as Vault; // Pass-through pattern
+              children.push(child);
+            }
+          }
+        }
+
         return children;
       },
       enumerable: true,

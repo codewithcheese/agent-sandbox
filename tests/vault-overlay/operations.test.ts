@@ -1,8 +1,7 @@
-import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { vault, helpers, MockTFile } from "../mocks/obsidian.ts";
-import type { TFile, Vault, TAbstractFile } from "obsidian";
+import { TFile, type Vault, type TAbstractFile, TFolder } from "obsidian";
 
 describe("VaultOverlay", () => {
   let overlay: VaultOverlay;
@@ -563,6 +562,231 @@ describe("VaultOverlay", () => {
       expect(deletedNode).toBeDefined();
 
       expect(deletedNode.parent().data.get("name")).toEqual(".overlay-trash");
+    });
+  });
+
+  describe("Folder Children Enumeration", () => {
+    it("should list all children including vault and overlay files", async () => {
+      // Create files in vault
+      helpers.addFile("folder/vault-file1.md", "vault content 1");
+      helpers.addFile("folder/vault-file2.md", "vault content 2");
+
+      // Create files in overlay
+      await overlay.create("folder/overlay-file1.md", "overlay content 1");
+      await overlay.create("folder/overlay-file2.md", "overlay content 2");
+
+      const folder = overlay.getFolderByPath("folder");
+      expect(folder).toBeTruthy();
+
+      const children = folder.children;
+      expect(children).toHaveLength(4);
+
+      const childPaths = children.map((child) => child.path).sort();
+      expect(childPaths).toEqual([
+        "folder/overlay-file1.md",
+        "folder/overlay-file2.md",
+        "folder/vault-file1.md",
+        "folder/vault-file2.md",
+      ]);
+    });
+
+    it("should not show deleted files in folder children", async () => {
+      // Create files in vault and overlay
+      helpers.addFile("folder/vault-file.md", "vault content");
+      await overlay.create("folder/overlay-file.md", "overlay content");
+
+      // Delete the vault file through overlay
+      const vaultFile = overlay.getFileByPath("folder/vault-file.md");
+      await overlay.delete(vaultFile);
+
+      const folder = overlay.getFolderByPath("folder");
+      const children = folder.children;
+
+      // Should only show the overlay file, not the deleted vault file
+      expect(children).toHaveLength(1);
+      expect(children[0].path).toBe("folder/overlay-file.md");
+    });
+
+    it("should not show .overlay-trash in root folder children", async () => {
+      // Create some files and delete one to ensure trash folder exists
+      await overlay.create("test.md", "content");
+      const file = overlay.getFileByPath("test.md");
+      await overlay.delete(file);
+
+      // Create some regular files in root
+      helpers.addFile("vault-file.md", "vault content");
+      await overlay.create("overlay-file.md", "overlay content");
+
+      const rootFolder = overlay.getFolderByPath("/");
+      const children = rootFolder.children;
+
+      // Should not include .overlay-trash folder
+      const childNames = children.map((child) => child.name);
+      expect(childNames).not.toContain(".overlay-trash");
+      expect(childNames).toContain("vault-file.md");
+      expect(childNames).toContain("overlay-file.md");
+    });
+
+    it("should show vault files not yet imported to overlay", async () => {
+      // Create files only in vault (not accessed through overlay yet)
+      helpers.addFile("folder/untouched-file1.md", "content 1");
+      helpers.addFile("folder/untouched-file2.md", "content 2");
+      helpers.addFile("folder/untouched-file3.md", "content 3");
+
+      const folder = overlay.getFolderByPath("folder");
+      const children = folder.children;
+
+      expect(children).toHaveLength(3);
+
+      const childPaths = children.map((child) => child.path).sort();
+      expect(childPaths).toEqual([
+        "folder/untouched-file1.md",
+        "folder/untouched-file2.md",
+        "folder/untouched-file3.md",
+      ]);
+
+      // Verify these files still have vault references updated to overlay
+      children.forEach((child) => {
+        expect(child.vault).toBe(overlay);
+      });
+    });
+
+    it("should handle mixed scenarios with overlays, vault files, and deletions", async () => {
+      // Create files in vault
+      helpers.addFile("folder/vault-file1.md", "vault 1");
+      helpers.addFile("folder/vault-file2.md", "vault 2");
+      helpers.addFile("folder/vault-file3.md", "vault 3");
+
+      // Create files in overlay
+      await overlay.create("folder/overlay-file1.md", "overlay 1");
+      await overlay.create("folder/overlay-file2.md", "overlay 2");
+
+      // Modify a vault file through overlay
+      const vaultFile2 = overlay.getFileByPath("folder/vault-file2.md");
+      await overlay.modify(vaultFile2, "modified vault 2");
+
+      // Delete a vault file through overlay
+      const vaultFile3 = overlay.getFileByPath("folder/vault-file3.md");
+      await overlay.delete(vaultFile3);
+
+      const folder = overlay.getFolderByPath("folder");
+      const children = folder.children;
+
+      // Should show: vault-file1 (untouched), vault-file2 (modified), overlay-file1, overlay-file2
+      // Should not show: vault-file3 (deleted)
+      expect(children).toHaveLength(4);
+
+      const childPaths = children.map((child) => child.path).sort();
+      expect(childPaths).toEqual([
+        "folder/overlay-file1.md",
+        "folder/overlay-file2.md",
+        "folder/vault-file1.md",
+        "folder/vault-file2.md",
+      ]);
+    });
+
+    it("should handle nested folder structures", async () => {
+      // Create nested structure in vault
+      helpers.addFile("parent/child1/vault-file.md", "vault content");
+      helpers.addFile("parent/child2/vault-file.md", "vault content");
+
+      // Create nested structure in overlay
+      await overlay.create("parent/child1/overlay-file.md", "overlay content");
+      await overlay.create("parent/child3/overlay-file.md", "overlay content");
+
+      const parentFolder = overlay.getFolderByPath("parent");
+      const parentChildren = parentFolder.children;
+
+      // Should show child1, child2, child3 folders
+      expect(parentChildren).toHaveLength(3);
+
+      const childFolderNames = parentChildren
+        .filter(
+          (child) => child instanceof TFolder || child.name !== child.path,
+        )
+        .map((child) => child.name)
+        .sort();
+      expect(childFolderNames).toEqual(["child1", "child2", "child3"]);
+
+      // Check child1 contents
+      const child1Folder = overlay.getFolderByPath("parent/child1");
+      const child1Children = child1Folder.children;
+      expect(child1Children).toHaveLength(2);
+
+      const child1FileNames = child1Children.map((child) => child.name).sort();
+      expect(child1FileNames).toEqual(["overlay-file.md", "vault-file.md"]);
+    });
+
+    it("should handle empty folders correctly", async () => {
+      // Create empty folder in overlay
+      await overlay.createFolder("empty-overlay-folder");
+
+      // Create folder with files in vault, then delete all files
+      helpers.addFile("empty-vault-folder/file1.md", "content");
+      helpers.addFile("empty-vault-folder/file2.md", "content");
+
+      const file1 = overlay.getFileByPath("empty-vault-folder/file1.md");
+      const file2 = overlay.getFileByPath("empty-vault-folder/file2.md");
+      await overlay.delete(file1);
+      await overlay.delete(file2);
+
+      // Test empty overlay folder
+      const emptyOverlayFolder = overlay.getFolderByPath(
+        "empty-overlay-folder",
+      );
+      expect(emptyOverlayFolder.children).toHaveLength(0);
+
+      // Test "empty" vault folder (all files deleted)
+      const emptyVaultFolder = overlay.getFolderByPath("empty-vault-folder");
+      expect(emptyVaultFolder.children).toHaveLength(0);
+    });
+
+    it("should maintain consistent behavior between direct file access and folder enumeration", async () => {
+      // Create mixed content
+      helpers.addFile("folder/vault-file.md", "vault content");
+      await overlay.create("folder/overlay-file.md", "overlay content");
+
+      const folder = overlay.getFolderByPath("folder");
+      const children = folder.children;
+
+      // Verify each child can be accessed directly
+      for (const child of children) {
+        const directAccess = overlay.getFileByPath(child.path);
+        expect(directAccess).toBeTruthy();
+        expect(directAccess.path).toBe(child.path);
+        expect(directAccess.name).toBe(child.name);
+
+        if (directAccess instanceof TFile) {
+          // Should be able to read the file
+          const content = await overlay.read(directAccess);
+          expect(content).toBeTruthy();
+        }
+      }
+    });
+
+    it("should handle folder enumeration with renamed files", async () => {
+      // Create files
+      helpers.addFile("folder/original.md", "content");
+      await overlay.create("folder/overlay-original.md", "overlay content");
+
+      // Rename files
+      const vaultFile = overlay.getFileByPath("folder/original.md");
+      await overlay.rename(vaultFile, "folder/renamed.md");
+
+      const overlayFile = overlay.getFileByPath("folder/overlay-original.md");
+      await overlay.rename(overlayFile, "folder/overlay-renamed.md");
+
+      const folder = overlay.getFolderByPath("folder");
+      const children = folder.children;
+
+      expect(children).toHaveLength(2);
+
+      const childNames = children.map((child) => child.name).sort();
+      expect(childNames).toEqual(["overlay-renamed.md", "renamed.md"]);
+
+      // Verify old names are not accessible
+      expect(overlay.getFileByPath("folder/original.md")).toBeNull();
+      expect(overlay.getFileByPath("folder/overlay-original.md")).toBeNull();
     });
   });
 });

@@ -79,7 +79,7 @@
   let textareaRef: HTMLTextAreaElement | null = null;
 
   let countChanges = $derived(
-    chat.vaultOverlay.changes.filter((c) => c.type !== "identical").length,
+    chat.vault.changes.filter((c) => c.type !== "identical").length,
   );
 
   // Set text to edit content when edit mode starts

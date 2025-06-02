@@ -2,12 +2,14 @@ import { z } from "zod";
 import { tool } from "ai";
 import { normalizePath, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type { ToolExecutionOptionsWithContext } from "./types";
+import type {
+  ToolDefinition,
+  ToolExecutionOptionsWithContext,
+} from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
 
 /**
- *
  * Features:
  * - Replaces specific occurrences of `old_string` with `new_string` in an existing file.
  * - Expects absolute paths within the vault (e.g., "/folder/file.md").
@@ -220,8 +222,10 @@ export async function execute(
   }
 }
 
-export const editTool = tool({
+export const editTool: ToolDefinition = {
+  name: TOOL_NAME,
   description: TOOL_DESCRIPTION,
-  parameters: editInputSchema,
+  prompt: TOOL_PROMPT_GUIDANCE,
+  inputSchema: editInputSchema,
   execute,
-});
+};

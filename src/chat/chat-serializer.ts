@@ -78,7 +78,7 @@ export class ChatSerializer {
         id: chat.id,
         messages: chat.messages,
         toolRequests: chat.toolRequests,
-        overlay: chat.vaultOverlay.snapshot(),
+        overlay: chat.vault.snapshot(),
         options: chat.options,
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,

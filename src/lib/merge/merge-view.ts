@@ -56,7 +56,7 @@ export class MergeView extends ItemView {
       normalizePath(this.state.change.path),
     );
     const ogContent = await this.app.vault.adapter.read(file.path);
-    const newContent = await chat.vaultOverlay.read(file);
+    const newContent = await chat.vault.read(file);
 
     debug(`${this.state.change.path} content on disk`, ogContent);
     debug(`${this.state.change.path} modified content`, newContent);
@@ -75,15 +75,15 @@ export class MergeView extends ItemView {
           //   this.state.change.path,
           //   resolvedContent,
           // );
-          chat.vaultOverlay.approve([
+          chat.vault.approve([
             { id: this.state.change.id, contents: resolvedContent },
           ]);
           // chat.vaultOverlay.approveModify(file.path, resolvedContent);
           // if some changes are remaining then apply them to the overlay
           if (resolvedContent !== pendingContent) {
-            await chat.vaultOverlay.modify(file, pendingContent);
+            await chat.vault.modify(file, pendingContent);
           }
-          debug("Remaining changes", chat.vaultOverlay.getFileChanges());
+          debug("Remaining changes", chat.vault.getFileChanges());
           await chat.save();
 
           const remaining = diff.createPatch(

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { readTool } from "../../../src/tools/files/read";
+import { execute as readToolExecute } from "../../../src/tools/files/read";
 import { helpers, vault as mockVault } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/files/types.ts";
+import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 
-describe("readTool.execute", () => {
+describe("readToolExecute", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
@@ -41,7 +41,7 @@ describe("readTool.execute", () => {
   // --- Input Validation Tests ---
   it("should return error if file does not exist", async () => {
     const params = { file_path: "/nonexistent.txt" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     invariant(typeof result !== "string", "Expected error object");
     expect(result.error).toBe("Input Validation Failed");
     expect(result.message).toContain("File does not exist");
@@ -50,7 +50,7 @@ describe("readTool.execute", () => {
   it("should return error if path is a directory", async () => {
     await vault.createFolder("/test/is_a_directory");
     const params = { file_path: "/test/is_a_directory" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     invariant(typeof result !== "string", "Expected error object");
     expect(result.error).toBe("Input Validation Failed");
     expect(result.message).toContain("Path is a directory");
@@ -59,7 +59,7 @@ describe("readTool.execute", () => {
   it("should return error for disallowed binary files", async () => {
     await vault.createBinary(`/test/binary.exe`, new ArrayBuffer(10));
     const params = { file_path: `/test/binary.exe` };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     invariant(typeof result !== "string", "Expected error object");
     expect(result.error).toBe("Input Validation Failed");
     expect(result.message).toContain(`cannot read binary files of type .exe`);
@@ -68,7 +68,7 @@ describe("readTool.execute", () => {
   it("should return error for empty image files", async () => {
     await vault.createBinary(`/test/empty_image.png`, new ArrayBuffer(0));
     const params = { file_path: `/test/empty_image.png` };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     invariant(typeof result !== "string", "Expected error object");
     expect(result.error).toBe("Input Validation Failed");
     expect(result.message).toContain("Empty image files cannot be processed");
@@ -85,7 +85,7 @@ describe("readTool.execute", () => {
         config: { MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT: 10 },
       }),
     };
-    const result = await readTool.execute(params, options);
+    const result = await readToolExecute(params, options);
     invariant(typeof result !== "string", "Expected error object");
     expect(result.error).toBe("Input Validation Failed");
     expect(result.message).toContain("exceeds maximum allowed size");
@@ -96,7 +96,7 @@ describe("readTool.execute", () => {
     const shortContent = "a".repeat(10) + "\n" + "b".repeat(10);
     await vault.create("/test/short.txt", shortContent);
     const params = { file_path: "/test/short.txt" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
 
     const lines = shortContent.split("\n");
     const numberedContent = lines
@@ -115,14 +115,14 @@ describe("readTool.execute", () => {
   it("should handle empty text file", async () => {
     await vault.create("/test/empty.txt", "");
     const params = { file_path: "/test/empty.txt" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     expect(result).toContain("empty");
   });
 
   it("should handle out of bounds text file", async () => {
     await vault.create("/test/empty.txt", "");
     const params = { file_path: "/test/empty.txt", offset: 100 };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     expect(result).toContain("out of bounds");
   });
 
@@ -140,7 +140,7 @@ describe("readTool.execute", () => {
         config: { MAX_LINE_LENGTH },
       }),
     };
-    const result = await readTool.execute(params, options);
+    const result = await readToolExecute(params, options);
     invariant(
       typeof result === "string",
       `Expected result to be string. Got: ${JSON.stringify(result)}`,
@@ -161,7 +161,7 @@ describe("readTool.execute", () => {
 
     await vault.create("/test/manylines.txt", manyLinesContent);
     const params = { file_path: "/test/manylines.txt", offset: 3, limit: 2 };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
 
     const allLines = manyLinesContent.split("\n");
     const selected = allLines.slice(2, 4); // offset 3 is index 2, limit 2
@@ -182,14 +182,14 @@ describe("readTool.execute", () => {
     const shortContent = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
     await vault.create("/test/short.txt", shortContent);
     const params = { file_path: "/test/short.txt", offset: 10, limit: 5 };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     expect(result).toContain("out of bounds");
   });
 
   it("should handle limit exceeding available lines after offset", async () => {
     await vault.create("/test/short.txt", "L1\nL2\nL3\nL4\nL5");
     const params = { file_path: "/test/short.txt", offset: 4, limit: 5 }; // 5 lines total, offset 4 means lines 4, 5
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
 
     const allLines = "L1\nL2\nL3\nL4\nL5".split("\n");
     const selected = allLines.slice(3); // offset 4 is index 3
@@ -220,7 +220,7 @@ describe("readTool.execute", () => {
         },
       }),
     };
-    const result = await readTool.execute(params, options);
+    const result = await readToolExecute(params, options);
 
     invariant(
       typeof result === "string",
@@ -235,7 +235,7 @@ describe("readTool.execute", () => {
     await vault.createBinary("/test/image.png", data);
 
     const params = { file_path: "/test/image.png" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
 
     invariant(
       typeof result === "object",
@@ -261,7 +261,7 @@ describe("readTool.execute", () => {
         config: { MAX_IMAGE_SIZE_BYTES },
       }),
     };
-    const result = await readTool.execute(params, options);
+    const result = await readToolExecute(params, options);
 
     invariant(
       typeof result === "object",
@@ -277,7 +277,7 @@ describe("readTool.execute", () => {
     await vault.create("/test/abort_target.txt", "L1\nL2\nL3\nL4\nL5");
     mockAbortController.abort();
     const params = { file_path: "/test/abort_target.txt" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     invariant(
       typeof result !== "string",
       "Expected error object. Got: " + result,
@@ -289,7 +289,7 @@ describe("readTool.execute", () => {
     mockAbortController.abort();
     await vault.createBinary("/test/abort_image.png", new ArrayBuffer(100));
     const params = { file_path: "/test/abort_image.png" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     invariant(
       typeof result !== "string",
       "Expected error object. Got: " + result,
@@ -301,7 +301,7 @@ describe("readTool.execute", () => {
   it("should handle file path with spaces", async () => {
     await vault.create("/test/file with spaces.txt", "content");
     const params = { file_path: "/test/file with spaces.txt" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     const numberedContent = `${String(1).padStart(6)}  content`;
     const expected = formatExpectedTextOutput(
       "/test/file with spaces.txt",
@@ -316,7 +316,7 @@ describe("readTool.execute", () => {
   it("should handle file with only newlines", async () => {
     await vault.create("/test/newlines.txt", "\n\n\n");
     const params = { file_path: "/test/newlines.txt" };
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     const numberedContent = [
       `${String(1).padStart(6)}  `,
       `${String(2).padStart(6)}  `,
@@ -336,7 +336,7 @@ describe("readTool.execute", () => {
   it("should correctly handle 1-indexed offset and limit", async () => {
     await vault.create("/test/offset_test.txt", "L1\nL2\nL3\nL4\nL5");
     const params = { file_path: "/test/offset_test.txt", offset: 2, limit: 2 }; // Read L2, L3
-    const result = await readTool.execute(params, toolExecOptions);
+    const result = await readToolExecute(params, toolExecOptions);
     const numberedContent = [
       `${String(2).padStart(6)}  L2`,
       `${String(3).padStart(6)}  L3`,

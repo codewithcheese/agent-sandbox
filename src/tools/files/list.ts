@@ -1,14 +1,15 @@
 import { z } from "zod";
-import { tool, type ToolExecutionOptions } from "ai";
 import { relative, sep, join, basename } from "path-browserify";
 import { minimatch } from "minimatch";
 import { createDebug } from "$lib/debug.ts";
 import { type Vault, type TAbstractFile, normalizePath } from "obsidian";
 import { TFolder, TFile } from "obsidian";
-import type { ToolExecutionOptionsWithContext } from "./types.ts";
+import type {
+  ToolDefinition,
+  ToolExecutionOptionsWithContext,
+} from "../types.ts";
 
 /**
- *
  * Features:
  * - Lists contents of a directory specified by an absolute path within the vault (e.g., "/folder/notes").
  * - If no path is provided, or "." is used, it lists contents of the vault's root directory.
@@ -33,14 +34,23 @@ export interface FileSystemNode {
 
 const debug = createDebug();
 
-export const TOOL_NAME = "LS";
+export const TOOL_NAME = "List";
 export const TOOL_DESCRIPTION =
   "Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search.";
+export const TOOL_PROMPT_GUIDANCE = `Lists files and directories in a hierarchical tree structure.
+
+Usage:
+- The 'path' parameter must be an absolute path within the vault (e.g., "/folder/notes").
+- The 'ignore' parameter is optional and accepts an array of glob patterns to exclude.
+- Output shows directories with trailing "/" and files without.
+- Hidden files/folders (starting with '.') are ignored by default.
+- Large outputs are truncated to improve readability.
+- Generally prefer using Glob or Grep tools when you know specific directories to search.`;
 export const MAX_OUTPUT_CHARS = 40000;
 export const TRUNCATION_MESSAGE = `There are more than ${MAX_OUTPUT_CHARS} characters in the vault (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), and other tools to explore nested directories. The first ${MAX_OUTPUT_CHARS} characters are included below:\n\n`;
 export const DEFAULT_IGNORE_PATTERNS = [];
 
-const lsInputSchema = z.strictObject({
+const inputSchema = z.strictObject({
   path: z
     .string()
     .describe(
@@ -68,13 +78,15 @@ function listDirectoryContentsRecursive(
 
   function isIgnored(itemPath: string, relativeItemPath: string): boolean {
     const itemName = basename(itemPath);
-    
+
     // Check if any part of the path starts with a dot
     const pathParts = relativeItemPath.split(sep);
-    if (pathParts.some(part => part.startsWith("."))) return true;
+    if (pathParts.some((part) => part.startsWith("."))) return true;
 
     return effectiveIgnorePatterns.some((pattern) => {
-      return minimatch(relativeItemPath, pattern) || minimatch(itemName, pattern);
+      return (
+        minimatch(relativeItemPath, pattern) || minimatch(itemName, pattern)
+      );
     });
   }
 
@@ -213,48 +225,55 @@ function buildFileTree(paths: string[]): FileSystemNode[] {
   return rootNodes;
 }
 
-export const lsTool = tool({
-  description: TOOL_DESCRIPTION,
-  parameters: lsInputSchema,
+export async function execute(
+  params: z.infer<typeof inputSchema>,
+  options: ToolExecutionOptionsWithContext,
+) {
+  const { getContext, abortSignal } = options;
+  const { vault } = getContext();
 
-  execute: async (params, options: ToolExecutionOptionsWithContext) => {
-    const { getContext, abortSignal } = options;
+  debug("Executing list tool", params);
 
-    const { vault } = getContext();
+  try {
+    const targetPath = normalizePath(params.path);
+    const ignorePatterns = params.ignore || [];
 
-    try {
-      const targetPath = normalizePath(params.path);
-      const ignorePatterns = params.ignore || [];
+    const listedFilesArray = listDirectoryContentsRecursive(
+      targetPath,
+      abortSignal,
+      vault,
+      ignorePatterns,
+    );
 
-      const listedFilesArray = listDirectoryContentsRecursive(
-        targetPath,
-        abortSignal,
-        vault,
-        ignorePatterns,
-      );
-
-      if (abortSignal.aborted) {
-        return JSON.stringify({ error: "Operation aborted by user." });
-      }
-
-      const fileNodes = buildFileTree(listedFilesArray);
-      const formattedTreeString = formatFileTree(targetPath, fileNodes);
-
-      let resultData: string;
-      if (formattedTreeString.length < MAX_OUTPUT_CHARS) {
-        resultData = formattedTreeString;
-      } else {
-        // Truncate the formatted string itself if it's too long
-        resultData = `${TRUNCATION_MESSAGE}${formattedTreeString.substring(0, MAX_OUTPUT_CHARS - TRUNCATION_MESSAGE.length)}`;
-      }
-
-      return resultData.trimEnd();
-    } catch (e) {
-      console.error(`Error executing LS tool for path '${params.path}':`, e);
-      return {
-        error: "Tool execution failed",
-        message: e instanceof Error ? e.message : String(e),
-      };
+    if (abortSignal.aborted) {
+      return JSON.stringify({ error: "Operation aborted by user." });
     }
-  },
-});
+
+    const fileNodes = buildFileTree(listedFilesArray);
+    const formattedTreeString = formatFileTree(targetPath, fileNodes);
+
+    let resultData: string;
+    if (formattedTreeString.length < MAX_OUTPUT_CHARS) {
+      resultData = formattedTreeString;
+    } else {
+      // Truncate the formatted string itself if it's too long
+      resultData = `${TRUNCATION_MESSAGE}${formattedTreeString.substring(0, MAX_OUTPUT_CHARS - TRUNCATION_MESSAGE.length)}`;
+    }
+
+    return resultData.trimEnd();
+  } catch (e) {
+    console.error(`Error executing LS tool for path '${params.path}':`, e);
+    return {
+      error: "Tool execution failed",
+      message: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+export const listTool: ToolDefinition = {
+  name: TOOL_NAME,
+  description: TOOL_DESCRIPTION,
+  prompt: TOOL_PROMPT_GUIDANCE,
+  inputSchema,
+  execute,
+};

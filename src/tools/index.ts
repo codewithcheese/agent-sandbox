@@ -1,22 +1,39 @@
-import type { UIMessage, Tool, CoreMessage, ToolExecutionOptions } from "ai";
+import type { Tool, ToolExecutionOptions, UIMessage } from "ai";
+import { tool } from "ai";
 import {
   jsonSchema,
   type ToolInvocation,
   type ToolInvocationUIPart,
 } from "@ai-sdk/ui-utils";
-import { type CachedMetadata, Notice, type TFile, Vault } from "obsidian";
+import { type CachedMetadata, type TFile, Vault } from "obsidian";
 import { usePlugin } from "$lib/utils";
-import { tool } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
 import { textEditor } from "./execute.ts";
 import { resolveInternalLink } from "../lib/utils/obsidian";
 import { getListFromFrontmatter } from "../lib/utils/frontmatter";
-import { extractCodeBlockContent } from "$lib/utils/codeblocks.ts";
 import type { Chat } from "../chat/chat.svelte.ts";
 import type { AIProviderId } from "../settings/providers";
 import { createDebug } from "$lib/debug.ts";
+import { readTool } from "./files/read.ts";
+import { writeTool } from "./files/write.ts";
+import { editTool } from "./files/edit.ts";
+import { multiEditTool } from "./files/multi-edit.ts";
+import { globTool } from "./files/glob.ts";
+import { searchTool } from "./files/search.ts";
+import type { ToolDefinition } from "./types.ts";
+import { listTool } from "./files/list.ts";
 
 const debug = createDebug();
+
+export const toolRegistry: Record<string, ToolDefinition> = {
+  // str_replace_editor: {},
+  list: listTool,
+  read: readTool,
+  write: writeTool,
+  edit: editTool,
+  multi_edit: multiEditTool,
+  glob: globTool,
+  search: searchTool,
+};
 
 export type VaultTool = BuiltinTool | ImportVaultTool | CodeVaultTool;
 
@@ -77,155 +94,177 @@ export function getToolCall(message: UIMessage, toolCallId: string) {
     | undefined;
 }
 
-export async function parseToolDefinition(file: TFile): Promise<VaultTool> {
+export async function parseToolDefinition(
+  file: TFile,
+): Promise<ToolDefinition> {
   const plugin = usePlugin();
 
   const metadata = plugin.app.metadataCache.getFileCache(file);
 
-  if (
-    !(
-      metadata.frontmatter &&
-      "name" in metadata.frontmatter &&
-      "description" in metadata.frontmatter
-    )
-  ) {
-    throw Error(
-      `Invalid tool definition in ${file.path}. Missing frontmatter fields: name, description`,
-    );
-  }
+  // if (
+  //   !(
+  //     metadata.frontmatter &&
+  //     "name" in metadata.frontmatter &&
+  //     "description" in metadata.frontmatter
+  //   )
+  // ) {
+  //   throw Error(
+  //     `Invalid tool definition in ${file.path}. Missing frontmatter fields: name, description`,
+  //   );
+  // }
 
   // Special case for str_replace_editor (Anthropic's text editor tool)
-  if (metadata.frontmatter.name === "str_replace_editor") {
-    let schema: Record<string, any> | undefined = undefined;
+  // if (metadata.frontmatter.name === "str_replace_editor") {
+  //   let schema: Record<string, any> | undefined = undefined;
+  //
+  //   const content = await plugin.app.vault.read(file);
+  //   const cache = plugin.app.metadataCache.getFileCache(file);
+  //
+  //   const codeBlocks =
+  //     cache.sections?.filter((section) => section.type === "code") || [];
+  //
+  //   if (codeBlocks.length > 0) {
+  //     const schemaBlock = content.slice(
+  //       codeBlocks[0].position.start.offset,
+  //       codeBlocks[0].position.end.offset,
+  //     );
+  //     const schemaText = extractCodeBlockContent(schemaBlock, 0, file.path);
+  //     if (schemaText) {
+  //       schema = JSON.parse(schemaText);
+  //     }
+  //   }
+  //
+  //   return {
+  //     type: "built-in",
+  //     name: metadata.frontmatter.name,
+  //     description: metadata.frontmatter.description,
+  //     file,
+  //     schema,
+  //   };
+  // }
 
-    const content = await plugin.app.vault.read(file);
-    const cache = plugin.app.metadataCache.getFileCache(file);
-
-    const codeBlocks =
-      cache.sections?.filter((section) => section.type === "code") || [];
-
-    if (codeBlocks.length > 0) {
-      const schemaBlock = content.slice(
-        codeBlocks[0].position.start.offset,
-        codeBlocks[0].position.end.offset,
-      );
-      const schemaText = extractCodeBlockContent(schemaBlock, 0, file.path);
-      if (schemaText) {
-        schema = JSON.parse(schemaText);
-      }
-    }
-
-    return {
-      type: "built-in",
-      name: metadata.frontmatter.name,
-      description: metadata.frontmatter.description,
-      file,
-      schema,
-    };
-  }
-
-  let importName: string | null = null;
-  if ("import" in metadata.frontmatter) {
-    importName = metadata.frontmatter["import"];
-
-    // Validate that it's just a function name without path
-    if (importName && (importName.includes(":") || importName.includes("/"))) {
-      throw new Error(
-        `Invalid import format in ${file.path}: ${importName}. Expected format: functionName`,
-      );
-    }
-  }
-
-  const content = await plugin.app.vault.read(file);
-  const cache = plugin.app.metadataCache.getFileCache(file);
-
-  const codeBlocks = cache.sections.filter(
-    (section) => section.type === "code",
-  );
-
-  let schemaText: string | null = null;
-  if (codeBlocks.length > 0) {
-    const schemaBlock = content.slice(
-      codeBlocks[0].position.start.offset,
-      codeBlocks[0].position.end.offset,
-    );
-    schemaText = extractCodeBlockContent(schemaBlock, 0, file.path);
-  }
-
-  let code: string | null = null;
-  if (codeBlocks.length > 1) {
-    const codeBlock = content.slice(
-      codeBlocks[1].position.start.offset,
-      codeBlocks[1].position.end.offset,
-    );
-    code = extractCodeBlockContent(codeBlock, 1, file.path);
-  }
-
-  if (schemaText && code) {
-    return {
-      type: "code",
-      name: metadata.frontmatter.name,
-      description: metadata.frontmatter.description,
-      schema: JSON.parse(schemaText),
-      code,
-      file,
-    };
-  } else if (schemaText && importName) {
-    return {
-      type: "import",
-      name: metadata.frontmatter.name,
-      description: metadata.frontmatter.description,
-      schema: JSON.parse(schemaText),
-      import: importName,
-      file,
-    };
-  } else {
-    throw new Error(
-      `Tool ${file.name} must have a schema and either code or import specified`,
+  if (!("import" in metadata.frontmatter)) {
+    throw Error(
+      `Invalid tool definition in ${file.path}. Missing frontmatter field: import`,
     );
   }
+
+  const importName = metadata.frontmatter["import"];
+
+  if (!(importName in toolRegistry)) {
+    throw Error(
+      `Invalid tool definition in ${file.path}. No tool matching import: ${importName}`,
+    );
+  }
+
+  return toolRegistry[importName];
+  //
+  // let importName: string | null = null;
+  // if ("import" in metadata.frontmatter) {
+  //   importName = metadata.frontmatter["import"];
+  //
+  //   // Validate that it's just a function name without path
+  //   if (importName && (importName.includes(":") || importName.includes("/"))) {
+  //     throw new Error(
+  //       `Invalid import format in ${file.path}: ${importName}. Expected format: functionName`,
+  //     );
+  //   }
+  // }
+  //
+  // const content = await plugin.app.vault.read(file);
+  // const cache = plugin.app.metadataCache.getFileCache(file);
+  //
+  // const codeBlocks = cache.sections.filter(
+  //   (section) => section.type === "code",
+  // );
+  //
+  // let schemaText: string | null = null;
+  // if (codeBlocks.length > 0) {
+  //   const schemaBlock = content.slice(
+  //     codeBlocks[0].position.start.offset,
+  //     codeBlocks[0].position.end.offset,
+  //   );
+  //   schemaText = extractCodeBlockContent(schemaBlock, 0, file.path);
+  // }
+  //
+  // let code: string | null = null;
+  // if (codeBlocks.length > 1) {
+  //   const codeBlock = content.slice(
+  //     codeBlocks[1].position.start.offset,
+  //     codeBlocks[1].position.end.offset,
+  //   );
+  //   code = extractCodeBlockContent(codeBlock, 1, file.path);
+  // }
+  //
+  // if (schemaText && code) {
+  //   return {
+  //     type: "code",
+  //     name: metadata.frontmatter.name,
+  //     description: metadata.frontmatter.description,
+  //     schema: JSON.parse(schemaText),
+  //     code,
+  //     file,
+  //   };
+  // } else if (schemaText && importName) {
+  //   return {
+  //     type: "import",
+  //     name: metadata.frontmatter.name,
+  //     description: metadata.frontmatter.description,
+  //     schema: JSON.parse(schemaText),
+  //     import: importName,
+  //     file,
+  //   };
+  // } else {
+  //   throw new Error(
+  //     `Tool ${file.name} must have a schema and either code or import specified`,
+  //   );
+  // }
 }
 
 /**
  * Creates an AI SDK tool from a vault tool definition
  */
 export async function createTool(
-  vaultTool: VaultTool,
-  chat: Chat,
+  toolDef: ToolDefinition,
+  context: { vault: Vault; config: Record<string, any> },
   providerId?: AIProviderId,
 ) {
   // Special case for Anthropic text editor tool
-  if (vaultTool.type === "built-in") {
-    if (vaultTool.name === "str_replace_editor") {
-      // Use Anthropic's built-in text editor if the model provider is Anthropic
-      if (!providerId || providerId === "anthropic") {
-        return anthropic.tools.textEditor_20250124({
-          execute: await createExecutor(vaultTool, chat),
-        });
-      } else if (vaultTool.schema) {
-        // For other model providers, use the schema-based approach if schema is available
-        return tool({
-          description: vaultTool.description,
-          // @ts-expect-error jsonSchema type not compatible with parameters
-          parameters: jsonSchema(vaultTool.schema),
-          execute: await createExecutor(vaultTool, chat),
-        });
-      } else {
-        // If no schema is available for fallback, throw an error
-        throw new Error(
-          `Text Editor tool requires a schema for non-Anthropic models. Please add a schema to ${vaultTool.file.path}`,
-        );
-      }
-    } else {
-      throw new Error(`Unsupported builtin tool type: ${vaultTool["name"]}`);
-    }
-  }
+  // if (vaultTool.type === "built-in") {
+  //   if (vaultTool.name === "str_replace_editor") {
+  //     // Use Anthropic's built-in text editor if the model provider is Anthropic
+  //     if (!providerId || providerId === "anthropic") {
+  //       return anthropic.tools.textEditor_20250124({
+  //         execute: await createExecutor(vaultTool, chat),
+  //       });
+  //     } else if (vaultTool.schema) {
+  //       // For other model providers, use the schema-based approach if schema is available
+  //       return tool({
+  //         description: vaultTool.description,
+  //         // @ts-expect-error jsonSchema type not compatible with parameters
+  //         parameters: jsonSchema(vaultTool.schema),
+  //         execute: await createExecutor(vaultTool, chat),
+  //       });
+  //     } else {
+  //       // If no schema is available for fallback, throw an error
+  //       throw new Error(
+  //         `Text Editor tool requires a schema for non-Anthropic models. Please add a schema to ${vaultTool.file.path}`,
+  //       );
+  //     }
+  //   } else {
+  //     throw new Error(`Unsupported builtin tool type: ${vaultTool["name"]}`);
+  //   }
+  // }
 
   return tool({
-    description: vaultTool.description,
+    description: toolDef.description,
     // @ts-expect-error jsonSchema type not compatible with parameters
-    parameters: jsonSchema(vaultTool.schema),
-    execute: await createExecutor(vaultTool, chat),
+    parameters:
+      typeof toolDef.inputSchema === "string"
+        ? jsonSchema(toolDef.inputSchema)
+        : toolDef.inputSchema,
+    execute: (params, options) =>
+      toolDef.execute(params, { ...options, getContext: () => context }),
   });
 }
 
@@ -277,7 +316,7 @@ async function createExecutor(
     if (vaultTool.name === "str_replace_editor") {
       return async (params: any, options) => {
         debug('Executing "str_replace_editor" tool', params, options);
-        return textEditor(params, { ...options, vault: chat.vaultOverlay });
+        return textEditor(params, { ...options, vault: chat.vault });
       };
     } else {
       throw new Error(`Unknown builtin tool: ${vaultTool["name"]}`);
@@ -309,7 +348,11 @@ export async function loadAllTools(
   const tools: Record<string, Tool> = {};
   for (const file of toolFiles) {
     const toolDef = await parseToolDefinition(file);
-    tools[toolDef.name] = await createTool(toolDef, chat, providerId);
+    tools[toolDef.name] = await createTool(
+      toolDef,
+      { vault: chat.vault, config: {} },
+      providerId,
+    );
   }
   return tools;
 }
@@ -321,16 +364,18 @@ export async function loadToolsFromFrontmatter(
 ) {
   const plugin = usePlugin();
   const tools: Record<string, Tool> = {};
-
   const toolLinks = getListFromFrontmatter(metadata, "tools");
-
   for (const toolLink of toolLinks) {
     const toolFile = resolveInternalLink(toolLink, plugin);
     if (!toolFile) {
       throw Error(`Failed to resolve tool link: ${toolLink}`);
     }
     const toolDef = await parseToolDefinition(toolFile);
-    tools[toolDef.name] = await createTool(toolDef, chat, providerId);
+    tools[toolDef.name] = await createTool(
+      toolDef,
+      { vault: chat.vault, config: {} },
+      providerId,
+    );
   }
 
   return tools;
@@ -339,33 +384,21 @@ export async function loadToolsFromFrontmatter(
 export async function executeToolInvocation(
   toolInvocation: ToolInvocation,
   chat: Chat,
-  providerId?: AIProviderId,
 ) {
-  const plugin = usePlugin();
-
-  // todo: replace with setting
-  const toolsDir = plugin.app.vault.getAbstractFileByPath("tools");
-  if (!toolsDir) {
-    throw new Error("Tools directory not found");
-  }
-
-  const allTools = await loadAllTools(toolsDir.path, chat, providerId);
-  const tool = allTools[toolInvocation.toolName];
-
+  const tool = Object.values(toolRegistry).find(
+    (toolDef) => toolDef.name === toolInvocation.toolName,
+  );
   if (!tool) {
     throw new Error(`Tool not found: ${toolInvocation.toolName}`);
   }
-  if (!tool.execute) {
-    throw new Error(
-      `Tool ${toolInvocation.toolName} does not have an execute method`,
-    );
-  }
 
-  // Execute the tool using its execute method
   const result = await tool.execute(toolInvocation.args, {
     toolCallId: toolInvocation.toolCallId,
-    // fixme? pass messages not used yet
     messages: [],
+    getContext: () => ({
+      vault: chat.vault,
+      config: {},
+    }),
   });
   debug("Tool result:", result, toolInvocation);
 }

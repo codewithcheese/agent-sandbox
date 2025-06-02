@@ -2,7 +2,10 @@ import { z } from "zod";
 import { tool } from "ai";
 import { normalizePath, TFile, TFolder, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type { ToolExecutionOptionsWithContext } from "./types.ts";
+import type {
+  ToolDefinition,
+  ToolExecutionOptionsWithContext,
+} from "../types.ts";
 
 /**
  * Features:
@@ -112,9 +115,9 @@ const defaultConfig = {
   ]),
 };
 
-export const TOOL_NAME = "Read";
-export const TOOL_DESCRIPTION = "Reads a file from the local filesystem.";
-export const TOOL_PROMPT_GUIDANCE = `Reads a file from the local filesystem. You can access any file directly by using this tool.
+const TOOL_NAME = "Read";
+const TOOL_DESCRIPTION = "Reads a file from the local filesystem.";
+const TOOL_PROMPT_GUIDANCE = `Reads a file from the local filesystem. You can access any file directly by using this tool.
 Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
 Usage:
@@ -128,7 +131,7 @@ Usage:
 - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.`;
 
 // --- Input Schema ---
-const readInputSchema = z.strictObject({
+const inputSchema = z.strictObject({
   file_path: z
     .string()
     .describe(
@@ -153,7 +156,7 @@ const readInputSchema = z.strictObject({
 });
 
 async function validateReadInput(
-  params: z.infer<typeof readInputSchema>,
+  params: z.infer<typeof inputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
 ): Promise<{
@@ -214,8 +217,8 @@ async function validateReadInput(
   return { result: true };
 }
 
-async function execute(
-  params,
+export async function execute(
+  params: z.infer<typeof inputSchema>,
   toolExecOptions: ToolExecutionOptionsWithContext,
 ) {
   const { abortSignal } = toolExecOptions;
@@ -324,8 +327,10 @@ async function execute(
   }
 }
 
-export const readTool = tool({
-  description: TOOL_DESCRIPTION, // Could also use TOOL_PROMPT_GUIDANCE if more suitable for LLM
-  parameters: readInputSchema,
+export const readTool: ToolDefinition = {
+  name: TOOL_NAME,
+  description: TOOL_DESCRIPTION,
+  prompt: TOOL_PROMPT_GUIDANCE,
+  inputSchema,
   execute,
-});
+};

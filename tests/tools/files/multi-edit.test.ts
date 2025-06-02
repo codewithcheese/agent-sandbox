@@ -5,7 +5,7 @@ import {
   helpers as mockVaultHelpers,
 } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/files/types";
+import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import type { TFile } from "obsidian";
 

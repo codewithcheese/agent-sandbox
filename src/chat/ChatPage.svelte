@@ -12,7 +12,7 @@
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
-  import { onDestroy, untrack } from "svelte";
+  import { onDestroy } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
@@ -176,9 +176,7 @@
   }
 
   async function openFirstChange() {
-    const firstChange = chat.vaultOverlay.changes.find(
-      (c) => c.type !== "identical",
-    );
+    const firstChange = chat.vault.changes.find((c) => c.type !== "identical");
     if (!firstChange) {
       new Notice("No pending changes found", 3000);
       return;
@@ -293,7 +291,7 @@
             <div class="group relative opacity-50">
               <div
                 class={cn(
-                  `whitespace-pre-wrap prose leading-none select-text
+                  `prose select-text
                 prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
                           prose-h1:m-0
                           prose-h2:m-0
@@ -306,7 +304,7 @@
                           prose-figure:m-0
                           prose-figcaption:m-0
                           prose-ul:m-0
-                          prose-ol:m-0
+                          prose-ol:m-1
                           prose-li:m-0
                           prose-table:m-0
                           prose-thead:m-0
@@ -325,7 +323,7 @@
                           prose-a:decoration-1 text-foreground max-w-full`,
                   message.role === "user"
                     ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-                    : "py-2",
+                    : "py-3",
                 )}
               >
                 <div
@@ -369,7 +367,7 @@
               {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
                 <div
                   class={cn(
-                    `whitespace-pre-wrap prose leading-none select-text
+                    `prose select-text
                   prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
                             prose-h1:m-0
                             prose-h2:m-0

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { lsTool } from "../../../src/tools/files/ls";
+import { execute as listExecute } from "../../../src/tools/files/list.ts";
 import { helpers, vault as mockVault } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 
@@ -31,9 +31,9 @@ describe("LS Tool", () => {
     vault.create("/test/project/.hiddenfile", "Hidden content");
   });
 
-  it('should list contents of the root directory if path is empty or "."', async () => {
-    const params = { path: "/" };
-    const result = await lsTool.execute(params, toolExecOptions);
+  it("should list contents of the root directory if path is empty", async () => {
+    const params = { path: "" };
+    const result = await listExecute(params, toolExecOptions);
 
     const expectedOutput = `- /\n  - test/\n    - project/\n      - file1.txt\n      - subdir/\n        - file2.ts`;
     expect(result).toBe(expectedOutput);
@@ -41,7 +41,7 @@ describe("LS Tool", () => {
 
   it("should list contents of a specified absolute path", async () => {
     const params = { path: "/test/project" };
-    const result = await lsTool.execute(params, toolExecOptions);
+    const result = await listExecute(params, toolExecOptions);
 
     const expectedOutput = `- /test/project/\n  - file1.txt\n  - subdir/\n    - file2.ts`;
     expect(result).toBe(expectedOutput);
@@ -53,7 +53,7 @@ describe("LS Tool", () => {
     await vault.create("/test/project/readable.txt", "Readable content");
 
     const params = { path: "/test/project" };
-    const result = await lsTool.execute(params, toolExecOptions);
+    const result = await listExecute(params, toolExecOptions);
 
     // Should show readable files and all directories (including empty ones)
     expect(result).toContain("readable.txt");
@@ -69,7 +69,7 @@ describe("LS Tool", () => {
     await vault.create("/test/project/readable.txt", "Readable content");
 
     const params = { path: "/test/project" };
-    const result = await lsTool.execute(params, toolExecOptions);
+    const result = await listExecute(params, toolExecOptions);
 
     // Should still show readable files and directories
     expect(result).toContain("readable.txt");
@@ -83,25 +83,25 @@ describe("LS Tool", () => {
       JSON.stringify({ sensitive: true }),
     );
     const params = { path: "/", ignore: [] };
-    const result = await lsTool.execute(params, toolExecOptions);
+    const result = await listExecute(params, toolExecOptions);
     // should not include .obsidian/data.json
     const expectedOutput = `- /\n  - test/\n    - project/\n      - file1.txt\n      - subdir/\n        - file2.ts`;
     expect(result).toBe(expectedOutput);
 
     const params2 = { path: "/test/project", ignore: ["file1.txt"] };
-    const result2 = await lsTool.execute(params2, toolExecOptions);
+    const result2 = await listExecute(params2, toolExecOptions);
     const expectedOutput2 = `- /test/project/\n  - subdir/\n    - file2.ts`;
     expect(result2).toBe(expectedOutput2);
 
     const params3 = { path: "/test/project", ignore: ["subdir"] };
-    const result3 = await lsTool.execute(params3, toolExecOptions);
+    const result3 = await listExecute(params3, toolExecOptions);
     const expectedOutput3 = `- /test/project/\n  - file1.txt`;
     expect(result3).toBe(expectedOutput3);
   });
 
   it("should ignore dotfiles by default", async () => {
     const params = { path: "/test/project" };
-    const result = await lsTool.execute(params, toolExecOptions);
+    const result = await listExecute(params, toolExecOptions);
     expect(result).not.toContain(".hiddenfile");
   });
 
@@ -115,13 +115,13 @@ describe("LS Tool", () => {
     };
 
     const params = { path: "/test/project" };
-    const result = await lsTool.execute(params, abortedToolExecOptions);
+    const result = await listExecute(params, abortedToolExecOptions);
     expect((result as any).error).toBe("Tool execution failed");
     expect((result as any).message).toBe("Operation aborted");
   });
 
   it("should truncate output if it exceeds MAX_OUTPUT_CHARS", async () => {
-    const MAX_CHARS = 40000; // Should match constant in ls.ts
+    const MAX_CHARS = 40000; // Should match constant in list.ts
     const TRUNC_MSG_START = "There are more than"; // Start of truncation message
 
     // Create many files in the mock vault to exceed the limit
@@ -135,7 +135,7 @@ describe("LS Tool", () => {
     }
 
     const params = { path: "/test/project" };
-    const result = await lsTool.execute(params, toolExecOptions);
+    const result = await listExecute(params, toolExecOptions);
 
     expect(result).toContain(TRUNC_MSG_START);
     // The actual length check is tricky due to formatting, but it should be around MAX_CHARS
@@ -146,7 +146,7 @@ describe("LS Tool", () => {
     await vault.createFolder("/test/project/empty_subdir");
 
     const params = { path: "/test/project/empty_subdir" };
-    const result = await lsTool.execute(params, toolExecOptions);
+    const result = await listExecute(params, toolExecOptions);
     const expectedOutput = `- /test/project/empty_subdir/`;
     expect(result).toBe(expectedOutput);
   });

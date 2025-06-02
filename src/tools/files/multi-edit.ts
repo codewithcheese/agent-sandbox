@@ -1,12 +1,44 @@
 import { z } from "zod";
-import { tool } from "ai";
-import { normalizePath, TFolder, type Vault } from "obsidian";
+import { normalizePath, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type { ToolExecutionOptionsWithContext } from "./types";
+import type {
+  ToolDefinition,
+  ToolExecutionOptionsWithContext,
+} from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
 
 const debug = createDebug();
+
+/**
+ * Features:
+ * - Performs multiple, sequential, exact string replacements in a single file atomically
+ * - Expects absolute paths within the vault (e.g., "/folder/file.md")
+ * - All edits are applied in sequence to an in-memory version of the file content
+ * - File on disk is only modified ONCE at the end if all edits succeed
+ * - Each edit operates on the result of the previous edit operation
+ * - Atomic operation - either all edits succeed or none are applied
+ * - Supports expected replacement count validation for each edit operation
+ * - Comprehensive error handling with detailed validation messages
+ * - Cancellation support using abort signal from tool execution options
+ * - Normalizes line endings in content being written to `\n`
+ * - Validates against editing hidden files/folders (starting with '.')
+ * - Returns detailed success information including total replacements made
+ * - Ideal for making several changes to different parts of the same file
+ * - More efficient than multiple single Edit tool calls for the same file
+ *
+ * Common Use Cases:
+ * - Updating multiple function signatures in a file
+ * - Replacing multiple variable names or constants
+ * - Making coordinated changes across different sections
+ * - Batch updates to configuration or data files
+ *
+ * Performance Notes:
+ * - Single file write operation regardless of number of edits
+ * - In-memory processing minimizes I/O operations
+ * - Validation occurs before any modifications are made
+ * - Rollback-safe - no partial updates on failure
+ */
 
 export const defaultConfig = {};
 
@@ -243,8 +275,10 @@ export async function execute(
   }
 }
 
-export const multiEditTool = tool({
+export const multiEditTool: ToolDefinition = {
+  name: TOOL_NAME,
   description: TOOL_DESCRIPTION,
-  parameters: multiEditInputSchema,
+  prompt: TOOL_PROMPT_GUIDANCE,
+  inputSchema: multiEditInputSchema,
   execute,
-});
+};

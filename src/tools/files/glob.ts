@@ -10,12 +10,41 @@ import {
 import { relative, sep } from "path-browserify"; // Using browserify version
 import { minimatch } from "minimatch"; // Import minimatch
 import { createDebug } from "$lib/debug";
-import type { ToolExecutionOptionsWithContext } from "./types";
+import type {
+  ToolDefinition,
+  ToolExecutionOptionsWithContext,
+} from "../types.ts";
 import { invariant } from "@epic-web/invariant";
+
+/**
+ * Features:
+ * - Fast file pattern matching using glob syntax
+ * - Supports complex patterns like "**\/*.js", "src/**\/*.{ts,tsx}", "notes/**\/draft-*.md"
+ * - Optional directory scoping to search within specific vault folders
+ * - Customizable ignore patterns to exclude unwanted files/folders
+ * - Results sorted by modification time (newest first) for relevance
+ * - Configurable result limits to prevent overwhelming output
+ * - Handles hidden files/folders when explicitly included in patterns
+ * - Built-in ignore patterns for common Obsidian folders (.obsidian, .trash)
+ * - Comprehensive error handling with detailed validation messages
+ * - Path normalization for cross-platform compatibility
+ *
+ * Common Use Cases:
+ * - Find all markdown files: "**\/*.md"
+ * - Find TypeScript files in src: "src/**\/*.ts"
+ * - Find files with specific naming: "**\/draft-*.md"
+ * - Find files in a specific folder: "projects/**\/*" with path="/work"
+ * - Exclude certain patterns: pattern="**\/*.md", ignore=["**\/archive/**"]
+ *
+ * Performance Notes:
+ * - Efficiently traverses vault structure using Obsidian's native file system
+ * - Minimatch library provides fast pattern matching
+ * - Results are limited and sorted to maintain responsiveness
+ * - Validation occurs before expensive operations
+ */
 
 const debug = createDebug();
 
-// --- Default Configuration ---
 export const defaultConfig = {
   RESULT_LIMIT: 100, // Max number of files to return
   DEFAULT_IGNORE_PATTERNS: [
@@ -25,7 +54,6 @@ export const defaultConfig = {
   ],
 };
 
-// --- Tool Info ---
 export const TOOL_NAME = "Glob";
 export const TOOL_DESCRIPTION =
   'Fast file pattern matching tool. Supports glob patterns like "**/*.js" or "src/**/*.ts". Returns matching file paths sorted by modification time (newest first).';
@@ -204,8 +232,10 @@ export async function execute(
   }
 }
 
-export const globTool = tool({
+export const globTool: ToolDefinition = {
+  name: TOOL_NAME,
   description: TOOL_DESCRIPTION,
-  parameters: globInputSchema,
+  prompt: TOOL_PROMPT_GUIDANCE,
+  inputSchema: globInputSchema,
   execute,
-});
+};

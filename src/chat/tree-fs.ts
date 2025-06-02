@@ -12,9 +12,11 @@ import type { Tree } from "@lezer/common";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 
 const trashPath = ".overlay-trash" as const;
+const deletedFrom = "deletedFrom" as const;
 
 export class TreeFS {
   private pathCache = new Map<string, TreeID>();
+  private deletedFromIndex = new Set<string>();
   private cacheValid = false;
   private tree: LoroTree;
 
@@ -138,6 +140,17 @@ export class TreeFS {
     this.tree.delete(nodeId);
   }
 
+  trashNode(node: LoroTreeNode, originalPath: string): void {
+    const trashFolder = this.findByPath(trashPath);
+    invariant(trashFolder, `Trash folder not found: ${trashPath}`);
+    
+    node.move(trashFolder);
+    node.data.set(deletedFrom, normalizePath(originalPath));
+    
+    // Incrementally update the deletion index
+    this.deletedFromIndex.add(normalizePath(originalPath));
+  }
+
   renameNode(nodeId: TreeID, newName: string): void {
     const node = this.tree.getNodeByID(nodeId);
     invariant(node, `Cannot renamed node. Node not found: ${nodeId}`);
@@ -167,17 +180,48 @@ export class TreeFS {
       ?.find((n) => n.data.get("deletedFrom") === path);
   }
 
+  isDeleted(path: string): boolean {
+    path = normalizePath(path);
+    if (!this.cacheValid) {
+      this.rebuildCache();
+    }
+    return this.deletedFromIndex.has(path);
+  }
+
   invalidateCache(): void {
     this.cacheValid = false;
   }
 
   private rebuildCache(): void {
     this.pathCache.clear();
+    this.rebuildDeletedIndex();
     const root = this.tree.roots()[0];
     if (root) {
       this.buildCacheFromNode(root, "");
     }
     this.cacheValid = true;
+  }
+
+  private rebuildDeletedIndex(): void {
+    this.deletedFromIndex.clear();
+
+    // Find trash node directly without triggering cache rebuild
+    const root = this.tree.roots()[0];
+    if (root) {
+      const children = root.children();
+      const trashNode = children?.find((n) => n.data.get("name") === trashPath);
+      if (trashNode) {
+        const trashedNodes = trashNode.children() || [];
+        for (const trashedNode of trashedNodes) {
+          const deletedFromPath = trashedNode.data.get(deletedFrom) as
+            | string
+            | undefined;
+          if (deletedFromPath) {
+            this.deletedFromIndex.add(normalizePath(deletedFromPath));
+          }
+        }
+      }
+    }
   }
 
   private buildCacheFromNode(node: LoroTreeNode, parentPath: string): void {

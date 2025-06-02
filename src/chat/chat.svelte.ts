@@ -87,7 +87,7 @@ export class Chat {
   messages = $state<UIMessage[]>([]);
   state = $state<LoadingState>({ type: "idle" });
   toolRequests = $state<ToolRequest[]>([]);
-  vaultOverlay = $state<VaultOverlay>();
+  vault = $state<VaultOverlay>();
   createdAt: Date;
   updatedAt: Date;
   options = $state<ChatOptions>({
@@ -102,10 +102,7 @@ export class Chat {
 
   constructor(path: string, data: CurrentChatFile) {
     Object.assign(this, data.payload);
-    this.vaultOverlay = new VaultOverlay(
-      usePlugin().app.vault,
-      data.payload.overlay,
-    );
+    this.vault = new VaultOverlay(usePlugin().app.vault, data.payload.overlay);
     this.path = path;
   }
 
