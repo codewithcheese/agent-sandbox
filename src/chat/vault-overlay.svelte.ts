@@ -158,9 +158,9 @@ export class VaultOverlay implements Vault {
     return this.vault.getRoot();
   }
 
-  async create(
+  private async _create(
     path: string,
-    data: string,
+    data: string | ArrayBuffer,
     options?: DataWriteOptions,
   ): Promise<TFile> {
     path = normalizePath(path);
@@ -170,8 +170,9 @@ export class VaultOverlay implements Vault {
     }
     // todo: reject existing case insensitive file name
 
+    const isText = typeof data === "string";
     const stat: FileStats = {
-      size: data.length,
+      size: isText ? data.length : data.byteLength,
       mtime: Date.now(),
       ctime: Date.now(),
       ...(options ?? {}),
@@ -180,10 +181,13 @@ export class VaultOverlay implements Vault {
     // Check if file was deleted - if so, restore it with new content
     const deletedNode = this.proposedFS.findDeleted(path);
     if (deletedNode) {
-      const parentNode = this.proposedFS.findByPath(dirname(path)) || this.proposedFS.findByPath("/");
+      const parentNode = this.proposedFS.findByPath(
+        dirname(path) === "." ? "/" : dirname(path),
+      );
       invariant(parentNode, `Parent folder not found for path: ${path}`);
-      
-      this.proposedFS.restoreNode(deletedNode, parentNode, { text: data, stat });
+
+      const nodeData = isText ? { text: data, stat } : { buffer: data, stat };
+      this.proposedFS.restoreNode(deletedNode, parentNode, nodeData);
       this.proposedDoc.commit();
       return this.createTFile(path, stat);
     }
@@ -196,10 +200,19 @@ export class VaultOverlay implements Vault {
     const existsInVault = this.vault.getFileByPath(normalizePath(path));
     invariant(!existsInVault, `File already exists`);
 
-    this.proposedFS.createNode(path, { text: data, stat });
+    const nodeData = isText ? { text: data, stat } : { buffer: data, stat };
+    this.proposedFS.createNode(path, nodeData);
     this.proposedDoc.commit();
 
     return this.createTFile(path, stat);
+  }
+
+  async create(
+    path: string,
+    data: string,
+    options?: DataWriteOptions,
+  ): Promise<TFile> {
+    return this._create(path, data, options);
   }
 
   async createBinary(
@@ -207,32 +220,7 @@ export class VaultOverlay implements Vault {
     data: ArrayBuffer,
     options?: DataWriteOptions,
   ): Promise<TFile> {
-    path = normalizePath(path);
-    // Prevent directory traversal – any ".." segment escapes the vault root.
-    if (path.split("/").some((seg) => seg === "..")) {
-      throw new Error("Path is outside the vault");
-    }
-    // todo: reject existing case insensitive file name
-
-    // File/Folder must not yet exist.
-    const proposedNode = this.proposedFS.findByPath(path);
-    if (proposedNode) {
-      throw new Error(`File ${path} already exists.`);
-    }
-    const existsInVault = this.vault.getFileByPath(normalizePath(path));
-    invariant(!existsInVault, `File already exists`);
-
-    const stat: FileStats = {
-      size: data.byteLength,
-      mtime: Date.now(),
-      ctime: Date.now(),
-      ...(options ?? {}),
-    };
-
-    this.proposedFS.createNode(path, { buffer: data, stat });
-    this.proposedDoc.commit();
-
-    return this.createTFile(path, stat);
+    return this._create(path, data, options);
   }
 
   async createFolder(path: string) {
@@ -240,7 +228,7 @@ export class VaultOverlay implements Vault {
 
     const existing = this.vault.getAbstractFileByPath(normalizePath(path));
     if (existing) {
-      throw new Error("File already exists.");
+      throw new Error("Folder already exists.");
     }
 
     this.proposedFS.createNode(path, { isDirectory: true });
