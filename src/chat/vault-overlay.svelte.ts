@@ -170,6 +170,24 @@ export class VaultOverlay implements Vault {
     }
     // todo: reject existing case insensitive file name
 
+    const stat: FileStats = {
+      size: data.length,
+      mtime: Date.now(),
+      ctime: Date.now(),
+      ...(options ?? {}),
+    };
+
+    // Check if file was deleted - if so, restore it with new content
+    const deletedNode = this.proposedFS.findDeleted(path);
+    if (deletedNode) {
+      const parentNode = this.proposedFS.findByPath(dirname(path)) || this.proposedFS.findByPath("/");
+      invariant(parentNode, `Parent folder not found for path: ${path}`);
+      
+      this.proposedFS.restoreNode(deletedNode, parentNode, { text: data, stat });
+      this.proposedDoc.commit();
+      return this.createTFile(path, stat);
+    }
+
     // File/Folder must not yet exist.
     const proposedNode = this.proposedFS.findByPath(path);
     if (proposedNode) {
@@ -177,13 +195,6 @@ export class VaultOverlay implements Vault {
     }
     const existsInVault = this.vault.getFileByPath(normalizePath(path));
     invariant(!existsInVault, `File already exists`);
-
-    const stat: FileStats = {
-      size: data.length,
-      mtime: Date.now(),
-      ctime: Date.now(),
-      ...(options ?? {}),
-    };
 
     this.proposedFS.createNode(path, { text: data, stat });
     this.proposedDoc.commit();

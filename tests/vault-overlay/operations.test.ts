@@ -563,6 +563,35 @@ describe("VaultOverlay", () => {
 
       expect(deletedNode.parent().data.get("name")).toEqual(".overlay-trash");
     });
+
+    it("should restore deleted file when creating with same path", async () => {
+      // Create and delete a file
+      await overlay.create("test.md", "original content");
+      const file = overlay.getFileByPath("test.md");
+      await overlay.delete(file);
+
+      // Verify file is deleted and not accessible
+      expect(overlay.getFileByPath("test.md")).toBeNull();
+      expect(overlay.proposedFS.isDeleted("test.md")).toBe(true);
+
+      // Create file with same path but different content
+      const newFile = await overlay.create("test.md", "new content");
+      
+      // Should restore the file with new content
+      expect(newFile).toBeTruthy();
+      expect(newFile.path).toBe("test.md");
+      
+      const content = await overlay.read(newFile);
+      expect(content).toBe("new content");
+      
+      // Should no longer be marked as deleted
+      expect(overlay.proposedFS.isDeleted("test.md")).toBe(false);
+      
+      // Should be accessible via getFileByPath
+      const retrievedFile = overlay.getFileByPath("test.md");
+      expect(retrievedFile).toBeTruthy();
+      expect(retrievedFile.path).toBe("test.md");
+    });
   });
 
   describe("Folder Children Enumeration", () => {

@@ -143,12 +143,48 @@ export class TreeFS {
   trashNode(node: LoroTreeNode, originalPath: string): void {
     const trashFolder = this.findByPath(trashPath);
     invariant(trashFolder, `Trash folder not found: ${trashPath}`);
-    
+
     node.move(trashFolder);
     node.data.set(deletedFrom, normalizePath(originalPath));
-    
+
     // Incrementally update the deletion index
+    this.pathCache.delete(originalPath);
     this.deletedFromIndex.add(normalizePath(originalPath));
+  }
+
+  restoreNode(
+    node: LoroTreeNode,
+    newParent: LoroTreeNode,
+    newData: { text?: string; buffer?: ArrayBuffer; stat?: FileStats },
+  ): void {
+    const originalPath = node.data.get(deletedFrom) as string | undefined;
+
+    // Move back from trash to new parent
+    node.move(newParent);
+    node.data.delete(deletedFrom);
+
+    // Overwrite with new content
+    if (newData.text != null) {
+      const text = node.data.get("text") as LoroText;
+      if (text) {
+        text.update(newData.text);
+      } else {
+        node.data.setContainer("text", new LoroText());
+        (node.data.get("text") as LoroText).insert(0, newData.text);
+      }
+    }
+    if (newData.buffer != null) {
+      node.data.set("buffer", encodeBase64(newData.buffer));
+    }
+    if (newData.stat) {
+      node.data.set("stat", newData.stat);
+    }
+
+    // Remove from deletion index and update path cache
+    if (originalPath) {
+      this.deletedFromIndex.delete(normalizePath(originalPath));
+    }
+    this.pathCache.set(normalizePath(originalPath), node.id);
   }
 
   renameNode(nodeId: TreeID, newName: string): void {

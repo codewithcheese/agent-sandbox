@@ -1,4 +1,3 @@
-import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { vault, helpers } from "../mocks/obsidian.ts";
 import { Vault } from "obsidian";
