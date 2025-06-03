@@ -1,6 +1,6 @@
 ## Vault Overlay
 
-Below is a structured "code-walk" of the **VaultOverlay** implementation, focusing on the main moving parts, how the overlay interleaves with an Obsidian `Vault`, and where open edges still exist.  (I'll use *tracking* = baseline vault contents and *proposed* = working edits terminology throughout.)
+Below is a structured "code-walk" of the **VaultOverlaySvelte** implementation, focusing on the main moving parts, how the overlay interleaves with an Obsidian `Vault`, and where open edges still exist.  (I'll use *tracking* = baseline vault contents and *proposed* = working edits terminology throughout.)
 
 ### 1. High-level architecture
 
@@ -10,7 +10,7 @@ Below is a structured "code-walk" of the **VaultOverlay** implementation, focusi
 | **Tracking doc**     | *Accepted* state of the overlay, mirrored from disk plus any edits that have been explicitly "approved".                                       | `LoroDoc` (peerId = `1`)                     |
 | **Proposed doc**     | *Working copy* that soaks up all user / AI edits before review.                                                                                | `LoroDoc` (peerId = `2`)                     |
 | **TreeFS abstraction** | Path-based operations over Loro tree structure with caching and path resolution.                                                             | `TreeFS`                                     |
-| **Overlay facade**   | Swaps in for the normal `Vault` so Obsidian code (or your plugin logic) can read/write *through* it without real disk mutation until approval. | `VaultOverlay implements Vault`              |
+| **Overlay facade**   | Swaps in for the normal `Vault` so Obsidian code (or your plugin logic) can read/write *through* it without real disk mutation until approval. | `VaultOverlaySvelte implements Vault`              |
 
 The overlay therefore gives you a **cheap, CRDT-based transaction layer**: calls such as `create`, `modify`, `rename`, `delete` operate only on the *proposed* tree; nothing touches disk until you run the `approve()` method (or write your own reconciler).
 
@@ -125,7 +125,7 @@ The overlay therefore gives you a **cheap, CRDT-based transaction layer**: calls
 
 ### 8. TL;DR
 
-*VaultOverlay* is effectively a **two-phase commit layer** for Obsidian:
+*VaultOverlaySvelte* is effectively a **two-phase commit layer** for Obsidian:
 
 1. *proposed* collects edits in a Loro CRDT tree with TreeFS abstraction.
 2. *tracking* shadows the real vault state.

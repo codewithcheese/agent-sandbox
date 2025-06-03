@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
 import { vault, helpers, MockTFile } from "../mocks/obsidian.ts";
 import { TFile, type Vault, type TAbstractFile, TFolder } from "obsidian";
 
-describe("VaultOverlay", () => {
-  let overlay: VaultOverlay;
+describe("VaultOverlaySvelte", () => {
+  let overlay: VaultOverlaySvelte;
 
   beforeEach(async () => {
     // Reset the mock vault state before each test
     helpers.reset();
 
     // Create the vault overlay with the mock vault
-    overlay = new VaultOverlay(vault as unknown as Vault);
+    overlay = new VaultOverlaySvelte(vault as unknown as Vault);
   });
 
   afterEach(async () => {
@@ -576,17 +576,17 @@ describe("VaultOverlay", () => {
 
       // Create file with same path but different content
       const newFile = await overlay.create("test.md", "new content");
-      
+
       // Should restore the file with new content
       expect(newFile).toBeTruthy();
       expect(newFile.path).toBe("test.md");
-      
+
       const content = await overlay.read(newFile);
       expect(content).toBe("new content");
-      
+
       // Should no longer be marked as deleted
       expect(overlay.proposedFS.isDeleted("test.md")).toBe(false);
-      
+
       // Should be accessible via getFileByPath
       const retrievedFile = overlay.getFileByPath("test.md");
       expect(retrievedFile).toBeTruthy();

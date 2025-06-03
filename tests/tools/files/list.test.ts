@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execute as listExecute } from "../../../src/tools/files/list.ts";
 import { helpers, vault as mockVault } from "../../mocks/obsidian";
-import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlaySvelte } from "../../../src/chat/vault-overlay.svelte.ts";
 
 describe("LS Tool", () => {
   let toolExecOptions;
 
-  let vault: VaultOverlay;
+  let vault: VaultOverlaySvelte;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -23,7 +23,7 @@ describe("LS Tool", () => {
       abortSignal: new AbortController().signal,
     };
 
-    vault = new VaultOverlay(mockVault);
+    vault = new VaultOverlaySvelte(mockVault);
     // Set up mock vault files for testing
     vault.create("/test/project/file1.txt", "Content of file1");
     vault.createFolder("/test/project/subdir");

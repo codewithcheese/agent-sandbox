@@ -6,7 +6,7 @@ import * as diff from "diff";
 import { getBaseName } from "$lib/utils/path.ts";
 import { getPatchStats } from "../../tools/tool-request.ts";
 import { findMatchingView } from "$lib/obsidian/leaf.ts";
-import type { PathChange } from "../../chat/vault-overlay.svelte.ts";
+import type { ProposedChange } from "../../chat/vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 
 const debug = createDebug();
@@ -15,7 +15,7 @@ export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
 export interface MergeViewState {
   chatPath: string;
-  change: PathChange;
+  change: ProposedChange;
 }
 
 export class MergeView extends ItemView {
@@ -52,11 +52,17 @@ export class MergeView extends ItemView {
 
     const chat = await Chat.load(this.state.chatPath);
 
-    const file = this.app.vault.getFileByPath(
+    let ogContent = "";
+    let ogFile = this.app.vault.getFileByPath(
       normalizePath(this.state.change.path),
     );
-    const ogContent = await this.app.vault.adapter.read(file.path);
-    const newContent = await chat.vault.read(file);
+    if (ogFile) {
+      ogContent = await this.app.vault.read(ogFile);
+    }
+    const newFile = chat.vault.getFileByPath(
+      normalizePath(this.state.change.path),
+    );
+    const newContent = await chat.vault.read(newFile);
 
     debug(`${this.state.change.path} content on disk`, ogContent);
     debug(`${this.state.change.path} modified content`, newContent);
@@ -75,25 +81,26 @@ export class MergeView extends ItemView {
           //   this.state.change.path,
           //   resolvedContent,
           // );
-          chat.vault.approve([
-            { id: this.state.change.id, contents: resolvedContent },
+          debug("Approving changes");
+          await chat.vault.approve([
+            { id: this.state.change.id, text: resolvedContent },
           ]);
           // chat.vaultOverlay.approveModify(file.path, resolvedContent);
           // if some changes are remaining then apply them to the overlay
           if (resolvedContent !== pendingContent) {
-            await chat.vault.modify(file, pendingContent);
+            const remaining = diff.createPatch(
+              this.state.change.path,
+              resolvedContent,
+              pendingContent,
+            );
+            debug("Applying unapproved changes to overlay", remaining);
+            await chat.vault.modify(ogFile, pendingContent);
           }
-          debug("Remaining changes", chat.vault.getFileChanges());
+          chat.vault.computeChanges();
+          debug("Remaining changes", $state.snapshot(chat.vault.changes));
           await chat.save();
 
-          const remaining = diff.createPatch(
-            this.state.change.path,
-            resolvedContent,
-            pendingContent,
-          );
-          const stats = getPatchStats(remaining);
-
-          if (!stats.added && !stats.removed) {
+          if (resolvedContent === pendingContent) {
             debug("Closing merge view for path: ", this.state.change.path);
             const file = this.app.vault.getFileByPath(
               normalizePath(this.state.change.path),

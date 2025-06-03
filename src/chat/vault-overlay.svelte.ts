@@ -1,4 +1,5 @@
 import {
+  type App,
   type DataAdapter,
   type DataWriteOptions,
   type EventRef,
@@ -19,28 +20,42 @@ import {
 } from "loro-crdt/base64";
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
-import { TreeFS } from "./tree-fs.ts";
-import { buffer, text } from "$lib/utils/loro.ts";
+import { type NodeData, TreeFS } from "./tree-fs.ts";
+import {
+  getBuffer,
+  replaceBuffer,
+  getText,
+  updateText,
+  replaceText,
+  getName,
+  getNodeData,
+} from "$lib/utils/loro.ts";
 
 const debug = createDebug();
 
 const trashPath = ".overlay-trash" as const;
 const deletedFrom = "deletedFrom" as const;
-const isDirectory = "isDirectory" as const;
+export const isDirectoryKey = "isDirectory" as const;
 
 const trackingPeerId = 1 as const;
 const proposedPeerId = 2 as const;
 
-export type PathChange = {
+export type ProposedChange = {
   id: TreeID;
   path: string;
   type: "added" | "deleted" | "modified" | "identical";
 };
 
-export class VaultOverlay implements Vault {
+type ApprovedChange =
+  | { type: "create"; path: string; override?: { text: string } }
+  | { type: "modify"; path: string; override?: { text: string } }
+  | { type: "delete"; path: string }
+  | { type: "rename"; path: string; oldPath: string };
+
+export class VaultOverlaySvelte implements Vault {
   trackingDoc: LoroDoc;
   proposedDoc: LoroDoc;
-  changes = $state<PathChange[]>([]);
+  changes = $state<ProposedChange[]>([]);
   trackingFS: TreeFS;
   proposedFS: TreeFS;
 
@@ -58,10 +73,10 @@ export class VaultOverlay implements Vault {
       const tree = this.trackingDoc.getTree("vault");
       const root = tree.createNode();
       root.data.set("name", "");
-      root.data.set(isDirectory, true);
+      root.data.set(isDirectoryKey, true);
       const trash = root.createNode();
       trash.data.set("name", trashPath);
-      trash.data.set(isDirectory, true);
+      trash.data.set(isDirectoryKey, true);
       // create proposed from snapshot of tracking
       this.proposedDoc = LoroDoc.fromSnapshot(
         this.trackingDoc.export({ mode: "snapshot" }),
@@ -109,7 +124,7 @@ export class VaultOverlay implements Vault {
     debug("getFolderByPath", path);
 
     const proposedNode = this.proposedFS.findByPath(path);
-    if (proposedNode && !proposedNode.data.get(isDirectory)) {
+    if (proposedNode && !proposedNode.data.get(isDirectoryKey)) {
       return null;
     }
 
@@ -138,7 +153,7 @@ export class VaultOverlay implements Vault {
       // if the file is tracked and exists
       return this.createAbstractFile(
         path,
-        proposedNode.data.get(isDirectory) === true,
+        proposedNode.data.get(isDirectoryKey) === true,
       );
     }
 
@@ -233,7 +248,6 @@ export class VaultOverlay implements Vault {
 
     this.proposedFS.createNode(path, { isDirectory: true });
     this.proposedDoc.commit();
-    this.computeChanges();
 
     return this.createTFolder(path);
   }
@@ -247,7 +261,7 @@ export class VaultOverlay implements Vault {
     if (proposedNode && proposedNode.data.get(deletedFrom)) {
       throw new Error(`File was deleted: ${file.path} `);
     } else if (proposedNode) {
-      return (proposedNode.data.get("text") as LoroText).toString();
+      return getText(proposedNode);
     } else if (this.trackingFS.findByPath(file.path)) {
       // if no proposed and tracking exists, then file has been renamed or deleted
       throw new Error(`File does not exist: ${file.path} `);
@@ -269,7 +283,7 @@ export class VaultOverlay implements Vault {
     } else if (proposedNode && proposedNode.data.get("buffer") === undefined) {
       throw Error(`Cannot read file as binary, buffer not found: ${file.path}`);
     } else if (proposedNode) {
-      return buffer(proposedNode);
+      return getBuffer(proposedNode);
     } else if (this.trackingFS.findByPath(file.path)) {
       // if no proposed and tracking exists, then file has been renamed or deleted
       throw new Error(`File does not exist: ${file.path} `);
@@ -308,15 +322,18 @@ export class VaultOverlay implements Vault {
       if (!abstractFile) {
         invariant(abstractFile, `Cannot delete file not found: ${file.path}`);
       }
-      await this.syncPath(file.path);
+      trackingNode = await this.syncPath(file.path);
+      invariant(
+        trackingNode,
+        `Cannot delete file not found after sync: ${file.path}`,
+      );
+      proposedNode = this.proposedFS.findByPath(file.path);
     }
 
-    proposedNode = this.proposedFS.findByPath(file.path);
     invariant(proposedNode, `Cannot delete file not found: ${file.path} `);
 
     this.proposedFS.trashNode(proposedNode, file.path);
     this.proposedDoc.commit();
-    this.computeChanges();
   }
 
   async trash(_file: TAbstractFile): Promise<void> {
@@ -350,21 +367,23 @@ export class VaultOverlay implements Vault {
 
     // Check if the file is tracked
     let trackingNode = this.trackingFS.findByPath(file.path);
+    let proposedNode = this.proposedFS.findByPath(file.path);
     // Import if the file exists in the vault, but not in overlay
-    if (!trackingNode && !this.proposedFS.findByPath(file.path)) {
+    if (!trackingNode && !proposedNode) {
       const vaultFile = this.vault.getFileByPath(normalizePath(file.path));
       invariant(
         vaultFile,
         `Cannot rename file not found in vault: ${file.path}`,
       );
-      await this.syncPath(file.path);
+      trackingNode = await this.syncPath(file.path);
+      invariant(
+        trackingNode,
+        `Cannot rename file not found after sync: ${file.path}`,
+      );
+      proposedNode = this.proposedFS.findByPath(file.path);
     }
 
-    const proposedNode = this.proposedFS.findByPath(file.path);
-    invariant(
-      proposedNode,
-      `Cannot rename file not found after sync: ${file.path}`,
-    );
+    invariant(proposedNode, `Cannot rename file not found: ${file.path}`);
     // todo: verify dirname gets parent/root
     let newParent = this.proposedFS.findByPath(dirname(newPath));
     if (!newParent) {
@@ -383,7 +402,6 @@ export class VaultOverlay implements Vault {
       proposedNode.move(newParent);
     }
     this.proposedDoc.commit();
-    this.computeChanges();
   }
 
   async modify(
@@ -391,33 +409,28 @@ export class VaultOverlay implements Vault {
     data: string,
     options?: DataWriteOptions,
   ): Promise<void> {
-    const trackingNode = this.trackingFS.findByPath(file.path);
+    let trackingNode = this.trackingFS.findByPath(file.path);
+    let proposedNode = trackingNode
+      ? this.proposedFS.findById(trackingNode.id)
+      : this.proposedFS.findByPath(file.path);
     const existsInVault = this.vault.getFileByPath(normalizePath(file.path));
 
     if (!trackingNode && existsInVault) {
-      await this.syncPath(file.path);
+      trackingNode = await this.syncPath(file.path);
+      invariant(
+        trackingNode,
+        `Cannot modify file not found after sync: ${file.path}`,
+      );
+      proposedNode = this.proposedFS.findById(trackingNode.id);
     }
-    let node = this.proposedFS.findByPath(file.path);
-    if (!node) {
-      const stat: FileStats = {
-        size: data.length,
-        mtime: Date.now(),
-        ctime: Date.now(),
-        ...(options ?? {}),
-      };
-      this.proposedFS.createNode(file.path, { text: data, stat });
+
+    if (!proposedNode) {
+      // If not tracked, the treat as create
+      await this._create(file.path, data, options);
     } else {
-      const text = node.data.get("text") as LoroText;
-      // Loro recommends updateByLine for texts > 50_000 characters).
-      if (data.length > 50_000) {
-        text.updateByLine(data);
-      } else {
-        text.update(data);
-      }
+      updateText(proposedNode, data);
+      this.proposedDoc.commit();
     }
-    // todo: test modifying a file in a path that was deleted
-    this.proposedDoc.commit();
-    // this.computeChanges();
   }
 
   async modifyBinary(
@@ -478,7 +491,7 @@ export class VaultOverlay implements Vault {
 
     const folderNode = this.proposedFS.findByPath(path);
     invariant(
-      folderNode.data.get(isDirectory),
+      folderNode.data.get(isDirectoryKey),
       `Failed to create TFolder path is not a directory: ${path}`,
     );
 
@@ -516,7 +529,7 @@ export class VaultOverlay implements Vault {
                 : childPath,
             );
 
-            const isDir = childNode.data.get(isDirectory);
+            const isDir = childNode.data.get(isDirectoryKey);
             if (isDir) {
               children.push(this.createTFolder(childPath));
             } else {
@@ -621,7 +634,7 @@ export class VaultOverlay implements Vault {
   /**
    * Sync path from disk and sync (LoroText merge) with proposed.
    */
-  async syncPath(path: string): Promise<void> {
+  async syncPath(path: string): Promise<LoroTreeNode> {
     path = normalizePath(path);
     // Try to get the abstractFile from the vault
     debug("Sync path", path);
@@ -629,41 +642,39 @@ export class VaultOverlay implements Vault {
     invariant(abstractFile, `${path} not found in vault`);
 
     const node = this.trackingFS.findByPath(path);
-    if (abstractFile instanceof TFile) {
-      const contents = await this.vault.read(abstractFile);
-      if (node) {
-        invariant(
-          node.data.get(isDirectory) !== true,
-          `Expected node for ${path} to be a file, got folder.`,
-        );
-        const txtC = node.data.get("text") as LoroText;
-        // Loro recommends updateByLine for texts > 50_000 characters
-        if (contents.length > 50_000) {
-          txtC.updateByLine(contents);
+    try {
+      if (abstractFile instanceof TFile) {
+        const contents = await this.vault.read(abstractFile);
+        if (node) {
+          invariant(
+            node.data.get(isDirectoryKey) !== true,
+            `Expected node for ${path} to be a file, got folder.`,
+          );
+          updateText(node, contents);
+          return node;
         } else {
-          txtC.update(contents);
+          return this.trackingFS.createNode(path, {
+            text: contents,
+            stat: abstractFile.stat,
+          });
+        }
+      } else if (abstractFile instanceof TFolder) {
+        if (!node) {
+          return this.trackingFS.createNode(path, {
+            isDirectory: true,
+          });
+        } else if (node.data.get(isDirectoryKey) === false) {
+          throw new Error(
+            `Path is folder in vault, but not in tracking: ${path}`,
+          );
         }
       } else {
-        this.trackingFS.createNode(path, {
-          text: contents,
-          stat: abstractFile.stat,
-        });
+        throw new Error(`${path} is not a file or folder`);
       }
-    } else if (abstractFile instanceof TFolder) {
-      if (!node) {
-        this.trackingFS.createNode(path, {
-          isDirectory: true,
-        });
-      } else if (node.data.get(isDirectory) === false) {
-        throw new Error(
-          `Path is folder in vault, but not in tracking: ${path}`,
-        );
-      }
-    } else {
-      throw new Error(`${path} is not a file or folder`);
+    } finally {
+      this.trackingDoc.commit();
+      this.syncDocs();
     }
-    this.trackingDoc.commit();
-    this.syncDocs();
   }
 
   async syncDelete(path: string): Promise<void> {
@@ -678,15 +689,8 @@ export class VaultOverlay implements Vault {
     }
   }
 
-  approve(approvals: { id: TreeID; contents?: string }[]) {
-    type ApprovalOp =
-      | { type: "create"; id: TreeID; contents: string }
-      | { type: "modify"; id: TreeID; contents: string }
-      | { type: "delete"; id: TreeID }
-      | { type: "rename"; id: TreeID }
-      | { type: "move"; id: TreeID; parentId: TreeID };
-
-    const ops: ApprovalOp[] = [];
+  async approve(ops: ApprovedChange[]) {
+    /*    const ops: ApprovalOp[] = [];
     for (const approval of approvals) {
       const proposedNode = this.proposedFS.findById(approval.id);
       const trackingNode = this.trackingFS.findById(approval.id);
@@ -698,7 +702,7 @@ export class VaultOverlay implements Vault {
       const trackingPath = this.trackingFS.getNodePath(trackingNode);
       const deletedPath = proposedNode.data.get(deletedFrom);
 
-      if (approval.contents && proposedNode.data.get("isDirectory")) {
+      if (approval.text && proposedNode.data.get("isDirectory")) {
         throw Error(
           `Cannot approve new contents on directory: ${this.proposedFS.getNodePath(proposedNode)}`,
         );
@@ -708,7 +712,7 @@ export class VaultOverlay implements Vault {
         ops.push({
           id: proposedNode.id,
           type: "create",
-          contents: approval.contents,
+          text: approval.text,
         });
       }
 
@@ -737,7 +741,7 @@ export class VaultOverlay implements Vault {
 
         // if not directory and text changed
         if (
-          !proposedNode.data.get(isDirectory) &&
+          !proposedNode.data.get(isDirectoryKey) &&
           (text(proposedNode) !== text(trackingNode) ||
             (approval.contents && approval.contents !== text(trackingNode)))
         ) {
@@ -748,36 +752,209 @@ export class VaultOverlay implements Vault {
           });
         }
       }
-    }
+    }*/
+
+    // proposed data remaining after approval is persisted and synced
+    const remainders: {
+      tracking: LoroTreeNode;
+      proposed: LoroTreeNode;
+      proposedData: NodeData;
+    }[] = [];
+
+    // an untracked proposed node, becomes obsolete once `create`
+    // is approved and a tracking node is created
+    const obsoleteNodes: LoroTreeNode[] = [];
 
     for (const op of ops) {
-      const proposedNode = this.proposedFS.findById(op.id);
-      const trackingNode = this.trackingFS.findById(op.id);
-      const proposedPath = this.proposedFS.getNodePath(proposedNode);
+      const proposedNode =
+        this.proposedFS.findByPath(op.path) ||
+        this.proposedFS.findDeleted(op.path);
+      invariant(
+        proposedNode,
+        `Cannot approve ${op.type}, no proposal found for: ${op.path}`,
+      );
+      // get proposed data before approved changes are synced
+      const proposedData = getNodeData(proposedNode);
+      const trackingNode = this.trackingFS.findById(proposedNode.id);
       if (op.type === "create") {
-        this.trackingFS.createNode(proposedPath, {
-          isDirectory: proposedNode.data.get(isDirectory) as
-            | boolean
-            | undefined,
-          text: op.contents ?? text(proposedNode),
-          buffer: buffer(proposedNode),
+        // write change to tracking
+        const data = getNodeData(proposedNode);
+        if ("override" in op) {
+          data.text = op.override.text;
+        }
+        const trackingNode = this.trackingFS.createNode(op.path, data);
+        remainders.push({
+          tracking: trackingNode,
+          proposed: proposedNode,
+          proposedData,
         });
+        // non-tracked proposed node is obsolete once create approved
+        obsoleteNodes.push(proposedNode);
+        await this.persistApproval(op, data);
       } else if (op.type === "delete") {
         this.trackingFS.deleteNode(trackingNode.id);
+        // node deletion does not sync, so mark proposed as deleted manually
+        this.proposedFS.deleteNode(proposedNode.id);
+        await this.persistApproval(op);
       } else if (op.type === "rename") {
-        this.trackingFS.renameNode(trackingNode.id, proposedPath);
-      } else if (op.type === "move") {
-        this.trackingFS.moveNode(trackingNode, op.parentId);
+        if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
+          this.trackingFS.moveNode(trackingNode, proposedNode.parent().id);
+        }
+        if (getName(trackingNode) !== getName(proposedNode)) {
+          this.trackingFS.renameNode(trackingNode.id, op.path);
+        }
+        await this.persistApproval(op, getNodeData(trackingNode));
       } else if (op.type === "modify") {
         // recreate text container for last-write-wins not merge semantics
-        trackingNode.data.delete("text");
-        const txtC = trackingNode.data.setContainer("text", new LoroText());
-        txtC.insert(0, op.contents ?? text(proposedNode));
+        if (proposedData.text) {
+          replaceText(
+            trackingNode,
+            "override" in op ? op.override.text : proposedData.text,
+          );
+        } else if (proposedData.buffer) {
+          replaceBuffer(trackingNode, proposedData.buffer);
+        } else {
+          throw Error(
+            `Cannot modify file without text or binary data: ${op.path}`,
+          );
+        }
+        if ("override" in op && op.override.text !== proposedData.text) {
+          // if approved text does not match proposed text then apply remaining changes to proposed
+          remainders.push({
+            tracking: trackingNode,
+            proposed: proposedNode,
+            proposedData,
+          });
+        }
+        await this.persistApproval(op, getNodeData(trackingNode));
+      } else {
+        throw Error(
+          `Unrecognized operation type: ${JSON.stringify(op satisfies never)}`,
+        );
       }
     }
 
     this.trackingDoc.commit();
     this.syncDocs();
+
+    // Apply remaining changes from partial approvals
+    for (const { tracking, proposed, proposedData } of remainders) {
+      const diff = this.diffProposed(tracking, proposed, proposedData);
+      // get tracked proposed node
+      const proposedNode = this.proposedFS.findById(tracking.id);
+      if (diff.text) {
+        updateText(proposedNode, diff.text.proposed);
+      }
+      if (diff.buffer) {
+        replaceBuffer(proposedNode, diff.buffer.proposed);
+      }
+      if (diff.path) {
+        const parentPath = this.proposedFS.getNodePath(proposedNode.parent());
+        const parentNode = this.proposedFS.findByPath(parentPath);
+        proposedNode.move(parentNode);
+      }
+    }
+    // delete untracked proposed, new proposed was created when tracking synced
+    for (const node of obsoleteNodes) {
+      this.proposedFS.deleteNode(node.id);
+    }
+    this.proposedDoc.commit();
+  }
+
+  async persistApproval(op: ApprovedChange, data: NodeData = {}) {
+    switch (op.type) {
+      case "create": {
+        if (data.isDirectory) {
+          await this.vault.createFolder(op.path);
+        } else if (data.text) {
+          await this.vault.create(op.path, data.text);
+        } else if (data.buffer) {
+          await this.vault.createBinary(op.path, data.buffer);
+        } else {
+          throw new Error(
+            `Failed to persist approved create, file is not directory, text or binary data: ${op.path}: ${JSON.stringify(data)}`,
+          );
+        }
+        break;
+      }
+      case "delete": {
+        const file = this.vault.getAbstractFileByPath(op.path);
+        invariant(file, `Cannot delete file not found: ${op.path}`);
+        await this.vault.delete(file);
+        break;
+      }
+      case "rename": {
+        const file = this.vault.getAbstractFileByPath(op.oldPath);
+        invariant(file, `Cannot rename file not found: ${op.oldPath}`);
+        await this.vault.rename(file, op.path);
+        break;
+      }
+      case "modify": {
+        const file = this.vault.getAbstractFileByPath(op.path);
+        invariant(file instanceof TFile, `Cannot modify folder: ${op.path}`);
+        invariant(file, `Cannot modify file not found: ${op.path}`);
+        if (data.text) {
+          await this.vault.modify(file, data.text);
+        } else if (data.buffer) {
+          await this.vault.modifyBinary(file, data.buffer);
+        } else {
+          throw new Error(
+            `Failed to persist approved modify, file is not text or binary data: ${op.path}: ${JSON.stringify(data)}`,
+          );
+        }
+        break;
+      }
+      default: {
+        throw new Error(
+          `Failed to persist approval, unrecognized op: ${JSON.stringify(op satisfies never)}`,
+        );
+      }
+    }
+  }
+
+  diffProposed(
+    trackingNode: LoroTreeNode,
+    proposedNode: LoroTreeNode,
+    proposedData: NodeData,
+  ) {
+    const diff: {
+      text?: { proposed: string | undefined; tracking: string | undefined };
+      path?: { proposed: string; tracking: string };
+      buffer?: {
+        proposed: ArrayBuffer | undefined;
+        tracking: ArrayBuffer | undefined;
+      };
+    } = {};
+
+    // Compare path
+    const trackingPath = this.trackingFS.getNodePath(trackingNode);
+    const proposedPath = this.proposedFS.getNodePath(proposedNode);
+    if (trackingPath !== proposedPath) {
+      diff.path = {
+        tracking: trackingPath,
+        proposed: proposedPath,
+      };
+    }
+
+    // Compare text content (just check if different)
+    const trackingText = getText(trackingNode);
+    if (proposedData.text && trackingText !== proposedData.text) {
+      diff.text = {
+        tracking: trackingText,
+        proposed: proposedData.text,
+      };
+    }
+
+    // Compare buffer data (just check if different)
+    const trackingBuffer = getBuffer(trackingNode);
+    if (proposedData.buffer && trackingBuffer !== proposedData.buffer) {
+      diff.buffer = {
+        tracking: trackingBuffer,
+        proposed: proposedData.buffer,
+      };
+    }
+
+    return diff;
   }
 
   syncDocs() {
@@ -788,7 +965,6 @@ export class VaultOverlay implements Vault {
       }),
     );
     this.proposedFS.invalidateCache();
-    this.computeChanges();
   }
 
   syncVault() {
@@ -800,7 +976,7 @@ export class VaultOverlay implements Vault {
     this.changes = this.getFileChanges();
   }
 
-  getFileChanges(): PathChange[] {
+  getFileChanges(): ProposedChange[] {
     const trackingTree = this.trackingDoc.getTree("vault");
 
     const nodes: Record<
@@ -821,10 +997,10 @@ export class VaultOverlay implements Vault {
       }
     }
 
-    const changes: PathChange[] = [];
+    const changes: ProposedChange[] = [];
 
     for (const [_id, { trackingNode, proposedNode }] of Object.entries(nodes)) {
-      let type: PathChange["type"];
+      let type: ProposedChange["type"];
 
       // omit if root
       if (!proposedNode.parent()) {
@@ -853,6 +1029,7 @@ export class VaultOverlay implements Vault {
           continue;
         }
 
+        // todo: compare binary
         const mText =
           (trackingNode.data.get("text") as LoroText | undefined)?.toString() ??
           "";

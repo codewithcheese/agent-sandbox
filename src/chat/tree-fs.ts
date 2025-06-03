@@ -14,6 +14,13 @@ import { encodeBase64 } from "$lib/utils/base64.ts";
 const trashPath = ".overlay-trash" as const;
 const deletedFrom = "deletedFrom" as const;
 
+export type NodeData = {
+  isDirectory?: boolean;
+  text?: string;
+  buffer?: ArrayBuffer;
+  stat?: FileStats;
+};
+
 export class TreeFS {
   private pathCache = new Map<string, TreeID>();
   private deletedFromIndex = new Set<string>();
@@ -39,15 +46,7 @@ export class TreeFS {
     return id && this.tree.getNodeByID(id);
   }
 
-  createNode(
-    path: string,
-    data: {
-      isDirectory?: boolean;
-      text?: string;
-      buffer?: ArrayBuffer;
-      stat?: FileStats;
-    },
-  ): LoroTreeNode {
+  createNode(path: string, data: NodeData): LoroTreeNode {
     path = normalizePath(path);
     const root = this.tree.roots()[0];
     const parts = path.split("/").filter((part) => part.length > 0);

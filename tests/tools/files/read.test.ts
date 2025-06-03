@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execute as readToolExecute } from "../../../src/tools/files/read";
 import { helpers, vault as mockVault } from "../../mocks/obsidian";
-import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlaySvelte } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 
 describe("readToolExecute", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
-  let vault: VaultOverlay;
+  let vault: VaultOverlaySvelte;
   let mockAbortController: AbortController;
 
   const formatExpectedTextOutput = (
@@ -25,7 +25,7 @@ describe("readToolExecute", () => {
     vi.resetAllMocks();
     helpers.reset(); // Reset the mock vault state
 
-    vault = new VaultOverlay(mockVault); // Use your VaultOverlay
+    vault = new VaultOverlaySvelte(mockVault); // Use your VaultOverlaySvelte
     mockAbortController = new AbortController();
 
     toolExecOptions = {

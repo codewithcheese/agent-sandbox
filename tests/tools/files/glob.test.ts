@@ -4,13 +4,13 @@ import {
   helpers as mockVaultHelpers,
   vault as mockVault,
 } from "../../mocks/obsidian";
-import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlaySvelte } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 
 describe("Glob tool execute function", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
-  let vault: VaultOverlay;
+  let vault: VaultOverlaySvelte;
   let mockAbortController: AbortController;
 
   const MOCK_ROOT_PATH = "/";
@@ -19,7 +19,7 @@ describe("Glob tool execute function", () => {
     vi.resetAllMocks();
     mockVaultHelpers.reset();
 
-    vault = new VaultOverlay(mockVault);
+    vault = new VaultOverlaySvelte(mockVault);
     mockAbortController = new AbortController();
 
     toolExecOptions = {

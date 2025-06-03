@@ -12,18 +12,18 @@
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import Markdown from "$lib/components/Markdown.svelte";
   import RetryAlert from "$lib/components/RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { normalizePath, Notice, TFile } from "obsidian";
   import { type ViewContext } from "$lib/obsidian/view.ts";
-  import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.ts";
+  import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.svelte.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
   import ChatInput from "./ChatInput.svelte";
   import type { Agents } from "./agents.svelte.ts";
   import Autoscroll from "./Autoscroll.svelte";
-  import type { PathChange } from "./vault-overlay.svelte.ts";
+  import type { ProposedChange } from "./vault-overlay.svelte.ts";
   import AgentMessage from "./AgentMessage.svelte";
   import { ChatView } from "./chat-view.svelte.ts";
   import { createDebug } from "$lib/debug.ts";
@@ -152,7 +152,7 @@
       });
   }
 
-  async function openMergeView(change: PathChange) {
+  async function openMergeView(change: ProposedChange) {
     try {
       const plugin = usePlugin();
       let leaf = plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];

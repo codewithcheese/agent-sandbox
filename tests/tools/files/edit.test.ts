@@ -4,7 +4,7 @@ import {
   vault as mockVault,
   helpers as mockVaultHelpers,
 } from "../../mocks/obsidian";
-import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlaySvelte } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import type { TFile } from "obsidian";
@@ -12,7 +12,7 @@ import { escapeRegExp } from "$lib/utils/regexp.ts";
 
 describe("Edit tool execute function", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
-  let vault: VaultOverlay;
+  let vault: VaultOverlaySvelte;
   let mockAbortController: AbortController;
 
   const MOCK_FILE_PATH = "/test/editable.md";
@@ -25,7 +25,7 @@ describe("Edit tool execute function", () => {
     vi.resetAllMocks();
     mockVaultHelpers.reset();
 
-    vault = new VaultOverlay(mockVault);
+    vault = new VaultOverlaySvelte(mockVault);
     mockAbortController = new AbortController();
 
     toolExecOptions = {
