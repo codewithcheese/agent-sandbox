@@ -67,10 +67,6 @@ describe("VaultOverlaySvelte", () => {
       expect(contentFromVC).toBe(fileContent);
 
       // Verify the file was NOT created in the actual vault
-      // The mock vault's create method should not have been called
-      expect(vault.create).not.toHaveBeenCalled();
-
-      // Verify the file doesn't exist in the mock filesystem
       // Use the vault's getFileByPath method to check if the file exists
       expect(vault.getFileByPath(filePath)).toBeNull();
     });
@@ -115,10 +111,6 @@ describe("VaultOverlaySvelte", () => {
       // Verify the file was modified in the overlay
       const contents = await overlay.read(file);
       expect(contents).toBe(modifiedContent);
-
-      // Verify the file was NOT modified in the actual vault
-      // The mock vault's modify method should not have been called
-      expect(vault.modify).not.toHaveBeenCalled();
 
       // Verify the original content is still in the mock filesystem
       const fileInVault = vault.getFileByPath(filePath);
@@ -441,12 +433,6 @@ describe("VaultOverlaySvelte", () => {
       const proposedNode = overlay.proposedFS.findDeleted(file.path);
       expect(proposedNode.data.get("deletedFrom")).toEqual(file.path);
 
-      // Verify the file cannot
-
-      // Verify the file was NOT deleted from the actual vault
-      // The mock vault's delete method should not have been called
-      expect(vault.delete).not.toHaveBeenCalled();
-
       // Verify the file still exists in the mock filesystem
       const fileInVault = vault.getFileByPath(filePath);
       expect(fileInVault).not.toBeNull();
@@ -462,8 +448,8 @@ describe("VaultOverlaySvelte", () => {
       // Act & Assert - Deleting a non-existent file should throw an error
       await expect(overlay.delete(nonExistentFile)).rejects.toThrow();
 
-      // Verify the vault's delete method was not called
-      expect(vault.delete).not.toHaveBeenCalled();
+      // Verify the file still doesn't exist in the vault (no file was deleted)
+      expect(vault.getFileByPath(nonExistentFilePath)).toBeNull();
     });
 
     it("should handle deleting a file that was previously created through the overlay", async () => {
@@ -484,8 +470,8 @@ describe("VaultOverlaySvelte", () => {
       // Assert - The file should be deleted from the overlay
       await expect(overlay.read(file)).rejects.toThrow();
 
-      // Verify the vault's delete method was not called
-      expect(vault.delete).not.toHaveBeenCalled();
+      // Verify the file was never created in the vault (it was an overlay-only file)
+      expect(vault.getFileByPath(filePath)).toBeNull();
     });
 
     it("should return early when trying to delete already deleted file", async () => {

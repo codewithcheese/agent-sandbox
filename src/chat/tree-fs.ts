@@ -102,6 +102,13 @@ export class TreeFS {
     },
   ) {
     const c = parent.createNode();
+    invariant(
+      data.isDirectory || data.text != null || data.buffer != null,
+      "Cannot create node, must be directory or file with text or binary data",
+    );
+    if (data.isDirectory && (data.text || data.buffer)) {
+      throw new Error("Cannot create directory with text or binary data");
+    }
     c.data.set("name", basename(path));
     if (data.isDirectory) {
       c.data.set("isDirectory", data.isDirectory);
@@ -122,6 +129,7 @@ export class TreeFS {
 
   moveNode(node: LoroTreeNode, parentId: TreeID): void {
     const newParent = this.findById(parentId);
+    invariant(newParent, `Cannot move node. Parent not found: ${parentId}`);
     const oldPath = this.getNodePath(node);
     node.move(newParent);
     const newPath = this.getNodePath(node);
@@ -134,9 +142,9 @@ export class TreeFS {
   deleteNode(nodeId: TreeID): void {
     const node = this.tree.getNodeByID(nodeId);
     invariant(node, `Cannot delete node. Node not found: ${nodeId}`);
-    const path = this.getNodePath(node);
-    this.pathCache.delete(path);
     this.tree.delete(nodeId);
+    // invalidate cache, a deleted folder could remove many paths
+    this.invalidateCache();
   }
 
   trashNode(node: LoroTreeNode, originalPath: string): void {

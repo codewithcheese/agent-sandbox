@@ -1,19 +1,19 @@
-import { vi } from "vitest";
-
 // polyfill for grey-matter
 import { Buffer } from "buffer";
 import matter from "gray-matter";
 import type { TAbstractFile, TFile, TFolder, Vault } from "obsidian";
+import { fs, InMemoryStore, configure, InMemory } from "@zenfs/core";
 import { normalizePath } from "./normalize-path.ts";
 
 if (typeof window !== "undefined" && typeof window.Buffer === "undefined") {
   window.Buffer = Buffer;
 }
 
-export const fileSystem = new Map<
-  string,
-  { content: string; metadata?: any }
->();
+// Set root as current directory so that paths don't require `/` prefix
+try {
+  globalThis.process.chdir("/");
+} catch (e) {}
+
 export const fileCache = new Map<string, any>();
 
 export class MockTAbstractFile implements TAbstractFile {
@@ -23,8 +23,8 @@ export class MockTAbstractFile implements TAbstractFile {
   parent: any;
 
   constructor(path: string) {
-    this.path = path;
-    const parts = path.split("/");
+    this.path = normalizePath(path);
+    const parts = this.path.split("/");
     this.name = parts[parts.length - 1];
   }
 }
@@ -39,14 +39,25 @@ export class MockTFile implements TFile {
   stat: { mtime: number; ctime: number; size: number };
 
   constructor(path: string) {
-    this.path = path;
-    const parts = path.split("/");
+    this.path = normalizePath(path);
+    const parts = this.path.split("/");
     const filename = parts[parts.length - 1];
     const filenameParts = filename.split(".");
     this.extension = filenameParts.length > 1 ? filenameParts.pop()! : "";
     this.basename = filenameParts.join(".");
     this.name = filename;
-    this.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
+
+    // Get real stats from memfs if file exists
+    try {
+      const stats = fs.statSync(this.path);
+      this.stat = {
+        mtime: stats.mtimeMs || Date.now(),
+        ctime: stats.ctimeMs || Date.now(),
+        size: stats.size || 0,
+      };
+    } catch {
+      this.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
+    }
   }
 }
 
@@ -59,120 +70,154 @@ export class MockTFolder implements TFolder {
   stat: { mtime: number; ctime: number; size: number };
 
   constructor(path: string) {
-    this.path = path;
-    const parts = path.split("/");
+    this.path = normalizePath(path) || "/";
+    const parts = this.path.split("/").filter(Boolean);
     this.name = parts[parts.length - 1] || "/";
     this.basename = this.name;
-    this.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
+
+    // Get real stats from memfs if folder exists
+    try {
+      const stats = fs.statSync(this.path);
+      this.stat = {
+        mtime: stats.mtimeMs || Date.now(),
+        ctime: stats.ctimeMs || Date.now(),
+        size: stats.size || 0,
+      };
+    } catch {
+      this.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
+    }
   }
 
   get children(): Array<MockTFile | MockTFolder> {
     const children: Array<MockTFile | MockTFolder> = [];
-    const folderPath = this.path === "/" ? "" : this.path;
 
-    // Find all files that are direct children of this folder
-    for (const [filePath] of fileSystem) {
-      const normalizedFilePath = normalizePath(filePath);
-      if (
-        (folderPath === "" && !normalizedFilePath.includes("/")) ||
-        normalizedFilePath.startsWith(folderPath + "/")
-      ) {
-        const relativePath = normalizedFilePath.slice(folderPath.length + 1);
-        // Only direct children (no additional slashes)
-        if (!relativePath.includes("/")) {
-          const file = new MockTFile(normalizedFilePath);
+    try {
+      const entries = fs.readdirSync(this.path, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const childPath =
+          this.path === "/" ? `/${entry.name}` : `${this.path}/${entry.name}`;
+
+        if (entry.isDirectory()) {
+          const folder = new MockTFolder(childPath);
+          folder.vault = this.vault;
+          folder.parent = this;
+          children.push(folder);
+        } else if (entry.isFile()) {
+          const file = new MockTFile(childPath);
           file.vault = this.vault;
           file.parent = this;
           children.push(file);
         }
       }
-    }
-
-    // Find all folders that are direct children of this folder
-    for (const [subFolderPath, subFolder] of folderSystem) {
-      if (
-        subFolderPath !== this.path &&
-        subFolderPath.startsWith(folderPath + "/")
-      ) {
-        const relativePath = subFolderPath.slice(folderPath.length + 1);
-        // Only direct children (no additional slashes)
-        if (!relativePath.includes("/")) {
-          subFolder.parent = this;
-          children.push(subFolder);
-        }
-      }
+    } catch {
+      // Directory doesn't exist or other error
     }
 
     return children;
   }
 
   isRoot() {
-    return this.path === "" || this.path === "/";
+    return this.path === "/";
   }
 }
 
-// Keep track of folders separately from files
-export const folderSystem = new Map<string, MockTFolder>();
-
-// Create root folder
+// Create root folder object
 const rootFolder = new MockTFolder("/");
-folderSystem.set("/", rootFolder);
 
 export const vault: Vault = {
-  getName: vi.fn(() => "Mock Vault"),
+  getName: () => "Mock Vault",
   configDir: "/mock-config",
-  read: vi.fn(async (file: MockTFile) => {
-    const fileData = fileSystem.get(file.path);
-    if (!fileData) {
+  read: async (file: MockTFile) => {
+    try {
+      return fs.readFileSync(file.path, "utf8");
+    } catch (error) {
       throw new Error(`File not found: ${file.path}`);
     }
-    return fileData.content;
-  }),
-  getFileByPath: vi.fn((path: string) => {
+  },
+  readBinary: async (file: MockTFile): Promise<ArrayBuffer> => {
+    try {
+      const buffer = fs.readFileSync(file.path);
+      return buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength,
+      );
+    } catch (error) {
+      throw new Error(`File not found: ${file.path}`);
+    }
+  },
+  getFileByPath: (path: string) => {
     path = normalizePath(path);
-    if (fileSystem.has(path)) {
-      const file = new MockTFile(path);
-      file.vault = vault;
-      return file;
+    try {
+      const stats = fs.statSync(path);
+      if (stats.isFile()) {
+        const file = new MockTFile(path);
+        file.vault = vault;
+        return file;
+      }
+    } catch {
+      // File doesn't exist
     }
     return null;
-  }),
-  getFolderByPath: vi.fn((path: string) => {
+  },
+  getFolderByPath: (path: string) => {
     path = normalizePath(path) || "/";
 
-    // Check if folder exists
-    if (folderSystem.has(path)) {
-      return folderSystem.get(path);
+    try {
+      const stats = fs.statSync(path);
+      if (stats.isDirectory()) {
+        const folder = new MockTFolder(path);
+        folder.vault = vault;
+        return folder;
+      }
+    } catch {
+      // Folder doesn't exist
     }
 
-    // Check if it's the root folder
+    // Always return root folder for root path
     if (path === "/") {
       return rootFolder;
     }
 
     return null;
-  }),
-  getAbstractFileByPath: vi.fn((path: string) => {
+  },
+  getAbstractFileByPath: (path: string) => {
     path = normalizePath(path);
 
-    if (fileSystem.has(path)) {
-      const file = new MockTFile(path);
-      file.vault = vault;
-      return file;
-    }
-
-    // Check if it's a folder
-    if (folderSystem.has(path)) {
-      return folderSystem.get(path);
+    try {
+      const stats = fs.statSync(path);
+      if (stats.isFile()) {
+        const file = new MockTFile(path);
+        file.vault = vault;
+        return file;
+      } else if (stats.isDirectory()) {
+        const folder = new MockTFolder(path);
+        folder.vault = vault;
+        return folder;
+      }
+    } catch {
+      // File/folder doesn't exist
     }
 
     return null;
-  }),
-  getRoot: vi.fn(() => {
+  },
+  getRoot: () => {
     return rootFolder;
-  }),
-  create: vi.fn(async (path: string, content: string) => {
-    fileSystem.set(path, { content });
+  },
+  create: async (path: string, content: string) => {
+    path = normalizePath(path);
+
+    // Ensure parent directory exists
+    const parentPath = path.substring(0, path.lastIndexOf("/"));
+    if (parentPath && parentPath !== "/") {
+      try {
+        fs.mkdirSync(parentPath, { recursive: true });
+      } catch {
+        // Directory might already exist
+      }
+    }
+
+    fs.writeFileSync(path, content, "utf8");
     const file = new MockTFile(path);
     file.vault = vault;
 
@@ -186,12 +231,43 @@ export const vault: Vault = {
     }
 
     return file;
-  }),
-  createFolder: vi.fn(async (path: string) => {
-    // Create the folder
+  },
+  createBinary: async (path: string, data: ArrayBuffer) => {
+    path = normalizePath(path);
+
+    // Ensure parent directory exists
+    const parentPath = path.substring(0, path.lastIndexOf("/"));
+    if (parentPath && parentPath !== "/") {
+      try {
+        fs.mkdirSync(parentPath, { recursive: true });
+      } catch {
+        // Directory might already exist
+      }
+    }
+
+    fs.writeFileSync(path, Buffer.from(data));
+    const file = new MockTFile(path);
+    file.vault = vault;
+
+    // Set parent folder
+    const lastSlash = path.lastIndexOf("/");
+    if (lastSlash > 0) {
+      const parentPath = path.substring(0, lastSlash);
+      file.parent = vault.getFolderByPath(parentPath);
+    } else {
+      file.parent = rootFolder;
+    }
+
+    return file;
+  },
+  createFolder: async (path: string) => {
+    path = normalizePath(path);
+
+    // Create the directory in memfs
+    fs.mkdirSync(path, { recursive: true });
+
     const folder = new MockTFolder(path);
     folder.vault = vault;
-    folderSystem.set(path, folder);
 
     // Set parent folder
     const lastSlash = path.lastIndexOf("/");
@@ -200,112 +276,135 @@ export const vault: Vault = {
       const parentFolder = vault.getFolderByPath(parentPath);
       if (parentFolder) {
         folder.parent = parentFolder;
-        parentFolder.children.push(folder);
       }
     } else {
       folder.parent = rootFolder;
-      rootFolder.children.push(folder);
     }
 
-    // Mark that the directory exists by adding an empty file
-    fileSystem.set(path + "/.dir", { content: "" });
     return folder;
-  }),
-  modify: vi.fn(async (file: MockTFile, content: string) => {
-    fileSystem.set(file.path, { content });
-  }),
-  delete: vi.fn(async (file: MockTFile | MockTFolder) => {
-    if (file instanceof MockTFile) {
-      fileSystem.delete(file.path);
-    } else {
-      // Delete folder and all its contents
-      folderSystem.delete(file.path);
-      // Remove any files that start with this path
-      for (const filePath of fileSystem.keys()) {
-        if (filePath.startsWith(file.path + "/")) {
-          fileSystem.delete(filePath);
-        }
+  },
+  modify: async (file: MockTFile, content: string) => {
+    fs.writeFileSync(file.path, content, "utf8");
+  },
+  delete: async (file: MockTFile | MockTFolder) => {
+    try {
+      const stats = fs.statSync(file.path);
+      if (stats.isDirectory()) {
+        fs.rmSync(file.path, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(file.path);
       }
+    } catch {
+      // File/folder doesn't exist or other error
     }
-  }),
-  rename: vi.fn(async (file: MockTFile | MockTFolder, newPath: string) => {
-    if (file instanceof MockTFile) {
-      const content = fileSystem.get(file.path)?.content || "";
-      fileSystem.delete(file.path);
-      fileSystem.set(newPath, { content });
-    } else {
-      // Rename folder
-      const folder = folderSystem.get(file.path);
-      if (folder) {
-        folderSystem.delete(file.path);
-        folder.path = newPath;
-        folderSystem.set(newPath, folder);
-      }
-    }
-  }),
-  append: vi.fn(async (file: MockTFile, content: string) => {
-    const existingContent = fileSystem.get(file.path)?.content || "";
-    fileSystem.set(file.path, { content: existingContent + content });
-  }),
-  process: vi.fn(async (file: MockTFile, fn: (data: string) => string) => {
-    const existingContent = fileSystem.get(file.path)?.content || "";
-    const newContent = fn(existingContent);
-    fileSystem.set(file.path, { content: newContent });
-    return newContent;
-  }),
+  },
+  rename: async (file: MockTFile | MockTFolder, newPath: string) => {
+    newPath = normalizePath(newPath);
 
-  // @ts-expect-error adapater missing props
-  adapter: {
-    read: vi.fn(async (path: string) => {
-      const fileData = fileSystem.get(path);
-      if (!fileData) {
-        throw new Error(`File not found: ${path}`);
+    // Ensure parent directory exists for new path
+    const parentPath = newPath.substring(0, newPath.lastIndexOf("/"));
+    if (parentPath && parentPath !== "/") {
+      try {
+        fs.mkdirSync(parentPath, { recursive: true });
+      } catch {
+        // Directory might already exist
       }
-      return fileData.content;
-    }),
-    exists: vi.fn(async (path: string) => {
-      return fileSystem.has(path);
-    }),
-    write: vi.fn(async (path: string, content: string) => {
-      fileSystem.set(path, { content });
-    }),
-    mkdir: vi.fn(async (path: string) => {
-      // Just mark that the directory exists by adding an empty file
-      fileSystem.set(path + "/.dir", { content: "" });
-    }),
-    readBinary: vi.fn(async (path: string) => {
-      const fileData = fileSystem.get(path);
-      if (!fileData) {
-        throw new Error(`File not found: ${path}`);
-      }
-      // Convert string to ArrayBuffer for binary data simulation
-      return new TextEncoder().encode(fileData.content).buffer as ArrayBuffer;
-    }),
-    writeBinary: vi.fn(async (path: string, data: ArrayBuffer) => {
-      // Convert ArrayBuffer to string for storage
-      const content = new TextDecoder().decode(data);
-      fileSystem.set(path, { content });
-    }),
+    }
+
+    try {
+      fs.renameSync(file.path, newPath);
+      file.path = newPath;
+    } catch (error) {
+      throw new Error(`Failed to rename ${file.path} to ${newPath}`);
+    }
+  },
+  append: async (file: MockTFile, content: string) => {
+    fs.appendFileSync(file.path, content, "utf8");
+  },
+  process: async (file: MockTFile, fn: (data: string) => string) => {
+    const existingContent = fs.readFileSync(file.path, "utf8");
+    const newContent = fn(existingContent);
+    fs.writeFileSync(file.path, newContent, "utf8");
+    return newContent;
   },
 
-  // Helper method that just returns data from our in-memory store
+  // @ts-expect-error adapter missing props
+  adapter: {
+    read: async (path: string) => {
+      try {
+        return fs.readFileSync(path, "utf8");
+      } catch (error) {
+        throw new Error(`File not found: ${path}`);
+      }
+    },
+    exists: async (path: string) => {
+      try {
+        fs.statSync(path);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    write: async (path: string, content: string) => {
+      fs.writeFileSync(path, content, "utf8");
+    },
+    mkdir: async (path: string) => {
+      fs.mkdirSync(path, { recursive: true });
+    },
+    readBinary: async (path: string) => {
+      try {
+        const buffer = fs.readFileSync(path);
+        return buffer.buffer.slice(
+          buffer.byteOffset,
+          buffer.byteOffset + buffer.byteLength,
+        );
+      } catch (error) {
+        throw new Error(`File not found: ${path}`);
+      }
+    },
+    writeBinary: async (path: string, data: ArrayBuffer) => {
+      fs.writeFileSync(path, Buffer.from(data));
+    },
+  },
+
+  // Helper method that returns all files from memfs
   getFiles: () => {
-    return Array.from(fileSystem.keys()).map((path) => new MockTFile(path));
+    const files: MockTFile[] = [];
+
+    function traverse(dirPath: string) {
+      try {
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath =
+            dirPath === "/" ? `/${entry.name}` : `${dirPath}/${entry.name}`;
+          if (entry.isFile()) {
+            files.push(new MockTFile(fullPath));
+          } else if (entry.isDirectory()) {
+            traverse(fullPath);
+          }
+        }
+      } catch {
+        // Directory doesn't exist or other error
+      }
+    }
+
+    traverse("/");
+    return files;
   },
 };
 
 export const metadataCache = {
-  getFileCache: vi.fn((file: MockTFile) => {
+  getFileCache: (file: MockTFile) => {
     return fileCache.get(file.path);
-  }),
+  },
 
   // Helper method for tests to set cache data
   setFileCache: (file: MockTFile, cache: any) => {
     fileCache.set(file.path, cache);
   },
 
-  getFirstLinkpathDest: vi.fn(),
-  on: vi.fn(),
+  getFirstLinkpathDest: () => null,
+  on: () => {},
 };
 
 export const app = {
@@ -321,14 +420,23 @@ export const plugin = {
 export const helpers = {
   addFile(path: string, content: string) {
     path = normalizePath(path);
-    fileSystem.set(path, { content });
+
+    // Ensure parent directories exist
+    const parentPath = path.substring(0, path.lastIndexOf("/"));
+    if (parentPath && parentPath !== "/") {
+      try {
+        fs.mkdirSync(parentPath, { recursive: true });
+      } catch {
+        // Directory might already exist
+      }
+    }
+
+    // Write file to memfs
+    fs.writeFileSync(path, content, { encoding: "utf8" });
 
     // Create file object
     const file = new MockTFile(path);
     file.vault = vault;
-
-    // Ensure parent folders exist
-    this.ensureParentFolders(path);
 
     // Parse frontmatter if present
     if (content) {
@@ -346,13 +454,14 @@ export const helpers = {
   },
 
   addFolder(path: string) {
-    // Create the folder
+    path = normalizePath(path);
+
+    // Create the directory in memfs
+    fs.mkdirSync(path, { recursive: true });
+
+    // Create folder object
     const folder = new MockTFolder(path);
     folder.vault = vault;
-    folderSystem.set(path, folder);
-
-    // Ensure parent folders exist
-    this.ensureParentFolders(path);
 
     return folder;
   },
@@ -362,30 +471,29 @@ export const helpers = {
     if (lastSlash > 0) {
       const parentPath = path.substring(0, lastSlash);
 
-      // Create parent folder if it doesn't exist
-      if (!folderSystem.has(parentPath)) {
-        this.addFolder(parentPath);
-      }
-
-      // Set parent-child relationship
-      const file = vault.getFileByPath(path);
-      const folder = folderSystem.get(parentPath);
-
-      if (file && folder) {
-        file.parent = folder;
+      // Create parent directory if it doesn't exist
+      try {
+        fs.mkdirSync(parentPath, { recursive: true });
+      } catch {
+        // Directory might already exist
       }
     }
   },
 
-  reset() {
-    fileSystem.clear();
+  async reset() {
+    // Clear the entire volume and recreate root
     fileCache.clear();
-    folderSystem.clear();
-
-    // Recreate root folder
-    const root = new MockTFolder("/");
-    root.vault = vault;
-    folderSystem.set("/", root);
+    try {
+      fs.rmSync("/", { recursive: true, force: true });
+    } catch (error) {
+      // File/folder doesn't exist or other error
+    }
+    // Ensure root directory exists
+    try {
+      fs.mkdirSync("/", { recursive: true });
+    } catch {
+      // Root already exists
+    }
   },
 };
 

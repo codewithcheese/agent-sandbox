@@ -370,15 +370,18 @@ export class VaultOverlaySvelte implements Vault {
     let proposedNode = this.proposedFS.findByPath(file.path);
     // Import if the file exists in the vault, but not in overlay
     if (!trackingNode && !proposedNode) {
-      const vaultFile = this.vault.getFileByPath(normalizePath(file.path));
+      const vaultFile = this.vault.getAbstractFileByPath(
+        normalizePath(file.path),
+      );
+      const type = vaultFile instanceof TFolder ? "folder" : "file";
       invariant(
         vaultFile,
-        `Cannot rename file not found in vault: ${file.path}`,
+        `Cannot rename ${type} not found in vault: ${file.path}`,
       );
       trackingNode = await this.syncPath(file.path);
       invariant(
         trackingNode,
-        `Cannot rename file not found after sync: ${file.path}`,
+        `Cannot rename ${type} not found after sync: ${file.path}`,
       );
       proposedNode = this.proposedFS.findByPath(file.path);
     }
@@ -779,6 +782,11 @@ export class VaultOverlaySvelte implements Vault {
       if (op.type === "create") {
         // write change to tracking
         const data = getNodeData(proposedNode);
+        if (data.isDirectory && op.override) {
+          throw new Error(
+            `Cannot approve create directory with text or binary data: ${op.path}`,
+          );
+        }
         if ("override" in op) {
           data.text = op.override.text;
         }
@@ -798,7 +806,15 @@ export class VaultOverlaySvelte implements Vault {
         await this.persistApproval(op);
       } else if (op.type === "rename") {
         if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
-          this.trackingFS.moveNode(trackingNode, proposedNode.parent().id);
+          let parentNode = this.trackingFS.findById(proposedNode.parent().id);
+          if (!parentNode) {
+            // if parent path is not tracked, create it
+            parentNode = this.trackingFS.createNode(
+              dirname(op.path),
+              getNodeData(proposedNode.parent()),
+            );
+          }
+          this.trackingFS.moveNode(trackingNode, parentNode.id);
         }
         if (getName(trackingNode) !== getName(proposedNode)) {
           this.trackingFS.renameNode(trackingNode.id, op.path);
