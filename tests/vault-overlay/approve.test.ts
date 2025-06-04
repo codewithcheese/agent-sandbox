@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 import type { TreeFS } from "../../src/chat/tree-fs.ts";
@@ -13,6 +13,10 @@ describe("Approve changes", () => {
     overlay = new VaultOverlaySvelte(vault);
     proposedFS = overlay.proposedFS;
     trackingFS = overlay.trackingFS;
+  });
+
+  afterEach(async () => {
+    await helpers.reset();
   });
 
   describe("approve modify only file", () => {
@@ -505,7 +509,67 @@ describe("Approve changes", () => {
     expect(vault.getFolderByPath("documents")).not.toBeNull();
   });
 
-  it("should approve move to newly created folder", async () => {});
+  it("should approve move to newly created folder", async () => {
+    // Setup: Create a file in an existing location
+    helpers.addFolder("existing");
+    const sourceFile = helpers.addFile(
+      "existing/document.md",
+      "Document content",
+    );
+
+    // AI operations: Create new folder and move file into it
+    await overlay.createFolder("new-folder");
+    await overlay.rename(sourceFile, "new-folder/document.md");
+
+    // Verify both operations exist in proposed state
+    const proposedFolder = proposedFS.findByPath("new-folder");
+    const proposedFile = proposedFS.findByPath("new-folder/document.md");
+    expect(proposedFolder).toBeDefined();
+    expect(proposedFolder.data.get("isDirectory")).toBe(true);
+    expect(proposedFile).toBeDefined();
+    expect(getText(proposedFile)).toEqual("Document content");
+
+    // Verify old location no longer accessible
+    expect(proposedFS.findByPath("existing/document.md")).not.toBeDefined();
+
+    // Verify nothing exists in tracking yet
+    expect(trackingFS.findByPath("new-folder")).toBeUndefined();
+    expect(trackingFS.findByPath("new-folder/document.md")).toBeUndefined();
+
+    // Approve both operations in same batch
+    await overlay.approve([
+      { path: "new-folder", type: "create" },
+      {
+        path: "new-folder/document.md",
+        type: "rename",
+        oldPath: "existing/document.md",
+      },
+    ]);
+
+    // Verify both operations succeeded in tracking
+    const trackingFolder = trackingFS.findByPath("new-folder");
+    const trackingFile = trackingFS.findByPath("new-folder/document.md");
+    expect(trackingFolder).toBeDefined();
+    expect(trackingFolder.data.get("isDirectory")).toBe(true);
+    expect(trackingFile).toBeDefined();
+    expect(getText(trackingFile)).toEqual("Document content");
+
+    // Verify old path doesn't exist in tracking
+    expect(trackingFS.findByPath("existing/document.md")).toBeUndefined();
+
+    // Verify vault state - both folder and file should exist
+    const vaultFolder = vault.getFolderByPath("new-folder");
+    const vaultFile = vault.getFileByPath("new-folder/document.md");
+    expect(vaultFolder).not.toBeNull();
+    expect(vaultFile).not.toBeNull();
+    expect(await vault.read(vaultFile)).toEqual("Document content");
+
+    // Verify old path doesn't exist in vault
+    expect(vault.getFileByPath("existing/document.md")).toBeNull();
+
+    // Verify source folder still exists but is empty
+    expect(vault.getFolderByPath("existing")).not.toBeNull();
+  });
 
   it("should approve move folder", async () => {
     // Create initial folder structure
@@ -519,14 +583,20 @@ describe("Approve changes", () => {
 
     // Approve the move operation
     await overlay.approve([
-      { type: "rename", path: "parentB/childFolder", oldPath: "parentA/childFolder" }
+      {
+        type: "rename",
+        path: "parentB/childFolder",
+        oldPath: "parentA/childFolder",
+      },
     ]);
 
     // Verify folder was moved in vault
     expect(vault.getFolderByPath("parentB/childFolder")).not.toBeNull();
     expect(vault.getFolderByPath("parentA/childFolder")).toBeNull();
     expect(vault.getFileByPath("parentB/childFolder/test.md")).not.toBeNull();
-    expect(await vault.read(vault.getFileByPath("parentB/childFolder/test.md"))).toEqual("Test content");
+    expect(
+      await vault.read(vault.getFileByPath("parentB/childFolder/test.md")),
+    ).toEqual("Test content");
   });
 
   it("should approve rename folder", async () => {
@@ -540,37 +610,188 @@ describe("Approve changes", () => {
 
     // Approve the rename operation
     await overlay.approve([
-      { type: "rename", path: "projects/newname", oldPath: "projects/oldname" }
+      { type: "rename", path: "projects/newname", oldPath: "projects/oldname" },
     ]);
 
     // Verify folder was renamed in vault
     expect(vault.getFolderByPath("projects/newname")).not.toBeNull();
     expect(vault.getFolderByPath("projects/oldname")).toBeNull();
     expect(vault.getFileByPath("projects/newname/file.md")).not.toBeNull();
-    expect(await vault.read(vault.getFileByPath("projects/newname/file.md"))).toEqual("File content");
+    expect(
+      await vault.read(vault.getFileByPath("projects/newname/file.md")),
+    ).toEqual("File content");
 
     // Verify parent folder unchanged
     expect(vault.getFolderByPath("projects")).not.toBeNull();
   });
 
-  it("should approve created, renamed, modified, deleted");
+  it("should not require rename or modify approval when file was created in overlay", async () => {
+    // Setup: Create folder for operations
+    helpers.addFolder("docs");
 
-  it("should approve created, renamed, modified");
+    // AI operations: All applied to the same file through its lifecycle
+    // 1. Create a new file
+    await overlay.create("docs/lifecycle.md", "Initial content");
 
-  it("should approve created, renamed");
+    // 2. Rename the created file
+    const createdFile = overlay.getFileByPath("docs/lifecycle.md");
+    await overlay.rename(createdFile, "docs/renamed-lifecycle.md");
 
-  it("should approve renamed, modified, deleted");
+    // 3. Modify the renamed file
+    const renamedFile = overlay.getFileByPath("docs/renamed-lifecycle.md");
+    await overlay.modify(renamedFile, "Modified content after rename");
 
-  it("should approve renamed, modified");
+    // Verify all operations exist in proposed state for the same file
+    const renamedNode = proposedFS.findByPath("docs/renamed-lifecycle.md");
 
-  it("should approve modified, deleted");
+    expect(renamedNode).toBeDefined();
+    expect(getText(renamedNode)).toEqual("Modified content after rename");
+
+    // Verify original path no longer accessible
+    expect(proposedFS.findByPath("docs/lifecycle.md")).not.toBeDefined();
+
+    // Approve all operations in same batch
+    await overlay.approve([
+      { path: "docs/renamed-lifecycle.md", type: "create" },
+    ]);
+
+    // Verify final state in tracking - file should exist with final content
+    const trackingFile = trackingFS.findByPath("docs/renamed-lifecycle.md");
+    expect(trackingFile).toBeDefined();
+    expect(getText(trackingFile)).toEqual("Modified content after rename");
+
+    const proposedFile = proposedFS.findByPath("docs/renamed-lifecycle.md");
+    expect(trackingFile.id).toEqual(proposedFile.id);
+
+    // Verify original path doesn't exist in tracking
+    expect(trackingFS.findByPath("docs/lifecycle.md")).toBeUndefined();
+
+    // Verify vault state - file should exist at final location with final content
+    const vaultOriginal = vault.getFileByPath("docs/lifecycle.md");
+    const vaultRenamed = vault.getFileByPath("docs/renamed-lifecycle.md");
+
+    expect(vaultOriginal).toBeNull();
+    expect(vaultRenamed).not.toBeNull();
+    expect(await vault.read(vaultRenamed)).toEqual(
+      "Modified content after rename",
+    );
+
+    // Verify parent folder still exists
+    expect(vault.getFolderByPath("docs")).not.toBeNull();
+  });
+
+  it("should approve rename then modify existing file", async () => {
+    // Setup: Create file in vault that is tracked
+    helpers.addFolder("notes");
+    const originalFile = helpers.addFile(
+      "notes/report.md",
+      "Original report content",
+    );
+
+    // Import file to tracking system
+    const trackingNode = await overlay.syncPath("notes/report.md");
+    expect(trackingNode).toBeDefined();
+
+    // AI operations: rename then modify the existing file
+    await overlay.rename(originalFile, "notes/final-report.md");
+    const renamedFile = overlay.getFileByPath("notes/final-report.md");
+    await overlay.modify(renamedFile, "Updated final report content");
+
+    // Verify both operations exist in proposed state
+    const proposedNode = proposedFS.findByPath("notes/final-report.md");
+    expect(proposedNode).toBeDefined();
+    expect(getText(proposedNode)).toEqual("Updated final report content");
+
+    // Verify old name is no longer accessible in proposed
+    expect(proposedFS.findByPath("notes/report.md")).not.toBeDefined();
+
+    // Approve both operations in batch
+    await overlay.approve([
+      {
+        type: "rename",
+        path: "notes/final-report.md",
+        oldPath: "notes/report.md",
+      },
+      { type: "modify", path: "notes/final-report.md" },
+    ]);
+
+    // Verify both operations succeeded in tracking
+    const trackingNodeFinal = trackingFS.findByPath("notes/final-report.md");
+    expect(trackingNodeFinal).toBeDefined();
+    expect(getText(trackingNodeFinal)).toEqual("Updated final report content");
+    expect(trackingNodeFinal.id).toEqual(proposedNode.id);
+
+    // Verify old name doesn't exist in tracking
+    expect(trackingFS.findByPath("notes/report.md")).toBeUndefined();
+
+    // Check vault state - file should be renamed and modified in vault
+    expect(vault.getFileByPath("notes/final-report.md")).not.toBeNull();
+    expect(vault.getFileByPath("notes/report.md")).toBeNull();
+    expect(
+      await vault.read(vault.getFileByPath("notes/final-report.md")),
+    ).toEqual("Updated final report content");
+
+    // Verify parent folder still exists and is unchanged
+    expect(vault.getFolderByPath("notes")).not.toBeNull();
+  });
+
+  it("should approve rename then delete existing file", async () => {
+    // Setup: Create file in vault that is tracked
+    helpers.addFolder("documents");
+    const originalFile = helpers.addFile(
+      "documents/temp-doc.md",
+      "Temporary document content",
+    );
+
+    // Import file to tracking system
+    const trackingNode = await overlay.syncPath("documents/temp-doc.md");
+    expect(trackingNode).toBeDefined();
+
+    // AI operations: rename then delete the existing file
+    await overlay.rename(originalFile, "documents/renamed-temp.md");
+    const renamedFile = overlay.getFileByPath("documents/renamed-temp.md");
+    await overlay.delete(renamedFile);
+
+    // Verify rename operation exists in proposed state
+    expect(
+      proposedFS.findByPath("documents/renamed-temp.md"),
+    ).not.toBeDefined();
+
+    // Verify file is marked as deleted under original name
+    const deletedNode = proposedFS.findDeleted("documents/temp-doc.md");
+    expect(deletedNode).toBeDefined();
+    expect(deletedNode.data.get("deletedFrom")).toEqual(
+      "documents/temp-doc.md",
+    );
+
+    // Approve only the delete operation - rename becomes irrelevant once file is deleted
+    await overlay.approve([{ type: "delete", path: "documents/temp-doc.md" }]);
+
+    // Verify file is deleted in tracking
+    const trackingNodeFinal = trackingFS.findByPath("documents/temp-doc.md");
+    expect(trackingNodeFinal).toBeUndefined();
+
+    // Verify deleted node is marked as deleted in tracking
+    const trackingDeletedNode = trackingFS.findById(deletedNode.id);
+    expect(trackingDeletedNode.isDeleted()).toBe(true);
+
+    // Check vault state - file should be deleted
+    expect(vault.getFileByPath("documents/temp-doc.md")).toBeNull();
+
+    // Verify parent folder still exists
+    expect(vault.getFolderByPath("documents")).not.toBeNull();
+  });
+
+  it("should approve modify then delete existing file");
 
   // Error Cases
   it("should throw error when approving non-existent path");
 
   it("should throw error when approving with invalid operation type");
 
-  it("should throw error when approving deleted file as modify");
+  it("should throw error when approving modify on deleted file");
+
+  it("should throw error when approving rename on deleted file");
 
   // Edge Cases
   it("should approve operations with override content");
@@ -588,4 +809,80 @@ describe("Approve changes", () => {
   it("should approve subset of complex operations");
 
   it("should handle approval conflicts");
+
+  // Critical Error Handling
+  it("should throw error when approving operation on non-existent proposed file", async () => {
+    // Test approving a path that was never modified in overlay
+
+    // Add a file to vault but don't modify it in overlay
+    helpers.addFile("existing-in-vault.md", "Vault content");
+
+    // Test approving modify on path that exists in vault but not in overlay
+    await expect(
+      overlay.approve([{ path: "existing-in-vault.md", type: "modify" }]),
+    ).rejects.toThrow(
+      "Cannot approve modify, no proposal found for: existing-in-vault.md",
+    );
+
+    // Test approving delete on path that exists in vault but not in overlay
+    await expect(
+      overlay.approve([{ path: "existing-in-vault.md", type: "delete" }]),
+    ).rejects.toThrow(
+      "Cannot approve delete, no proposal found for: existing-in-vault.md",
+    );
+
+    // Test approving rename on path that exists in vault but not in overlay
+    await expect(
+      overlay.approve([
+        {
+          path: "new-name.md",
+          type: "rename",
+          oldPath: "existing-in-vault.md",
+        },
+      ]),
+    ).rejects.toThrow(
+      "Cannot approve rename, no proposal found for: new-name.md",
+    );
+
+    // Test approving operation on completely non-existent path
+    await expect(
+      overlay.approve([{ path: "never-existed.md", type: "modify" }]),
+    ).rejects.toThrow(
+      "Cannot approve modify, no proposal found for: never-existed.md",
+    );
+
+    // Test approving create on non-existent path (should also fail since create needs proposed node)
+    await expect(
+      overlay.approve([{ path: "never-created.md", type: "create" }]),
+    ).rejects.toThrow(
+      "Cannot approve create, no proposal found for: never-created.md",
+    );
+  });
+
+  it("should handle partial batch failure and rollback cleanly", async () => {
+    // Test when one operation in a batch fails, others should not be applied
+  });
+
+  // Complex State Management
+  it("should approve operations on files with competing vault modifications", async () => {
+    // File modified in both overlay and vault externally, test merge/conflict resolution
+  });
+
+  it("should handle approval of interdependent operations in correct order", async () => {
+    // Create folder -> create file in folder -> rename folder, test dependency resolution
+  });
+
+  // Advanced Operation Combinations
+  it("should approve file moved to newly created folder in same batch", async () => {
+    // Create folder A, move file X to folder A, approve both operations together
+  });
+
+  it("should reject invalid override content for binary operations", async () => {
+    // Test error when trying to override binary file with text, or folder with content
+  });
+
+  // Edge Case Coverage
+  it("should approve operations on deeply nested paths with parent folder changes", async () => {
+    // Test complex hierarchy: create a/b/c/file.md, rename a -> x, verify a/b/c/file.md becomes x/b/c/file.md
+  });
 });

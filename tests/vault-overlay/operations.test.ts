@@ -349,14 +349,16 @@ describe("VaultOverlaySvelte", () => {
       );
     });
 
-    it("should reject rename of deleted file", async () => {
-      await overlay.create("test.md", "content");
-      const file = overlay.getFileByPath("test.md");
-      await overlay.delete(file);
+    describe("when file created in overlay and then deleted", () => {
+      it("should reject rename of file not found in vault", async () => {
+        await overlay.create("test.md", "content");
+        const file = overlay.getFileByPath("test.md");
+        await overlay.delete(file);
 
-      await expect(overlay.rename(file, "renamed.md")).rejects.toThrow(
-        "Cannot rename file that was deleted",
-      );
+        await expect(overlay.rename(file, "renamed.md")).rejects.toThrow(
+          "Cannot rename file not found in vault: test.md",
+        );
+      });
     });
 
     it("should reject rename to path existing in vault", async () => {
@@ -474,20 +476,39 @@ describe("VaultOverlaySvelte", () => {
       expect(vault.getFileByPath(filePath)).toBeNull();
     });
 
-    it("should return early when trying to delete already deleted file", async () => {
-      // Create and delete a file
-      await overlay.create("test.md", "content");
-      const file = overlay.getFileByPath("test.md");
-      await overlay.delete(file);
+    describe("when file created in overlay and then deleted", () => {
+      it("should throw not found when trying to delete already deleted file", async () => {
+        // Create and delete a file
+        await overlay.create("test.md", "content");
+        const proposedNode = overlay.proposedFS.findByPath("test.md");
+        expect(proposedNode.isDeleted()).toEqual(false);
+        const file = overlay.getFileByPath("test.md");
 
-      // Try to delete again - should return early
-      await overlay.delete(file);
+        await overlay.delete(file);
+        // The proposed node is deleted immediately when created in overlay
+        expect(proposedNode.isDeleted()).toEqual(true);
 
-      // Verify file is still in deleted state
-      const deletedNode = overlay.proposedFS.findDeleted("test.md");
-      expect(deletedNode).toBeTruthy();
+        // Try to delete again - should return early
+        expect(overlay.delete(file)).rejects.toThrow();
+      });
     });
 
+    describe("when file created in vault, renamed and then deleted", () => {
+      it("should undo renamed and reject modify of deleted file", async () => {
+        const file = helpers.addFile("vault-file.md", "Hello\n\nGoodbye");
+
+        await overlay.rename(file, "renamed-file.md");
+
+        const renamedFile = overlay.getFileByPath("renamed-file.md");
+        expect(renamedFile).toBeDefined();
+
+        await overlay.delete(renamedFile);
+
+        expect(
+          overlay.modify(file, "Hello\n\nGoodbye\n\nAI Suffix"),
+        ).rejects.toThrow(`Cannot modify file that was deleted: ${file.path}`);
+      });
+    });
     it("should sync file before deletion when not in overlay", async () => {
       // Create file directly in vault (not in overlay)
       helpers.addFile("vault-file.md", "vault content");
@@ -540,7 +561,8 @@ describe("VaultOverlaySvelte", () => {
 
   describe("Trash Operations", () => {
     it("should move file to trash folder when deleted", async () => {
-      await overlay.create("test.md", "content");
+      helpers.addFile("test.md", "content");
+
       const file = overlay.getFileByPath("test.md");
       await overlay.delete(file);
 
@@ -551,8 +573,8 @@ describe("VaultOverlaySvelte", () => {
     });
 
     it("should restore deleted file when creating with same path", async () => {
-      // Create and delete a file
-      await overlay.create("test.md", "original content");
+      helpers.addFile("test.md", "original content");
+
       const file = overlay.getFileByPath("test.md");
       await overlay.delete(file);
 

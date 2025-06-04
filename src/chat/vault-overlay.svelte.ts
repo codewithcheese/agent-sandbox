@@ -314,7 +314,9 @@ export class VaultOverlaySvelte implements Vault {
     }
 
     let proposedNode = this.proposedFS.findByPath(file.path);
-    let trackingNode = this.trackingFS.findByPath(file.path);
+    let trackingNode =
+      proposedNode && this.trackingFS.findById(proposedNode.id);
+
     if (!proposedNode && !trackingNode) {
       const abstractFile = this.vault.getAbstractFileByPath(
         normalizePath(file.path),
@@ -332,8 +334,21 @@ export class VaultOverlaySvelte implements Vault {
 
     invariant(proposedNode, `Cannot delete file not found: ${file.path} `);
 
-    this.proposedFS.trashNode(proposedNode, file.path);
-    this.proposedDoc.commit();
+    try {
+      if (!trackingNode) {
+        // File was created in overlay - just remove it completely
+        this.proposedFS.deleteNode(proposedNode.id);
+      } else {
+        // File exists in tracking - undo proposed to tracking state (rollback changes)
+        this.undoProposed(proposedNode, trackingNode);
+
+        // Now trash from original path
+        const originalPath = this.trackingFS.getNodePath(trackingNode);
+        this.proposedFS.trashNode(proposedNode, originalPath);
+      }
+    } finally {
+      this.proposedDoc.commit();
+    }
   }
 
   async trash(_file: TAbstractFile): Promise<void> {
@@ -412,19 +427,25 @@ export class VaultOverlaySvelte implements Vault {
     data: string,
     options?: DataWriteOptions,
   ): Promise<void> {
-    let trackingNode = this.trackingFS.findByPath(file.path);
-    let proposedNode = trackingNode
-      ? this.proposedFS.findById(trackingNode.id)
-      : this.proposedFS.findByPath(file.path);
+    let proposedNode = this.proposedFS.findByPath(file.path);
     const existsInVault = this.vault.getFileByPath(normalizePath(file.path));
 
-    if (!trackingNode && existsInVault) {
-      trackingNode = await this.syncPath(file.path);
+    // Sync if no proposal exists at this path, file exists in the vault, and is not tracked
+    if (
+      !proposedNode &&
+      existsInVault &&
+      !this.trackingFS.findByPath(file.path)
+    ) {
+      const trackingNode = await this.syncPath(file.path);
       invariant(
         trackingNode,
         `Cannot modify file not found after sync: ${file.path}`,
       );
       proposedNode = this.proposedFS.findById(trackingNode.id);
+    }
+
+    if (this.proposedFS.findDeleted(file.path)) {
+      throw new Error(`Cannot modify file that was deleted: ${file.path}`);
     }
 
     if (!proposedNode) {
@@ -693,70 +714,6 @@ export class VaultOverlaySvelte implements Vault {
   }
 
   async approve(ops: ApprovedChange[]) {
-    /*    const ops: ApprovalOp[] = [];
-    for (const approval of approvals) {
-      const proposedNode = this.proposedFS.findById(approval.id);
-      const trackingNode = this.trackingFS.findById(approval.id);
-      invariant(
-        proposedNode,
-        `Proposed node not found for approval: ${approval.id}`,
-      );
-      const proposedPath = this.proposedFS.getNodePath(proposedNode);
-      const trackingPath = this.trackingFS.getNodePath(trackingNode);
-      const deletedPath = proposedNode.data.get(deletedFrom);
-
-      if (approval.text && proposedNode.data.get("isDirectory")) {
-        throw Error(
-          `Cannot approve new contents on directory: ${this.proposedFS.getNodePath(proposedNode)}`,
-        );
-      }
-
-      if (!deletedPath && !trackingNode) {
-        ops.push({
-          id: proposedNode.id,
-          type: "create",
-          text: approval.text,
-        });
-      }
-
-      if (deletedPath != null) {
-        ops.push({
-          id: proposedNode.id,
-          type: "delete",
-        });
-      } else if (trackingNode) {
-        // if path has changed
-        if (proposedPath !== trackingPath) {
-          ops.push({
-            id: proposedNode.id,
-            type: "rename",
-          });
-        }
-
-        // if parent has changed
-        if (proposedNode.parent()?.id !== trackingNode.parent()?.id) {
-          ops.push({
-            id: proposedNode.id,
-            type: "move",
-            parentId: proposedNode.parent().id,
-          });
-        }
-
-        // if not directory and text changed
-        if (
-          !proposedNode.data.get(isDirectoryKey) &&
-          (text(proposedNode) !== text(trackingNode) ||
-            (approval.contents && approval.contents !== text(trackingNode)))
-        ) {
-          ops.push({
-            id: proposedNode.id,
-            type: "modify",
-            contents: approval?.contents || text(proposedNode),
-          });
-        }
-      }
-    }*/
-
     // proposed data remaining after approval is persisted and synced
     const remainders: {
       tracking: LoroTreeNode;
@@ -776,6 +733,11 @@ export class VaultOverlaySvelte implements Vault {
         proposedNode,
         `Cannot approve ${op.type}, no proposal found for: ${op.path}`,
       );
+      if (proposedNode.data.get(deletedFrom) && op.type !== "delete") {
+        throw new Error(
+          `Cannot approve ${op.type}, file was deleted: ${op.path}`,
+        );
+      }
       // get proposed data before approved changes are synced
       const proposedData = getNodeData(proposedNode);
       const trackingNode = this.trackingFS.findById(proposedNode.id);
@@ -803,10 +765,10 @@ export class VaultOverlaySvelte implements Vault {
         this.trackingFS.deleteNode(trackingNode.id);
         // node deletion does not sync, so mark proposed as deleted manually
         this.proposedFS.deleteNode(proposedNode.id);
-        await this.persistApproval(op);
+        await this.persistApproval(op, getNodeData(trackingNode));
       } else if (op.type === "rename") {
         if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
-          let parentNode = this.trackingFS.findById(proposedNode.parent().id);
+          let parentNode = this.trackingFS.findByPath(dirname(op.path));
           if (!parentNode) {
             // if parent path is not tracked, create it
             parentNode = this.trackingFS.createNode(
@@ -1065,6 +1027,46 @@ export class VaultOverlaySvelte implements Vault {
       tracking: this.trackingDoc.export({ mode: "snapshot" }),
       proposed: this.proposedDoc.export({ mode: "snapshot" }),
     };
+  }
+
+  undoProposed(proposedNode: LoroTreeNode, trackingNode: LoroTreeNode): void {
+    // Reset parent (handles path/rename changes)
+    invariant(
+      proposedNode.id === trackingNode.id,
+      "Cannot reset proposed to tracking with different IDs",
+    );
+    const trackingParent = trackingNode.parent();
+    const proposedParent = this.proposedFS.findById(trackingParent.id);
+    if (proposedNode.parent().id !== proposedParent.id) {
+      proposedNode.move(proposedParent);
+    }
+
+    // Reset deleted flag
+    proposedNode.data.delete(deletedFrom);
+
+    // Reset text and buffer
+    if (trackingNode.data.get("text")) {
+      replaceText(proposedNode, getText(trackingNode));
+    }
+    if (trackingNode.data.get("buffer")) {
+      replaceBuffer(proposedNode, getBuffer(trackingNode));
+    }
+    // Reset name
+    if (trackingNode.data.get("name")) {
+      proposedNode.data.set("name", trackingNode.data.get("name"));
+    }
+    // Reset stat
+    if (trackingNode.data.get("stat")) {
+      proposedNode.data.set("stat", trackingNode.data.get("stat"));
+    }
+
+    // Undo move if parents changed
+    const parent = trackingNode.parent();
+    if (proposedNode.parent().id !== parent.id) {
+      proposedNode.move(parent);
+    }
+
+    this.proposedFS.invalidateCache();
   }
 
   async destroy() {}
