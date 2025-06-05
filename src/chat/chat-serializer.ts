@@ -2,12 +2,14 @@ import type { UIMessage } from "ai";
 import { Chat } from "./chat.svelte";
 import superjson from "superjson";
 import { nanoid } from "nanoid";
+import type { SuperJSONObject } from "$lib/utils/superjson";
 
 export type ChatFileV1 = {
   version: 1;
   payload: {
     id: string;
     messages: UIMessage[];
+    sessionStore: SuperJSONObject;
     vault:
       | {
           tracking: Uint8Array;
@@ -48,6 +50,7 @@ export class ChatSerializer {
     payload: {
       id: nanoid(),
       messages: [],
+      sessionStore: {},
       vault: undefined,
       options: {
         maxSteps: 10,
@@ -74,6 +77,7 @@ export class ChatSerializer {
       payload: {
         id: chat.id,
         messages: chat.messages,
+        sessionStore: chat.sessionStore,
         vault: chat.vault.snapshot(),
         options: chat.options,
         createdAt: chat.createdAt,

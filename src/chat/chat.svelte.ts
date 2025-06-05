@@ -23,6 +23,7 @@ import { createDebug } from "$lib/debug.ts";
 import type { ChatModel } from "../settings/models.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { encodeBase64 } from "$lib/utils/base64.ts";
+import type { SuperJSONObject } from "$lib/utils/superjson.ts";
 
 const debug = createDebug();
 
@@ -85,6 +86,7 @@ export class Chat {
   path = $state<string>();
   messages = $state<UIMessage[]>([]);
   state = $state<LoadingState>({ type: "idle" });
+  sessionStore = $state<SuperJSONObject>({});
   vault = $state<VaultOverlaySvelte>();
   createdAt: Date;
   updatedAt: Date;

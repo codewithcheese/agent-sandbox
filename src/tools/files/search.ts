@@ -319,6 +319,7 @@ export async function execute(
 }
 
 export const searchTool: ToolDefinition = {
+  type: "local",
   name: TOOL_NAME,
   description: TOOL_DESCRIPTION,
   prompt: TOOL_PROMPT_GUIDANCE,

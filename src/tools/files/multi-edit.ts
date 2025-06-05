@@ -276,6 +276,7 @@ export async function execute(
 }
 
 export const multiEditTool: ToolDefinition = {
+  type: "local",
   name: TOOL_NAME,
   description: TOOL_DESCRIPTION,
   prompt: TOOL_PROMPT_GUIDANCE,

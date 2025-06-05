@@ -19,8 +19,10 @@ import { editTool } from "./files/edit.ts";
 import { multiEditTool } from "./files/multi-edit.ts";
 import { globTool } from "./files/glob.ts";
 import { searchTool } from "./files/search.ts";
-import type { ToolDefinition } from "./types.ts";
+import type { ToolDefinition, ToolExecContext } from "./types.ts";
 import { listTool } from "./files/list.ts";
+import { toolDef as todoWrite } from "./todo/write.ts";
+import { toolDef as todoRead } from "./todo/read.ts";
 
 const debug = createDebug();
 
@@ -33,6 +35,8 @@ export const toolRegistry: Record<string, ToolDefinition> = {
   multi_edit: multiEditTool,
   glob: globTool,
   search: searchTool,
+  todo_write: todoWrite,
+  todo_read: todoRead,
 };
 
 export type VaultTool = BuiltinTool | ImportVaultTool | CodeVaultTool;
@@ -226,7 +230,7 @@ export async function parseToolDefinition(
  */
 export async function createTool(
   toolDef: ToolDefinition,
-  context: { vault: Vault; config: Record<string, any> },
+  context: ToolExecContext,
   providerId?: AIProviderId,
 ) {
   // Special case for Anthropic text editor tool
@@ -256,16 +260,20 @@ export async function createTool(
   //   }
   // }
 
-  return tool({
-    description: toolDef.description,
-    // @ts-expect-error jsonSchema type not compatible with parameters
-    parameters:
-      typeof toolDef.inputSchema === "string"
-        ? jsonSchema(toolDef.inputSchema)
-        : toolDef.inputSchema,
-    execute: (params, options) =>
-      toolDef.execute(params, { ...options, getContext: () => context }),
-  });
+  if (toolDef.type === "local") {
+    return tool({
+      description: toolDef.description,
+      // @ts-expect-error jsonSchema type not compatible with parameters
+      parameters:
+        typeof toolDef.inputSchema === "string"
+          ? jsonSchema(toolDef.inputSchema)
+          : toolDef.inputSchema,
+      execute: (params, options) =>
+        toolDef.execute(params, { ...options, getContext: () => context }),
+    });
+  } else {
+    throw new Error(`Tool type not supported: ${toolDef.type}`);
+  }
 }
 
 async function createCodeExecutor(vaultTool: CodeVaultTool) {
@@ -350,7 +358,7 @@ export async function loadAllTools(
     const toolDef = await parseToolDefinition(file);
     tools[toolDef.name] = await createTool(
       toolDef,
-      { vault: chat.vault, config: {} },
+      { vault: chat.vault, config: {}, sessionStore: chat.sessionStore },
       providerId,
     );
   }
@@ -373,7 +381,7 @@ export async function loadToolsFromFrontmatter(
     const toolDef = await parseToolDefinition(toolFile);
     tools[toolDef.name] = await createTool(
       toolDef,
-      { vault: chat.vault, config: {} },
+      { vault: chat.vault, config: {}, sessionStore: chat.sessionStore },
       providerId,
     );
   }
@@ -391,6 +399,9 @@ export async function executeToolInvocation(
   if (!tool) {
     throw new Error(`Tool not found: ${toolInvocation.toolName}`);
   }
+  if (!("execute" in tool)) {
+    throw new Error(`Tool is not executable: ${toolInvocation.toolName}`);
+  }
 
   const result = await tool.execute(toolInvocation.args, {
     toolCallId: toolInvocation.toolCallId,
@@ -398,6 +409,7 @@ export async function executeToolInvocation(
     getContext: () => ({
       vault: chat.vault,
       config: {},
+      sessionStore: chat.sessionStore,
     }),
   });
   debug("Tool result:", result, toolInvocation);

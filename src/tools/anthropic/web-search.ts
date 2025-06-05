@@ -1,7 +1,7 @@
-import type { ToolDefinition } from "../types.ts";
+import type { ServerToolDefinition, ToolDefinition } from "../types.ts";
 
-export const toolDef: ToolDefinition = {
-  type: "server_tool",
+export const toolDef: ServerToolDefinition = {
+  type: "server",
   name: "web_search",
   humanName: "Web Search",
   description:

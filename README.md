@@ -72,6 +72,8 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Tools: Read state
+- [ ] Tools: TodoWrite and TodoRead
 - [ ] Agent: Tool validation
 - [ ] Chat: Save last model select, load when opening chat if previous chat options not available
 - [ ] Agent: New chat button

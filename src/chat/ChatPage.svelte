@@ -27,6 +27,7 @@
   import AgentMessage from "./AgentMessage.svelte";
   import { ChatView } from "./chat-view.svelte.ts";
   import { createDebug } from "$lib/debug.ts";
+  import TodoList from "./TodoList.svelte";
 
   const debug = createDebug();
 
@@ -476,6 +477,9 @@
       bind:sentinel
     />
   </div>
+  <!--session widgets-->
+  <TodoList {chat} />
+
   <!--footer-->
   <ChatInput
     {chat}
