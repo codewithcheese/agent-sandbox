@@ -126,12 +126,12 @@ describe("LS Tool", () => {
 
     // Create many files in the mock vault to exceed the limit
     for (let i = 0; i < 2000; i++) {
-      console.time(`Create file ${i}`);
+      // console.time(`Create file ${i}`);
       await vault.create(
         `/test/project/long_file_name_${i}_to_ensure_we_hit_the_limit.txt`,
         `Content ${i}`,
       );
-      console.timeEnd(`Create file ${i}`);
+      // console.timeEnd(`Create file ${i}`);
     }
 
     const params = { path: "/test/project" };
