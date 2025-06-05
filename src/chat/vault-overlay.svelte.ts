@@ -839,6 +839,9 @@ export class VaultOverlaySvelte implements Vault {
             proposedData,
           });
         }
+        // Modify is approved separately from rename, modify current tracking path.
+        // op.path points at proposed which may represent a rename
+        op.path = this.trackingFS.getNodePath(trackingNode);
         await this.persistApproval(op, getNodeData(trackingNode));
       } else {
         throw Error(

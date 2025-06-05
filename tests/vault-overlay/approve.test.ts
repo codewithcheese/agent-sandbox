@@ -4,6 +4,7 @@ import { helpers, vault } from "../mocks/obsidian.ts";
 import type { TreeFS } from "../../src/chat/tree-fs.ts";
 import { getBuffer, getText } from "$lib/utils/loro.ts";
 import { TFile, TFolder } from "obsidian";
+import type { LoroTreeNode } from "loro-crdt/base64";
 
 describe("Approve changes", () => {
   let overlay: VaultOverlaySvelte;
@@ -682,55 +683,163 @@ describe("Approve changes", () => {
     expect(vault.getFolderByPath("docs")).not.toBeNull();
   });
 
-  it("should approve rename then modify existing file", async () => {
-    // Setup: Create file in vault that is tracked
-    helpers.addFolder("notes");
-    const originalFile = helpers.addFile(
-      "notes/report.md",
-      "Original report content",
-    );
+  describe("Given an existing file was modified then renamed", () => {
+    let proposedNode: LoroTreeNode;
 
-    // AI operations: rename then modify the existing file
-    await overlay.rename(originalFile, "notes/final-report.md");
-    const renamedFile = overlay.getFileByPath("notes/final-report.md");
-    await overlay.modify(renamedFile, "Updated final report content");
+    beforeEach(async () => {
+      helpers.addFolder("notes");
+      const originalFile = helpers.addFile(
+        "notes/report.md",
+        "Original content",
+      );
 
-    // Verify both operations exist in proposed state
-    const proposedNode = proposedFS.findByPath("notes/final-report.md");
-    expect(proposedNode).toBeDefined();
-    expect(getText(proposedNode)).toEqual("Updated final report content");
+      // AI operations: rename then modify the existing file
+      await overlay.rename(originalFile, "notes/renamed-report.md");
+      const renamedFile = overlay.getFileByPath("notes/renamed-report.md");
+      await overlay.modify(renamedFile, "Modified content");
 
-    // Verify old name is no longer accessible in proposed
-    expect(proposedFS.findByPath("notes/report.md")).not.toBeDefined();
+      // Verify both operations exist in proposed state
+      proposedNode = proposedFS.findByPath("notes/renamed-report.md");
+      expect(proposedNode).toBeDefined();
+      expect(getText(proposedNode)).toEqual("Modified content");
 
-    // Approve both operations in batch
-    await overlay.approve([
-      {
-        type: "rename",
-        path: "notes/final-report.md",
-        oldPath: "notes/report.md",
-      },
-      { type: "modify", path: "notes/final-report.md" },
-    ]);
+      // Verify old name is no longer accessible in proposed
+      expect(proposedFS.findByPath("notes/report.md")).not.toBeDefined();
+    });
 
-    // Verify both operations succeeded in tracking
-    const trackingNodeFinal = trackingFS.findByPath("notes/final-report.md");
-    expect(trackingNodeFinal).toBeDefined();
-    expect(getText(trackingNodeFinal)).toEqual("Updated final report content");
-    expect(trackingNodeFinal.id).toEqual(proposedNode.id);
+    describe("When rename is approved before modify", () => {
+      it("Then should rename the file and modify the contents at the new path", async () => {
+        // Approve rename before modify
+        await overlay.approve([
+          {
+            type: "rename",
+            path: "notes/renamed-report.md",
+            oldPath: "notes/report.md",
+          },
+          { type: "modify", path: "notes/renamed-report.md" },
+        ]);
 
-    // Verify old name doesn't exist in tracking
-    expect(trackingFS.findByPath("notes/report.md")).toBeUndefined();
+        // Verify both operations succeeded in tracking
+        const trackingNodeFinal = trackingFS.findByPath(
+          "notes/renamed-report.md",
+        );
+        expect(trackingNodeFinal).toBeDefined();
+        expect(getText(trackingNodeFinal)).toEqual("Modified content");
+        expect(trackingNodeFinal.id).toEqual(proposedNode.id);
 
-    // Check vault state - file should be renamed and modified in vault
-    expect(vault.getFileByPath("notes/final-report.md")).not.toBeNull();
-    expect(vault.getFileByPath("notes/report.md")).toBeNull();
-    expect(
-      await vault.read(vault.getFileByPath("notes/final-report.md")),
-    ).toEqual("Updated final report content");
+        // Verify old name doesn't exist in tracking
+        expect(trackingFS.findByPath("notes/report.md")).toBeUndefined();
 
-    // Verify parent folder still exists and is unchanged
-    expect(vault.getFolderByPath("notes")).not.toBeNull();
+        // Check vault state - file should be renamed and modified in vault
+        expect(vault.getFileByPath("notes/renamed-report.md")).not.toBeNull();
+        expect(vault.getFileByPath("notes/report.md")).toBeNull();
+        expect(
+          await vault.read(vault.getFileByPath("notes/renamed-report.md")),
+        ).toEqual("Modified content");
+
+        // Verify parent folder still exists and is unchanged
+        expect(vault.getFolderByPath("notes")).not.toBeNull();
+      });
+    });
+
+    describe("When modify is approved before renamed", () => {
+      it("Then should rename the file and modify the contents at the new path", async () => {
+        // Approve modify before renamed
+        await overlay.approve([
+          { type: "modify", path: "notes/renamed-report.md" },
+          {
+            type: "rename",
+            path: "notes/renamed-report.md",
+            oldPath: "notes/report.md",
+          },
+        ]);
+
+        // Verify both operations succeeded in tracking
+        const trackingNodeFinal = trackingFS.findByPath(
+          "notes/renamed-report.md",
+        );
+        expect(trackingNodeFinal).toBeDefined();
+        expect(getText(trackingNodeFinal)).toEqual("Modified content");
+        expect(trackingNodeFinal.id).toEqual(proposedNode.id);
+
+        // Verify old name doesn't exist in tracking
+        expect(trackingFS.findByPath("notes/report.md")).toBeUndefined();
+
+        // Check vault state - file should be renamed and modified in vault
+        expect(vault.getFileByPath("notes/renamed-report.md")).not.toBeNull();
+        expect(vault.getFileByPath("notes/report.md")).toBeNull();
+        expect(
+          await vault.read(vault.getFileByPath("notes/renamed-report.md")),
+        ).toEqual("Modified content");
+
+        // Verify parent folder still exists and is unchanged
+        expect(vault.getFolderByPath("notes")).not.toBeNull();
+      });
+    });
+
+    describe("When only the modify is approved, not the rename", () => {
+      it("Then should modify the file at the original path", async () => {
+        // Approve modify only
+        await overlay.approve([
+          { type: "modify", path: "notes/renamed-report.md" },
+        ]);
+
+        // Verify contents were modified and was not renamed
+        const trackingNodeFinal = trackingFS.findByPath("notes/report.md");
+        expect(trackingNodeFinal).toBeDefined();
+        expect(getText(trackingNodeFinal)).toEqual("Modified content");
+        expect(trackingNodeFinal.id).toEqual(proposedNode.id);
+
+        // Verify rename not applied to tracking yet
+        expect(
+          trackingFS.findByPath("notes/renamed-report.md"),
+        ).toBeUndefined();
+
+        // Check vault state - file be modified not renamed
+        expect(vault.getFileByPath("notes/renamed-report.md")).toBeNull();
+        expect(vault.getFileByPath("notes/report.md")).not.toBeNull();
+        expect(
+          await vault.read(vault.getFileByPath("notes/report.md")),
+        ).toEqual("Modified content");
+
+        // Verify parent folder still exists and is unchanged
+        expect(vault.getFolderByPath("notes")).not.toBeNull();
+      });
+    });
+
+    describe("When only the renamed is approved, not the modify", () => {
+      it("Then should rename the file without modifying the contents", async () => {
+        // Approve modify only
+        await overlay.approve([
+          {
+            type: "rename",
+            path: "notes/renamed-report.md",
+            oldPath: "notes/report.md",
+          },
+        ]);
+
+        // Verify both operations succeeded in tracking
+        const trackingNodeFinal = trackingFS.findByPath(
+          "notes/renamed-report.md",
+        );
+        expect(trackingNodeFinal).toBeDefined();
+        expect(getText(trackingNodeFinal)).toEqual("Original content");
+        expect(trackingNodeFinal.id).toEqual(proposedNode.id);
+
+        // Verify old name doesn't exist in tracking
+        expect(trackingFS.findByPath("notes/report.md")).toBeUndefined();
+
+        // Check vault state - file should be renamed and modified in vault
+        expect(vault.getFileByPath("notes/renamed-report.md")).not.toBeNull();
+        expect(vault.getFileByPath("notes/report.md")).toBeNull();
+        expect(
+          await vault.read(vault.getFileByPath("notes/renamed-report.md")),
+        ).toEqual("Original content");
+
+        // Verify parent folder still exists and is unchanged
+        expect(vault.getFolderByPath("notes")).not.toBeNull();
+      });
+    });
   });
 
   it("when rename and delete, delete approve must use original path", async () => {
