@@ -3,6 +3,7 @@ import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 import type { TreeFS } from "../../src/chat/tree-fs.ts";
 import { getBuffer, getText } from "$lib/utils/loro.ts";
+import { TFile, TFolder } from "obsidian";
 
 describe("Approve changes", () => {
   let overlay: VaultOverlaySvelte;
@@ -814,33 +815,228 @@ describe("Approve changes", () => {
     expect(vault.getFolderByPath("documents")).not.toBeNull();
   });
 
-  // Error Cases
-  it("should throw error when approving non-existent path");
+  it("should throw error when approving non-existent path", async () => {
+    await expect(
+      overlay.approve([{ path: "completely/bogus/path.md", type: "modify" }]),
+    ).rejects.toThrow(
+      "Cannot approve modify, no proposal found for: completely/bogus/path.md",
+    );
+  });
 
-  it("should throw error when approving with invalid operation type");
+  it("should throw error when approving with invalid operation type", async () => {
+    // Setup: Ensure a file exists so path checks don't fail before type check
+    await overlay.create("file-for-invalid-op-type.md", "Initial content");
 
-  it("should throw error when approving modify on deleted file");
+    const approvalWithInvalidType = {
+      path: "file-for-invalid-op-type.md",
+      type: "publishDocument", // An example of an invalid type
+    } as any; // Cast to 'any' to allow the invalid 'type' for testing purposes
 
-  it("should throw error when approving rename on deleted file");
+    // Action & Assertion: Expect 'approve' to throw an error
+    await expect(overlay.approve([approvalWithInvalidType])).rejects.toThrow(
+      'Unrecognized operation type: {"path":"file-for-invalid-op-type.md","type":"publishDocument"}',
+    );
+  });
 
-  // Edge Cases
-  it("should approve operations with override content");
+  it("should throw error when approving modify on deleted file", async () => {
+    // Setup: Create a file, then propose its deletion
+    const filePath = "file-to-delete-then-modify.md";
+    helpers.addFile(filePath, "Original content");
+    const file = overlay.getFileByPath(filePath);
+    if (!file)
+      throw new Error(
+        `Test setup failed: ${filePath} not found in overlay initially`,
+      );
 
-  it("should handle approval when vault file was externally modified");
+    await overlay.modify(file, "Modified content");
+    await overlay.delete(file);
 
-  it("should approve nested folder creation");
+    // Verify it's in proposed trash
+    const trashedNode = proposedFS.findTrashed(filePath);
+    expect(trashedNode).toBeDefined();
+    if (trashedNode) {
+      // Check if trashedNode is defined before accessing its properties
+      expect(trashedNode.data.get("deletedFrom")).toEqual(filePath);
+    } else {
+      throw new Error(
+        `Test setup failed: ${filePath} not found in trash after deletion`,
+      );
+    }
 
-  // Binary File Operations
+    // Action & Assertion: Attempt to approve a 'modify' on the deleted file's original path
+    await expect(
+      overlay.approve([
+        {
+          path: filePath,
+          type: "modify",
+          override: { text: "This modification should fail" },
+        },
+      ]),
+    ).rejects.toThrow(
+      `Cannot approve modify, file was deleted: file-to-delete-then-modify.md`,
+    );
+  });
+
+  it("should throw error when approving rename on deleted file", async () => {
+    // Setup: Create a file, then propose its deletion
+    const path = "folder/original-name.md";
+    helpers.addFile(path, "Original content");
+    const file = overlay.getFileByPath(path);
+    if (!file)
+      throw new Error(
+        `Test setup failed: ${path} not found in overlay initially`,
+      );
+
+    await overlay.rename(file, "new-folder/new-name.md");
+    const renamedFile = overlay.getFileByPath("new-folder/new-name.md");
+    await overlay.delete(renamedFile);
+
+    // Verify it's in proposed trash
+    const trashedNode = proposedFS.findTrashed(path);
+    expect(trashedNode).toBeDefined();
+    expect(trashedNode.data.get("deletedFrom")).toEqual(path);
+
+    // Action & Assertion: Attempt to approve a 'rename' on the deleted file's original path
+    await expect(
+      overlay.approve([
+        {
+          type: "rename",
+          oldPath: path,
+          path: "new-folder/new-name.md",
+        },
+      ]),
+    ).rejects.toThrow(
+      `Cannot approve rename, no proposal found for: new-folder/new-name.md`,
+    );
+
+    await expect(
+      overlay.approve([
+        {
+          type: "rename",
+          oldPath: path,
+          path,
+        },
+      ]),
+    ).rejects.toThrow(
+      `Cannot approve rename, file was deleted: folder/original-name.md`,
+    );
+  });
+
+  it("should approve nested folder creation", async () => {
+    const nestedFilePath = "alpha/beta/gamma/delta-file.md";
+    const nestedFileContent = "This file is nested deeply.";
+
+    await overlay.create(nestedFilePath, nestedFileContent);
+
+    // Action: Approve the creation of the file in a nested structure
+    await overlay.approve([
+      {
+        path: nestedFilePath,
+        type: "create" as "create",
+        override: { text: nestedFileContent },
+      },
+    ]);
+
+    // Assertions for vault state
+    expect(vault.getAbstractFileByPath("alpha")).toBeInstanceOf(TFolder); // Assumes TFolder is imported
+    expect(vault.getAbstractFileByPath("alpha/beta")).toBeInstanceOf(TFolder);
+    expect(vault.getAbstractFileByPath("alpha/beta/gamma")).toBeInstanceOf(
+      TFolder,
+    );
+    const vaultFile = vault.getFileByPath(nestedFilePath);
+    expect(vaultFile).toBeInstanceOf(TFile); // Assumes TFile is imported
+    if (vaultFile) {
+      // Type guard for vault.read
+      expect(await vault.read(vaultFile)).toEqual(nestedFileContent);
+    }
+
+    // Assertions for trackingFS
+    expect(trackingFS.findByPath("alpha")).toBeDefined();
+    expect(trackingFS.findByPath("alpha/beta")).toBeDefined();
+    expect(trackingFS.findByPath("alpha/beta/gamma")).toBeDefined();
+    const trackingNode = trackingFS.findByPath(nestedFilePath);
+    expect(trackingNode).toBeDefined();
+    expect(getText(trackingNode!)).toEqual(nestedFileContent);
+
+    // Assertions for proposedFS (after sync)
+    expect(proposedFS.findByPath("alpha")).toBeDefined();
+    expect(proposedFS.findByPath("alpha/beta")).toBeDefined();
+    expect(proposedFS.findByPath("alpha/beta/gamma")).toBeDefined();
+    const proposedNode = proposedFS.findByPath(nestedFilePath);
+    expect(proposedNode).toBeDefined();
+    expect(getText(proposedNode!)).toEqual(nestedFileContent);
+  });
+
   it("should approve move binary file");
 
-  it("should approve rename binary file");
+  it("should approve rename binary file", async () => {
+    const folderPath = "binary-files-folder-for-rename";
+    const originalName = "my-image.png";
+    const newName = "my-image-renamed.png";
+    const originalPath = `${folderPath}/${originalName}`;
+    const renamedPath = `${folderPath}/${newName}`;
+    const binaryContent = "fake-binary-data-for-image-rename.png";
 
-  // Partial Approval Scenarios
-  it("should approve subset of complex operations");
+    // Setup: Create and approve an initial 'binary' file
+    await overlay.create(originalPath, binaryContent);
+    await overlay.approve([
+      {
+        type: "create" as "create",
+        path: originalPath,
+        override: { text: binaryContent },
+      },
+    ]);
 
-  it("should handle approval conflicts");
+    // Verify initial state
+    const initialVaultFile = vault.getFileByPath(originalPath);
+    expect(initialVaultFile).toBeInstanceOf(TFile); // Assumes TFile is imported
+    if (initialVaultFile) {
+      expect(await vault.read(initialVaultFile)).toEqual(binaryContent);
+    }
+    expect(getText(trackingFS.findByPath(originalPath)!)).toEqual(
+      binaryContent,
+    );
+    expect(getText(proposedFS.findByPath(originalPath)!)).toEqual(
+      binaryContent,
+    );
 
-  // Critical Error Handling
+    // Propose the rename
+    const fileToRename = overlay.getFileByPath(originalPath);
+    if (!fileToRename)
+      throw new Error(
+        `Test setup failed: ${originalPath} not found before rename`,
+      );
+    await overlay.rename(fileToRename, renamedPath);
+
+    // Action: Approve the rename
+    await overlay.approve([
+      { type: "rename" as "rename", oldPath: originalPath, path: renamedPath },
+    ]);
+
+    // Assertions for vault state
+    expect(vault.getFileByPath(originalPath)).toBeNull();
+    const renamedVaultFile = vault.getFileByPath(renamedPath);
+    expect(renamedVaultFile).toBeInstanceOf(TFile);
+    if (renamedVaultFile) {
+      expect(await vault.read(renamedVaultFile)).toEqual(binaryContent);
+    }
+    expect(vault.getAbstractFileByPath(folderPath)).toBeInstanceOf(TFolder); // Assumes TFolder is imported
+
+    // Assertions for trackingFS
+    expect(trackingFS.findByPath(originalPath)).toBeUndefined();
+    const trackingNodeNew = trackingFS.findByPath(renamedPath);
+    expect(trackingNodeNew).toBeDefined();
+    expect(trackingNodeNew.data.get("isDirectory")).toBe(undefined);
+    expect(getText(trackingNodeNew!)).toEqual(binaryContent);
+
+    // Assertions for proposedFS (after sync)
+    expect(proposedFS.findByPath(originalPath)).toBeUndefined();
+    const proposedNodeNew = proposedFS.findByPath(renamedPath);
+    expect(proposedNodeNew).toBeDefined();
+    expect(proposedNodeNew.data.get("isDirectory")).toBe(undefined);
+    expect(getText(proposedNodeNew!)).toEqual(binaryContent);
+  });
+
   it("should throw error when approving operation on non-existent proposed file", async () => {
     // Test approving a path that was never modified in overlay
 
@@ -887,32 +1083,5 @@ describe("Approve changes", () => {
     ).rejects.toThrow(
       "Cannot approve create, no proposal found for: never-created.md",
     );
-  });
-
-  it("should handle partial batch failure and rollback cleanly", async () => {
-    // Test when one operation in a batch fails, others should not be applied
-  });
-
-  // Complex State Management
-  it("should approve operations on files with competing vault modifications", async () => {
-    // File modified in both overlay and vault externally, test merge/conflict resolution
-  });
-
-  it("should handle approval of interdependent operations in correct order", async () => {
-    // Create folder -> create file in folder -> rename folder, test dependency resolution
-  });
-
-  // Advanced Operation Combinations
-  it("should approve file moved to newly created folder in same batch", async () => {
-    // Create folder A, move file X to folder A, approve both operations together
-  });
-
-  it("should reject invalid override content for binary operations", async () => {
-    // Test error when trying to override binary file with text, or folder with content
-  });
-
-  // Edge Case Coverage
-  it("should approve operations on deeply nested paths with parent folder changes", async () => {
-    // Test complex hierarchy: create a/b/c/file.md, rename a -> x, verify a/b/c/file.md becomes x/b/c/file.md
   });
 });
