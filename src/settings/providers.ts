@@ -3,7 +3,12 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOllama } from "ollama-ai-provider";
 
-export type AIProviderId = keyof typeof AIProvider;
+export type AIProviderId =
+  | "ollama"
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "assemblyai";
 
 export type AIAccount = {
   id: string;
@@ -13,7 +18,7 @@ export type AIAccount = {
 };
 
 export const AIProvider: Record<
-  "ollama" | "openai" | "anthropic" | "gemini" | "assemblyai",
+  AIProviderId,
   {
     name: string;
     requiredFields: (keyof typeof ModelConfigField)[];
