@@ -1,14 +1,13 @@
-import { type FileStats, normalizePath, type TAbstractFile } from "obsidian";
+import { type FileStats, normalizePath } from "obsidian";
 import {
+  type LoroDoc,
+  LoroText,
   type LoroTree,
   type LoroTreeNode,
   type TreeID,
-  LoroText,
-  type LoroDoc,
 } from "loro-crdt/base64";
 import { invariant } from "@epic-web/invariant";
 import { basename, dirname } from "path-browserify";
-import type { Tree } from "@lezer/common";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 
 const trashPath = ".overlay-trash" as const;
@@ -154,50 +153,65 @@ export class TreeFS {
     node.move(trashFolder);
     node.data.set(deletedFrom, normalizePath(originalPath));
 
-    // Incrementally update the deletion index
-    this.pathCache.delete(originalPath);
-    this.deletedFromIndex.add(normalizePath(originalPath));
+    // invalidate cache, a deleted folder could remove many paths
+    this.invalidateCache();
   }
 
-  restoreNode(
-    node: LoroTreeNode,
-    newParent: LoroTreeNode,
-    newData: { text?: string; buffer?: ArrayBuffer; stat?: FileStats },
-  ): void {
-    const originalPath = node.data.get(deletedFrom) as string | undefined;
+  // Create or restore nodes to ensure a directory exists
+  ensureDirs(path: string) {
+    path = normalizePath(path);
 
-    // Move back from trash to new parent
-    node.move(newParent);
-    node.data.delete(deletedFrom);
+    const root = this.tree.roots()[0];
+    const parts = path === "." ? [] : path.split("/");
+    let parent = root;
 
-    // Overwrite with new content
-    if (newData.text != null) {
-      const text = node.data.get("text") as LoroText;
-      if (text) {
-        text.update(newData.text);
-      } else {
-        node.data.setContainer("text", new LoroText());
-        (node.data.get("text") as LoroText).insert(0, newData.text);
+    // optimization: if path in cache then all directories exist
+    if (this.pathCache.get(path)) {
+      return;
+    }
+
+    for (const [idx, part] of parts.entries()) {
+      const currentPath = parts.slice(0, idx + 1).join("/");
+      const children = parent.children();
+      let node = children?.find((n) => n.data.get("name") === part);
+      if (node && !node.data.get("isDirectory")) {
+        throw Error(
+          `Path is not a directory: ${parts.slice(0, idx + 1).join("/")}`,
+        );
+      } else if (!node) {
+        // check for trashed node
+        node = this.findTrashed(currentPath);
+        if (node) {
+          this.restoreNode(node, parent);
+        } else {
+          node = parent.createNode();
+          node.data.set("name", part);
+          node.data.set("isDirectory", true);
+          node.data.set("stat", {
+            size: 0,
+            mtime: Date.now(),
+            ctime: Date.now(),
+          });
+          const currentPath = parts.slice(0, idx + 1).join("/");
+          this.pathCache.set(currentPath, node.id);
+        }
       }
-    }
-    if (newData.buffer != null) {
-      node.data.set("buffer", encodeBase64(newData.buffer));
-    }
-    if (newData.stat) {
-      node.data.set("stat", newData.stat);
+      parent = node;
     }
 
-    // Remove from deletion index and update path cache
-    if (originalPath) {
-      this.deletedFromIndex.delete(normalizePath(originalPath));
-    }
-    this.pathCache.set(normalizePath(originalPath), node.id);
+    return parent;
   }
 
   renameNode(nodeId: TreeID, newName: string): void {
     const node = this.tree.getNodeByID(nodeId);
     invariant(node, `Cannot renamed node. Node not found: ${nodeId}`);
     node.data.set("name", basename(newName));
+    this.invalidateCache();
+  }
+
+  restoreNode(node: LoroTreeNode, parent: LoroTreeNode) {
+    node.data.delete(deletedFrom);
+    node.move(parent);
     this.invalidateCache();
   }
 
@@ -212,7 +226,7 @@ export class TreeFS {
     return this.tree.getNodeByID(id);
   }
 
-  findDeleted(path: string): LoroTreeNode | undefined {
+  findTrashed(path: string): LoroTreeNode | undefined {
     path = normalizePath(path);
     const trashRoot = this.findByPath(trashPath);
     invariant(trashRoot, `Trash root not found: ${trashPath}`);

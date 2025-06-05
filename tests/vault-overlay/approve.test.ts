@@ -137,9 +137,9 @@ describe("Approve changes", () => {
     await overlay.modify(bFile, "Beta content\n\nModified");
     await overlay.delete(gFile);
 
-    const aProposedNode = proposedFS.findDeleted("alpha.md");
+    const aProposedNode = proposedFS.findTrashed("alpha.md");
     const bProposedNode = proposedFS.findByPath("beta.md");
-    const gProposedNode = proposedFS.findDeleted("gamma.md");
+    const gProposedNode = proposedFS.findTrashed("gamma.md");
 
     await overlay.approve([
       { path: "alpha.md", type: "delete" },
@@ -172,13 +172,14 @@ describe("Approve changes", () => {
     const file1 = helpers.addFile("documents/file1.md", "Content 1");
     helpers.addFile("documents/file2.md", "Content 2");
 
+    await overlay.modify(file1, "Modified content 1");
+
     // Get folder reference and delete it
     const folder = overlay.getFolderByPath("documents");
     await overlay.delete(folder);
-    await overlay.modify(file1, "Modified content 1");
 
     // Get the deleted folder node ID and approve
-    const deletedFolderNode = proposedFS.findDeleted("documents");
+    const deletedFolderNode = proposedFS.findTrashed("documents");
     await overlay.approve([{ path: "documents", type: "delete" }]);
 
     // Assert that the folder is marked as deleted in tracking
@@ -219,8 +220,8 @@ describe("Approve changes", () => {
     await overlay.modify(projectFile, "Modified project"); // Will NOT be approved
 
     // Selective approval - only approve docs and temp folder deletions
-    const docsDeletedNode = proposedFS.findDeleted("docs");
-    const tempDeletedNode = proposedFS.findDeleted("temp");
+    const docsDeletedNode = proposedFS.findTrashed("docs");
+    const tempDeletedNode = proposedFS.findTrashed("temp");
 
     await overlay.approve([
       { path: "docs", type: "delete" },
@@ -245,7 +246,7 @@ describe("Approve changes", () => {
     // Check proposed state
     expect(docsDeletedNode.isDeleted()).toBe(true);
     expect(tempDeletedNode.isDeleted()).toBe(true);
-    expect(proposedFS.findDeleted("archive").isDeleted()).toEqual(false);
+    expect(proposedFS.findTrashed("archive").isDeleted()).toEqual(false);
     expect(proposedFS.findByPath("projects/main.js")).toBeDefined(); // Still exists in proposed
 
     // Check vault state - approved deletions should be removed from vault
@@ -688,10 +689,6 @@ describe("Approve changes", () => {
       "Original report content",
     );
 
-    // Import file to tracking system
-    const trackingNode = await overlay.syncPath("notes/report.md");
-    expect(trackingNode).toBeDefined();
-
     // AI operations: rename then modify the existing file
     await overlay.rename(originalFile, "notes/final-report.md");
     const renamedFile = overlay.getFileByPath("notes/final-report.md");
@@ -735,7 +732,7 @@ describe("Approve changes", () => {
     expect(vault.getFolderByPath("notes")).not.toBeNull();
   });
 
-  it("should approve rename then delete existing file", async () => {
+  it("when rename and delete, delete approve must use original path", async () => {
     // Setup: Create file in vault that is tracked
     helpers.addFolder("documents");
     const originalFile = helpers.addFile(
@@ -743,22 +740,18 @@ describe("Approve changes", () => {
       "Temporary document content",
     );
 
-    // Import file to tracking system
-    const trackingNode = await overlay.syncPath("documents/temp-doc.md");
-    expect(trackingNode).toBeDefined();
-
     // AI operations: rename then delete the existing file
     await overlay.rename(originalFile, "documents/renamed-temp.md");
     const renamedFile = overlay.getFileByPath("documents/renamed-temp.md");
     await overlay.delete(renamedFile);
 
-    // Verify rename operation exists in proposed state
+    // Verify rename is not proposed
     expect(
       proposedFS.findByPath("documents/renamed-temp.md"),
     ).not.toBeDefined();
 
     // Verify file is marked as deleted under original name
-    const deletedNode = proposedFS.findDeleted("documents/temp-doc.md");
+    const deletedNode = proposedFS.findTrashed("documents/temp-doc.md");
     expect(deletedNode).toBeDefined();
     expect(deletedNode.data.get("deletedFrom")).toEqual(
       "documents/temp-doc.md",
@@ -782,7 +775,44 @@ describe("Approve changes", () => {
     expect(vault.getFolderByPath("documents")).not.toBeNull();
   });
 
-  it("should approve modify then delete existing file");
+  it("when modify and delete, delete approve must use original path", async () => {
+    // Setup: Create file in vault that is tracked
+    helpers.addFolder("documents");
+    const originalFile = helpers.addFile(
+      "documents/temp-doc.md",
+      "Original content",
+    );
+
+    // AI operations: rename then delete the existing file
+    await overlay.modify(originalFile, "Modified content");
+    await overlay.delete(originalFile);
+
+    // Expect file is marked as deleted
+    const deletedNode = proposedFS.findTrashed("documents/temp-doc.md");
+    expect(deletedNode).toBeDefined();
+    expect(deletedNode.data.get("deletedFrom")).toEqual(
+      "documents/temp-doc.md",
+    );
+    // Expect file text is not modified
+    expect(getText(deletedNode)).toEqual("Original content");
+
+    // Approve only the delete operation - rename becomes irrelevant once file is deleted
+    await overlay.approve([{ type: "delete", path: "documents/temp-doc.md" }]);
+
+    // Verify file is deleted in tracking
+    const trackingNodeFinal = trackingFS.findByPath("documents/temp-doc.md");
+    expect(trackingNodeFinal).toBeUndefined();
+
+    // Verify deleted node is marked as deleted in tracking
+    const trackingDeletedNode = trackingFS.findById(deletedNode.id);
+    expect(trackingDeletedNode.isDeleted()).toBe(true);
+
+    // Check vault state - file should be deleted
+    expect(vault.getFileByPath("documents/temp-doc.md")).toBeNull();
+
+    // Verify parent folder still exists
+    expect(vault.getFolderByPath("documents")).not.toBeNull();
+  });
 
   // Error Cases
   it("should throw error when approving non-existent path");

@@ -1,5 +1,4 @@
 import {
-  type App,
   type DataAdapter,
   type DataWriteOptions,
   type EventRef,
@@ -22,13 +21,14 @@ import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
 import { type NodeData, TreeFS } from "./tree-fs.ts";
 import {
+  createStat,
   getBuffer,
-  replaceBuffer,
-  getText,
-  updateText,
-  replaceText,
   getName,
   getNodeData,
+  getText,
+  replaceBuffer,
+  replaceText,
+  updateText,
 } from "$lib/utils/loro.ts";
 
 const debug = createDebug();
@@ -175,81 +175,73 @@ export class VaultOverlaySvelte implements Vault {
 
   private async _create(
     path: string,
-    data: string | ArrayBuffer,
+    data: { isDirectory: true } | { text: string } | { buffer: ArrayBuffer },
     options?: DataWriteOptions,
-  ): Promise<TFile> {
+  ): Promise<TFile | TFolder> {
     path = normalizePath(path);
-    // Prevent directory traversal – any ".." segment escapes the vault root.
-    if (path.split("/").some((seg) => seg === "..")) {
-      throw new Error("Path is outside the vault");
-    }
-    // todo: reject existing case insensitive file name
 
-    const isText = typeof data === "string";
-    const stat: FileStats = {
-      size: isText ? data.length : data.byteLength,
-      mtime: Date.now(),
-      ctime: Date.now(),
-      ...(options ?? {}),
-    };
+    // Ensure parent directories exist
+    const parent = this.proposedFS.ensureDirs(dirname(path));
 
-    // Check if file was deleted - if so, restore it with new content
-    const deletedNode = this.proposedFS.findDeleted(path);
-    if (deletedNode) {
-      const parentNode = this.proposedFS.findByPath(
-        dirname(path) === "." ? "/" : dirname(path),
+    const size =
+      "text" in data
+        ? data.text.length
+        : "buffer" in data
+          ? data.buffer?.byteLength
+          : 0;
+    const stat = createStat(size, options);
+
+    // Proposals are trashed at their tracking path (even if they were renamed).
+    // If trashed at this path, then it was deleted and is now being created with new content.
+    // Allow since AI may have deleted the file, and now wants to create a new one.
+    const trashedNode = this.proposedFS.findTrashed(path);
+    if (trashedNode) {
+      this.proposedFS.restoreNode(trashedNode, parent);
+      const proposedNode = this.proposedFS.findByPath(path);
+      invariant(
+        proposedNode,
+        `${"isDirectory" in data ? "Folder" : "File"} not found: ${path}`,
       );
-      invariant(parentNode, `Parent folder not found for path: ${path}`);
-
-      const nodeData = isText ? { text: data, stat } : { buffer: data, stat };
-      this.proposedFS.restoreNode(deletedNode, parentNode, nodeData);
+      if ("text" in data) {
+        updateText(proposedNode, data.text);
+      } else if ("buffer" in data) {
+        replaceBuffer(proposedNode, data.buffer);
+      }
       this.proposedDoc.commit();
       return this.createTFile(path, stat);
     }
 
-    // File/Folder must not yet exist.
-    const proposedNode = this.proposedFS.findByPath(path);
-    if (proposedNode) {
-      throw new Error(`File ${path} already exists.`);
-    }
-    const existsInVault = this.vault.getFileByPath(normalizePath(path));
-    invariant(!existsInVault, `File already exists`);
-
-    const nodeData = isText ? { text: data, stat } : { buffer: data, stat };
-    this.proposedFS.createNode(path, nodeData);
+    this.proposedFS.createNode(path, { ...data, stat });
     this.proposedDoc.commit();
 
-    return this.createTFile(path, stat);
+    if ("isDirectory" in data) {
+      return this.createTFolder(path);
+    } else {
+      return this.createTFile(path, stat);
+    }
   }
 
   async create(
     path: string,
-    data: string,
+    text: string,
     options?: DataWriteOptions,
   ): Promise<TFile> {
-    return this._create(path, data, options);
+    this._validateCreate(path);
+    return (await this._create(path, { text }, options)) as TFile;
   }
 
   async createBinary(
     path: string,
-    data: ArrayBuffer,
+    buffer: ArrayBuffer,
     options?: DataWriteOptions,
   ): Promise<TFile> {
-    return this._create(path, data, options);
+    this._validateCreate(path);
+    return (await this._create(path, { buffer }, options)) as TFile;
   }
 
   async createFolder(path: string) {
-    path = normalizePath(path);
-
-    const existing = this.vault.getAbstractFileByPath(normalizePath(path));
-    if (existing) {
-      throw new Error("Folder already exists.");
-    }
-
-    this.proposedFS.createNode(path, { isDirectory: true });
-    this.proposedDoc.commit();
-
-    return this.createTFolder(path);
+    this._validateCreate(path);
+    return (await this._create(path, { isDirectory: true })) as TFolder;
   }
 
   /**
@@ -308,7 +300,7 @@ export class VaultOverlaySvelte implements Vault {
    */
   async delete(file: TAbstractFile): Promise<void> {
     // If the file is already deleted, nothing to do
-    const deleted = this.proposedFS.findDeleted(file.path);
+    const deleted = this.proposedFS.findTrashed(file.path);
     if (deleted) {
       return;
     }
@@ -340,7 +332,7 @@ export class VaultOverlaySvelte implements Vault {
         this.proposedFS.deleteNode(proposedNode.id);
       } else {
         // File exists in tracking - undo proposed to tracking state (rollback changes)
-        this.undoProposed(proposedNode, trackingNode);
+        this.revertProposed(proposedNode, trackingNode);
 
         // Now trash from original path
         const originalPath = this.trackingFS.getNodePath(trackingNode);
@@ -368,8 +360,8 @@ export class VaultOverlaySvelte implements Vault {
       throw new Error(`Cannot rename to path that already exists: ${newPath}`);
     }
 
-    const deletedNode = this.proposedFS.findDeleted(file.path);
-    if (deletedNode) {
+    const trashedNode = this.proposedFS.findTrashed(file.path);
+    if (trashedNode) {
       throw new Error(`Cannot rename file that was deleted: ${file.path}`);
     }
 
@@ -422,11 +414,23 @@ export class VaultOverlaySvelte implements Vault {
     this.proposedDoc.commit();
   }
 
-  async modify(
+  async modify(file: TFile, text: string, options?: DataWriteOptions) {
+    await this._modify(file, { text }, options);
+  }
+
+  async modifyBinary(
     file: TFile,
-    data: string,
+    data: ArrayBuffer,
     options?: DataWriteOptions,
   ): Promise<void> {
+    await this._modify(file, { buffer: data }, options);
+  }
+
+  async _modify(
+    file: TFile,
+    data: { text: string } | { buffer: ArrayBuffer },
+    options?: DataWriteOptions,
+  ) {
     let proposedNode = this.proposedFS.findByPath(file.path);
     const existsInVault = this.vault.getFileByPath(normalizePath(file.path));
 
@@ -444,25 +448,56 @@ export class VaultOverlaySvelte implements Vault {
       proposedNode = this.proposedFS.findById(trackingNode.id);
     }
 
-    if (this.proposedFS.findDeleted(file.path)) {
-      throw new Error(`Cannot modify file that was deleted: ${file.path}`);
+    const parent = this.proposedFS.ensureDirs(dirname(file.path));
+    // Restore if file was trashed
+    const trashedNode = this.proposedFS.findTrashed(file.path);
+    if (trashedNode) {
+      this.proposedFS.restoreNode(trashedNode, parent);
+      proposedNode = this.proposedFS.findByPath(file.path);
+      invariant(
+        proposedNode,
+        `Failed to find file after restored from trash: ${file.path}`,
+      );
     }
 
     if (!proposedNode) {
       // If not tracked, the treat as create
-      await this._create(file.path, data, options);
-    } else {
-      updateText(proposedNode, data);
-      this.proposedDoc.commit();
+      return await this._create(file.path, data, options);
     }
+
+    if ("text" in data) {
+      updateText(proposedNode, data.text);
+    } else if ("buffer" in data) {
+      replaceBuffer(proposedNode, data.buffer);
+    }
+    this.proposedDoc.commit();
   }
 
-  async modifyBinary(
-    _file: TFile,
-    _data: ArrayBuffer,
-    _options?: DataWriteOptions,
-  ): Promise<void> {
-    throw new Error("modifyBinary not supported");
+  _validateCreate(path: string) {
+    path = normalizePath(path);
+
+    // Prevent directory traversal – any ".." segment escapes the vault root.
+    if (path.split("/").some((seg) => seg === "..")) {
+      throw new Error("Path is outside the vault");
+    }
+
+    const proposedNode = this.proposedFS.findByPath(path);
+    if (proposedNode) {
+      throw new Error(
+        `${proposedNode instanceof TFolder ? "Folder" : "File"} already exists.`,
+      );
+    }
+
+    // todo: reject existing case insensitive file name
+
+    // If trashed, allow to re-create
+    const trashedNode = this.proposedFS.findTrashed(path);
+    const existsInVault = this.vault.getAbstractFileByPath(path);
+    if (!trashedNode && existsInVault) {
+      throw new Error(
+        `${existsInVault instanceof TFolder ? "Folder" : "File"} already exists.`,
+      );
+    }
   }
 
   async append(
@@ -728,7 +763,7 @@ export class VaultOverlaySvelte implements Vault {
     for (const op of ops) {
       const proposedNode =
         this.proposedFS.findByPath(op.path) ||
-        this.proposedFS.findDeleted(op.path);
+        this.proposedFS.findTrashed(op.path);
       invariant(
         proposedNode,
         `Cannot approve ${op.type}, no proposal found for: ${op.path}`,
@@ -1029,16 +1064,15 @@ export class VaultOverlaySvelte implements Vault {
     };
   }
 
-  undoProposed(proposedNode: LoroTreeNode, trackingNode: LoroTreeNode): void {
-    // Reset parent (handles path/rename changes)
+  revertProposed(proposedNode: LoroTreeNode, trackingNode: LoroTreeNode): void {
     invariant(
       proposedNode.id === trackingNode.id,
-      "Cannot reset proposed to tracking with different IDs",
+      "Cannot revert proposed to tracking with different IDs",
     );
     const trackingParent = trackingNode.parent();
-    const proposedParent = this.proposedFS.findById(trackingParent.id);
-    if (proposedNode.parent().id !== proposedParent.id) {
-      proposedNode.move(proposedParent);
+    if (proposedNode.parent().id !== trackingParent.id) {
+      const originalParent = this.proposedFS.findById(trackingParent.id);
+      proposedNode.move(originalParent);
     }
 
     // Reset deleted flag

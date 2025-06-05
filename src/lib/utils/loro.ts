@@ -1,6 +1,6 @@
 import { LoroText, LoroTreeNode } from "loro-crdt/base64";
 import { decodeBase64, encodeBase64 } from "$lib/utils/base64.ts";
-import type { FileStats } from "obsidian";
+import type { DataWriteOptions, FileStats } from "obsidian";
 import type { NodeData } from "../../chat/tree-fs.ts";
 
 const trashPath = ".overlay-trash" as const;
@@ -75,4 +75,16 @@ export function getName(node: LoroTreeNode): string {
 
 export function setName(node: LoroTreeNode, name: string) {
   node.data.set("name", name);
+}
+
+export function createStat(
+  size: number,
+  options?: DataWriteOptions,
+): FileStats {
+  return {
+    size,
+    mtime: Date.now(),
+    ctime: Date.now(),
+    ...(options ?? {}),
+  };
 }
