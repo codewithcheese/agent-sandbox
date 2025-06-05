@@ -61,7 +61,7 @@ export class VaultOverlaySvelte implements Vault {
 
   constructor(
     private vault: Vault,
-    snapshots?: CurrentChatFile["payload"]["overlay"],
+    snapshots?: CurrentChatFile["payload"]["vault"],
   ) {
     if (snapshots) {
       this.trackingDoc = LoroDoc.fromSnapshot(snapshots.tracking);

@@ -16,7 +16,6 @@ import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
-import type { ToolRequest } from "../tools/tool-request.ts";
 import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
 import { VaultOverlaySvelte } from "./vault-overlay.svelte.ts";
@@ -86,7 +85,6 @@ export class Chat {
   path = $state<string>();
   messages = $state<UIMessage[]>([]);
   state = $state<LoadingState>({ type: "idle" });
-  toolRequests = $state<ToolRequest[]>([]);
   vault = $state<VaultOverlaySvelte>();
   createdAt: Date;
   updatedAt: Date;
@@ -104,7 +102,7 @@ export class Chat {
     Object.assign(this, data.payload);
     this.vault = new VaultOverlaySvelte(
       usePlugin().app.vault,
-      data.payload.overlay,
+      data.payload.vault,
     );
     this.path = path;
   }

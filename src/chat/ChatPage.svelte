@@ -457,16 +457,6 @@
                       </button>
                     </div>
                     <!-- fixme: new method for displaying changes made-->
-                    <!--{#each chat.toolRequests.filter((tr) => tr.toolCallId === part.toolInvocation.toolCallId) as toolRequest}-->
-                    <!--  &lt;!&ndash; Handle tool invocations &ndash;&gt;-->
-                    <!--  <div class="border-t border-(&#45;&#45;background-modifier-border)">-->
-                    <!--    <ToolRequestRow-->
-                    <!--      toolCallId={part.toolInvocation.toolCallId}-->
-                    <!--      {toolRequest}-->
-                    <!--      onReviewClick={() => openMergeView(toolRequest)}-->
-                    <!--    />-->
-                    <!--  </div>-->
-                    <!--{/each}-->
                   </div>
                 {/if}
               {/each}
