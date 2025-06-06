@@ -50,7 +50,7 @@ type ApprovedChange =
   | { type: "create"; path: string; override?: { text: string } }
   | { type: "modify"; path: string; override?: { text: string } }
   | { type: "delete"; path: string }
-  | { type: "rename"; path: string; oldPath: string };
+  | { type: "rename"; path: string };
 
 export class VaultOverlaySvelte implements Vault {
   trackingDoc: LoroDoc;
@@ -795,13 +795,14 @@ export class VaultOverlaySvelte implements Vault {
         });
         // non-tracked proposed node is obsolete once create approved
         obsoleteNodes.push(proposedNode);
-        await this.persistApproval(op, data);
+        await this.persistApproval("create", op.path, data);
       } else if (op.type === "delete") {
         this.trackingFS.deleteNode(trackingNode.id);
         // node deletion does not sync, so mark proposed as deleted manually
         this.proposedFS.deleteNode(proposedNode.id);
-        await this.persistApproval(op, getNodeData(trackingNode));
+        await this.persistApproval("delete", op.path, undefined);
       } else if (op.type === "rename") {
+        const oldPath = this.trackingFS.getNodePath(trackingNode);
         if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
           let parentNode = this.trackingFS.findByPath(dirname(op.path));
           if (!parentNode) {
@@ -816,7 +817,9 @@ export class VaultOverlaySvelte implements Vault {
         if (getName(trackingNode) !== getName(proposedNode)) {
           this.trackingFS.renameNode(trackingNode.id, op.path);
         }
-        await this.persistApproval(op, getNodeData(trackingNode));
+        await this.persistApproval("rename", op.path, {
+          oldPath,
+        });
       } else if (op.type === "modify") {
         // recreate text container for last-write-wins not merge semantics
         if (proposedData.text) {
@@ -840,9 +843,12 @@ export class VaultOverlaySvelte implements Vault {
           });
         }
         // Modify is approved separately from rename, modify current tracking path.
-        // op.path points at proposed which may represent a rename
-        op.path = this.trackingFS.getNodePath(trackingNode);
-        await this.persistApproval(op, getNodeData(trackingNode));
+        const trackingPath = this.trackingFS.getNodePath(trackingNode);
+        await this.persistApproval(
+          "modify",
+          trackingPath,
+          getNodeData(trackingNode),
+        );
       } else {
         throw Error(
           `Unrecognized operation type: ${JSON.stringify(op satisfies never)}`,
@@ -877,52 +883,59 @@ export class VaultOverlaySvelte implements Vault {
     this.proposedDoc.commit();
   }
 
-  async persistApproval(op: ApprovedChange, data: NodeData = {}) {
-    switch (op.type) {
+  async persistApproval(
+    ...args:
+      | ["create", string, NodeData]
+      | ["modify", string, NodeData]
+      | ["rename", string, { oldPath: string }]
+      | ["delete", string, undefined]
+  ) {
+    const [type, path, data] = args;
+    switch (type) {
       case "create": {
         if (data.isDirectory) {
-          await this.vault.createFolder(op.path);
+          await this.vault.createFolder(path);
         } else if (data.text) {
-          await this.vault.create(op.path, data.text);
+          await this.vault.create(path, data.text);
         } else if (data.buffer) {
-          await this.vault.createBinary(op.path, data.buffer);
+          await this.vault.createBinary(path, data.buffer);
         } else {
           throw new Error(
-            `Failed to persist approved create, file is not directory, text or binary data: ${op.path}: ${JSON.stringify(data)}`,
+            `Failed to persist approved create, file is not directory, text or binary data: ${path}: ${JSON.stringify(data)}`,
           );
         }
         break;
       }
       case "delete": {
-        const file = this.vault.getAbstractFileByPath(op.path);
-        invariant(file, `Cannot delete file not found: ${op.path}`);
+        const file = this.vault.getAbstractFileByPath(path);
+        invariant(file, `Cannot delete file not found: ${path}`);
         await this.vault.delete(file);
         break;
       }
       case "rename": {
-        const file = this.vault.getAbstractFileByPath(op.oldPath);
-        invariant(file, `Cannot rename file not found: ${op.oldPath}`);
-        await this.vault.rename(file, op.path);
+        const file = this.vault.getAbstractFileByPath(data.oldPath);
+        invariant(file, `Cannot rename file not found: ${data.oldPath}`);
+        await this.vault.rename(file, path);
         break;
       }
       case "modify": {
-        const file = this.vault.getAbstractFileByPath(op.path);
-        invariant(file instanceof TFile, `Cannot modify folder: ${op.path}`);
-        invariant(file, `Cannot modify file not found: ${op.path}`);
+        const file = this.vault.getAbstractFileByPath(path);
+        invariant(file instanceof TFile, `Cannot modify folder: ${path}`);
+        invariant(file, `Cannot modify file not found: ${path}`);
         if (data.text) {
           await this.vault.modify(file, data.text);
         } else if (data.buffer) {
           await this.vault.modifyBinary(file, data.buffer);
         } else {
           throw new Error(
-            `Failed to persist approved modify, file is not text or binary data: ${op.path}: ${JSON.stringify(data)}`,
+            `Failed to persist approved modify, file is not text or binary data: ${path}: ${JSON.stringify(data)}`,
           );
         }
         break;
       }
       default: {
         throw new Error(
-          `Failed to persist approval, unrecognized op: ${JSON.stringify(op satisfies never)}`,
+          `Failed to persist approval, unrecognized op: ${JSON.stringify(args satisfies never)}`,
         );
       }
     }

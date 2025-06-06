@@ -332,9 +332,7 @@ describe("Approve changes", () => {
     expect(updated).toEqual("Hello\n\nHuman line\n\nAI line\n\nGoodbye");
 
     // user approves rename
-    await overlay.approve([
-      { path: "Notes/renamed.md", type: "rename", oldPath: "Notes/idea.md" },
-    ]);
+    await overlay.approve([{ path: "Notes/renamed.md", type: "rename" }]);
 
     const trackingNode = overlay.trackingFS.findByPath("Notes/renamed.md");
     const proposedNode = overlay.proposedFS.findByPath("Notes/renamed.md");
@@ -439,9 +437,7 @@ describe("Approve changes", () => {
     expect(proposedFS.findByPath("folderA/test.md")).not.toBeDefined();
 
     // Approve the move operation
-    await overlay.approve([
-      { type: "rename", path: "folderB/test.md", oldPath: "folderA/test.md" },
-    ]);
+    await overlay.approve([{ type: "rename", path: "folderB/test.md" }]);
 
     // Verify file exists in new location in tracking
     const trackingNode = trackingFS.findByPath("folderB/test.md");
@@ -488,7 +484,6 @@ describe("Approve changes", () => {
       {
         type: "rename",
         path: "documents/newname.md",
-        oldPath: "documents/original.md",
       },
     ]);
 
@@ -545,7 +540,6 @@ describe("Approve changes", () => {
       {
         path: "new-folder/document.md",
         type: "rename",
-        oldPath: "existing/document.md",
       },
     ]);
 
@@ -589,7 +583,6 @@ describe("Approve changes", () => {
       {
         type: "rename",
         path: "parentB/childFolder",
-        oldPath: "parentA/childFolder",
       },
     ]);
 
@@ -612,9 +605,7 @@ describe("Approve changes", () => {
     await overlay.rename(oldFolder, "projects/newname");
 
     // Approve the rename operation
-    await overlay.approve([
-      { type: "rename", path: "projects/newname", oldPath: "projects/oldname" },
-    ]);
+    await overlay.approve([{ type: "rename", path: "projects/newname" }]);
 
     // Verify folder was renamed in vault
     expect(vault.getFolderByPath("projects/newname")).not.toBeNull();
@@ -714,7 +705,6 @@ describe("Approve changes", () => {
           {
             type: "rename",
             path: "notes/renamed-report.md",
-            oldPath: "notes/report.md",
           },
           { type: "modify", path: "notes/renamed-report.md" },
         ]);
@@ -750,7 +740,6 @@ describe("Approve changes", () => {
           {
             type: "rename",
             path: "notes/renamed-report.md",
-            oldPath: "notes/report.md",
           },
         ]);
 
@@ -814,7 +803,6 @@ describe("Approve changes", () => {
           {
             type: "rename",
             path: "notes/renamed-report.md",
-            oldPath: "notes/report.md",
           },
         ]);
 
@@ -1010,7 +998,6 @@ describe("Approve changes", () => {
       overlay.approve([
         {
           type: "rename",
-          oldPath: path,
           path: "new-folder/new-name.md",
         },
       ]),
@@ -1022,7 +1009,6 @@ describe("Approve changes", () => {
       overlay.approve([
         {
           type: "rename",
-          oldPath: path,
           path,
         },
       ]),
@@ -1118,9 +1104,7 @@ describe("Approve changes", () => {
     await overlay.rename(fileToRename, renamedPath);
 
     // Action: Approve the rename
-    await overlay.approve([
-      { type: "rename" as "rename", oldPath: originalPath, path: renamedPath },
-    ]);
+    await overlay.approve([{ type: "rename" as "rename", path: renamedPath }]);
 
     // Assertions for vault state
     expect(vault.getFileByPath(originalPath)).toBeNull();
@@ -1172,7 +1156,6 @@ describe("Approve changes", () => {
         {
           path: "new-name.md",
           type: "rename",
-          oldPath: "existing-in-vault.md",
         },
       ]),
     ).rejects.toThrow(
