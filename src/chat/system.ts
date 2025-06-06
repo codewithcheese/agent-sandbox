@@ -77,12 +77,13 @@ function extractDataFromFrontmatter(
   if (!("frontmatter" in metadata)) {
     return data;
   }
-  for (const [key, value] of Object.entries(metadata.frontmatter)) {
-    if (key.startsWith("data.")) {
-      _.set(data, key.substring(5), value);
-    }
-  }
-  return data;
+  return metadata.frontmatter;
+  // for (const [key, value] of Object.entries(metadata.frontmatter)) {
+  //   if (key.startsWith("data.")) {
+  //     _.set(data, key.substring(5), value);
+  //   }
+  // }
+  // return data;
 }
 
 function extractSchemaFromFrontmatter(

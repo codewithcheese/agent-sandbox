@@ -1,12 +1,11 @@
-import { ItemView, MarkdownView, normalizePath } from "obsidian";
+import { ItemView, MarkdownView, normalizePath, Notice } from "obsidian";
 import { mount, unmount } from "svelte";
 import MergePage from "./MergePage.svelte";
 import { Chat } from "../../chat/chat.svelte.ts";
 import * as diff from "diff";
 import { getBaseName } from "$lib/utils/path.ts";
-import { getPatchStats } from "../../tools/tool-request.ts";
 import { findMatchingView } from "$lib/obsidian/leaf.ts";
-import type { Change } from "../../chat/vault-overlay.svelte.ts";
+import type { ProposedChange } from "../../chat/vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 
 const debug = createDebug();
@@ -15,7 +14,7 @@ export const MERGE_VIEW_TYPE = "sandbox-merge-view";
 
 export interface MergeViewState {
   chatPath: string;
-  change: Change;
+  path: string;
 }
 
 export class MergeView extends ItemView {
@@ -51,49 +50,77 @@ export class MergeView extends ItemView {
     debug("Mount", this.state);
 
     const chat = await Chat.load(this.state.chatPath);
+    const changes = chat.vault
+      .getFileChanges()
+      .filter((c) => c.path === this.state.path);
+    if (!changes.length) {
+      new Notice(`No changes for ${this.state.path}`);
+      return;
+    }
 
-    const file = this.app.vault.getFileByPath(
-      normalizePath(this.state.change.path),
-    );
-    const ogContent = await this.app.vault.adapter.read(file.path);
-    const newContent = await chat.vaultOverlay.read(file);
+    const currentPath =
+      changes.find((c) => c.type === "rename")?.info.oldPath || this.state.path;
 
-    debug(`${this.state.change.path} content on disk`, ogContent);
-    debug(`${this.state.change.path} modified content`, newContent);
+    let currentContent = "";
+    let currentFile = this.app.vault.getFileByPath(normalizePath(currentPath));
+    if (currentFile) {
+      currentContent = await this.app.vault.read(currentFile);
+    }
+    const newFile = chat.vault.getFileByPath(this.state.path);
+    const newContent = await chat.vault.read(newFile);
+
+    debug(`${currentPath} content on disk`, currentContent);
+    debug(`${this.state.path} modified content`, newContent);
+    debug("Changes", changes);
 
     // Mount the Svelte component with props
     this.component = mount(MergePage, {
       target: viewContent,
       props: {
-        ogContent,
+        currentContent,
         newContent,
-        name: getBaseName(this.state.change.path),
+        name: getBaseName(this.state.path),
         onSave: async (resolvedContent: string, pendingContent: string) => {
           debug("On save", resolvedContent, pendingContent);
-          // todo: move write into approveModify
-          await this.app.vault.adapter.write(
-            this.state.change.path,
-            resolvedContent,
+
+          const change = changes.find((c) =>
+            ["create", "modify"].includes(c.type),
           );
-          chat.vaultOverlay.approveModify(file.path, resolvedContent);
+
+          if (!change) {
+            new Notice(
+              "Failed to save. Could not find proposed change for: " +
+                this.state.path,
+            );
+            return;
+          }
+          if (resolvedContent) {
+            await chat.vault.approve([
+              {
+                type: change.type,
+                path: change.path,
+                override: { text: resolvedContent },
+              },
+            ]);
+          }
           // if some changes are remaining then apply them to the overlay
           if (resolvedContent !== pendingContent) {
-            await chat.vaultOverlay.modify(file, pendingContent);
+            const remaining = diff.createPatch(
+              change.path,
+              resolvedContent,
+              pendingContent,
+            );
+            debug("Applying unapproved changes to overlay", remaining);
+            await chat.vault.modify(currentFile, pendingContent);
           }
-          debug("Remaining changes", chat.vaultOverlay.getFileChanges());
+          chat.vault.computeChanges();
+          debug("Remaining changes", $state.snapshot(chat.vault.changes));
           await chat.save();
 
-          const remaining = diff.createPatch(
-            this.state.change.path,
-            resolvedContent,
-            pendingContent,
-          );
-          const stats = getPatchStats(remaining);
-
-          if (!stats.added && !stats.removed) {
-            debug("Closing merge view for path: ", this.state.change.path);
+          if (resolvedContent === pendingContent) {
+            debug("Closing merge view for path: ", change.path);
             const file = this.app.vault.getFileByPath(
-              normalizePath(this.state.change.path),
+              normalizePath(change.path),
             );
             const view = findMatchingView(
               MarkdownView,

@@ -13,17 +13,17 @@ import { type CachedMetadata, Notice, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { loadToolsFromFrontmatter } from "../tools";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
-import { arrayBufferToBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
-import type { ToolRequest } from "../tools/tool-request.ts";
 import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
-import { VaultOverlay } from "./vault-overlay.svelte.ts";
+import { VaultOverlaySvelte } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { ChatModel } from "../settings/models.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import { encodeBase64 } from "$lib/utils/base64.ts";
+import type { SuperJSONObject } from "$lib/utils/superjson.ts";
 
 const debug = createDebug();
 
@@ -86,8 +86,8 @@ export class Chat {
   path = $state<string>();
   messages = $state<UIMessage[]>([]);
   state = $state<LoadingState>({ type: "idle" });
-  toolRequests = $state<ToolRequest[]>([]);
-  vaultOverlay = $state<VaultOverlay>();
+  sessionStore = $state<SuperJSONObject>({});
+  vault = $state<VaultOverlaySvelte>();
   createdAt: Date;
   updatedAt: Date;
   options = $state<ChatOptions>({
@@ -102,9 +102,9 @@ export class Chat {
 
   constructor(path: string, data: CurrentChatFile) {
     Object.assign(this, data.payload);
-    this.vaultOverlay = new VaultOverlay(
+    this.vault = new VaultOverlaySvelte(
       usePlugin().app.vault,
-      data.payload.overlay,
+      data.payload.vault,
     );
     this.path = path;
   }
@@ -170,7 +170,7 @@ export class Chat {
             throw Error(`Attachment not found: ${attachment.path}`);
           }
           const data = await plugin.app.vault.readBinary(file);
-          const base64 = arrayBufferToBase64(data);
+          const base64 = encodeBase64(data);
           experimental_attachments.push({
             name: attachment.path,
             contentType: extensionToMimeType(file.extension),
@@ -193,7 +193,11 @@ export class Chat {
           ? experimental_attachments
           : undefined,
       createdAt: new Date(),
-    });
+      // @ts-expect-error metadata not typed
+      metadata: {
+        checkpoint: this.vault.proposedDoc.frontiers(),
+      },
+    } satisfies UIMessage);
 
     // Now run the conversation to completion
     await this.runConversation();
@@ -245,6 +249,15 @@ export class Chat {
           wrapTextAttachments($state.snapshot(this.messages)),
         ),
       );
+
+      const lastUserMessage = messages.findLast((m) => m.role === "user");
+      if (lastUserMessage) {
+        lastUserMessage.providerOptions = {
+          anthropic: {
+            cacheControl: { type: "ephemeral" },
+          },
+        };
+      }
 
       debug("Core messages", messages);
 
@@ -358,6 +371,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
           },
           abortSignal,
           onStepFinish: async (step) => {
+            this.vault.computeChanges();
             debug("Step finish", step);
             step.toolCalls.forEach((toolCall) => {
               debug("Tool call", toolCall.toolName, toolCall.args);
@@ -375,6 +389,8 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         for await (const chunk of stream.fullStream) {
           applyStreamPartToMessages(this.messages, chunk);
         }
+
+        this.vault.computeChanges();
 
         // If we get here, the call was successful
         return;

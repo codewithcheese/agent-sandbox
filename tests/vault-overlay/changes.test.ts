@@ -1,20 +1,19 @@
-import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { vault, helpers } from "../mocks/obsidian.ts";
 import { Vault } from "obsidian";
 import debug from "debug";
-import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
 
 debug.enable("*");
 debug.log = console.log.bind(console);
 
 describe("Vault Overlay Tracking", () => {
-  let overlay: VaultOverlay;
+  let overlay: VaultOverlaySvelte;
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset the mock vault state before each test
     helpers.reset();
-    overlay = new VaultOverlay(vault as unknown as Vault);
+    overlay = new VaultOverlaySvelte(vault as unknown as Vault);
   });
 
   afterEach(() => {
@@ -45,20 +44,33 @@ describe("Vault Overlay Tracking", () => {
         console.log("Final changes:", JSON.stringify(changes, null, 2));
         expect(changes).toEqual([
           {
+            type: "modify",
             path: "modified-file.txt",
-            type: "modified",
+            info: {
+              isDirectory: false,
+            },
           },
           {
+            type: "delete",
             path: "to-be-deleted.txt",
-            type: "deleted",
+            info: {
+              isDirectory: false,
+            },
           },
           {
+            type: "rename",
             path: "after-rename.txt",
-            type: "modified",
+            info: {
+              oldPath: "before-rename.txt",
+              isDirectory: false,
+            },
           },
           {
+            type: "create",
             path: "added-file.txt",
-            type: "added",
+            info: {
+              isDirectory: false,
+            },
           },
         ]);
 

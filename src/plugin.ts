@@ -9,7 +9,7 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
-import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.ts";
+import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.svelte.ts";
 import { CHAT_VIEW_TYPE, ChatView } from "./chat/chat-view.svelte.ts";
 import { ChatHistoryView } from "./chat/chat-history-view.svelte.ts";
 import {

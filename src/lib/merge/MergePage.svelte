@@ -5,15 +5,17 @@
   import { getOriginalDoc, unifiedMergeView } from "@codemirror/merge";
   import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
   import { Notice } from "obsidian";
-  import { usePlugin } from "$lib/utils";
+  import { createDebug } from "$lib/debug.ts";
+
+  const debug = createDebug();
 
   type Props = {
     name: string;
-    ogContent: string;
+    currentContent: string;
     newContent: string;
     onSave: (resolvedContent: string, pendingContent: string) => Promise<void>;
   };
-  let { name, ogContent, newContent, onSave }: Props = $props();
+  let { name, currentContent, newContent, onSave }: Props = $props();
 
   // State
   let editorView: EditorView | null = $state(null);
@@ -55,19 +57,27 @@
             //   proposedContent = v.state.doc.toString();
             // }
 
+            debug("Merge view update", v);
+
             // Check for accept/reject actions
             if (
               v.transactions.some(
-                (tr) =>
-                  tr.annotation(Transaction.userEvent) === "accept" ||
-                  tr.annotation(Transaction.userEvent) === "revert",
+                (tr) => tr.annotation(Transaction.userEvent) === "accept",
               )
             ) {
-              await saveChanges();
+              await acceptChange();
+            }
+
+            if (
+              v.transactions.some(
+                (tr) => tr.annotation(Transaction.userEvent) === "reject",
+              )
+            ) {
+              await rejectChange(v.transactions);
             }
           }),
           unifiedMergeView({
-            original: ogContent,
+            original: currentContent,
             gutter: false,
           }),
         ],
@@ -81,7 +91,7 @@
     createEditor();
   }
 
-  async function saveChanges(): Promise<void> {
+  async function acceptChange(): Promise<void> {
     if (!editorView) return;
 
     try {
@@ -99,6 +109,10 @@
       console.error("Error saving changes:", error);
       new Notice(`Error saving changes: ${(error as Error).message}`);
     }
+  }
+
+  async function rejectChange(transactions): Promise<void> {
+    debug("Rejecting change", transactions);
   }
 </script>
 
