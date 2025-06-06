@@ -12,6 +12,7 @@ import {
 import { invariant } from "@epic-web/invariant";
 import { createDebug } from "$lib/debug.ts";
 import {
+  type Frontiers,
   LoroDoc,
   LoroText,
   type LoroTreeNode,
@@ -987,9 +988,9 @@ export class VaultOverlaySvelte implements Vault {
       case "create": {
         if (data.isDirectory) {
           await this.vault.createFolder(path);
-        } else if (data.text) {
+        } else if (data.text != null) {
           await this.vault.create(path, data.text);
-        } else if (data.buffer) {
+        } else if (data.buffer != null) {
           await this.vault.createBinary(path, data.buffer);
         } else {
           throw new Error(
@@ -1014,9 +1015,9 @@ export class VaultOverlaySvelte implements Vault {
         const file = this.vault.getAbstractFileByPath(path);
         invariant(file instanceof TFile, `Cannot modify folder: ${path}`);
         invariant(file, `Cannot modify file not found: ${path}`);
-        if (data.text) {
+        if (data.text != null) {
           await this.vault.modify(file, data.text);
-        } else if (data.buffer) {
+        } else if (data.buffer != null) {
           await this.vault.modifyBinary(file, data.buffer);
         } else {
           throw new Error(
@@ -1225,6 +1226,20 @@ export class VaultOverlaySvelte implements Vault {
       tracking: this.trackingDoc.export({ mode: "snapshot" }),
       proposed: this.proposedDoc.export({ mode: "snapshot" }),
     };
+  }
+
+  revert(checkpoint: Frontiers) {
+    debug("Reverting to checkpoint", checkpoint);
+    this.trackingFS.invalidateCache();
+    this.proposedFS.invalidateCache();
+    this.proposedDoc.revertTo(checkpoint);
+    this.trackingDoc.import(
+      this.proposedDoc.export({
+        mode: "update",
+        from: this.trackingDoc.version(),
+      }),
+    );
+    this.computeChanges();
   }
 
   revertProposed(proposedNode: LoroTreeNode, trackingNode: LoroTreeNode): void {

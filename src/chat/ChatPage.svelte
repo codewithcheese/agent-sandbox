@@ -28,6 +28,7 @@
   import { createDebug } from "$lib/debug.ts";
   import TodoList from "./TodoList.svelte";
   import { ChatView } from "./chat-view.svelte.ts";
+  import { invariant } from "@epic-web/invariant";
 
   const debug = createDebug();
 
@@ -40,7 +41,7 @@
   };
   let { chat, view, agents }: Props = $props();
 
-  $inspect("Chat path", chat, chat.path, chat.options);
+  $inspect("ChatPage", chat.path);
 
   let scrollContainer = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);
@@ -62,14 +63,15 @@
   async function regenerateFromMessage(index: number) {
     const message = chat.messages[index];
     const isUserMessage = message.role === "user";
-
-    // todo: rollback vault changes
-
-    // Determine where to cut the conversation for regeneration
-    const cutIndex = isUserMessage ? index + 1 : index;
+    if (!isUserMessage) {
+      new Notice("Regenerate response is only available from user messages");
+      return;
+    }
 
     // Truncate the conversation to the point where we want to regenerate
-    chat.messages = chat.messages.slice(0, cutIndex);
+    chat.messages = chat.messages.slice(0, index + 1);
+
+    revertVault(index);
 
     // Generate new response
     await chat.runConversation();
@@ -209,11 +211,25 @@
     // Remove all messages after the edited one
     chat.messages = chat.messages.slice(0, index + 1);
 
+    revertVault(index);
+
     // Clear edit state
     editState = null;
 
     // Regenerate the assistant response from this point
     regenerateFromMessage(index);
+  }
+
+  function revertVault(from: number) {
+    // Revert vault changes
+    const userMessage = chat.messages[from];
+    console.log("userMessage", userMessage);
+    // @ts-expect-error metadata not typed
+    const checkpoint = userMessage.metadata?.checkpoint;
+    console.log("checkpoint", checkpoint);
+    if (checkpoint) {
+      chat.vault.revert(checkpoint);
+    }
   }
 
   function updateMessageText({
@@ -299,7 +315,7 @@
               <div class="group relative opacity-50">
                 <div
                   class={cn(
-                    `prose select-text
+                    `prose select-text leading-8
                 prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
                           prose-h1:m-0
                           prose-h2:m-0
@@ -307,7 +323,7 @@
                           prose-h4:m-0
                           prose-h5:m-0
                           prose-h6:m-0
-                          prose-p:m-0
+                          prose-p:m-1
                           prose-blockquote:m-0
                           prose-figure:m-0
                           prose-figcaption:m-0
@@ -375,7 +391,7 @@
                 {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
                   <div
                     class={cn(
-                      `prose select-text
+                      `prose select-text leading-8
                   prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
                             prose-h1:m-0
                             prose-h2:m-0
@@ -383,12 +399,12 @@
                             prose-h4:m-0
                             prose-h5:m-0
                             prose-h6:m-0
-                            prose-p:m-0
+                            prose-p:m-1
                             prose-blockquote:m-0
                             prose-figure:m-0
                             prose-figcaption:m-0
                             prose-ul:m-0
-                            prose-ol:m-0
+                            prose-ol:m-1
                             prose-li:m-0
                             prose-table:m-0
                             prose-thead:m-0
@@ -407,7 +423,7 @@
                             prose-a:decoration-1 text-foreground max-w-full`,
                       message.role === "user"
                         ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-                        : "py-2",
+                        : "py-3",
                     )}
                   >
                     <!-- thinking content -->
@@ -449,7 +465,9 @@
                       class="rounded border border-(--background-modifier-border)"
                     >
                       <div class="flex flex-row gap-1 text-xs p-1 items-center">
-                        <WrenchIcon class="size-3" />
+                        <span>
+                          {#if part.toolInvocation.state === "result"}🟢{:else}🟡{/if}
+                        </span>
                         <div class="flex-1">{part.toolInvocation.toolName}</div>
                         <button
                           type="button"

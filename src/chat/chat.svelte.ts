@@ -193,6 +193,10 @@ export class Chat {
           ? experimental_attachments
           : undefined,
       createdAt: new Date(),
+      // @ts-expect-error metadata not typed
+      metadata: {
+        checkpoint: this.vault.proposedDoc.frontiers(),
+      },
     } satisfies UIMessage);
 
     // Now run the conversation to completion
