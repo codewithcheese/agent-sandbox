@@ -23,11 +23,16 @@ import { type NodeData, TreeFS } from "./tree-fs.ts";
 import {
   createStat,
   getBuffer,
+  getDeletedFrom,
   getName,
   getNodeData,
+  getStat,
   getText,
+  hasContentChanged,
+  isTrashed,
   replaceBuffer,
   replaceText,
+  setStat,
   updateText,
 } from "$lib/utils/loro.ts";
 
@@ -36,15 +41,24 @@ const debug = createDebug();
 const trashPath = ".overlay-trash" as const;
 const deletedFrom = "deletedFrom" as const;
 export const isDirectoryKey = "isDirectory" as const;
+// differentiate between directories created explicitly and those created ensure a path
+export const wasCreatedKey = "wasCreated" as const;
 
 const trackingPeerId = 1 as const;
 const proposedPeerId = 2 as const;
 
-export type ProposedChange = {
-  id: TreeID;
-  path: string;
-  type: "added" | "deleted" | "modified" | "identical";
-};
+export type ProposedChange =
+  | { type: "create"; path: string; info: { isDirectory: boolean } }
+  | { type: "delete"; path: string; info: { isDirectory: boolean } }
+  | {
+      type: "rename";
+      path: string;
+      info: {
+        oldPath: string;
+        isDirectory: boolean;
+      };
+    }
+  | { type: "modify"; path: string; info: { isDirectory: boolean } }; // path is current path in proposed; modify is for file content
 
 type ApprovedChange =
   | { type: "create"; path: string; override?: { text: string } }
@@ -394,23 +408,10 @@ export class VaultOverlaySvelte implements Vault {
     }
 
     invariant(proposedNode, `Cannot rename file not found: ${file.path}`);
-    // todo: verify dirname gets parent/root
-    let newParent = this.proposedFS.findByPath(dirname(newPath));
-    if (!newParent) {
-      newParent = this.proposedFS.createNode(dirname(newPath), {
-        isDirectory: true,
-      });
-    }
+    let newParent = this.proposedFS.ensureDirs(dirname(newPath));
 
-    // Update cache
-    this.proposedFS.updateNodePath(file.path, newPath, proposedNode.id);
-
-    // todo: test renaming a file and a folder
-    const newName = basename(newPath);
-    proposedNode.data.set("name", newName);
-    if (proposedNode.parent().id !== newParent.id) {
-      proposedNode.move(newParent);
-    }
+    this.proposedFS.moveNode(proposedNode, newParent.id);
+    this.proposedFS.renameNode(proposedNode.id, basename(newPath));
     this.proposedDoc.commit();
   }
 
@@ -883,6 +884,97 @@ export class VaultOverlaySvelte implements Vault {
     this.proposedDoc.commit();
   }
 
+  async reject(change: ProposedChange): Promise<void> {
+    // check the change is still valid
+    const match = this.getFileChanges().find(
+      (c) => c.path === change.path && c.type === change.type,
+    );
+    invariant(
+      match,
+      `Cannot reject ${change.type} on ${change.path}. No matching change found.`,
+    );
+
+    const proposedNode =
+      this.proposedFS.findByPath(change.path) ??
+      this.proposedFS.findTrashed(change.path);
+
+    // For create, there's no tracking node. For others, we expect one.
+    let trackingNode = this.trackingFS.findById(proposedNode.id);
+
+    switch (change.type) {
+      case "create":
+        // Rejecting a "create" means the item should not exist in proposed.
+        this.proposedFS.deleteNode(proposedNode.id);
+        break;
+
+      case "delete":
+        // Rejecting a "delete" means the item should be restored from trash.
+        // BUT KEEP ITS CURRENT CONTENT in proposed.
+        const parent = this.proposedFS.findById(trackingNode.parent().id);
+        invariant(
+          parent,
+          `Failed to reject ${change.type} on ${change.path}, original parent not found.`,
+        );
+        this.proposedFS.restoreNode(proposedNode, parent);
+        break;
+
+      case "rename": {
+        // Rejecting a "rename" means the item in proposed (at change.newPath)
+        // should revert to its old path (change.oldPath) from tracking,
+        // BUT KEEP ITS CURRENT CONTENT in proposed.
+        const oldPath = this.trackingFS.getNodePath(trackingNode);
+        invariant(
+          match.type === "rename" && match.info.oldPath === oldPath,
+          `Cannot reject rename on ${change.path}. Original path (${oldPath}) does not match current proposed change.`,
+        );
+        // restore any trashed parents
+        const oldParent = this.proposedFS.ensureDirs(dirname(oldPath));
+        this.proposedFS.moveNode(proposedNode, oldParent.id);
+        this.proposedFS.renameNode(proposedNode.id, basename(oldPath));
+        break;
+      }
+
+      case "modify":
+        // Rejecting a "modify" means the item's content in proposed (at change.path)
+        // should revert to its content from tracking,
+        // BUT KEEP ITS CURRENT PATH in proposed (it might have been renamed).
+        invariant(
+          proposedNode && trackingNode,
+          "Proposed and tracking nodes are required for modify rejection.",
+        );
+
+        // Revert content (text or buffer)
+        const trackingText = getText(trackingNode);
+        if (trackingText !== undefined) {
+          updateText(proposedNode, trackingText); // replaceText handles LoroText recreation
+        } else {
+          proposedNode.data.delete("text"); // Ensure text container is removed if tracking had no text
+        }
+
+        const trackingBuffer = getBuffer(trackingNode);
+        if (trackingBuffer !== undefined) {
+          replaceBuffer(proposedNode, trackingBuffer); // replaceBuffer handles base64 encoding
+        } else {
+          proposedNode.data.delete("buffer"); // Ensure buffer is removed if tracking had no buffer
+        }
+
+        // Revert stats
+        const trackingStat = getStat(trackingNode);
+        if (trackingStat) {
+          setStat(proposedNode, trackingStat);
+        } else {
+          proposedNode.data.delete("stat");
+        }
+        break;
+      default:
+        throw new Error(
+          `Unhandled ProposedChange type: ${JSON.stringify(change satisfies never)}`,
+        );
+    }
+
+    this.proposedDoc.commit();
+  }
+
   async persistApproval(
     ...args:
       | ["create", string, NodeData]
@@ -1006,71 +1098,126 @@ export class VaultOverlaySvelte implements Vault {
   }
 
   getFileChanges(): ProposedChange[] {
-    const trackingTree = this.trackingDoc.getTree("vault");
-
-    const nodes: Record<
-      TreeID,
-      { trackingNode: LoroTreeNode | undefined; proposedNode: LoroTreeNode }
-    > = {};
-    const trackingNodes = trackingTree.getNodes();
-    for (const mNode of trackingNodes) {
-      nodes[mNode.id] = {
-        trackingNode: mNode,
-        proposedNode: this.proposedFS.findById(mNode.id),
-      };
-    }
-    const proposedNodes = this.proposedDoc.getTree("vault").getNodes();
-    for (const sNode of proposedNodes) {
-      if (!(sNode.id in nodes)) {
-        nodes[sNode.id] = { trackingNode: undefined, proposedNode: sNode };
-      }
-    }
-
     const changes: ProposedChange[] = [];
+    const allIds = new Set<TreeID>();
 
-    for (const [_id, { trackingNode, proposedNode }] of Object.entries(nodes)) {
-      let type: ProposedChange["type"];
+    // Collect all unique node IDs from both tracking and proposed docs
+    // Using tree.getNodes() can be expensive if trees are large.
+    // If TreeFS maintains a list of all known active IDs, that could be more efficient.
+    // For now, direct Loro API is fine.
+    this.trackingDoc
+      .getTree("vault")
+      .getNodes()
+      .forEach((n) => {
+        if (n.parent()) allIds.add(n.id); // Exclude root
+      });
+    this.proposedDoc
+      .getTree("vault")
+      .getNodes()
+      .forEach((n) => {
+        if (n.parent()) allIds.add(n.id); // Exclude root
+      });
 
-      // omit if root
-      if (!proposedNode.parent()) {
+    for (const id of allIds) {
+      const trackingNode = this.trackingFS.findById(id);
+      const proposedNode = this.proposedFS.findById(id);
+
+      // If node only exists in tracking, it means it was hard-deleted from proposed
+      // (not via our trash mechanism). This is an edge case.
+      // Our primary "delete" mechanism involves moving to .overlay-trash in proposed.
+      if (trackingNode && !proposedNode) {
+        console.warn(
+          `Node ${id} (path: ${this.trackingFS.getNodePath(trackingNode)}) exists in tracking but not in proposed. Consider this a hard delete?`,
+        );
+        // Optionally, you could emit a delete change here:
+        // const tnIsDir = trackingNode.data.get(isDirectoryKey) as boolean ?? false;
+        // changes.push({ id, type: "delete", path: this.trackingFS.getNodePath(trackingNode), isDirectory: tnIsDir });
         continue;
       }
-      if (proposedNode?.data.get("name") === trashPath) {
+
+      if (!proposedNode) continue; // Should not happen if allIds includes proposedNode IDs.
+
+      // Skip the .overlay-trash folder itself
+      if (this.proposedFS.getNodePath(proposedNode) === trashPath) {
         continue;
       }
 
-      const path = this.proposedFS.getNodePath(proposedNode);
+      const isProposedTrashed = isTrashed(proposedNode);
 
-      if (!trackingNode && proposedNode) {
-        changes.push({ id: proposedNode.id, path, type: "added" });
-      } else if (trackingNode && proposedNode?.data.get(deletedFrom)) {
-        changes.push({
-          id: proposedNode.id,
-          path: proposedNode.data.get(deletedFrom) as string,
-          type: "deleted",
-        });
-      } else if (trackingNode && proposedNode) {
-        if (trackingNode.data.get("name") !== proposedNode.data.get("name")) {
-          changes.push({ id: proposedNode.id, path, type: "modified" });
-          continue;
-        } else if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
-          changes.push({ id: proposedNode.id, path, type: "modified" });
-          continue;
+      if (!trackingNode && proposedNode && !isProposedTrashed) {
+        // Case 1: CREATED - Node exists in proposed, not in tracking, and not in trash.
+        const pnPath = this.proposedFS.getNodePath(proposedNode);
+        const pnIsDir =
+          (proposedNode.data.get(isDirectoryKey) as boolean) ?? false;
+        // Only return directories explicitly created.
+        if (pnIsDir && proposedNode.data.get(wasCreatedKey)) {
+          changes.push({
+            type: "create",
+            path: pnPath,
+            info: {
+              isDirectory: pnIsDir,
+            },
+          });
+        } else if (!pnIsDir) {
+          changes.push({
+            type: "create",
+            path: pnPath,
+            info: {
+              isDirectory: pnIsDir,
+            },
+          });
+        }
+      } else if (trackingNode && isProposedTrashed) {
+        // Case 2: DELETED - Node exists in tracking, and is in trash in proposed.
+        const originalPath = getDeletedFrom(proposedNode);
+        if (originalPath) {
+          const tnIsDir =
+            (trackingNode.data.get(isDirectoryKey) as boolean) ?? false; // Get type from trackingNode
+          changes.push({
+            type: "delete",
+            path: originalPath,
+            info: {
+              isDirectory: tnIsDir,
+            },
+          });
+        } else {
+          console.warn(
+            `Trashed node ${id} (proposed path: ${this.proposedFS.getNodePath(proposedNode)}) is missing 'deletedFrom' metadata.`,
+          );
+        }
+      } else if (trackingNode && proposedNode && !isProposedTrashed) {
+        // Case 3: EXISTING - Node in both, not in trash. Check for RENAME and/or MODIFY.
+        const trackingPath = this.trackingFS.getNodePath(trackingNode);
+        const proposedPath = this.proposedFS.getNodePath(proposedNode);
+        const nodeIsDir =
+          (proposedNode.data.get(isDirectoryKey) as boolean) ?? false; // Type is same for tracking/proposed here
+
+        // Check for RENAME (path changed)
+        if (trackingPath !== proposedPath) {
+          changes.push({
+            type: "rename",
+            path: proposedPath,
+            info: {
+              oldPath: trackingPath,
+              isDirectory: nodeIsDir,
+            },
+          });
         }
 
-        // todo: compare binary
-        const mText =
-          (trackingNode.data.get("text") as LoroText | undefined)?.toString() ??
-          "";
-        const sText =
-          (proposedNode.data.get("text") as LoroText | undefined)?.toString() ??
-          "";
-        type = mText === sText ? "identical" : "modified";
-        changes.push({ id: proposedNode.id, path, type });
+        // Check for CONTENT MODIFICATION (only for files)
+        // A renamed file can also be modified. Modification is against the newPath.
+        if (!nodeIsDir && hasContentChanged(trackingNode, proposedNode)) {
+          changes.push({
+            type: "modify",
+            path: proposedPath, // Modification is at the current (potentially new) path
+            info: {
+              isDirectory: false,
+            },
+          });
+        }
       }
     }
-
-    return changes.filter((c) => c.type !== "identical");
+    return changes;
   }
 
   snapshot() {

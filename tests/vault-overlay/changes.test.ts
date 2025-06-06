@@ -44,24 +44,33 @@ describe("Vault Overlay Tracking", () => {
         console.log("Final changes:", JSON.stringify(changes, null, 2));
         expect(changes).toEqual([
           {
-            id: "6@1",
+            type: "modify",
             path: "modified-file.txt",
-            type: "modified",
+            info: {
+              isDirectory: false,
+            },
           },
           {
-            id: "26@1",
+            type: "delete",
             path: "to-be-deleted.txt",
-            type: "deleted",
+            info: {
+              isDirectory: false,
+            },
           },
           {
-            id: "50@1",
+            type: "rename",
             path: "after-rename.txt",
-            type: "modified",
+            info: {
+              oldPath: "before-rename.txt",
+              isDirectory: false,
+            },
           },
           {
-            id: "0@2",
+            type: "create",
             path: "added-file.txt",
-            type: "added",
+            info: {
+              isDirectory: false,
+            },
           },
         ]);
 

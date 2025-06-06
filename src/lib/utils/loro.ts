@@ -88,3 +88,73 @@ export function createStat(
     ...(options ?? {}),
   };
 }
+
+export function isTrashed(node: LoroTreeNode): boolean {
+  return !!getDeletedFrom(node);
+}
+
+export function hasContentChanged(
+  trackingNode: LoroTreeNode,
+  proposedNode: LoroTreeNode,
+): boolean {
+  const proposedIsDirectory = isDirectory(proposedNode); // Using helper
+  if (proposedIsDirectory) {
+    // Directories don't have "content" in the same way files do for this comparison.
+    // If directory metadata (like name, which is handled by rename) or children changes,
+    // those are separate concerns.
+    return false;
+  }
+
+  // Ensure trackingNode is also a file for a meaningful content comparison.
+  // If trackingNode was a directory and proposedNode (same ID) is a file,
+  // that's a fundamental type change, definitely "modified".
+  const trackingIsDirectory = isDirectory(trackingNode); // Using helper
+  if (trackingIsDirectory) {
+    // This scenario (same ID, type changes from dir to file) is unusual but would be a modification.
+    return true;
+  }
+
+  // Compare text content
+  const trackingText = getText(trackingNode); // Using helper
+  const proposedText = getText(proposedNode); // Using helper
+
+  if (trackingText !== proposedText) {
+    // Further check: if one is undefined and the other is an empty string, consider them the same.
+    // This handles cases where a file might be newly created with empty content vs. not having text.
+    if (
+      !(
+        (trackingText === undefined && proposedText === "") ||
+        (trackingText === "" && proposedText === undefined)
+      )
+    ) {
+      return true;
+    }
+  }
+
+  // Compare binary buffer
+  const trackingBuffer = getBuffer(trackingNode); // Using helper
+  const proposedBuffer = getBuffer(proposedNode); // Using helper
+
+  // Direct ArrayBuffer comparison is tricky. For simplicity, if they are different objects,
+  // assume changed. For more robust comparison, you might compare byte-by-byte or length + checksum.
+  // Your current getBuffer likely returns new ArrayBuffer instances from decodeBase64.
+  // So, we need to compare their content if both exist.
+  if (trackingBuffer && proposedBuffer) {
+    if (trackingBuffer.byteLength !== proposedBuffer.byteLength) {
+      return true;
+    }
+    // Simple byte-by-byte comparison for ArrayBuffers
+    const trackingView = new Uint8Array(trackingBuffer);
+    const proposedView = new Uint8Array(proposedBuffer);
+    for (let i = 0; i < trackingBuffer.byteLength; i++) {
+      if (trackingView[i] !== proposedView[i]) {
+        return true;
+      }
+    }
+  } else if (trackingBuffer !== proposedBuffer) {
+    // Handles one being defined and the other not
+    return true;
+  }
+
+  return false;
+}

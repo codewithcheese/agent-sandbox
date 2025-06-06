@@ -9,6 +9,7 @@ import {
 import { invariant } from "@epic-web/invariant";
 import { basename, dirname } from "path-browserify";
 import { encodeBase64 } from "$lib/utils/base64.ts";
+import { wasCreatedKey } from "./vault-overlay.svelte.ts";
 
 const trashPath = ".overlay-trash" as const;
 const deletedFrom = "deletedFrom" as const;
@@ -111,6 +112,7 @@ export class TreeFS {
     c.data.set("name", basename(path));
     if (data.isDirectory) {
       c.data.set("isDirectory", data.isDirectory);
+      c.data.set(wasCreatedKey, true);
     }
     if (data.text != null) {
       c.data.setContainer("text", new LoroText());
@@ -167,7 +169,7 @@ export class TreeFS {
 
     // optimization: if path in cache then all directories exist
     if (this.pathCache.get(path)) {
-      return;
+      return this.findById(this.pathCache.get(path));
     }
 
     for (const [idx, part] of parts.entries()) {
