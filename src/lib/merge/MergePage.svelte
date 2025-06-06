@@ -5,15 +5,14 @@
   import { getOriginalDoc, unifiedMergeView } from "@codemirror/merge";
   import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
   import { Notice } from "obsidian";
-  import { usePlugin } from "$lib/utils";
 
   type Props = {
     name: string;
-    ogContent: string;
+    currentContent: string;
     newContent: string;
     onSave: (resolvedContent: string, pendingContent: string) => Promise<void>;
   };
-  let { name, ogContent, newContent, onSave }: Props = $props();
+  let { name, currentContent, newContent, onSave }: Props = $props();
 
   // State
   let editorView: EditorView | null = $state(null);
@@ -67,7 +66,7 @@
             }
           }),
           unifiedMergeView({
-            original: ogContent,
+            original: currentContent,
             gutter: false,
           }),
         ],

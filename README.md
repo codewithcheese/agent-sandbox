@@ -73,12 +73,10 @@ This project includes a version bumping script that automates the release proces
 ## Todo
 
 - [ ] Tools: Read state
-- [ ] Tools: TodoWrite and TodoRead
 - [ ] Agent: Tool validation
 - [ ] Chat: Save last model select, load when opening chat if previous chat options not available
 - [ ] Agent: New chat button
 - [ ] Diff: Undo changes when messages are deleted
-- [x] Fix: Chat saving with attachments
 - [ ] Diff: Update Loro approve methods to have side effects.
 - [ ] Diff: Add vault change checking
 - [ ] Diff: Sync vault and display changes when user submits message
@@ -104,7 +102,10 @@ This project includes a version bumping script that automates the release proces
 - [ ] Chat: Resume options for existing chat
 - [ ] Schema editor: Support for defining array items
 - [ ] Schema editor: Fix don't clobber unsupported values
-- [ ] Tools: Text editor tools for non-Anthropic models
+- [x] Tools: Text editor tools for non-Anthropic models
+- [x] Fix: Chat saving with attachments
+- [x] Tools: TodoWrite and TodoRead
+- [x] Chat: Session store
 - [x] Chat: extended settings, temperature, thinking toggle, thinking budget, cache control
 - [x] Chat: Debug logging
 - [x] Chat: previous chats action
