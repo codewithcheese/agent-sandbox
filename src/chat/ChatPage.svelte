@@ -13,8 +13,8 @@
   import type { Chat } from "./chat.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
   import { onDestroy, onMount } from "svelte";
-  import Markdown from "$lib/components/Markdown.svelte";
-  import RetryAlert from "$lib/components/RetryAlert.svelte";
+  import Markdown from "./Markdown.svelte";
+  import RetryAlert from "./RetryAlert.svelte";
   import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { normalizePath, Notice, TFile } from "obsidian";
   import { type ViewContext } from "$lib/obsidian/view.ts";
