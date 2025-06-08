@@ -5,6 +5,7 @@
   import { Chat } from "../../chat/chat.svelte.ts";
   import { usePlugin } from "$lib/utils";
   import { Notice } from "obsidian";
+  import { nanoid } from "nanoid";
 
   let { path, errors, openAgentView, openMarkdownView, viewType }: BannerProps =
     $props();
@@ -13,18 +14,20 @@
     const plugin = usePlugin();
     const { settings } = plugin;
     if (!settings?.agents?.templateRepairAgentPath) {
-      new Notice("Select template repair agent in settings");
+      new Notice(
+        "No repair agent configured. Go to settings to select an agent that can repair templates.",
+      );
       return;
     }
     const agentFile = plugin.app.vault.getFileByPath(path);
     // open chat view and set agent
     const view = await ChatView.newChat();
-    view.options.autosave = false;
-    view.options.agentPath = settings.agents.templateRepairAgentPath;
     // get reference to view's chat and submit
     const chat = await Chat.load(view.file.path);
-    chat.addAttachment(agentFile);
-    await chat.submit(`Fix: ${errors.join("\n")}`, view.options);
+    chat.options.agentPath = settings.agents.templateRepairAgentPath;
+    await chat.submit(`Fix: ${errors.join("\n")}`, [
+      { id: nanoid(), path: agentFile.path },
+    ]);
   }
 </script>
 
