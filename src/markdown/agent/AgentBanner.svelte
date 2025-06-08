@@ -2,6 +2,7 @@
   import {
     BotIcon,
     HammerIcon,
+    MessageSquareIcon,
     PlusIcon,
     TextIcon,
     TextSearchIcon,
@@ -37,7 +38,6 @@
   }
 
   async function newChat() {
-    const { settings } = usePlugin();
     const view = await ChatView.newChat();
     const chat = await Chat.load(view.file.path);
     chat.options.agentPath = path;

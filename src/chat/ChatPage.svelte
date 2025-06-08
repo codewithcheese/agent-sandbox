@@ -5,10 +5,10 @@
     InfoIcon,
     PlusIcon,
     RefreshCwIcon,
-    WrenchIcon,
-    Trash2Icon,
     PencilIcon,
     EyeIcon,
+    FileUpIcon,
+    FileSymlinkIcon,
   } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
@@ -28,7 +28,9 @@
   import { createDebug } from "$lib/debug.ts";
   import TodoList from "./TodoList.svelte";
   import { ChatView } from "./chat-view.svelte.ts";
-  import { invariant } from "@epic-web/invariant";
+  import type { ChatInputState } from "./chat-input-state.svelte.ts";
+  import { loadPromptMessage } from "../markdown/prompt-command.ts";
+  import is from "@sindresorhus/is";
 
   const debug = createDebug();
 
@@ -38,10 +40,11 @@
     chat: Chat;
     view: ViewContext;
     agents: Agents;
+    inputState: ChatInputState;
   };
-  let { chat, view, agents }: Props = $props();
+  let { chat, view, agents, inputState }: Props = $props();
 
-  $inspect("ChatPage", chat.path);
+  $inspect("ChatPage", chat.path, chat.messages);
 
   let scrollContainer = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);
@@ -60,6 +63,7 @@
     chat.cancel();
   });
 
+  // todo: move to chat
   async function regenerateFromMessage(index: number) {
     const message = chat.messages[index];
     const isUserMessage = message.role === "user";
@@ -78,6 +82,17 @@
 
     // Save the updated chat
     await chat.save();
+  }
+
+  async function updatePrompt(i: number) {
+    const message = chat.messages[i];
+    if (!("metadata" in message && (message.metadata as any).prompt.path)) {
+      return new Notice("Message not associated with a prompt");
+    }
+    const file = plugin.app.vault.getAbstractFileByPath(
+      (message.metadata as any).prompt.path,
+    );
+    chat.messages[i] = await loadPromptMessage(file);
   }
 
   function submitOnEnter(e: KeyboardEvent) {
@@ -362,27 +377,62 @@
             {:else}
               <!-- Normal message display -->
               <div class="group relative">
+                <!-- prompt badge -->
+                {#if message.role === "user" && "metadata" in message && is.object(message.metadata) && "prompt" in message.metadata}
+                  <div
+                    class="absolute top-0 left-0 text-xs text-(--text-accent)"
+                  >
+                    <button
+                      class="clickable-icon"
+                      onclick={() => {
+                        //@ts-expect-error metadata.prompt not typed
+                        openFile(message.metadata.prompt.path);
+                      }}>Prompt</button
+                    >
+                  </div>
+                {/if}
                 <!-- message buttons -->
                 <div
-                  class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 border bg-(--background-primary)"
+                  class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-(--background-primary) rounded"
                 >
                   {#if message.role === "user"}
-                    <button
-                      class="clickable-icon"
-                      aria-label="Edit message"
-                      onclick={() => startEdit(i)}
-                    >
-                      <PencilIcon class="size-4" />
-                    </button>
-                    <button
-                      class="clickable-icon"
-                      aria-label={message.role === "user"
-                        ? "Regenerate assistant response"
-                        : "Regenerate this response"}
-                      onclick={() => regenerateFromMessage(i)}
-                    >
-                      <RefreshCwIcon class="size-4" />
-                    </button>
+                    {#if "metadata" in message && typeof message.metadata === "object" && "prompt" in message.metadata}
+                      <!-- prompt buttons -->
+                      <button
+                        class="clickable-icon"
+                        aria-label="Sync from note"
+                        onclick={() => updatePrompt(i)}
+                      >
+                        <FileSymlinkIcon class="size-4" />
+                      </button>
+                      <button
+                        class="clickable-icon"
+                        aria-label={message.role === "user"
+                          ? "Regenerate assistant response"
+                          : "Regenerate this response"}
+                        onclick={() => regenerateFromMessage(i)}
+                      >
+                        <RefreshCwIcon class="size-4" />
+                      </button>
+                    {:else}
+                      <!-- user message buttons -->
+                      <button
+                        class="clickable-icon"
+                        aria-label="Edit message"
+                        onclick={() => startEdit(i)}
+                      >
+                        <PencilIcon class="size-4" />
+                      </button>
+                      <button
+                        class="clickable-icon"
+                        aria-label={message.role === "user"
+                          ? "Regenerate assistant response"
+                          : "Regenerate this response"}
+                        onclick={() => regenerateFromMessage(i)}
+                      >
+                        <RefreshCwIcon class="size-4" />
+                      </button>
+                    {/if}
                     <!--              <button class="clickable-icon" onclick={() => deleteMessage(i)}>-->
                     <!--                <Trash2Icon class="size-4" />-->
                     <!--              </button>-->
@@ -499,6 +549,7 @@
       <Autoscroll
         messages={chat.messages}
         container={scrollContainer}
+        enabled={chat.state.type === "loading"}
         bind:sentinel
       />
     </div>
@@ -516,6 +567,7 @@
       {getModelAccountOptions}
       {handleModelChange}
       {handleSubmit}
+      {inputState}
       {openFile}
       {openFirstChange}
       {submitEdit}

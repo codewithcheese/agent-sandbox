@@ -1,6 +1,9 @@
 import type { Attachment, UIMessage } from "ai";
 import { extractDataFromDataUrl } from "$lib/utils/data-url.ts";
 import type { TextUIPart } from "@ai-sdk/ui-utils";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 function attachmentIsText(attachment: Attachment) {
   return attachment.contentType?.startsWith("text/");
@@ -11,6 +14,7 @@ function attachmentIsText(attachment: Attachment) {
  * as a result models do not differentiate them as documents with a name.
  */
 export function wrapTextAttachments(messages: UIMessage[]): UIMessage[] {
+  debug("Wrapping text attachments");
   return messages.map((message) => {
     const textAttachments =
       message.experimental_attachments?.filter(attachmentIsText) ?? [];

@@ -16,7 +16,7 @@ type SystemMessageOptions = {
 export async function createSystemContent(
   file: TFile,
   options: SystemMessageOptions = {},
-) {
+): Promise<string> {
   const plugin = usePlugin();
   const metadata = plugin.app.metadataCache.getFileCache(file);
   const data = extractDataFromFrontmatter(metadata);
@@ -26,7 +26,7 @@ export async function createSystemContent(
   system = stripFrontmatter(system);
   system = unescapeTags(system);
   system = await processEmbeds(file, system);
-  system = await processLinks(file, system);
+  // system = await processLinks(file, system);
   system = await processTemplate(system, { fileTree }, data, options.template);
   return system;
 }
@@ -59,12 +59,12 @@ function validateDataAgainstSchema(
   }
 }
 
-function unescapeTags(text: string): string {
+export function unescapeTags(text: string): string {
   // Replace tags like \<hello> or \</hello> with <hello> or </hello>
   return text.replace(/\\(<\/?[^>]+>)/g, "$1");
 }
 
-function stripFrontmatter(content: string): string {
+export function stripFrontmatter(content: string): string {
   // Match YAML frontmatter between --- delimiters at the start of the content
   const frontmatterRegex = /^---\r?\n[\s\S]*?\r?\n---\r?\n/;
   return content.replace(frontmatterRegex, "");

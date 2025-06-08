@@ -20,20 +20,7 @@
   import ChatSettingsModal from "./ChatSettingsModal.svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { nanoid } from "nanoid";
-
-  let realtime = new Realtime();
-
-  realtime.emitter.onAny((event, data) => {
-    console.log("realtime event", event, data);
-    if (event === "delta") {
-      text += data;
-    } else if (event === "final") {
-      text += " ";
-    } else if (event === "error") {
-      new Notice("Transcription error: " + String(data));
-      realtime.stopSession();
-    }
-  });
+  import type { ChatInputState } from "./chat-input-state.svelte.ts";
 
   type Props = {
     chat: Chat;
@@ -57,6 +44,7 @@
     cancelEdit: () => void;
     submitEdit: (content: string) => void;
     submitBtn?: HTMLButtonElement;
+    inputState: ChatInputState;
   };
   let {
     chat,
@@ -73,16 +61,30 @@
     cancelEdit = () => {},
     submitEdit = () => {},
     submitBtn = $bindable(),
+    inputState,
   }: Props = $props();
 
-  let text = $state<string>("");
+  let realtime = new Realtime();
+
+  realtime.emitter.onAny((event, data) => {
+    console.log("realtime event", event, data);
+    if (event === "delta") {
+      inputState.text += data;
+    } else if (event === "final") {
+      inputState.text += " ";
+    } else if (event === "error") {
+      new Notice("Transcription error: " + String(data));
+      realtime.stopSession();
+    }
+  });
+
   let textareaRef: HTMLTextAreaElement | null = null;
 
   // Set text to edit content when edit mode starts
   $effect(() => {
     if (editState) {
       console.log("editState", editState);
-      text = editState.content;
+      inputState.text = editState.content;
       // Focus the textarea and set cursor to end after setting the text
       setTimeout(() => {
         if (textareaRef) {
@@ -143,13 +145,13 @@
     if (content.trim()) {
       submitEdit(content);
       form.reset();
-      text = "";
+      inputState.reset();
     }
   }
 
   function handleEditCancel() {
     cancelEdit();
-    text = "";
+    inputState.reset();
   }
 
   function handleSettingsClick() {
@@ -252,7 +254,7 @@
     {/if}
 
     <Textarea
-      bind:value={text}
+      bind:value={inputState.text}
       name="content"
       placeholder="How can I assist you today?"
       aria-label="Chat message input"

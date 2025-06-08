@@ -62,13 +62,12 @@
 
   .grow-wrap > textarea,
   .grow-wrap::after {
-    border: 1px solid hsl(var(--border));
     padding: 0.75rem;
     font: inherit;
     line-height: 1.4;
     grid-area: 1 / 1 / 2 / 2;
     border-radius: calc(var(--radius) - 2px);
-    background-color: var(--background);
+    /*background-color: var(--background);*/
     font-size: 0.875rem;
   }
 

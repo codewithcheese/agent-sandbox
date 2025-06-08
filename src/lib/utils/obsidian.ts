@@ -1,6 +1,9 @@
 // Utility for resolving Obsidian-style internal links
-import { WorkspaceLeaf } from "obsidian";
+import { type App, TFile, WorkspaceLeaf } from "obsidian";
 import { usePlugin } from "$lib/utils/index.ts";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 export function resolveInternalLink(toolLink: string, plugin: any): any {
   // Only process internal links [[path/to/tool]]
@@ -62,4 +65,54 @@ export function findFirstLeaf(node: WorkspaceLeaf): WorkspaceLeaf | null {
     }
   }
   return null;
+}
+
+/**
+ * Returns the leaf that is currently selected in the left or right sidebar.
+ * Falls back to `null` if the user has never interacted with that sidedock.
+ *
+ * Example usage:
+ * const leaf = getActiveSidebarLeaf(app, 'right');
+ * if (leaf) {
+ *   const viewType = leaf.getViewState().type; // e.g. "file-explorer", "search"
+ *   debug("Sidebar tab in focus:", viewType);
+ * }
+ *
+ */
+export function getActiveSidebarLeaf(
+  app: App,
+  side: "right" | "left",
+): WorkspaceLeaf | null {
+  const { workspace } = app;
+
+  return side === "left"
+    ? workspace.getMostRecentLeaf(workspace.leftSplit)
+    : workspace.getMostRecentLeaf(workspace.rightSplit);
+}
+
+export function extractLinks(sourceFile: TFile, content: string) {
+  const plugin = usePlugin();
+  const linkRegex = /\[\[([^\]]+)]]/g;
+  let match: RegExpExecArray | null;
+  let processedContent = content;
+  const links: string[] = [];
+
+  while ((match = linkRegex.exec(content)) !== null) {
+    const [fullMatch, path] = match;
+    try {
+      // Resolve the link relative to the source file
+      const targetPath = plugin.app.metadataCache.getFirstLinkpathDest(
+        path,
+        sourceFile.path,
+      );
+      if (!targetPath) {
+        debug(`Link file not found: ${path}`);
+        continue;
+      }
+      links.push(targetPath.path);
+    } catch (error) {
+      debug(`Error processing link ${path}:`, error);
+    }
+  }
+  return links;
 }
