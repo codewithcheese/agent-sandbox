@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { BotIcon, HammerIcon, TextIcon, TextSearchIcon } from "lucide-svelte";
+  import {
+    BotIcon,
+    HammerIcon,
+    PlusIcon,
+    TextIcon,
+    TextSearchIcon,
+  } from "lucide-svelte";
   import type { BannerProps } from "./agent-banner-component.svelte.ts";
   import { ChatView } from "../../chat/chat-view.svelte.ts";
   import { Chat } from "../../chat/chat.svelte.ts";
@@ -28,6 +34,13 @@
     await chat.submit(`Fix: ${errors.join("\n")}`, [
       { id: nanoid(), path: agentFile.path },
     ]);
+  }
+
+  async function newChat() {
+    const { settings } = usePlugin();
+    const view = await ChatView.newChat();
+    const chat = await Chat.load(view.file.path);
+    chat.options.agentPath = path;
   }
 </script>
 
@@ -62,6 +75,12 @@
       <button class="gap-1" onclick={() => openMarkdownView()} type="button"
         ><TextIcon size="14" /> Markdown</button
       >
+    {/if}
+    {#if errors.length === 0}
+      <button onclick={() => newChat()} class="gap-1">
+        New Chat
+        <PlusIcon class="size-3.5" />
+      </button>
     {/if}
   </div>
 </div>
