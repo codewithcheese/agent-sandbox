@@ -80,12 +80,37 @@ export class MergeView extends ItemView {
         currentContent,
         newContent,
         name: getBaseName(this.state.path),
-        onSave: async (resolvedContent: string, pendingContent: string) => {
+        onReject: async (
+          resolvedContent: string,
+          pendingContent: string,
+          chunksLeft: number,
+        ) => {
+          const change = changes.find((c) =>
+            ["create", "modify"].includes(c.type),
+          );
+
+          debug("Handling onReject", change, chunksLeft);
+
+          if (chunksLeft === 0) {
+            debug(`Rejecting ${change.type} changes`);
+            await chat.vault.reject(change);
+            chat.vault.computeChanges();
+            await chat.save();
+            this.leaf.detach();
+          }
+        },
+        onAccept: async (
+          resolvedContent: string,
+          pendingContent: string,
+          chunksLeft: number,
+        ) => {
           debug("On save", resolvedContent, pendingContent);
 
           const change = changes.find((c) =>
             ["create", "modify"].includes(c.type),
           );
+
+          debug("Handling onAccept", change);
 
           if (!change) {
             new Notice(

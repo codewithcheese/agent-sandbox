@@ -78,10 +78,6 @@
   let text = $state<string>("");
   let textareaRef: HTMLTextAreaElement | null = null;
 
-  let countChanges = $derived(
-    chat.vault.changes.filter((c) => c.type !== "identical").length,
-  );
-
   // Set text to edit content when edit mode starts
   $effect(() => {
     if (editState) {
@@ -202,6 +198,14 @@
               >{getBaseName(attachment.path)}</span
             >
             <span
+              role="button"
+              tabindex="0"
+              aria-label="Remove attachment"
+              onkeydown={(event) => {
+                if (event.key === "Enter") {
+                  removeAttachment(attachment.id);
+                }
+              }}
               class="flex items-center"
               onclick={(event) => {
                 event.stopPropagation();
@@ -215,7 +219,7 @@
       </div>
     {/if}
 
-    {#if countChanges}
+    {#if chat.vault.changes.length > 0}
       <div class="w-full flex items-center gap-2 px-3 mx-auto pt-2 mb-0">
         <div
           class="w-full rounded-t-md border border-l-(--background-modifier-border) border-r-(--background-modifier-border) border-t-(--background-modifier-border) bg-(--background-secondary-alt)"
@@ -228,7 +232,7 @@
               onclick={openFirstChange}
             >
               <ArrowLeft class="size-3.5" />
-              {countChanges} file with changes
+              {chat.vault.changes.length} file with changes
             </button>
           </span>
         </div>

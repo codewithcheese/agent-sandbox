@@ -19,7 +19,7 @@ describe("MultiEdit tool execute function", () => {
 
   beforeEach(async () => {
     vi.resetAllMocks();
-    mockVaultHelpers.reset();
+    await mockVaultHelpers.reset();
 
     vault = new VaultOverlaySvelte(mockVault);
     mockAbortController = new AbortController();
@@ -29,6 +29,7 @@ describe("MultiEdit tool execute function", () => {
       messages: [],
       getContext: () => ({
         vault,
+        sessionStore: {},
       }),
       abortSignal: mockAbortController.signal,
     };
