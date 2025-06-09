@@ -2,8 +2,7 @@
   import {
     BotIcon,
     HammerIcon,
-    MessageSquareIcon,
-    PlusIcon,
+    SquarePenIcon,
     TextIcon,
     TextSearchIcon,
   } from "lucide-svelte";
@@ -78,8 +77,8 @@
     {/if}
     {#if errors.length === 0}
       <button onclick={() => newChat()} class="gap-1">
+        <SquarePenIcon class="size-3.5" />
         New Chat
-        <PlusIcon class="size-3.5" />
       </button>
     {/if}
   </div>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
-  import { PlusIcon, EyeIcon } from "lucide-svelte";
+  import { EyeIcon, SquarePenIcon } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { usePlugin } from "$lib/utils";
   import { onDestroy } from "svelte";
@@ -268,8 +268,8 @@
           class="gap-1.5 rounded"
           onclick={() => ChatView.newChat(undefined, chat.options)}
         >
+          <SquarePenIcon class="size-3.5" />
           New Chat
-          <PlusIcon class="size-3.5" />
         </Button>
       </div>
     </div>
