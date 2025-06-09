@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { tool } from "ai";
 import {
   normalizePath,
   TFile,
@@ -7,14 +6,14 @@ import {
   type TAbstractFile,
   type Vault,
 } from "obsidian";
-import { relative, sep } from "path-browserify"; // Using browserify version
-import { minimatch } from "minimatch"; // Import minimatch
+import * as micromatch from "micromatch";
 import { createDebug } from "$lib/debug";
 import type {
   ToolDefinition,
   ToolExecutionOptionsWithContext,
 } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
+import { COMMON_IGNORE_PATTERNS } from "./shared.ts";
 
 /**
  * Features:
@@ -38,7 +37,7 @@ import { invariant } from "@epic-web/invariant";
  *
  * Performance Notes:
  * - Efficiently traverses vault structure using Obsidian's native file system
- * - Minimatch library provides fast pattern matching
+ * - Micromatch library provides fast pattern matching
  * - Results are limited and sorted to maintain responsiveness
  * - Validation occurs before expensive operations
  */
@@ -51,6 +50,8 @@ export const defaultConfig = {
     // Patterns to always ignore, relative to the search root
     "**/.obsidian/**", // Obsidian config folder
     "**/.trash/**", // Obsidian trash folder
+    "**/.overlay-trash/**",
+    ...COMMON_IGNORE_PATTERNS,
   ],
 };
 
@@ -147,53 +148,38 @@ export async function execute(
     const rootEntry = vault.getFolderByPath(rootPath);
 
     const matchedFiles: TFile[] = [];
-    // For minimatch, paths should be relative to the CWD it's operating on.
-    // We'll make paths relative to `rootPath` for matching.
-    const minimatchOptions = { dot: true, matchBase: false }; // dot:true allows matching hidden files if pattern intends
-
-    const effectiveIgnorePatterns = [
+    const ignorePatterns = [
       ...config.DEFAULT_IGNORE_PATTERNS,
       ...(params.ignore || []),
     ];
+    const micromatchOptions = { dot: true, matchBase: false }; // dot:true allows matching hidden files if pattern intends
 
-    function isPathIgnored(pathRelativeToSearchRoot: string): boolean {
-      for (const ignorePattern of effectiveIgnorePatterns) {
-        if (
-          minimatch(pathRelativeToSearchRoot, ignorePattern, minimatchOptions)
-        ) {
-          return true;
-        }
-      }
-      return false;
+    // Pre-compile matchers for better performance
+    const isIgnoredMatcher = micromatch.matcher(
+      // @ts-expect-error types specify string not array but array works
+      ignorePatterns,
+      micromatchOptions,
+    );
+    const patternMatcher = micromatch.matcher(
+      params.pattern,
+      micromatchOptions,
+    );
+
+    function isPathIgnored(path: string): boolean {
+      return isIgnoredMatcher(path);
     }
 
     async function traverse(currentVaultEntry: TAbstractFile) {
       if (abortSignal.aborted) throw new Error("Operation aborted by user.");
 
-      // Get path relative to the initial search root for matching
-      // Note: Obsidian paths are already relative to vault root if not starting with '/'
-      // If rootPath is '/', currentVaultEntry.path is fine.
-      // Otherwise, we need `relative(rootPath, currentVaultEntry.path)`
-      const pathRelativeToSearchRoot =
-        rootPath === "/" || rootPath === ""
-          ? currentVaultEntry.path
-          : relative(rootPath, currentVaultEntry.path);
+      const path = currentVaultEntry.path;
 
       if (currentVaultEntry instanceof TFile) {
-        if (
-          !isPathIgnored(pathRelativeToSearchRoot) &&
-          minimatch(pathRelativeToSearchRoot, params.pattern, minimatchOptions)
-        ) {
+        if (!isPathIgnored(path) && patternMatcher(path)) {
           matchedFiles.push(currentVaultEntry);
         }
       } else if (currentVaultEntry instanceof TFolder) {
-        // Check if the folder itself (path ending with /) or its path representation should be ignored
-        if (
-          isPathIgnored(
-            pathRelativeToSearchRoot + (pathRelativeToSearchRoot ? sep : ""),
-          ) ||
-          isPathIgnored(pathRelativeToSearchRoot)
-        ) {
+        if (isPathIgnored(path)) {
           return; // Don't traverse ignored directories
         }
         for (const child of currentVaultEntry.children) {

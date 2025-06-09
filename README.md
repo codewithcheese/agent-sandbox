@@ -72,6 +72,7 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Chat: Add attachment to document using read tool format: line number and line summary
 - [ ] Prompt: button in chat to insert a prompt
 - [ ] Tools: Remove markdown file requirement for built-in tools
 - [ ] Chat: Fix scroll on tool invocation added

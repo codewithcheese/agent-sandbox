@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { relative, sep, join, basename } from "path-browserify";
-import { minimatch } from "minimatch";
+import * as micromatch from "micromatch";
 import { createDebug } from "$lib/debug.ts";
 import { type Vault, type TAbstractFile, normalizePath } from "obsidian";
 import { TFolder, TFile } from "obsidian";
@@ -8,6 +8,7 @@ import type {
   ToolDefinition,
   ToolExecutionOptionsWithContext,
 } from "../types.ts";
+import { COMMON_IGNORE_PATTERNS } from "./shared.ts";
 
 /**
  * Features:
@@ -48,7 +49,7 @@ Usage:
 - Generally prefer using Glob or Grep tools when you know specific directories to search.`;
 export const MAX_OUTPUT_CHARS = 40000;
 export const TRUNCATION_MESSAGE = `There are more than ${MAX_OUTPUT_CHARS} characters in the vault (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), and other tools to explore nested directories. The first ${MAX_OUTPUT_CHARS} characters are included below:\n\n`;
-export const DEFAULT_IGNORE_PATTERNS = [];
+export const DEFAULT_IGNORE_PATTERNS = [...COMMON_IGNORE_PATTERNS];
 
 const inputSchema = z.strictObject({
   path: z
@@ -76,18 +77,38 @@ function listDirectoryContentsRecursive(
     ...ignorePatterns,
   ];
 
+  // Pre-compile matcher for better performance
+  const isIgnoredMatcher = micromatch.matcher(
+    // @ts-expect-error types specify string not array but array works
+    effectiveIgnorePatterns
+  );
+
+  // Cache for already checked paths to avoid redundant pattern matching
+  const ignoreCache = new Map<string, boolean>();
+
   function isIgnored(itemPath: string, relativeItemPath: string): boolean {
+    // Check cache first
+    const cacheKey = relativeItemPath;
+    if (ignoreCache.has(cacheKey)) {
+      return ignoreCache.get(cacheKey)!;
+    }
+
     const itemName = basename(itemPath);
 
-    // Check if any part of the path starts with a dot
+    // Check if any part of the path starts with a dot (fastest check first)
     const pathParts = relativeItemPath.split(sep);
-    if (pathParts.some((part) => part.startsWith("."))) return true;
+    if (pathParts.some((part) => part.startsWith("."))) {
+      ignoreCache.set(cacheKey, true);
+      return true;
+    }
 
-    return effectiveIgnorePatterns.some((pattern) => {
-      return (
-        minimatch(relativeItemPath, pattern) || minimatch(itemName, pattern)
-      );
-    });
+    // Use pre-compiled matcher for optimized pattern matching
+    const isPathIgnored = isIgnoredMatcher(relativeItemPath);
+    const isNameIgnored = isIgnoredMatcher(itemName);
+
+    const result = isPathIgnored || isNameIgnored;
+    ignoreCache.set(cacheKey, result);
+    return result;
   }
 
   const queue: string[] = [targetPath];
