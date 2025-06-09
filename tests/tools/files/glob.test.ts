@@ -61,7 +61,7 @@ describe("Glob tool execute function", () => {
 
   // --- Basic Globbing Tests ---
   it("should find all markdown files in a directory", async () => {
-    const params = { pattern: "*.md", path: "/docs" };
+    const params = { pattern: "**/*.md", path: "/docs" };
     const result = await globToolExecute(params, toolExecOptions);
     invariant(
       typeof result !== "string" && "filenames" in result,
@@ -150,7 +150,11 @@ describe("Glob tool execute function", () => {
 
   // --- Ignore Pattern Tests ---
   it("should respect user-provided ignore patterns", async () => {
-    const params = { pattern: "**/*.md", path: "/docs", ignore: ["guide.md"] };
+    const params = {
+      pattern: "**/*.md",
+      path: "/docs",
+      ignore: ["**/guide.md"],
+    };
     const result = await globToolExecute(params, toolExecOptions);
     invariant(
       typeof result !== "string" && "filenames" in result,
