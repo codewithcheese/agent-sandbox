@@ -72,6 +72,7 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Prompt: button in chat to insert a prompt
 - [ ] Tools: Remove markdown file requirement for built-in tools
 - [ ] Chat: Fix scroll on tool invocation added
 - [ ] Tools: Read state

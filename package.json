@@ -86,6 +86,7 @@
     "gray-matter": "^4.0.3",
     "lodash": "^4.17.21",
     "loro-crdt": "^1.5.6",
+    "mermaid": "^11.6.0",
     "minimatch": "^10.0.1",
     "nanoid": "^5.1.5",
     "nunjucks": "^3.2.4",
@@ -99,11 +100,11 @@
     "svelte-exmarkdown": "^4.0.3",
     "svelte-portal": "^2.2.1",
     "tiktoken": "^1.0.21",
+    "unist-util-visit": "^4.1.2",
     "vite-plugin-top-level-await": "^1.5.0",
     "vite-plugin-wasm": "^3.4.1",
-    "zod": "^3.25.30",
-    "unist-util-visit": "^4.1.2",
-    "yaml": "^2.3.1"
+    "yaml": "^2.3.1",
+    "zod": "^3.25.30"
   },
   "packageManager": "pnpm@9.14.2+sha512.6e2baf77d06b9362294152c851c4f278ede37ab1eba3a55fda317a4a17b209f4dbb973fb250a77abc463a341fcb1f17f17cfa24091c4eb319cda0d9b84278387"
 }

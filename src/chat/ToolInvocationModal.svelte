@@ -14,7 +14,7 @@
 <div class="flex flex-col gap-2">
   <div class="font-semibold">{toolInvocation.toolName}</div>
   <div
-    class="text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
+    class="select-text text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
   >
     <p>
       {JSON.stringify(toolInvocation.args, null, 2)}
@@ -22,10 +22,14 @@
   </div>
   {#if "result" in toolInvocation}
     <div
-      class="text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
+      class="select-text text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
     >
       <p>
-        {JSON.stringify(toolInvocation.result, null, 2)}
+        {#if typeof toolInvocation.result === "string"}
+          {toolInvocation.result}
+        {:else}
+          {JSON.stringify(toolInvocation.result, null, 2)}
+        {/if}
       </p>
     </div>
   {/if}
