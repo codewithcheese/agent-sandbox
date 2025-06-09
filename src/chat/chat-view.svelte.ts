@@ -17,6 +17,7 @@ import { ChatSerializer } from "./chat-serializer.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatHistoryView } from "./chat-history-view.svelte.ts";
 import { DeleteChatModal } from "$lib/modals/delete-chat-modal.ts";
+import { ChatInputState } from "./chat-input-state.svelte.ts";
 
 export const CHAT_VIEW_TYPE = "sandbox-chat-view";
 
@@ -29,9 +30,11 @@ export class ChatView extends FileView {
     name: "",
   });
   chat: Chat | null = null;
+  inputState: ChatInputState;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
+    this.inputState = new ChatInputState();
     this.addAction("history", "View Chat History", async () => {
       await ChatHistoryView.openChatHistory();
     });
@@ -133,6 +136,7 @@ export class ChatView extends FileView {
   async onLoadFile(file: TFile) {
     await super.onLoadFile(file);
     this.updateView();
+    this.inputState.reset();
     await this.mount(file);
   }
 
@@ -159,6 +163,7 @@ export class ChatView extends FileView {
         agents: await Agents.load(),
         chat: this.chat,
         view: this.view,
+        inputState: this.inputState,
       },
     });
   }

@@ -72,12 +72,14 @@ This project includes a version bumping script that automates the release proces
 
 ## Todo
 
+- [ ] Tools: Remove markdown file requirement for built-in tools
+- [ ] Chat: Fix scroll on tool invocation added
+- [ ] Tools: Read state
 - [ ] Agent: Tool validation
 - [ ] Chat: Save last model select, load when opening chat if previous chat options not available
-- [ ] Agent: New chat button
+- [x] Agent: New chat button
 - [ ] Diff: Undo changes when messages are deleted
-- [ ] Fix: Chat saving with attachments
-- [ ] Diff: Update Loro accept methods to have side effects.
+- [ ] Diff: Update Loro approve methods to have side effects.
 - [ ] Diff: Add vault change checking
 - [ ] Diff: Sync vault and display changes when user submits message
 - [ ] Diff: display separate rename confirmation for file and for folder
@@ -90,7 +92,7 @@ This project includes a version bumping script that automates the release proces
 - [ ] Recorder: Save recording history in local storage
 - [ ] Chat: Add tool request for create, trash, delete
 - [ ] Chat: Disconnect realtime after idle period
-- [ ] Chat: Context optimization (forget old messages)
+- [ ] Chat: Context optimization (forget/summarize old messages)
 - [ ] Chat: Display tokens used in tool call
 - [ ] Chat: Pass abort signal to tools
 - [ ] Chat: Read file image support
@@ -98,12 +100,14 @@ This project includes a version bumping script that automates the release proces
 - [ ] Merge: use Obsidian semantic colors
 - [ ] Chat: Delete chat if empty when closed
 - [ ] Schema editor: Align design with Properties UI
-- [ ] Live template preview action, poor experience reading template in modal
 - [ ] UI: Remove unused shadcn-svelte components 
 - [ ] Chat: Resume options for existing chat
 - [ ] Schema editor: Support for defining array items
 - [ ] Schema editor: Fix don't clobber unsupported values
-- [ ] Tools: Text editor tools for non-Anthropic models
+- [x] Tools: Text editor tools for non-Anthropic models
+- [x] Fix: Chat saving with attachments
+- [x] Tools: TodoWrite and TodoRead
+- [x] Chat: Session store
 - [x] Chat: extended settings, temperature, thinking toggle, thinking budget, cache control
 - [x] Chat: Debug logging
 - [x] Chat: previous chats action

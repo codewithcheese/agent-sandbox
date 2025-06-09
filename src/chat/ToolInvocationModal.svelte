@@ -20,6 +20,15 @@
       {JSON.stringify(toolInvocation.args, null, 2)}
     </p>
   </div>
+  {#if "result" in toolInvocation}
+    <div
+      class="text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
+    >
+      <p>
+        {JSON.stringify(toolInvocation.result, null, 2)}
+      </p>
+    </div>
+  {/if}
   <div>
     <button onclick={execute}>Execute</button>
   </div>

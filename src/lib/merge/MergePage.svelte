@@ -2,18 +2,34 @@
   import { onMount, onDestroy } from "svelte";
   import { EditorState, Transaction } from "@codemirror/state";
   import { drawSelection, EditorView, keymap } from "@codemirror/view";
-  import { getOriginalDoc, unifiedMergeView } from "@codemirror/merge";
+  import {
+    getChunks,
+    getOriginalDoc,
+    unifiedMergeView,
+  } from "@codemirror/merge";
   import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
   import { Notice } from "obsidian";
-  import { usePlugin } from "$lib/utils";
+  import { createDebug } from "$lib/debug.ts";
+
+  const debug = createDebug();
 
   type Props = {
     name: string;
-    ogContent: string;
+    currentContent: string;
     newContent: string;
-    onSave: (resolvedContent: string, pendingContent: string) => Promise<void>;
+    onAccept: (
+      resolvedContent: string,
+      pendingContent: string,
+      chunksLeft: number,
+    ) => Promise<void>;
+    onReject: (
+      resolvedContent: string,
+      pendingContent: string,
+      chunksLeft: number,
+    ) => Promise<void>;
   };
-  let { name, ogContent, newContent, onSave }: Props = $props();
+  let { name, currentContent, newContent, onAccept, onReject }: Props =
+    $props();
 
   // State
   let editorView: EditorView | null = $state(null);
@@ -55,19 +71,31 @@
             //   proposedContent = v.state.doc.toString();
             // }
 
+            debug("Merge view update", v);
+
+            // How many chunks are left?
+            const chunks = getChunks(v.state);
+            debug("Chunks left", chunks);
+
             // Check for accept/reject actions
             if (
               v.transactions.some(
-                (tr) =>
-                  tr.annotation(Transaction.userEvent) === "accept" ||
-                  tr.annotation(Transaction.userEvent) === "revert",
+                (tr) => tr.annotation(Transaction.userEvent) === "accept",
               )
             ) {
-              await saveChanges();
+              await acceptChange(v.state);
+            }
+
+            if (
+              v.transactions.some(
+                (tr) => tr.annotation(Transaction.userEvent) === "revert",
+              )
+            ) {
+              await rejectChange(v.state);
             }
           }),
           unifiedMergeView({
-            original: ogContent,
+            original: currentContent,
             gutter: false,
           }),
         ],
@@ -81,20 +109,27 @@
     createEditor();
   }
 
-  async function saveChanges(): Promise<void> {
+  async function acceptChange(state: EditorState): Promise<void> {
+    if (!editorView) return;
+    try {
+      const chunkInfo = getChunks(state);
+      const resolvedContent = getOriginalDoc(state).toString();
+      const pendingContent = state.doc.toString();
+      await onAccept(resolvedContent, pendingContent, chunkInfo.chunks.length);
+    } catch (error) {
+      console.error("Error saving changes:", error);
+      new Notice(`Error saving changes: ${(error as Error).message}`);
+    }
+  }
+
+  async function rejectChange(state: EditorState): Promise<void> {
     if (!editorView) return;
 
     try {
-      const state = editorView.state;
+      const chunkInfo = getChunks(state);
       const resolvedContent = getOriginalDoc(state).toString();
       const pendingContent = state.doc.toString();
-      console.log(
-        // `Saving changes to ${originalFilePath}`,
-        resolvedContent,
-        "Proposed content",
-        pendingContent,
-      );
-      await onSave(resolvedContent, pendingContent);
+      await onReject(resolvedContent, pendingContent, chunkInfo.chunks.length);
     } catch (error) {
       console.error("Error saving changes:", error);
       new Notice(`Error saving changes: ${(error as Error).message}`);

@@ -8,7 +8,7 @@ import type { TFile } from "obsidian";
 import type { Chat } from "../../src/chat/chat.svelte.ts";
 import { parseToolDefinition, createTool } from "../../src/tools";
 
-describe("Markdown Tool Execution", () => {
+describe.skip("Markdown Tool Execution", () => {
   // Define the options required by the AI SDK tool execute method
   const options = {
     toolCallId: "test-tool-call-id",

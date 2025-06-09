@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 
-describe("VaultOverlay Path Resolution", () => {
+describe("VaultOverlaySvelte Path Resolution", () => {
   beforeEach(() => {
     helpers.reset();
   });
 
   describe("File Path Resolution", () => {
     it("should handle files from vault when not tracked", () => {
-      const overlay = new VaultOverlay(vault);
+      const overlay = new VaultOverlaySvelte(vault);
 
       // Create file directly in vault
       vault.create("vault-only.md", "vault content");
@@ -22,7 +22,7 @@ describe("VaultOverlay Path Resolution", () => {
 
   describe("Folder Path Resolution", () => {
     it("should return null when proposed node is not a directory", async () => {
-      const overlay = new VaultOverlay(vault);
+      const overlay = new VaultOverlaySvelte(vault);
       await overlay.create("file.md", "content");
 
       // Try to get file as folder
@@ -33,7 +33,7 @@ describe("VaultOverlay Path Resolution", () => {
     it("should sync folder from vault when not tracked", () => {
       vault.createFolder("vault-folder");
 
-      const overlay = new VaultOverlay(vault);
+      const overlay = new VaultOverlaySvelte(vault);
 
       const folder = overlay.getFolderByPath("vault-folder");
       expect(folder).toBeTruthy();
@@ -42,7 +42,7 @@ describe("VaultOverlay Path Resolution", () => {
 
   describe("Abstract File Path Resolution", () => {
     it("should handle abstract files from vault when not tracked", () => {
-      const overlay = new VaultOverlay(vault);
+      const overlay = new VaultOverlaySvelte(vault);
 
       // Create file directly in vault
       vault.create("vault-file.md", "vault content");
@@ -55,12 +55,12 @@ describe("VaultOverlay Path Resolution", () => {
 
   describe("Find Node", () => {
     it("should handle root path variations", () => {
-      const overlay = new VaultOverlay(vault);
+      const overlay = new VaultOverlaySvelte(vault);
 
-      const root1 = overlay.findNode("proposed", ".");
-      const root2 = overlay.findNode("proposed", "/");
-      const root3 = overlay.findNode("proposed", "");
-      const root4 = overlay.findNode("proposed", "./");
+      const root1 = overlay.proposedFS.findByPath(".");
+      const root2 = overlay.proposedFS.findByPath("/");
+      const root3 = overlay.proposedFS.findByPath("");
+      const root4 = overlay.proposedFS.findByPath("./");
 
       expect(root1).toBeTruthy();
       expect(root2).toBeTruthy();
@@ -74,18 +74,18 @@ describe("VaultOverlay Path Resolution", () => {
     });
 
     it("should handle paths with empty segments", () => {
-      const overlay = new VaultOverlay(vault);
+      const overlay = new VaultOverlaySvelte(vault);
 
       // Create node with normal path
-      overlay.createNode("proposed", "folder/file.md", {
+      overlay.proposedFS.createNode("folder/file.md", {
         isDirectory: false,
         text: "content",
       });
 
       // Find with path containing empty segments
-      const node1 = overlay.findNode("proposed", "folder//file.md");
-      const node2 = overlay.findNode("proposed", "/folder/file.md");
-      const node3 = overlay.findNode("proposed", "folder/file.md/");
+      const node1 = overlay.proposedFS.findByPath("folder//file.md");
+      const node2 = overlay.proposedFS.findByPath("/folder/file.md");
+      const node3 = overlay.proposedFS.findByPath("folder/file.md/");
 
       expect(node1).toBeTruthy();
       expect(node2).toBeTruthy();

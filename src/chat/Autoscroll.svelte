@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
 
-  let { messages, container, sentinel = $bindable() } = $props();
+  let { messages, container, enabled, sentinel = $bindable() } = $props();
 
   let autoscroll = $state(true);
 
@@ -41,7 +41,7 @@
   $effect(() => {
     $state.snapshot(messages);
     untrack(() => {
-      if (autoscroll && sentinel) {
+      if (enabled && autoscroll && sentinel) {
         // console.log("Scrolling...", autoscroll, sentinel);
         sentinel.scrollIntoView({ behavior: "instant", block: "end" });
       } else {

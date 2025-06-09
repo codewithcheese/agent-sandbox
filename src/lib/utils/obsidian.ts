@@ -1,6 +1,14 @@
-// Utility for resolving Obsidian-style internal links
-import { WorkspaceLeaf } from "obsidian";
+import {
+  type App,
+  normalizePath,
+  Notice,
+  TFile,
+  WorkspaceLeaf,
+} from "obsidian";
 import { usePlugin } from "$lib/utils/index.ts";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 export function resolveInternalLink(toolLink: string, plugin: any): any {
   // Only process internal links [[path/to/tool]]
@@ -62,4 +70,81 @@ export function findFirstLeaf(node: WorkspaceLeaf): WorkspaceLeaf | null {
     }
   }
   return null;
+}
+
+/**
+ * Returns the leaf that is currently selected in the left or right sidebar.
+ * Falls back to `null` if the user has never interacted with that sidedock.
+ *
+ * Example usage:
+ * const leaf = getActiveSidebarLeaf(app, 'right');
+ * if (leaf) {
+ *   const viewType = leaf.getViewState().type; // e.g. "file-explorer", "search"
+ *   debug("Sidebar tab in focus:", viewType);
+ * }
+ *
+ */
+export function getActiveSidebarLeaf(
+  app: App,
+  side: "right" | "left",
+): WorkspaceLeaf | null {
+  const { workspace } = app;
+
+  return side === "left"
+    ? workspace.getMostRecentLeaf(workspace.leftSplit)
+    : workspace.getMostRecentLeaf(workspace.rightSplit);
+}
+
+export function extractLinks(sourceFile: TFile, content: string) {
+  const plugin = usePlugin();
+  const linkRegex = /\[\[([^\]]+)]]/g;
+  let match: RegExpExecArray | null;
+  let processedContent = content;
+  const links: string[] = [];
+
+  while ((match = linkRegex.exec(content)) !== null) {
+    const [fullMatch, path] = match;
+    try {
+      // Resolve the link relative to the source file
+      const targetPath = plugin.app.metadataCache.getFirstLinkpathDest(
+        path,
+        sourceFile.path,
+      );
+      if (!targetPath) {
+        debug(`Link file not found: ${path}`);
+        continue;
+      }
+      links.push(targetPath.path);
+    } catch (error) {
+      debug(`Error processing link ${path}:`, error);
+    }
+  }
+  return links;
+}
+
+export async function openLink(linktext: string, source?: string) {
+  const plugin = usePlugin();
+  const file = plugin.app.metadataCache.getFirstLinkpathDest(
+    normalizePath(linktext.split("#")[0]),
+    "",
+  );
+  if (!file) {
+    new Notice(`File not found: ${normalizePath(linktext)}`, 3000);
+    return;
+  }
+  // const centerLeaf = plugin.app.workspace.getLeaf("tab");
+  // await centerLeaf.openFile(file, { active: true });
+  await plugin.app.workspace.openLinkText(linktext, source, "tab");
+}
+
+export function openPath(path: string) {
+  const plugin = usePlugin();
+  const normalizedPath = normalizePath(path);
+  const file = plugin.app.vault.getFileByPath(normalizedPath);
+  if (!file) {
+    new Notice(`File not found: ${normalizedPath}`, 3000);
+    return;
+  }
+  const centerLeaf = plugin.app.workspace.getLeaf("tab");
+  return centerLeaf.openFile(file, { active: true });
 }
