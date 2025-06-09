@@ -21,6 +21,7 @@
   import type { Chat } from "./chat.svelte.ts";
   import { nanoid } from "nanoid";
   import type { ChatInputState } from "./chat-input-state.svelte.ts";
+  import { openPath } from "$lib/utils/obsidian.ts";
 
   type Props = {
     chat: Chat;
@@ -31,8 +32,6 @@
     handleSubmit: (e) => void;
     openFirstChange: () => void;
     view: any;
-    openFile: (path: string) => void;
-    getBaseName: (path: string) => string;
     submitOnEnter: (event: KeyboardEvent) => void;
     handleModelChange: (event: Event) => void;
     getModelAccountOptions: () => any[];
@@ -52,8 +51,6 @@
     handleSubmit,
     openFirstChange,
     view,
-    openFile,
-    getBaseName,
     submitOnEnter,
     handleModelChange,
     getModelAccountOptions,
@@ -192,13 +189,13 @@
         {#each attachments as attachment}
           <button
             type="button"
-            onclick={() => openFile(normalizePath(attachment.path))}
+            onclick={() => openPath(normalizePath(attachment.path))}
             class="clickable-icon items-center gap-1"
           >
             <FileTextIcon class="size-3.5" />
-            <span class="max-w-[200px] truncate"
-              >{getBaseName(attachment.path)}</span
-            >
+            <span class="max-w-[200px] truncate">
+              {attachment.path.split("/").pop()}
+            </span>
             <span
               role="button"
               tabindex="0"

@@ -40,7 +40,7 @@ describe("Glob tool execute function", () => {
       mtime: Date.now() - 5000,
     });
     await vault.createFolder("/src");
-    await vault.create("/src/index.ts", "main ts content", {
+    await vault.create("/src/remark.ts", "main ts content", {
       mtime: Date.now() - 2000,
     });
     await vault.create("/src/utils.ts", "utils ts content", {
@@ -81,7 +81,7 @@ describe("Glob tool execute function", () => {
       "Expected success object",
     );
     expect(result.filenames).toHaveLength(2);
-    expect(result.filenames).toContain("/src/index.ts");
+    expect(result.filenames).toContain("/src/remark.ts");
     expect(result.filenames).toContain("/src/utils.ts");
   });
 
@@ -202,7 +202,7 @@ describe("Glob tool execute function", () => {
     // Expected order (newest to oldest based on mtime in beforeEach)
     // /.obsidian/config (now)
     // /src/components/Button.tsx (now - 1000)
-    // /src/index.ts (now - 2000)
+    // /src/remark.ts (now - 2000)
     // /docs/guide.md (now - 5000)
     // /.configfile (now - 7000)
     // /src/utils.ts (now - 8000)
@@ -210,7 +210,7 @@ describe("Glob tool execute function", () => {
     // Note: .obsidian is ignored by default
     const expectedOrder = [
       "/src/components/Button.tsx", // mtime: now - 1000
-      "/src/index.ts", // mtime: now - 2000
+      "/src/remark.ts", // mtime: now - 2000
       "/docs/guide.md", // mtime: now - 5000
       "/.configfile", // mtime: now - 7000
       "/src/utils.ts", // mtime: now - 8000
@@ -238,7 +238,7 @@ describe("Glob tool execute function", () => {
     expect(result.totalMatchesBeforeLimit).toBe(6); // Based on files in beforeEach not in .obsidian
     // Verify it took the newest 2
     expect(result.filenames).toContain("/src/components/Button.tsx");
-    expect(result.filenames).toContain("/src/index.ts");
+    expect(result.filenames).toContain("/src/remark.ts");
   });
 
   // --- minimatch `dot` option test ---

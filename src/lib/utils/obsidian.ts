@@ -1,5 +1,10 @@
-// Utility for resolving Obsidian-style internal links
-import { type App, TFile, WorkspaceLeaf } from "obsidian";
+import {
+  type App,
+  normalizePath,
+  Notice,
+  TFile,
+  WorkspaceLeaf,
+} from "obsidian";
 import { usePlugin } from "$lib/utils/index.ts";
 import { createDebug } from "$lib/debug.ts";
 
@@ -115,4 +120,31 @@ export function extractLinks(sourceFile: TFile, content: string) {
     }
   }
   return links;
+}
+
+export async function openLink(linktext: string, source?: string) {
+  const plugin = usePlugin();
+  const file = plugin.app.metadataCache.getFirstLinkpathDest(
+    normalizePath(linktext.split("#")[0]),
+    "",
+  );
+  if (!file) {
+    new Notice(`File not found: ${normalizePath(linktext)}`, 3000);
+    return;
+  }
+  // const centerLeaf = plugin.app.workspace.getLeaf("tab");
+  // await centerLeaf.openFile(file, { active: true });
+  await plugin.app.workspace.openLinkText(linktext, source, "tab");
+}
+
+export function openPath(path: string) {
+  const plugin = usePlugin();
+  const normalizedPath = normalizePath(path);
+  const file = plugin.app.vault.getFileByPath(normalizedPath);
+  if (!file) {
+    new Notice(`File not found: ${normalizedPath}`, 3000);
+    return;
+  }
+  const centerLeaf = plugin.app.workspace.getLeaf("tab");
+  return centerLeaf.openFile(file, { active: true });
 }
