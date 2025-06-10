@@ -2,17 +2,15 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { XIcon } from "lucide-svelte";
 
-  let {
-    onClose,
-    onSave,
-    settings = $bindable({
-      temperature: 0.7,
-      thinkingEnabled: false,
-      maxTokens: 4000,
-      thinkingTokensBudget: 1000,
-      maxSteps: 10,
-    }),
-  } = $props();
+  const defaultSettings = {
+    temperature: 0.7,
+    thinkingEnabled: false,
+    maxTokens: 4000,
+    thinkingTokensBudget: 1200,
+    maxSteps: 50,
+  };
+
+  let { onClose, onSave, settings = $bindable(defaultSettings) } = $props();
 
   function handleSave() {
     if (onSave) {
@@ -29,16 +27,16 @@
   function restoreDefault(setting: string) {
     switch (setting) {
       case "temperature":
-        settings.temperature = 0.7;
+        settings.temperature = defaultSettings.temperature;
         break;
       case "maxTokens":
-        settings.maxTokens = 4000;
+        settings.maxTokens = defaultSettings.maxTokens;
         break;
       case "thinkingTokensBudget":
-        settings.thinkingTokensBudget = 1000;
+        settings.thinkingTokensBudget = defaultSettings.thinkingTokensBudget;
         break;
       case "maxSteps":
-        settings.maxSteps = 10;
+        settings.maxSteps = defaultSettings.maxSteps;
         break;
     }
   }

@@ -302,7 +302,7 @@ export async function execute(
 
     const numberedLines = processedLines.map(
       (line, index) =>
-        `${String(actualOffset + index + 1).padStart(6)}  ${line}`,
+        `${String(actualOffset + index + 1).padStart(6)}\t${line}`,
     );
 
     let outputString = numberedLines.join("\n");

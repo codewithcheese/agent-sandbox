@@ -7,6 +7,7 @@ import {
 } from "obsidian";
 import { usePlugin } from "$lib/utils/index.ts";
 import { createDebug } from "$lib/debug.ts";
+import { BRACKET_LINK_REGEX } from "$lib/markdown/remark.ts";
 
 const debug = createDebug();
 
@@ -97,7 +98,7 @@ export function getActiveSidebarLeaf(
 
 export function extractLinks(sourceFile: TFile, content: string) {
   const plugin = usePlugin();
-  const linkRegex = /\[\[([^\]]+)]]/g;
+  const linkRegex = BRACKET_LINK_REGEX;
   let match: RegExpExecArray | null;
   let processedContent = content;
   const links: string[] = [];

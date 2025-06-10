@@ -1,7 +1,6 @@
 <script lang="ts">
   import { normalizePath, Notice } from "obsidian";
-  import { usePlugin } from "$lib/utils";
-  import { number } from "zod";
+  import { openPath } from "$lib/utils/obsidian.ts";
 
   type Props = {
     icon?: () => any;
@@ -10,19 +9,7 @@
     stats?: { added: number; removed: number };
     controls?: () => any;
   };
-  let { icon, label, stats, path, controls = undefined } = $props();
-
-  function openFile(path) {
-    const plugin = usePlugin();
-    const normalizedPath = normalizePath(path);
-    const file = plugin.app.vault.getFileByPath(normalizedPath);
-    if (!file) {
-      new Notice(`File not found: ${normalizedPath}`, 3000);
-      return;
-    }
-    const centerLeaf = plugin.app.workspace.getLeaf("tab");
-    centerLeaf.openFile(file, { active: true });
-  }
+  let { icon, label, stats, path, controls = undefined }: Props = $props();
 </script>
 
 <div class="flex p-1">
@@ -30,7 +17,7 @@
     {@render icon?.()}
     {label}
     {#if path}
-      <button class="clickable-icon" onclick={() => openFile(path)}
+      <button class="clickable-icon" onclick={() => openPath(path)}
         >{normalizePath(path)}</button
       >
     {/if}

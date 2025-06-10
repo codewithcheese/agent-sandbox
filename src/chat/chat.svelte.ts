@@ -91,7 +91,7 @@ export class Chat {
   createdAt: Date;
   updatedAt: Date;
   options = $state<ChatOptions>({
-    maxSteps: 20,
+    maxSteps: 50,
     temperature: 0.7,
     thinkingEnabled: false,
     maxTokens: 4000,

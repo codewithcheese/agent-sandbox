@@ -220,14 +220,14 @@ export async function execute(
       if (occurrences === 0) {
         return {
           error: "String Not Found During MultiEdit",
-          message: `Edit #${i + 1} (0-indexed): old_string "${editOp.old_string.substring(0, 50)}..." not found in the current (in-memory) state of the file content. Previous edits might have altered the target string.`,
+          message: `Edit #${i + 1} (1-indexed): old_string "${editOp.old_string.substring(0, 50)}..." not found in the current (in-memory) state of the file content. Previous edits might have altered the target string.`,
           meta: { failedEditIndex: i, originalOldString: editOp.old_string },
         };
       }
       if (occurrences !== expectedReplacements) {
         return {
           error: "Replacement Count Mismatch During MultiEdit",
-          message: `Edit #${i + 1} (0-indexed): Found ${occurrences} occurrences of old_string "${editOp.old_string.substring(0, 50)}...", but expected ${expectedReplacements}.`,
+          message: `Edit #${i + 1} (1-indexed): Found ${occurrences} occurrences of old_string "${editOp.old_string.substring(0, 50)}...", but expected ${expectedReplacements}.`,
           meta: {
             failedEditIndex: i,
             originalOldString: editOp.old_string,

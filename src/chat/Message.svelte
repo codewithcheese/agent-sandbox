@@ -113,7 +113,7 @@
           class="clickable-icon"
           onclick={() => {
             //@ts-expect-error metadata.prompt not typed
-            openFile(message.metadata.prompt.path);
+            openPath(message.metadata.prompt.path);
           }}>Prompt</button
         >
       </div>
