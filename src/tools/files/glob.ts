@@ -152,7 +152,7 @@ export async function execute(
       ...config.DEFAULT_IGNORE_PATTERNS,
       ...(params.ignore || []),
     ];
-    const micromatchOptions = { dot: true, matchBase: false }; // dot:true allows matching hidden files if pattern intends
+    const micromatchOptions = { dot: true, matchBase: false, nocase: true };
 
     // Pre-compile matchers for better performance
     const isIgnoredMatcher = micromatch.matcher(
