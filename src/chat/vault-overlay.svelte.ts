@@ -20,7 +20,7 @@ import {
 } from "loro-crdt/base64";
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
-import { type NodeData, TreeFS } from "./tree-fs.ts";
+import { type NodeData, TreeFS, wasCreatedKey } from "./tree-fs.ts";
 import {
   createStat,
   getBuffer,
@@ -30,6 +30,7 @@ import {
   getStat,
   getText,
   hasContentChanged,
+  isDirectory,
   isTrashed,
   replaceBuffer,
   replaceText,
@@ -42,8 +43,6 @@ const debug = createDebug();
 const trashPath = ".overlay-trash" as const;
 const deletedFrom = "deletedFrom" as const;
 export const isDirectoryKey = "isDirectory" as const;
-// differentiate between directories created explicitly and those created ensure a path
-export const wasCreatedKey = "wasCreated" as const;
 
 const trackingPeerId = 1 as const;
 const proposedPeerId = 2 as const;
@@ -66,6 +65,8 @@ type ApprovedChange =
   | { type: "modify"; path: string; override?: { text: string } }
   | { type: "delete"; path: string }
   | { type: "rename"; path: string };
+
+type SyncDiff = { path: string; added: number; removed: number }; // path is current path in proposed
 
 export class VaultOverlaySvelte implements Vault {
   trackingDoc: LoroDoc;
@@ -692,6 +693,46 @@ export class VaultOverlaySvelte implements Vault {
     throw new Error("tryTrigger not support.");
   }
 
+  async syncAll(): Promise<string[]> {
+    // Collect all tracked paths from both docs
+    const trackedPaths = new Set([
+      ...this.getAllTrackedPaths(this.trackingDoc),
+      ...this.getAllTrackedPaths(this.proposedDoc),
+    ]);
+
+    debug("Syncing paths:", Array.from(trackedPaths));
+
+    // Check vault state vs tracking state
+    const modified: string[] = [];
+    for (const path of trackedPaths) {
+      const vaultFile = this.vault.getAbstractFileByPath(path);
+      const trackingNode = this.trackingFS.findByPath(path);
+      const proposedNode = this.proposedFS.findByPath(path);
+
+      if (!vaultFile && trackingNode) {
+        // File deleted in vault, maintains proposed as
+        // created therefore no change object is returned
+        await this.syncDelete(path);
+      } else if (vaultFile && !trackingNode && proposedNode) {
+        // Created in overlay, now exists in vault. Rebase to `modified`.
+        // Returns difference been vault and proposed
+        const trackingNode = await this.syncCreate(path);
+        const proposedNode = this.proposedFS.findById(trackingNode.id);
+        modified.push(this.proposedFS.getNodePath(proposedNode));
+      } else if (vaultFile && trackingNode) {
+        // Check if vault file changed since tracking
+        if (await this.hasVaultChanged(vaultFile, trackingNode)) {
+          const trackingNode = await this.syncPath(path);
+          const proposedNode = this.proposedFS.findById(trackingNode.id);
+          modified.push(this.proposedFS.getNodePath(proposedNode));
+        }
+      }
+    }
+
+    debug(`Vault sync completed.`, modified);
+    return modified;
+  }
+
   /**
    * Sync path from disk and sync (LoroText merge) with proposed.
    */
@@ -702,17 +743,22 @@ export class VaultOverlaySvelte implements Vault {
     const abstractFile = this.vault.getAbstractFileByPath(normalizePath(path));
     invariant(abstractFile, `${path} not found in vault`);
 
-    const node = this.trackingFS.findByPath(path);
+    const trackingNode = this.trackingFS.findByPath(path);
+    const proposedNode = this.proposedFS.findByPath(path);
+    if (!trackingNode && proposedNode) {
+      throw new Error(`Failed to sync path, proposal already exists: ${path}`);
+    }
+
     try {
       if (abstractFile instanceof TFile) {
         const contents = await this.vault.read(abstractFile);
-        if (node) {
+        if (trackingNode) {
           invariant(
-            node.data.get(isDirectoryKey) !== true,
+            !isDirectory(trackingNode),
             `Expected node for ${path} to be a file, got folder.`,
           );
-          updateText(node, contents);
-          return node;
+          updateText(trackingNode, contents);
+          return trackingNode;
         } else {
           return this.trackingFS.createNode(path, {
             text: contents,
@@ -720,11 +766,11 @@ export class VaultOverlaySvelte implements Vault {
           });
         }
       } else if (abstractFile instanceof TFolder) {
-        if (!node) {
+        if (!trackingNode) {
           return this.trackingFS.createNode(path, {
             isDirectory: true,
           });
-        } else if (node.data.get(isDirectoryKey) === false) {
+        } else if (trackingNode.data.get(isDirectoryKey) === false) {
           throw new Error(
             `Path is folder in vault, but not in tracking: ${path}`,
           );
@@ -734,19 +780,90 @@ export class VaultOverlaySvelte implements Vault {
       }
     } finally {
       this.trackingDoc.commit();
-      this.syncDocs();
+      this.mergeDocs();
     }
+  }
+
+  /**
+   * Vault overlay only tracks changes, only necessary to
+   * sync create when proposal (proposed create) exists for path.
+   */
+  async syncCreate(path: string): Promise<LoroTreeNode> {
+    path = normalizePath(path);
+    const abstractFile = this.vault.getAbstractFileByPath(path);
+    invariant(abstractFile, `Cannot sync create, file not in vault: ${path}`);
+    const proposedNode = this.proposedFS.findByPath(path);
+    invariant(
+      proposedNode,
+      `Cannot sync create, file not in proposed: ${path}`,
+    );
+    let text: string | undefined;
+    let buffer: ArrayBuffer | undefined;
+    let stat: FileStats | undefined;
+    if (abstractFile instanceof TFile) {
+      text = await this.vault.read(abstractFile);
+      if (text == null) {
+        buffer = await this.vault.readBinary(abstractFile);
+      }
+      stat = abstractFile.stat;
+    }
+    // extract proposed data, delete and re-create in tracking
+    const data = getNodeData(proposedNode);
+    this.proposedFS.deleteNode(proposedNode.id);
+    const trackingNode = this.trackingFS.createNode(path, {
+      isDirectory: abstractFile instanceof TFolder,
+      text,
+      buffer,
+      stat,
+    });
+    this.trackingDoc.commit();
+    this.mergeDocs();
+    // restore proposed data
+    const newProposedNode = this.proposedFS.findByPath(path);
+    invariant(
+      newProposedNode,
+      `Failed sync create, synced proposed not found: ${path}`,
+    );
+    if (abstractFile instanceof TFile) {
+      if (data.text != null) {
+        await this.modify(abstractFile, data.text);
+      } else if (data.buffer != null) {
+        await this.modifyBinary(abstractFile, data.buffer);
+      }
+    }
+
+    return trackingNode;
   }
 
   async syncDelete(path: string): Promise<void> {
     path = normalizePath(path);
-    const abstractFile = this.vault.getAbstractFileByPath(normalizePath(path));
-    invariant(abstractFile, `${path} not found in vault`);
-    const node = this.trackingFS.findByPath(path);
-    if (node) {
-      this.trackingFS.deleteNode(node.id);
-      this.trackingDoc.commit();
-      this.syncDocs();
+    const abstractFile = this.vault.getAbstractFileByPath(path);
+    invariant(
+      !abstractFile,
+      `Cannot sync delete, file exists in vault: ${path}`,
+    );
+    const trackingNode = this.trackingFS.findByPath(path);
+    invariant(
+      trackingNode,
+      `Cannot sync delete, file not in tracking: ${path}`,
+    );
+    const proposedNode = this.proposedFS.findById(trackingNode.id);
+    const proposedPath = this.proposedFS.getNodePath(proposedNode);
+    const wasTrashed = isTrashed(proposedNode);
+
+    // Save proposed data
+    const data = getNodeData(proposedNode);
+    this.trackingFS.deleteNode(trackingNode.id);
+    this.trackingDoc.commit();
+    this.mergeDocs();
+
+    // Restore proposed data as create
+    if (!data.isDirectory && !wasTrashed) {
+      if (data.text != null) {
+        await this.create(proposedPath, data.text);
+      } else if (data.buffer != null) {
+        await this.createBinary(proposedPath, data.buffer);
+      }
     }
   }
 
@@ -859,7 +976,7 @@ export class VaultOverlaySvelte implements Vault {
     }
 
     this.trackingDoc.commit();
-    this.syncDocs();
+    this.mergeDocs();
 
     // Apply remaining changes from partial approvals
     for (const { tracking, proposed, proposedData } of remainders) {
@@ -1079,7 +1196,7 @@ export class VaultOverlaySvelte implements Vault {
     return diff;
   }
 
-  syncDocs() {
+  mergeDocs() {
     this.proposedDoc.import(
       this.trackingDoc.export({
         mode: "update",
@@ -1087,11 +1204,6 @@ export class VaultOverlaySvelte implements Vault {
       }),
     );
     this.proposedFS.invalidateCache();
-  }
-
-  syncVault() {
-    // todo implement
-    throw new Error("syncVault not supported");
   }
 
   computeChanges() {
@@ -1279,6 +1391,66 @@ export class VaultOverlaySvelte implements Vault {
     }
 
     this.proposedFS.invalidateCache();
+  }
+
+  private getAllTrackedPaths(doc: LoroDoc): string[] {
+    const paths: string[] = [];
+    const tree = doc.getTree("vault");
+    const root = tree.roots()[0];
+
+    if (root) {
+      this.collectPathsFromNode(root, "", paths);
+    }
+
+    return paths.filter((path) => path && path !== trashPath);
+  }
+
+  private collectPathsFromNode(
+    node: LoroTreeNode,
+    parentPath: string,
+    paths: string[],
+  ): void {
+    const name = node.data.get("name") as string;
+    const path = parentPath ? `${parentPath}/${name}` : name;
+
+    // Only collect non-root nodes with actual paths
+    // That were explicitly created
+    if (
+      path &&
+      path !== "" &&
+      (!isDirectory(node) ||
+        (isDirectory(node) && node.data.get(wasCreatedKey)))
+    ) {
+      paths.push(path);
+    }
+
+    const children = node.children();
+    if (children) {
+      for (const child of children) {
+        this.collectPathsFromNode(child, path, paths);
+      }
+    }
+  }
+
+  private async hasVaultChanged(
+    vaultFile: TAbstractFile,
+    trackingNode: LoroTreeNode,
+  ): Promise<boolean> {
+    const trackingStat = getStat(trackingNode);
+    if (!trackingStat) {
+      return true; // No tracking stat means we should sync
+    }
+
+    if (vaultFile instanceof TFile) {
+      // For files, compare mtime and size for efficiency
+      return (
+        vaultFile.stat.mtime > trackingStat.mtime ||
+        vaultFile.stat.size !== trackingStat.size
+      );
+    } else {
+      // For folders, just check if we have tracking data
+      return !trackingNode.data.get(isDirectoryKey);
+    }
   }
 
   async destroy() {}

@@ -9,10 +9,11 @@ import {
 import { invariant } from "@epic-web/invariant";
 import { basename, dirname } from "path-browserify";
 import { encodeBase64 } from "$lib/utils/base64.ts";
-import { wasCreatedKey } from "./vault-overlay.svelte.ts";
 
 const trashPath = ".overlay-trash" as const;
 const deletedFrom = "deletedFrom" as const;
+// differentiate between directories created explicitly and those created ensure a path
+export const wasCreatedKey = "wasCreated" as const;
 
 export type NodeData = {
   isDirectory?: boolean;

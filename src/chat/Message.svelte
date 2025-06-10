@@ -11,15 +11,18 @@
   import { Notice } from "obsidian";
   import { loadPromptMessage } from "../markdown/prompt-command.ts";
   import { cn, usePlugin } from "$lib/utils";
-  import is from "@sindresorhus/is";
   import type { Chat } from "./chat.svelte.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
   import { openPath } from "$lib/utils/obsidian.ts";
   import { setContext } from "svelte";
+  import { getBaseName } from "$lib/utils/path.ts";
+  import { dirname } from "path-browserify";
 
   type Props = {
     chat: Chat;
-    message: UIMessage;
+    message: UIMessage & {
+      metadata?: { prompt: { path: string }; modified: string[] };
+    };
     index: number;
     editState: {
       index: number;
@@ -53,6 +56,30 @@
     chat.messages[i] = await loadPromptMessage(file);
   }
 </script>
+
+{#if message?.metadata?.modified?.length}
+  <div>
+    <div class="text-xs text-(--text-muted)">
+      Your modified files:
+      {#each message.metadata.modified as path}
+        <div class="flex flex-row gap-2 items-center py-1">
+          <div
+            tabindex="0"
+            role="button"
+            onkeydown={() => openPath(path)}
+            class="modified-btn"
+            onclick={() => openPath(path)}
+          >
+            {getBaseName(path)}
+          </div>
+          <div class="text-(--text-muted) text-xs" style="">
+            {dirname(path) === "." ? "" : dirname(path) + "/"}
+          </div>
+        </div>
+      {/each}
+    </div>
+  </div>
+{/if}
 
 {#if editState && index > editState.index}
   <!-- Hide messages below the one being edited -->
@@ -107,14 +134,11 @@
   <!-- Normal message display -->
   <div class="group relative">
     <!-- prompt badge -->
-    {#if message.role === "user" && "metadata" in message && is.object(message.metadata) && "prompt" in message.metadata}
+    {#if message?.metadata?.prompt?.path}
       <div class="absolute top-0 left-0 text-xs text-(--text-accent)">
         <button
           class="clickable-icon"
-          onclick={() => {
-            //@ts-expect-error metadata.prompt not typed
-            openPath(message.metadata.prompt.path);
-          }}>Prompt</button
+          onclick={() => openPath(message.metadata.prompt.path)}>Prompt</button
         >
       </div>
     {/if}
@@ -263,3 +287,14 @@
     {/each}
   {/if}
 {/if}
+
+<style>
+  .modified-btn {
+    color: var(--text-normal);
+    font-size: var(--font-small);
+    font: var(--font-text-theme);
+  }
+  .modified-btn:hover {
+    color: var(--text-accent);
+  }
+</style>

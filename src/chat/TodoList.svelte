@@ -154,18 +154,6 @@
             >
               {todo.content}
             </span>
-            {#if todo.status !== "completed" && todo.status !== "cancelled"}
-              {@const PriorityIconComponent = getPriorityIcon(todo.priority)}
-              {#if PriorityIconComponent}
-                <svelte:component
-                  this={PriorityIconComponent}
-                  class={cn(
-                    "size-3 flex-shrink-0",
-                    getPriorityColor(todo.priority),
-                  )}
-                />
-              {/if}
-            {/if}
           </div>
         {/each}
       </div>

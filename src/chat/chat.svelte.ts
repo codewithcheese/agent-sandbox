@@ -159,6 +159,9 @@ export class Chat {
 
     const plugin = usePlugin();
 
+    // Sync vault with overlay
+    const modified = await this.vault.syncAll();
+
     // Prepare any attachments as data URIs
     const experimental_attachments: Attachment[] = [];
     if (attachments.length > 0) {
@@ -195,6 +198,7 @@ export class Chat {
       createdAt: new Date(),
       // @ts-expect-error metadata not typed
       metadata: {
+        modified,
         checkpoint: this.vault.proposedDoc.frontiers(),
       },
     } satisfies UIMessage);

@@ -15,7 +15,6 @@
   import type { ProposedChange } from "./vault-overlay.svelte.ts";
   import AgentMessage from "./AgentMessage.svelte";
   import { createDebug } from "$lib/debug.ts";
-  import TodoList from "./TodoList.svelte";
   import { ChatView } from "./chat-view.svelte.ts";
   import type { ChatInputState } from "./chat-input-state.svelte.ts";
   import Message from "./Message.svelte";

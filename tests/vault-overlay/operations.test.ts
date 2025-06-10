@@ -491,7 +491,7 @@ describe("VaultOverlaySvelte", () => {
         expect(proposedNode.isDeleted()).toEqual(true);
 
         // Try to delete again - should return early
-        expect(overlay.delete(file)).rejects.toThrow();
+        await expect(overlay.delete(file)).rejects.toThrow();
       });
     });
 
