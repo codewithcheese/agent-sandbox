@@ -247,7 +247,9 @@ export class Chat {
       messages.push(
         ...convertToCoreMessages(
           wrapTextAttachments($state.snapshot(this.messages)),
-        ),
+          // filter out empty messages, empty messages were observed after tool calls in some cases
+          // potentially a bug in AI SDK or in this plugin
+        ).filter((m) => m.content.length > 0),
       );
 
       const lastUserMessage = messages.findLast((m) => m.role === "user");
