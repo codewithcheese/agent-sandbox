@@ -63,8 +63,8 @@
       class={cn(
         `prose select-text leading-8
                 prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
-                          prose-h1:m-0
-                          prose-h2:m-0
+                          prose-h1:m-2
+                          prose-h2:m-1
                           prose-h3:m-0
                           prose-h4:m-0
                           prose-h5:m-0
@@ -170,8 +170,8 @@
         class={cn(
           `prose select-text leading-8
                   prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
-                            prose-h1:m-0
-                            prose-h2:m-0
+                            prose-h1:m-2
+                            prose-h2:m-1
                             prose-h3:m-0
                             prose-h4:m-0
                             prose-h5:m-0

@@ -24,6 +24,7 @@
   import { openPath } from "$lib/utils/obsidian.ts";
   import ChangesList from "./ChangesList.svelte";
   import type { ProposedChange } from "./vault-overlay.svelte.ts";
+  import TodoList from "./TodoList.svelte";
 
   type Props = {
     chat: Chat;
@@ -173,19 +174,22 @@
   }
 </script>
 
-<div class={cn("chat-margin py-2 px-2", view.position === "right" && "pb-8")}>
+<div class={cn("chat-margin py-1 px-2", view.position === "right" && "pb-8")}>
+  {#if chat.state.type === "loading"}
+    <div class="flex items-center gap-2 mb-3 text-sm text-(--text-accent)">
+      <Loader2Icon class="size-4 animate-spin" />
+      <span>Assistant is thinking...</span>
+    </div>
+  {/if}
+
+  <!--session widgets-->
+  <TodoList {chat} />
+
   <form
     name="input"
     style="background-color: var(--background-primary)"
     onsubmit={editState ? handleEditSubmit : handleSubmit}
   >
-    {#if chat.state.type === "loading"}
-      <div class="flex items-center gap-2 mb-3 text-sm text-(--text-accent)">
-        <Loader2Icon class="size-4 animate-spin" />
-        <span>Assistant is thinking...</span>
-      </div>
-    {/if}
-
     {#if attachments.length > 0}
       <div class="flex flex-wrap gap-2 mb-2">
         {#each attachments as attachment}

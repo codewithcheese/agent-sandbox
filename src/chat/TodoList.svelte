@@ -107,9 +107,9 @@
 </script>
 
 {#if todos.length > 0}
-  <div class="chat-margin px-2 pt-1 pb-2 text-xs">
+  <div class="chat-margin px-2 pt-1 pb-1 text-xs">
     <div class="flex">
-      <div class="font-semibold mb-1 text-[var(--text-muted)] flex-1">
+      <div class="font-semibold text-[var(--text-muted)] flex-1">
         Tasks ({todos.filter(
           (t) => t.status !== "completed" && t.status !== "cancelled",
         ).length} active):

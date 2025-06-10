@@ -307,9 +307,6 @@
         bind:sentinel
       />
     </div>
-    <!--session widgets-->
-    <TodoList {chat} />
-
     <!--footer-->
     <ChatInput
       {attachments}
@@ -321,7 +318,7 @@
       {handleModelChange}
       {handleSubmit}
       {inputState}
-      openMergeView={openMergeView}
+      {openMergeView}
       {submitEdit}
       {submitOnEnter}
       {view}
