@@ -321,7 +321,7 @@
       {handleModelChange}
       {handleSubmit}
       {inputState}
-      {openFirstChange}
+      openMergeView={openMergeView}
       {submitEdit}
       {submitOnEnter}
       {view}

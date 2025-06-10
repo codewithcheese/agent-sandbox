@@ -116,14 +116,14 @@
       </div>
       <div>
         {#if collapsed}
-          <ChevronDownIcon
-            class="clickable-icon"
-            onclick={() => (collapsed = false)}
-          />
-        {:else}
           <ChevronUpIcon
             class="clickable-icon"
-            onclick={() => (collapsed = true)}
+            onclick={() => (collapsed = !collapsed)}
+          />
+        {:else}
+          <ChevronDownIcon
+            class="clickable-icon"
+            onclick={() => (collapsed = !collapsed)}
           />
         {/if}
       </div>
