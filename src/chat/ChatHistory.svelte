@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { PlusIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-svelte";
+  import {
+    PlusIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
+    SquarePenIcon,
+  } from "lucide-svelte";
   import type { ChatItem } from "./chat-history-view.svelte.ts";
   import { humanTime } from "$lib/utils/datetime.ts";
 
@@ -41,12 +46,8 @@
   <div class="py-1 px-2 border-b border-(--background-modifier-border)">
     <div class="flex justify-between items-center">
       <h2 class="text-lg font-medium">All Conversations</h2>
-      <button
-        class="clickable-icon"
-        onclick={onNewChatClick}
-        aria-label="New Chat"
-      >
-        <PlusIcon class="size-4" />
+      <button class="flex gap-1" onclick={onNewChatClick} aria-label="New Chat">
+        <SquarePenIcon class="size-4" /> New chat
       </button>
     </div>
   </div>

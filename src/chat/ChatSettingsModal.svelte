@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { Button } from "$lib/components/ui/button/index.js";
   import { XIcon } from "lucide-svelte";
 
   const defaultSettings = {
@@ -276,6 +275,6 @@
 </div>
 
 <div class="modal-button-container">
-  <Button type="button" variant="outline" onclick={handleCancel}>Cancel</Button>
-  <Button type="button" onclick={handleSave}>Save Settings</Button>
+  <button type="button" onclick={handleCancel}>Cancel</button>
+  <button type="button" onclick={handleSave}>Save Settings</button>
 </div>

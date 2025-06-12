@@ -492,7 +492,7 @@ export const helpers = {
     try {
       fs.mkdirSync("/", { recursive: true });
     } catch {
-      // Root already exists
+      // Textarea already exists
     }
   },
 };

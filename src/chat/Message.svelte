@@ -70,7 +70,11 @@
             class="modified-btn"
             onclick={() => openPath(path)}
           >
-            {getBaseName(path)}
+            {#if path.split(".").pop() === "md"}
+              {getBaseName(path)}
+            {:else}
+              {getBaseName(path)}.{path.split(".").pop()}
+            {/if}
           </div>
           <div class="text-(--text-muted) text-xs" style="">
             {dirname(path) === "." ? "" : dirname(path) + "/"}

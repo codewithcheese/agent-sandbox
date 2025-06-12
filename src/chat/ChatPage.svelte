@@ -1,11 +1,9 @@
 <script lang="ts">
-  import { Button } from "$lib/components/ui/button";
   import { EyeIcon, SquarePenIcon } from "lucide-svelte";
   import type { Chat } from "./chat.svelte.ts";
   import { usePlugin } from "$lib/utils";
   import { onDestroy } from "svelte";
   import RetryAlert from "./RetryAlert.svelte";
-  import type { AIAccount, AIProviderId } from "../settings/providers.ts";
   import { Notice } from "obsidian";
   import { type ViewContext } from "$lib/obsidian/view.ts";
   import { MERGE_VIEW_TYPE } from "$lib/merge/merge-view.svelte.ts";
@@ -93,43 +91,6 @@
     attachments = [];
   }
 
-  function handleModelChange(
-    e: Event & {
-      currentTarget: EventTarget & HTMLSelectElement;
-    },
-  ) {
-    const [modelId, accountId] = e.currentTarget.value.split(":");
-    chat.options.modelId = modelId;
-    chat.options.accountId = accountId;
-    chat.save();
-  }
-
-  function getModelAccountOptions() {
-    const accountsByProvider = {} as Record<AIProviderId, AIAccount[]>;
-    plugin.settings.accounts.forEach((account) => {
-      if (!accountsByProvider[account.provider]) {
-        accountsByProvider[account.provider] = [];
-      }
-      accountsByProvider[account.provider].push(account);
-    });
-
-    return plugin.settings.models
-      .filter((model) => model.type === "chat")
-      .flatMap((model) => {
-        const accounts = accountsByProvider[model.provider] || [];
-        if (accounts.length === 0) return [];
-
-        const showAccountName = accounts.length > 1;
-
-        return accounts.map((account) => ({
-          value: `${model.id}:${account.id}`,
-          label: showAccountName ? `${model.id} (${account.name})` : model.id,
-          modelId: model.id,
-          accountId: account.id,
-        }));
-      });
-  }
-
   async function openMergeView(change: ProposedChange) {
     try {
       const plugin = usePlugin();
@@ -151,15 +112,6 @@
       console.error("Error opening merge view:", error);
       new Notice(`Error: ${error.message}`, 3000);
     }
-  }
-
-  async function openFirstChange() {
-    const firstChange = chat.vault.changes[0];
-    if (!firstChange) {
-      new Notice("No pending changes found", 3000);
-      return;
-    }
-    await openMergeView(firstChange);
   }
 
   function startEdit(index: number) {
@@ -227,7 +179,7 @@
 
 <svelte:boundary onerror={(e) => console.error("ChatPage error:", e)}>
   {#snippet failed(error, reset)}
-    <div class="flex flex-col gap-2 p-4">
+    <div class="select-text flex flex-col gap-2 p-4">
       <div>An error occurred: {error}</div>
       <button onclick={reset}>Try again</button>
     </div>
@@ -260,16 +212,14 @@
           {/if}
         </div>
 
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="sm"
           class="gap-1.5 rounded"
           onclick={() => ChatView.newChat(undefined, chat.options)}
         >
           <SquarePenIcon class="size-3.5" />
           New Chat
-        </Button>
+        </button>
       </div>
     </div>
 
@@ -312,8 +262,6 @@
       {cancelEdit}
       {chat}
       {editState}
-      {getModelAccountOptions}
-      {handleModelChange}
       {handleSubmit}
       {inputState}
       {openMergeView}

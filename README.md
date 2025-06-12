@@ -97,11 +97,11 @@ This project includes a version bumping script that automates the release proces
 - [ ] Merge: undo/redo
 - [ ] Merge: use Obsidian semantic colors
 - [ ] Chat: Delete chat if empty when closed
-- [ ] Schema editor: Align design with Properties UI
-- [ ] UI: Remove unused shadcn-svelte components 
+- [ ] Schema editor: Align design with Properties UI 
 - [ ] Chat: Resume options for existing chat
 - [ ] Schema editor: Support for defining array items
 - [ ] Schema editor: Fix don't clobber unsupported values
+- [x] UI: Remove unused shadcn-svelte components
 - [x] Agent: New chat button
 - [x] Diff: Undo changes when messages are deleted
 - [x] Diff: Update Loro approve methods to have side effects.

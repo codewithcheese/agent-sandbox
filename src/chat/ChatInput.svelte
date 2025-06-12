@@ -1,6 +1,5 @@
 <script lang="ts">
   import { normalizePath, Notice, TFile } from "obsidian";
-  import { Button } from "$lib/components/ui/button/index.js";
   import {
     ArrowLeft,
     CornerDownLeftIcon,
@@ -12,7 +11,7 @@
     StopCircleIcon,
     XIcon,
   } from "lucide-svelte";
-  import { Textarea } from "$lib/components/ui/textarea/index.js";
+  import Textarea from "./Textarea.svelte";
   import { Realtime } from "./realtime.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
   import { onDestroy, tick } from "svelte";
@@ -25,6 +24,7 @@
   import ChangesList from "./ChangesList.svelte";
   import type { ProposedChange } from "./vault-overlay.svelte.ts";
   import TodoList from "./TodoList.svelte";
+  import ModelSelector from "./ModelSelector.svelte";
 
   type Props = {
     chat: Chat;
@@ -36,8 +36,6 @@
     openMergeView: (change: ProposedChange) => Promise<void>;
     view: any;
     submitOnEnter: (event: KeyboardEvent) => void;
-    handleModelChange: (event: Event) => void;
-    getModelAccountOptions: () => any[];
     editState: {
       index: number;
       content: string;
@@ -55,8 +53,6 @@
     openMergeView,
     view,
     submitOnEnter,
-    handleModelChange,
-    getModelAccountOptions,
     editState = null,
     cancelEdit = () => {},
     submitEdit = () => {},
@@ -78,7 +74,7 @@
     }
   });
 
-  let textareaRef: HTMLTextAreaElement | null = null;
+  let textareaRef: HTMLTextAreaElement | null = $state(null);
 
   // Set text to edit content when edit mode starts
   $effect(() => {
@@ -172,6 +168,12 @@
       attachments.splice(index, 1);
     }
   }
+
+  function handleModelChange(modelId: string, accountId: string) {
+    chat.options.modelId = modelId;
+    chat.options.accountId = accountId;
+    chat.save();
+  }
 </script>
 
 <div class={cn("chat-margin py-1 px-2")}>
@@ -246,92 +248,71 @@
         <!--            <Loader2Icon class="size-4 animate-spin" />-->
         <!--          {/if}-->
         <!--        </Button>-->
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="sm"
           class="gap-1.5 rounded"
           aria-label="Select document"
           onclick={selectDocument}
         >
           <FileTextIcon class="size-3.5" />
-        </Button>
-        <Button
+        </button>
+        <button
           type="button"
-          variant="outline"
-          size="sm"
           class="gap-1.5 rounded"
           aria-label="Open settings"
           onclick={handleSettingsClick}
         >
           <SettingsIcon class="size-3.5" />
-        </Button>
+        </button>
 
         <!-- model select -->
-        <select
-          onchange={handleModelChange}
-          name="model-account"
-          aria-label="Select AI model"
-          class="w-[250px] h-9 rounded-md px-3 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          required
-        >
-          <option value=""> Select model </option>
-          {#each getModelAccountOptions() as option}
-            <option
-              value={option.value}
-              selected={option.value ===
-                `${chat.options.modelId}:${chat.options.accountId}`}
-            >
-              {option.label}
-            </option>
-          {/each}
-        </select>
+        <ModelSelector
+          selectedModelId={chat.options.modelId}
+          selectedAccountId={chat.options.accountId}
+          onModelChange={handleModelChange}
+        />
       </div>
       {#if editState}
         <div class="flex gap-2">
-          <Button
+          <button
             type="button"
-            size="sm"
             class="gap-1.5 rounded"
             aria-label="Cancel editing"
             onclick={handleEditCancel}
           >
             <StopCircleIcon class="size-3.5" />
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button
             type="submit"
-            size="sm"
             class="gap-1.5 rounded"
             aria-label="Save edited message"
-            bind:ref={submitBtn}
+            bind:this={submitBtn}
           >
             Save
             <CornerDownLeftIcon class="size-3.5" />
-          </Button>
+          </button>
         </div>
       {:else if chat.state.type === "idle"}
-        <Button
+        <button
           type="submit"
-          size="sm"
           class="gap-1.5 rounded"
           aria-label="Send message"
-          bind:ref={submitBtn}
+          bind:this={submitBtn}
         >
           Send
           <CornerDownLeftIcon class="size-3.5" />
-        </Button>
+        </button>
       {:else}
-        <Button
+        <button
           type="button"
-          size="sm"
           class="gap-1.5 rounded"
           aria-label="Cancel"
           onclick={() => chat.cancel()}
         >
           <StopCircleIcon class="size-3.5" />
           Cancel
-        </Button>
+        </button>
       {/if}
     </div>
 
