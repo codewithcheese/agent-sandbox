@@ -3,7 +3,6 @@ import type { CachedMetadata, TFile } from "obsidian";
 import { processEmbeds, processLinks } from "$lib/utils/embeds.ts";
 import { processTemplate } from "$lib/utils/templates.ts";
 import { fileTree } from "$lib/utils/file-tree.ts";
-import * as _ from "lodash";
 import Ajv from "ajv";
 
 type SystemMessageOptions = {
@@ -27,7 +26,24 @@ export async function createSystemContent(
   system = unescapeTags(system);
   system = await processEmbeds(file, system);
   // system = await processLinks(file, system);
-  system = await processTemplate(system, { fileTree }, data, options.template);
+  system = await processTemplate(
+    system,
+    { fileTree },
+    {
+      ...data,
+      currentDateTime: new Date().toLocaleString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+        hour12: true,
+      }),
+    },
+    options.template,
+  );
   return system;
 }
 
