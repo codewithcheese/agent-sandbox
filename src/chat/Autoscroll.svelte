@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { createDebug } from "$lib/debug.ts";
+
+  const debug = createDebug();
 
   let { messages, container, enabled, sentinel = $bindable() } = $props();
 
@@ -13,7 +16,10 @@
     if (!container || !sentinel) return;
 
     const io = new IntersectionObserver(
-      ([entry]) => (autoscroll = entry.isIntersecting),
+      ([entry]) => {
+        // debug("IntersectionObserver", entry);
+        autoscroll = entry.isIntersecting;
+      },
       { root: container, threshold: 0.1 },
     );
 

@@ -298,13 +298,13 @@
           {/if}
         </div>
       </div>
+      <Autoscroll
+        messages={chat.messages}
+        container={scrollContainer}
+        enabled={chat.state.type === "loading"}
+        bind:sentinel
+      />
     </div>
-    <Autoscroll
-      messages={chat.messages}
-      container={scrollContainer}
-      enabled={chat.state.type === "loading"}
-      bind:sentinel
-    />
     <!--footer-->
     <ChatInput
       {attachments}
