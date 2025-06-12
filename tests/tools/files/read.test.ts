@@ -33,6 +33,7 @@ describe("readToolExecute", () => {
       messages: [],
       getContext: () => ({
         vault,
+        sessionStore: {},
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -83,6 +84,7 @@ describe("readToolExecute", () => {
       getContext: () => ({
         vault,
         config: { MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT: 10 },
+        sessionStore: {},
       }),
     };
     const result = await readToolExecute(params, options);
@@ -100,7 +102,7 @@ describe("readToolExecute", () => {
 
     const lines = shortContent.split("\n");
     const numberedContent = lines
-      .map((line, i) => `${String(i + 1).padStart(6)}  ${line}`)
+      .map((line, i) => `${String(i + 1).padStart(6)}\t${line}`)
       .join("\n");
     const expected = formatExpectedTextOutput(
       "/test/short.txt",
@@ -138,6 +140,7 @@ describe("readToolExecute", () => {
       getContext: () => ({
         vault,
         config: { MAX_LINE_LENGTH },
+        sessionStore: {},
       }),
     };
     const result = await readToolExecute(params, options);
@@ -166,7 +169,7 @@ describe("readToolExecute", () => {
     const allLines = manyLinesContent.split("\n");
     const selected = allLines.slice(2, 4); // offset 3 is index 2, limit 2
     const numberedContent = selected
-      .map((line, i) => `${String(3 + i).padStart(6)}  ${line}`)
+      .map((line, i) => `${String(3 + i).padStart(6)}\t${line}`)
       .join("\n");
     const expected = formatExpectedTextOutput(
       "/test/manylines.txt",
@@ -194,7 +197,7 @@ describe("readToolExecute", () => {
     const allLines = "L1\nL2\nL3\nL4\nL5".split("\n");
     const selected = allLines.slice(3); // offset 4 is index 3
     const numberedContent = selected
-      .map((line, i) => `${String(4 + i).padStart(6)}  ${line}`)
+      .map((line, i) => `${String(4 + i).padStart(6)}\t${line}`)
       .join("\n");
     const expected = formatExpectedTextOutput(
       "/test/short.txt",
@@ -218,6 +221,7 @@ describe("readToolExecute", () => {
         config: {
           MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT: 80,
         },
+        sessionStore: {},
       }),
     };
     const result = await readToolExecute(params, options);
@@ -259,6 +263,7 @@ describe("readToolExecute", () => {
       getContext: () => ({
         vault,
         config: { MAX_IMAGE_SIZE_BYTES },
+        sessionStore: {},
       }),
     };
     const result = await readToolExecute(params, options);
@@ -302,7 +307,7 @@ describe("readToolExecute", () => {
     await vault.create("/test/file with spaces.txt", "content");
     const params = { file_path: "/test/file with spaces.txt" };
     const result = await readToolExecute(params, toolExecOptions);
-    const numberedContent = `${String(1).padStart(6)}  content`;
+    const numberedContent = `${String(1).padStart(6)}\tcontent`;
     const expected = formatExpectedTextOutput(
       "/test/file with spaces.txt",
       numberedContent,
@@ -318,10 +323,10 @@ describe("readToolExecute", () => {
     const params = { file_path: "/test/newlines.txt" };
     const result = await readToolExecute(params, toolExecOptions);
     const numberedContent = [
-      `${String(1).padStart(6)}  `,
-      `${String(2).padStart(6)}  `,
-      `${String(3).padStart(6)}  `,
-      `${String(4).padStart(6)}  `, // Split results in an extra empty string for trailing newline
+      `${String(1).padStart(6)}\t`,
+      `${String(2).padStart(6)}\t`,
+      `${String(3).padStart(6)}\t`,
+      `${String(4).padStart(6)}\t`, // Split results in an extra empty string for trailing newline
     ].join("\n");
     const expected = formatExpectedTextOutput(
       "/test/newlines.txt",
@@ -338,8 +343,8 @@ describe("readToolExecute", () => {
     const params = { file_path: "/test/offset_test.txt", offset: 2, limit: 2 }; // Read L2, L3
     const result = await readToolExecute(params, toolExecOptions);
     const numberedContent = [
-      `${String(2).padStart(6)}  L2`,
-      `${String(3).padStart(6)}  L3`,
+      `${String(2).padStart(6)}\tL2`,
+      `${String(3).padStart(6)}\tL3`,
     ].join("\n");
     const expected = formatExpectedTextOutput(
       "/test/offset_test.txt",
