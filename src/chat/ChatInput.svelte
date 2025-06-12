@@ -174,7 +174,7 @@
   }
 </script>
 
-<div class={cn("chat-margin py-1 px-2", view.position === "right" && "pb-8")}>
+<div class={cn("chat-margin py-1 px-2")}>
   {#if chat.state.type === "loading"}
     <div class="flex items-center gap-2 mb-3 text-sm text-(--text-accent)">
       <Loader2Icon class="size-4 animate-spin" />
@@ -333,6 +333,22 @@
           Cancel
         </Button>
       {/if}
+    </div>
+
+    <!-- Key Settings Display -->
+    <div
+      class={cn(
+        "flex items-center justify-between mt-2 text-xs text-(--text-muted)",
+        view.position === "right" && "h-6",
+      )}
+    >
+      <div class="flex items-center gap-2">
+        <span>Temperature: {chat.options.temperature}</span>
+        <span>Max Tokens: {chat.options.maxTokens}</span>
+        {#if chat.options.thinkingEnabled}
+          <span>Thinking: {chat.options.thinkingTokensBudget} tokens</span>
+        {/if}
+      </div>
     </div>
   </form>
 </div>

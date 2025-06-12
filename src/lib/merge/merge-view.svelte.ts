@@ -128,14 +128,18 @@ export class MergeView extends ItemView {
               },
             ]);
           }
-          // if some changes are remaining then apply them to the overlay
-          if (resolvedContent !== pendingContent) {
+          if (
+            // if some changes are remaining then apply them to the overlay
+            resolvedContent !== pendingContent ||
+            // OR if no changes are remaining but content has changed
+            (chunksLeft === 0 && resolvedContent !== newContent)
+          ) {
             const remaining = diff.createPatch(
               change.path,
               resolvedContent,
               pendingContent,
             );
-            debug("Applying unapproved changes to overlay", remaining);
+            debug("Applying unapproved/resolved changes to overlay", remaining);
             await chat.vault.modify(currentFile, pendingContent);
           }
           chat.vault.computeChanges();
