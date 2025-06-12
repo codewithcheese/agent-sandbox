@@ -6,14 +6,14 @@ import {
   type TAbstractFile,
   type Vault,
 } from "obsidian";
-import * as micromatch from "micromatch";
+import picomatch from "picomatch";
 import { createDebug } from "$lib/debug";
 import type {
   ToolDefinition,
   ToolExecutionOptionsWithContext,
 } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
-import { COMMON_IGNORE_PATTERNS } from "./shared.ts";
+import { COMMON_IGNORE_PATTERNS, picomatchOptions } from "./shared.ts";
 
 /**
  * Features:
@@ -152,18 +152,10 @@ export async function execute(
       ...config.DEFAULT_IGNORE_PATTERNS,
       ...(params.ignore || []),
     ];
-    const micromatchOptions = { dot: true, matchBase: false, nocase: true };
 
     // Pre-compile matchers for better performance
-    const isIgnoredMatcher = micromatch.matcher(
-      // @ts-expect-error types specify string not array but array works
-      ignorePatterns,
-      micromatchOptions,
-    );
-    const patternMatcher = micromatch.matcher(
-      params.pattern,
-      micromatchOptions,
-    );
+    const isIgnoredMatcher = picomatch(ignorePatterns, picomatchOptions);
+    const patternMatcher = picomatch(params.pattern, picomatchOptions);
 
     function isPathIgnored(path: string): boolean {
       return isIgnoredMatcher(path);

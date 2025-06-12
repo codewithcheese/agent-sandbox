@@ -1,3 +1,5 @@
+export const picomatchOptions = { dot: true, matchBase: false, nocase: true };
+
 export const COMMON_IGNORE_PATTERNS = [
   "**/node_modules/**",
   "**/vendor/bundle/**",

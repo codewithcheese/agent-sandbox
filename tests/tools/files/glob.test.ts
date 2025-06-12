@@ -7,13 +7,12 @@ import {
 import { VaultOverlaySvelte } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
+import is from "@sindresorhus/is";
 
 describe("Glob tool execute function", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
   let vault: VaultOverlaySvelte;
   let mockAbortController: AbortController;
-
-  const MOCK_ROOT_PATH = "/";
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -27,6 +26,7 @@ describe("Glob tool execute function", () => {
       messages: [],
       getContext: () => ({
         vault,
+        sessionStore: {},
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -228,6 +228,7 @@ describe("Glob tool execute function", () => {
     toolExecOptions.getContext = () => ({
       vault,
       config: { RESULT_LIMIT: 2 },
+      sessionStore: {},
     });
 
     const params = { pattern: "**/*.*", path: "/" };
@@ -263,6 +264,7 @@ describe("Glob tool execute function", () => {
       config: {
         DEFAULT_IGNORE_PATTERNS: [],
       },
+      sessionStore: {},
     });
 
     const params = { pattern: ".obsidian/*", path: "/" };
@@ -273,4 +275,59 @@ describe("Glob tool execute function", () => {
     );
     expect(result.filenames).toContain("/.obsidian/config");
   });
+});
+
+describe("Glob tool efficiency tests", () => {
+  let toolExecOptions: ToolExecutionOptionsWithContext;
+  let vault: VaultOverlaySvelte;
+  let mockAbortController: AbortController;
+
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    mockVaultHelpers.reset();
+
+    vault = new VaultOverlaySvelte(mockVault);
+    mockAbortController = new AbortController();
+
+    toolExecOptions = {
+      toolCallId: "test-glob-efficiency",
+      messages: [],
+      getContext: () => ({
+        vault,
+        sessionStore: {},
+      }),
+      abortSignal: mockAbortController.signal,
+    };
+  });
+
+  it("should efficiently handle globbing 10k paths", async () => {
+    // Create 100k files: 1000 dirs with 100 files each
+    const promises: Promise<any>[] = [];
+
+    for (let dirIndex = 0; dirIndex < 100; dirIndex++) {
+      const dirPath = `/perf-test/dir-${dirIndex}`;
+      mockVaultHelpers.addFolder(dirPath);
+
+      for (let fileIndex = 0; fileIndex < 100; fileIndex++) {
+        const extension = fileIndex % 2 === 0 ? ".md" : ".ts";
+        const filePath = `${dirPath}/file-${fileIndex}${extension}`;
+        mockVaultHelpers.addFile(filePath, "test content");
+      }
+    }
+
+    await Promise.all(promises);
+
+    // Test globbing all files
+    const start = performance.now();
+    const result = await globToolExecute(
+      { pattern: "**/*", path: "/perf-test" },
+      toolExecOptions,
+    );
+    const duration = performance.now() - start;
+    expect(result).toMatchObject({
+      truncated: true,
+      totalMatchesBeforeLimit: 10_000,
+    });
+    expect(duration).toBeLessThan(500); // Should complete within 500ms
+  }, 15000);
 });

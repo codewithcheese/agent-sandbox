@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { relative, sep, join, basename } from "path-browserify";
-import * as micromatch from "micromatch";
+import picomatch from "picomatch";
 import { createDebug } from "$lib/debug.ts";
 import { type Vault, type TAbstractFile, normalizePath } from "obsidian";
 import { TFolder, TFile } from "obsidian";
@@ -8,7 +8,7 @@ import type {
   ToolDefinition,
   ToolExecutionOptionsWithContext,
 } from "../types.ts";
-import { COMMON_IGNORE_PATTERNS } from "./shared.ts";
+import { COMMON_IGNORE_PATTERNS, picomatchOptions } from "./shared.ts";
 
 /**
  * Features:
@@ -78,10 +78,7 @@ function listDirectoryContentsRecursive(
   ];
 
   // Pre-compile matcher for better performance
-  const isIgnoredMatcher = micromatch.matcher(
-    // @ts-expect-error types specify string not array but array works
-    effectiveIgnorePatterns
-  );
+  const isIgnoredMatcher = picomatch(effectiveIgnorePatterns, picomatchOptions);
 
   // Cache for already checked paths to avoid redundant pattern matching
   const ignoreCache = new Map<string, boolean>();
