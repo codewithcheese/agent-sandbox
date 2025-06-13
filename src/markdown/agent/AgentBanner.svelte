@@ -31,9 +31,7 @@
     // get reference to view's chat and submit
     const chat = await Chat.load(view.file.path);
     chat.options.agentPath = settings.agents.templateRepairAgentPath;
-    await chat.submit(`Fix: ${errors.join("\n")}`, [
-      { id: nanoid(), path: agentFile.path },
-    ]);
+    await chat.submit(`Fix: ${errors.join("\n")}`, [agentFile.path]);
   }
 
   async function newChat() {

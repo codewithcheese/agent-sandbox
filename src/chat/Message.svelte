@@ -155,7 +155,7 @@
             aria-label={message.role === "user"
               ? "Regenerate assistant response"
               : "Regenerate this response"}
-            onclick={() => chat.submit({ type: "regenerate", index })}
+            onclick={() => chat.regenerate(index)}
           >
             <RefreshCwIcon class="size-4" />
           </button>
@@ -168,7 +168,9 @@
               inputState.startEditing(
                 index,
                 message.content,
-                message.experimental_attachments.map((a) => a.name),
+                message.experimental_attachments
+                  ? message.experimental_attachments.map((a) => a.name)
+                  : [],
               );
             }}
           >
@@ -179,7 +181,7 @@
             aria-label={message.role === "user"
               ? "Regenerate assistant response"
               : "Regenerate this response"}
-            onclick={() => chat.submit({ type: "regenerate", index })}
+            onclick={() => chat.regenerate(index)}
           >
             <RefreshCwIcon class="size-4" />
           </button>

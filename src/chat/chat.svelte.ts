@@ -85,7 +85,7 @@ export type ChatOptions = {
 export class Chat {
   id = $state<string>();
   path = $state<string>();
-  messages = $state<UIMessage[]>([]);
+  messages = $state<(UIMessage & { metadata?: UserMessageMetadata })[]>([]);
   state = $state<LoadingState>({ type: "idle" });
   sessionStore = $state<SuperJSONObject>({});
   vault = $state<VaultOverlaySvelte>();
@@ -152,98 +152,90 @@ export class Chat {
     return this.save();
   }
 
-  async submit(
-    props:
-      | { type: "new"; content: string; attachments: string[] }
-      | { type: "edit"; index: number; content: string; attachments: string[] }
-      | { type: "regenerate"; index: number },
-  ) {
-    if (props.type === "edit") {
-      if (!props.content && props.attachments.length === 0) {
-        new Notice("Please enter a message or attach a file.", 5000);
-        return;
-      }
+  async submit(content: string, attachments: string[]) {
+    // Insert a user message
+    this.messages.push({
+      id: nanoid(),
+      role: "user",
+      content: content,
+      parts: [{ type: "text", text: content }],
+      experimental_attachments:
+        attachments.length > 0 ? await loadAttachments(attachments) : undefined,
+      createdAt: new Date(),
+      metadata: {
+        modified: await this.vault.syncAll(),
+        checkpoint: this.vault.proposedDoc.frontiers(),
+      },
+    });
 
-      const message: UIMessage & {
-        metadata?: UserMessageMetadata;
-      } = this.messages[props.index];
-      invariant(
-        message,
-        `Cannot edit message. Message not found: ${props.index}`,
-      );
-      // Revert vault changes to since message
-      const checkpoint = message.metadata?.checkpoint;
-      if (checkpoint) {
-        this.vault.revert(checkpoint);
-      }
-      // Sync vault to include changes made since checkpoint
-      message.metadata.modified = await this.vault.syncAll();
-      // remove text parts
-      message.parts = message.parts.filter((p) => p.type !== "text");
-      // update content
-      message.content = props.content;
-      // update parts
-      message.parts.push({
-        type: "text",
-        text: props.content,
-      });
-      // update attachments
-      const experimental_attachments: Attachment[] = await loadAttachments(
-        props.attachments,
-      );
-      message.experimental_attachments =
-        experimental_attachments.length > 0
-          ? experimental_attachments
-          : undefined;
-      // Truncate the conversation
-      this.messages = this.messages.slice(0, props.index + 1);
-    } else if (props.type === "regenerate") {
-      const message: UIMessage & { metadata?: UserMessageMetadata } =
-        this.messages[props.index];
-      invariant(
-        message,
-        `Cannot edit message. Message not found: ${props.index}`,
-      );
-      // Update attachments
-      const experimental_attachments: Attachment[] = await loadAttachments(
-        message.experimental_attachments.map((a) => a.name),
-      );
-      message.experimental_attachments =
-        experimental_attachments.length > 0
-          ? experimental_attachments
-          : undefined;
-      // Revert vault changes to since message
-      const checkpoint = message.metadata?.checkpoint;
-      if (checkpoint) {
-        this.vault.revert(checkpoint);
-      }
-      // Sync vault to include changes made since checkpoint
-      message.metadata.modified = await this.vault.syncAll();
-      // Truncate the conversation
-      this.messages = this.messages.slice(0, props.index + 1);
-    } else {
-      // update attachments
-      const experimental_attachments: Attachment[] = await loadAttachments(
-        props.attachments,
-      );
-      // Insert a user message
-      this.messages.push({
-        id: nanoid(),
-        role: "user",
-        content: props.content,
-        parts: [{ type: "text", text: props.content }],
-        experimental_attachments:
-          experimental_attachments.length > 0
-            ? experimental_attachments
-            : undefined,
-        createdAt: new Date(),
-        // @ts-expect-error metadata not typed
-        metadata: {
-          modified: await this.vault.syncAll(),
-          checkpoint: this.vault.proposedDoc.frontiers(),
-        },
-      } satisfies UIMessage);
+    await this.save();
+
+    // Now run the conversation to completion
+    await this.runConversation();
+  }
+
+  async edit(index: number, content: string, attachments: string[]) {
+    if (!content && attachments.length === 0) {
+      new Notice("Please enter a message or attach a file.", 5000);
+      return;
     }
+
+    const message: UIMessage & {
+      metadata?: UserMessageMetadata;
+    } = this.messages[index];
+    invariant(message, `Cannot edit message. Message not found: #${index}`);
+
+    // Revert vault changes to since message
+    const checkpoint = message.metadata?.checkpoint;
+    if (checkpoint) {
+      this.vault.revert(checkpoint);
+    }
+    // Sync vault to include changes made since checkpoint
+    message.metadata.modified = await this.vault.syncAll();
+    // remove text parts
+    message.parts = message.parts.filter((p) => p.type !== "text");
+    // update content
+    message.content = content;
+    // update parts
+    message.parts.push({
+      type: "text",
+      text: content,
+    });
+    // update attachments
+    if (attachments.length > 0) {
+      message.experimental_attachments = await loadAttachments(attachments);
+    }
+    // Truncate the conversation
+    this.messages = this.messages.slice(0, index + 1);
+
+    await this.save();
+
+    // Now run the conversation to completion
+    await this.runConversation();
+  }
+
+  async regenerate(index: number) {
+    const message: UIMessage & { metadata?: UserMessageMetadata } =
+      this.messages[index];
+    invariant(message, `Cannot edit message. Message not found: ${index}`);
+    // Update attachments
+    if (
+      message.experimental_attachments &&
+      message.experimental_attachments.length > 0
+    ) {
+      message.experimental_attachments = await loadAttachments(
+        message.experimental_attachments?.map((a) => a.name),
+      );
+    }
+    // Revert vault changes to since message
+    const checkpoint = message.metadata?.checkpoint;
+    if (checkpoint) {
+      this.vault.revert(checkpoint);
+    }
+    // Sync vault to include changes made since checkpoint
+    message.metadata.modified = await this.vault.syncAll();
+    // Truncate the conversation
+    this.messages = this.messages.slice(0, index + 1);
 
     await this.save();
 

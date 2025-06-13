@@ -86,11 +86,10 @@
       new Notice("Please select a model before submitting", 3000);
       return;
     }
-    chat.submit({
-      type: "new",
-      content: inputState.text,
-      attachments: $state.snapshot(inputState.attachments),
-    });
+    chat.submit(
+      inputState.text,
+      $state.snapshot(inputState.attachments),
+    );
     inputState.reset();
   }
 
@@ -128,12 +127,11 @@
       return new Notice("Invalid edit submit. Not in edit mode.");
     }
     if (inputState.text.trim() || inputState.attachments.length > 0) {
-      chat.submit({
-        type: "edit",
-        index: inputState.state.index,
-        content: inputState.text.trim(),
-        attachments: $state.snapshot(inputState.attachments),
-      });
+      chat.edit(
+        inputState.state.index,
+        inputState.text.trim(),
+        $state.snapshot(inputState.attachments),
+      );
       inputState.reset();
     } else {
       new Notice("Cannot submit empty message");
