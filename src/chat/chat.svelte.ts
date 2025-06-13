@@ -13,7 +13,6 @@ import { type CachedMetadata, Notice, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { loadToolsFromFrontmatter } from "../tools";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
-import { extensionToMimeType } from "$lib/utils/mime.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import { createSystemContent } from "./system.ts";
@@ -22,8 +21,10 @@ import { VaultOverlaySvelte } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { ChatModel } from "../settings/models.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
-import { encodeBase64 } from "$lib/utils/base64.ts";
 import type { SuperJSONObject } from "$lib/utils/superjson.ts";
+import { loadAttachments } from "./attachments.ts";
+import { invariant } from "@epic-web/invariant";
+import type { Frontiers } from "loro-crdt/base64";
 
 const debug = createDebug();
 
@@ -36,6 +37,11 @@ export type LoadingState =
       maxAttempts: number;
       delay: number;
     };
+
+export type UserMessageMetadata = {
+  checkpoint: Frontiers;
+  modified: string[];
+};
 
 const chatCache = new Map<string, WeakRef<Chat | Promise<Chat>>>();
 
@@ -146,57 +152,100 @@ export class Chat {
     return this.save();
   }
 
-  async submit(content: string, attachments: { id: string; path: string }[]) {
-    if (!content && attachments.length === 0) {
-      new Notice("Please enter a message or attach a file.", 5000);
-      return;
-    }
-
-    const plugin = usePlugin();
-
-    // Sync vault with overlay
-    const modified = await this.vault.syncAll();
-
-    // Prepare any attachments as data URIs
-    const experimental_attachments: Attachment[] = [];
-    if (attachments.length > 0) {
-      debug("Preparing attachments: ", $state.snapshot(attachments));
-      for (const attachment of attachments) {
-        try {
-          const file = plugin.app.vault.getFileByPath(attachment.path);
-          if (!file) {
-            throw Error(`Attachment not found: ${attachment.path}`);
-          }
-          const data = await plugin.app.vault.readBinary(file);
-          const base64 = encodeBase64(data);
-          experimental_attachments.push({
-            name: attachment.path,
-            contentType: extensionToMimeType(file.extension),
-            url: `data:${extensionToMimeType(file.extension)};base64,${base64}`,
-          });
-        } catch (error) {
-          console.error("Failed to load attachment data:", error);
-        }
+  async submit(
+    props:
+      | { type: "new"; content: string; attachments: string[] }
+      | { type: "edit"; index: number; content: string; attachments: string[] }
+      | { type: "regenerate"; index: number },
+  ) {
+    if (props.type === "edit") {
+      if (!props.content && props.attachments.length === 0) {
+        new Notice("Please enter a message or attach a file.", 5000);
+        return;
       }
-    }
 
-    // Insert a user message
-    this.messages.push({
-      id: nanoid(),
-      role: "user",
-      content,
-      parts: [{ type: "text", text: content }],
-      experimental_attachments:
+      const message: UIMessage & {
+        metadata?: UserMessageMetadata;
+      } = this.messages[props.index];
+      invariant(
+        message,
+        `Cannot edit message. Message not found: ${props.index}`,
+      );
+      // Revert vault changes to since message
+      const checkpoint = message.metadata?.checkpoint;
+      if (checkpoint) {
+        this.vault.revert(checkpoint);
+      }
+      // Sync vault to include changes made since checkpoint
+      message.metadata.modified = await this.vault.syncAll();
+      // remove text parts
+      message.parts = message.parts.filter((p) => p.type !== "text");
+      // update content
+      message.content = props.content;
+      // update parts
+      message.parts.push({
+        type: "text",
+        text: props.content,
+      });
+      // update attachments
+      const experimental_attachments: Attachment[] = await loadAttachments(
+        props.attachments,
+      );
+      message.experimental_attachments =
         experimental_attachments.length > 0
           ? experimental_attachments
-          : undefined,
-      createdAt: new Date(),
-      // @ts-expect-error metadata not typed
-      metadata: {
-        modified,
-        checkpoint: this.vault.proposedDoc.frontiers(),
-      },
-    } satisfies UIMessage);
+          : undefined;
+      // Truncate the conversation
+      this.messages = this.messages.slice(0, props.index + 1);
+    } else if (props.type === "regenerate") {
+      const message: UIMessage & { metadata?: UserMessageMetadata } =
+        this.messages[props.index];
+      invariant(
+        message,
+        `Cannot edit message. Message not found: ${props.index}`,
+      );
+      // Update attachments
+      const experimental_attachments: Attachment[] = await loadAttachments(
+        message.experimental_attachments.map((a) => a.name),
+      );
+      message.experimental_attachments =
+        experimental_attachments.length > 0
+          ? experimental_attachments
+          : undefined;
+      // Revert vault changes to since message
+      const checkpoint = message.metadata?.checkpoint;
+      if (checkpoint) {
+        this.vault.revert(checkpoint);
+      }
+      // Sync vault to include changes made since checkpoint
+      message.metadata.modified = await this.vault.syncAll();
+      // Truncate the conversation
+      this.messages = this.messages.slice(0, props.index + 1);
+    } else {
+      // update attachments
+      const experimental_attachments: Attachment[] = await loadAttachments(
+        props.attachments,
+      );
+      // Insert a user message
+      this.messages.push({
+        id: nanoid(),
+        role: "user",
+        content: props.content,
+        parts: [{ type: "text", text: props.content }],
+        experimental_attachments:
+          experimental_attachments.length > 0
+            ? experimental_attachments
+            : undefined,
+        createdAt: new Date(),
+        // @ts-expect-error metadata not typed
+        metadata: {
+          modified: await this.vault.syncAll(),
+          checkpoint: this.vault.proposedDoc.frontiers(),
+        },
+      } satisfies UIMessage);
+    }
+
+    await this.save();
 
     // Now run the conversation to completion
     await this.runConversation();
@@ -225,7 +274,7 @@ export class Chat {
         this,
         this.getAccount().provider,
       );
-      debug("SYSTEM MESSAGE\n-----\n", system);
+      debug("System Message", { system });
       debug("Active tools", activeTools);
 
       this.state = { type: "loading" };

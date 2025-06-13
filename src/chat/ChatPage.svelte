@@ -30,15 +30,10 @@
   };
   let { chat, view, agents, inputState }: Props = $props();
 
-  $inspect("ChatPage", chat.path);
+  $inspect("ChatPage", chat.path, inputState);
 
   let scrollContainer = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);
-  let editState = $state<{
-    index: number;
-    content: string;
-    originalContent: string;
-  } | null>(null);
   let submitBtn = $state<HTMLButtonElement | null>(null);
   let selectedAgent = $derived(
     agents.entries.find((c) => c.file.path === chat.options.agentPath),
@@ -47,35 +42,6 @@
   onDestroy(() => {
     chat.cancel();
   });
-
-  // todo: move to chat
-  async function regenerateFromMessage(index: number) {
-    const message = chat.messages[index];
-    const isUserMessage = message.role === "user";
-    if (!isUserMessage) {
-      new Notice("Regenerate response is only available from user messages");
-      return;
-    }
-
-    // Truncate the conversation to the point where we want to regenerate
-    chat.messages = chat.messages.slice(0, index + 1);
-
-    // @ts-expect-error metadata not typed
-    message.metadata.modified = await revertVault(index);
-
-    // Generate new response
-    await chat.runConversation();
-
-    // Save the updated chat
-    await chat.save();
-  }
-
-  function submitOnEnter(e: KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      submitBtn!.click();
-    }
-  }
 
   async function openMergeView(change: ProposedChange) {
     try {
@@ -100,71 +66,8 @@
     }
   }
 
-  function startEdit(index: number) {
-    const message = chat.messages[index];
-    editState = {
-      index,
-      content: message.content,
-      originalContent: message.content,
-    };
-  }
-
   function cancelEdit() {
-    editState = null;
-  }
-
-  async function submitEdit(content: string) {
-    if (!editState) return;
-
-    const { index } = editState;
-
-    // Update the message content
-    updateMessageText({ index, content });
-
-    // Remove all messages after the edited one
-    chat.messages = chat.messages.slice(0, index + 1);
-
-    const message = chat.messages[index];
-    // @ts-expect-error metadata not typed
-    message.metadata.modified = await revertVault(index);
-
-    // Clear edit state
-    editState = null;
-
-    // Regenerate the assistant response from this point
-    return regenerateFromMessage(index);
-  }
-
-  function revertVault(from: number): Promise<string[]> {
-    // Revert vault changes
-    const userMessage = chat.messages[from];
-    console.log("userMessage", userMessage);
-    // @ts-expect-error metadata not typed
-    const checkpoint = userMessage.metadata?.checkpoint;
-    console.log("checkpoint", checkpoint);
-    if (checkpoint) {
-      chat.vault.revert(checkpoint);
-    }
-    // Sync vault after revert so it contains vault changes
-    // Fixme: will lose event dependent changes like renames
-    return chat.vault.syncAll();
-  }
-
-  function updateMessageText({
-    index,
-    content,
-  }: {
-    index: number;
-    content: string;
-  }) {
-    chat.messages[index].content = content;
-    chat.messages[index].parts = chat.messages[index].parts.filter(
-      (p) => p.type !== "text",
-    );
-    chat.messages[index].parts.push({
-      type: "text",
-      text: content,
-    });
+    inputState.reset();
   }
 </script>
 
@@ -224,14 +127,7 @@
         <!-- messages -->
         <div class="flex flex-col w-full flex-1 gap-1">
           {#each chat.messages as message, index}
-            <Message
-              {chat}
-              {message}
-              {index}
-              {editState}
-              {regenerateFromMessage}
-              {startEdit}
-            />
+            <Message {chat} {message} {index} bind:inputState />
           {/each}
 
           {#if chat.state.type === "retrying"}
@@ -247,17 +143,7 @@
       />
     </div>
     <!--footer-->
-    <ChatInput
-      bind:submitBtn
-      {cancelEdit}
-      {chat}
-      {editState}
-      {inputState}
-      {openMergeView}
-      {submitEdit}
-      {submitOnEnter}
-      {view}
-    />
+    <ChatInput bind:submitBtn {chat} bind:inputState {openMergeView} {view} />
   </div>
 </svelte:boundary>
 

@@ -17,6 +17,7 @@
   import { setContext } from "svelte";
   import { getBaseName } from "$lib/utils/path.ts";
   import { dirname } from "path-browserify";
+  import type { ChatInputState } from "./chat-input-state.svelte.ts";
 
   type Props = {
     chat: Chat;
@@ -24,23 +25,12 @@
       metadata?: { prompt: { path: string }; modified: string[] };
     };
     index: number;
-    editState: {
-      index: number;
-      content: string;
-      originalContent: string;
-    } | null;
-    startEdit: (index: number) => void;
-    regenerateFromMessage: (index: number) => void;
+    inputState: ChatInputState;
   };
-  let {
-    chat,
-    message,
-    index,
-    editState,
-    startEdit,
-    regenerateFromMessage,
-  }: Props = $props();
+  let { chat, message, index, inputState = $bindable() }: Props = $props();
   let plugin = usePlugin();
+
+  $inspect("inputState", inputState);
 
   // Link `source` context for prompt messages Markdown links
   setContext("linkSource", (message as any)?.metadata?.prompt?.path ?? "");
@@ -85,9 +75,9 @@
   </div>
 {/if}
 
-{#if editState && index > editState.index}
+{#if inputState.state.type === "editing" && index > inputState.state.index}
   <!-- Hide messages below the one being edited -->
-{:else if editState && editState.index === index}
+{:else if inputState.state.type === "editing" && inputState.state.index === index}
   <!-- Show greyed out message being edited -->
   <div class="group relative opacity-50">
     <div
@@ -165,7 +155,7 @@
             aria-label={message.role === "user"
               ? "Regenerate assistant response"
               : "Regenerate this response"}
-            onclick={() => regenerateFromMessage(index)}
+            onclick={() => chat.submit({ type: "regenerate", index })}
           >
             <RefreshCwIcon class="size-4" />
           </button>
@@ -174,7 +164,13 @@
           <button
             class="clickable-icon"
             aria-label="Edit message"
-            onclick={() => startEdit(index)}
+            onclick={() => {
+              inputState.startEditing(
+                index,
+                message.content,
+                message.experimental_attachments.map((a) => a.name),
+              );
+            }}
           >
             <PencilIcon class="size-4" />
           </button>
@@ -183,7 +179,7 @@
             aria-label={message.role === "user"
               ? "Regenerate assistant response"
               : "Regenerate this response"}
-            onclick={() => regenerateFromMessage(index)}
+            onclick={() => chat.submit({ type: "regenerate", index })}
           >
             <RefreshCwIcon class="size-4" />
           </button>

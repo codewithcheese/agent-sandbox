@@ -1,12 +1,9 @@
 <script lang="ts">
   import { normalizePath, Notice, TFile } from "obsidian";
   import {
-    ArrowLeft,
     CornerDownLeftIcon,
     FileTextIcon,
     Loader2Icon,
-    MicIcon,
-    MicOffIcon,
     SettingsIcon,
     StopCircleIcon,
     XIcon,
@@ -14,11 +11,10 @@
   import Textarea from "./Textarea.svelte";
   import { Realtime } from "./realtime.svelte.ts";
   import { cn, usePlugin } from "$lib/utils";
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import { createModal } from "$lib/modals/create-modal.ts";
   import ChatSettingsModal from "./ChatSettingsModal.svelte";
   import type { Chat } from "./chat.svelte.ts";
-  import { nanoid } from "nanoid";
   import type { ChatInputState } from "./chat-input-state.svelte.ts";
   import { openPath } from "$lib/utils/obsidian.ts";
   import ChangesList from "./ChangesList.svelte";
@@ -30,14 +26,6 @@
     chat: Chat;
     openMergeView: (change: ProposedChange) => Promise<void>;
     view: any;
-    submitOnEnter: (event: KeyboardEvent) => void;
-    editState: {
-      index: number;
-      content: string;
-      originalContent: string;
-    } | null;
-    cancelEdit: () => void;
-    submitEdit: (content: string) => void;
     submitBtn?: HTMLButtonElement;
     inputState: ChatInputState;
   };
@@ -45,12 +33,8 @@
     chat,
     openMergeView,
     view,
-    submitOnEnter,
-    editState = null,
-    cancelEdit = () => {},
-    submitEdit = () => {},
     submitBtn = $bindable(),
-    inputState,
+    inputState = $bindable(),
   }: Props = $props();
 
   let realtime = new Realtime();
@@ -67,23 +51,19 @@
     }
   });
 
-  let attachments = $state<{ id: string; path: string }[]>([]);
   let textareaRef: HTMLTextAreaElement | null = $state(null);
 
   // Set text to edit content when edit mode starts
   $effect(() => {
-    if (editState) {
-      console.log("editState", editState);
-      inputState.text = editState.content;
-      // Focus the textarea and set cursor to end after setting the text
-      setTimeout(() => {
-        if (textareaRef) {
-          textareaRef.focus();
-          // Set cursor to end of text
-          const length = textareaRef.value.length;
-          textareaRef.setSelectionRange(length, length);
-        }
-      }, 0);
+    if (inputState.state.type === "editing") {
+      untrack(async () => {
+        await tick();
+        textareaRef?.focus();
+        textareaRef?.setSelectionRange(
+          textareaRef.value.length,
+          textareaRef.value.length,
+        );
+      });
     }
   });
 
@@ -93,18 +73,25 @@
     }
   });
 
+  function submitOnEnter(e: KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitBtn!.click();
+    }
+  }
+
   function handleSubmit(e: Event) {
     e.preventDefault();
     if (!chat.options.modelId || !chat.options.accountId) {
       new Notice("Please select a model before submitting", 3000);
       return;
     }
-    const form = event.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const content = formData.get("content")?.toString() ?? "";
-    form.reset();
-    chat.submit(content, $state.snapshot(attachments));
-    attachments = [];
+    chat.submit({
+      type: "new",
+      content: inputState.text,
+      attachments: $state.snapshot(inputState.attachments),
+    });
+    inputState.reset();
   }
 
   function selectDocument() {
@@ -115,10 +102,7 @@
   }
 
   function addAttachment(file: TFile) {
-    attachments.push({
-      id: nanoid(),
-      path: file.path,
-    });
+    inputState.attachments.push(normalizePath(file.path));
   }
 
   function handleTranscribeClick() {
@@ -140,21 +124,23 @@
 
   function handleEditSubmit(event) {
     event.preventDefault();
-    if (!editState) return;
-
-    const form = event.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const content = formData.get("content")?.toString() ?? "";
-
-    if (content.trim()) {
-      submitEdit(content);
-      form.reset();
+    if (inputState.state.type !== "editing") {
+      return new Notice("Invalid edit submit. Not in edit mode.");
+    }
+    if (inputState.text.trim() || inputState.attachments.length > 0) {
+      chat.submit({
+        type: "edit",
+        index: inputState.state.index,
+        content: inputState.text.trim(),
+        attachments: $state.snapshot(inputState.attachments),
+      });
       inputState.reset();
+    } else {
+      new Notice("Cannot submit empty message");
     }
   }
 
   function handleEditCancel() {
-    cancelEdit();
     inputState.reset();
   }
 
@@ -170,10 +156,10 @@
     modal.open();
   }
 
-  function removeAttachment(attachmentId: string) {
-    const index = attachments.findIndex((a) => a.id === attachmentId);
+  function removeAttachment(path: string) {
+    const index = inputState.attachments.findIndex((a) => a === path);
     if (index !== -1) {
-      attachments.splice(index, 1);
+      inputState.attachments.splice(index, 1);
     }
   }
 
@@ -198,19 +184,21 @@
   <form
     name="input"
     style="background-color: var(--background-primary)"
-    onsubmit={editState ? handleEditSubmit : handleSubmit}
+    onsubmit={inputState.state.type === "editing"
+      ? handleEditSubmit
+      : handleSubmit}
   >
-    {#if attachments.length > 0}
+    {#if inputState.attachments.length > 0}
       <div class="flex flex-wrap gap-2 mb-2">
-        {#each attachments as attachment}
+        {#each inputState.attachments as attachment}
           <button
             type="button"
-            onclick={() => openPath(normalizePath(attachment.path))}
+            onclick={() => openPath(attachment)}
             class="clickable-icon items-center gap-1"
           >
             <FileTextIcon class="size-3.5" />
             <span class="max-w-[200px] truncate">
-              {attachment.path.split("/").pop()}
+              {attachment.split("/").pop()}
             </span>
             <span
               role="button"
@@ -218,13 +206,13 @@
               aria-label="Remove attachment"
               onkeydown={(event) => {
                 if (event.key === "Enter") {
-                  removeAttachment(attachment.id);
+                  removeAttachment(attachment);
                 }
               }}
               class="flex items-center"
               onclick={(event) => {
                 event.stopPropagation();
-                removeAttachment(attachment.id);
+                removeAttachment(attachment);
               }}
             >
               <XIcon class="size-3.5" />
@@ -280,7 +268,7 @@
           onModelChange={handleModelChange}
         />
       </div>
-      {#if editState}
+      {#if inputState.state.type === "editing"}
         <div class="flex gap-2">
           <button
             type="button"
