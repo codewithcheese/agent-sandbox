@@ -27,11 +27,6 @@ import type { SuperJSONObject } from "$lib/utils/superjson.ts";
 
 const debug = createDebug();
 
-export interface DocumentAttachment {
-  id: string;
-  file: TFile;
-}
-
 export type LoadingState =
   | { type: "idle" }
   | { type: "loading" }

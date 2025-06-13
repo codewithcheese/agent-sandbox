@@ -76,6 +76,7 @@ This project includes a version bumping script that automates the release proces
 - [ ] Chat: Add attachment to document using read tool format: line number and line summary
 - [ ] Prompt: button in chat to insert a prompt
 - [ ] Tools: Remove markdown file requirement for built-in tools
+- [ ] Tools: Outline, ReadSection tools. Read should suggest using outline tool for very large notes.
 - [ ] Chat: Fix scroll on tool invocation added
 - [ ] Tools: Read state
 - [ ] Agent: Tool validation
@@ -88,7 +89,8 @@ This project includes a version bumping script that automates the release proces
 - [ ] Tools: Tool builder agent for generating tool schemas and implementations
 - [ ] Recorder: Reposition recorder with drag
 - [ ] Recorder: Save recording history in local storage
-- [ ] Chat: Add tool request for create, trash, delete
+- [ ] Chat: Fix partial call tool display
+- [ ] Chat: Display tool metadata
 - [ ] Chat: Disconnect realtime after idle period
 - [ ] Chat: Context optimization (forget/summarize old messages)
 - [ ] Chat: Display tokens used in tool call
