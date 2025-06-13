@@ -263,7 +263,6 @@ export async function createTool(
   if (toolDef.type === "local") {
     return tool({
       description: toolDef.description,
-      // @ts-expect-error jsonSchema type not compatible with parameters
       parameters:
         typeof toolDef.inputSchema === "string"
           ? jsonSchema(toolDef.inputSchema)

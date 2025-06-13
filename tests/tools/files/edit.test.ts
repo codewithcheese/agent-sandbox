@@ -34,6 +34,7 @@ describe("Edit tool execute function", () => {
       getContext: () => ({
         vault,
         config: {},
+        sessionStore: {},
       }),
       abortSignal: mockAbortController.signal,
     };

@@ -31,6 +31,7 @@ describe("Write tool", () => {
       getContext: () => ({
         vault,
         config: {},
+        sessionStore: {},
       }),
       abortSignal: mockAbortController.signal,
     };

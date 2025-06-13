@@ -1,3 +1,5 @@
+// @ts-nocheck dont check until re-supported
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { vault, helpers, fileCache } from "../mocks/obsidian";
 import "../mocks/ai-sdk";

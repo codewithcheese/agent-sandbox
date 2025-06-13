@@ -217,8 +217,12 @@
     </div>
     <div class="setting-item-control">
       <div
+        role="checkbox"
+        tabindex="0"
+        onkeydown={() => (settings.thinkingEnabled = !settings.thinkingEnabled)}
         onclick={() => (settings.thinkingEnabled = !settings.thinkingEnabled)}
         aria-label="Toggle thinking"
+        aria-checked={settings.thinkingEnabled}
         class="checkbox-container"
         class:is-enabled={settings.thinkingEnabled}
       >

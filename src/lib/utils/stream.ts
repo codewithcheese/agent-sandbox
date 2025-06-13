@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { getToolCall, updateToolInvocationPart } from "../../tools";
 import { parsePartialJson } from "@ai-sdk/ui-utils";
 import { createDebug } from "$lib/debug.ts";
+import { encodeBase64 } from "$lib/utils/base64.ts";
 
 const debug = createDebug();
 
@@ -171,6 +172,14 @@ export function applyStreamPartToMessages(
         ...part,
       } as const;
       updateToolInvocationPart(message, part.toolCallId, invocation);
+      break;
+    }
+    case "file": {
+      message.parts.push({
+        type: "file",
+        mimeType: part.mimeType,
+        data: part.base64 ?? encodeBase64(part.uint8Array),
+      });
       break;
     }
     case "finish":
