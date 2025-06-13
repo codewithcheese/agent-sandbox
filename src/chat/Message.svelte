@@ -11,7 +11,7 @@
   import { Notice } from "obsidian";
   import { loadPromptMessage } from "../markdown/prompt-command.ts";
   import { cn, usePlugin } from "$lib/utils";
-  import type { Chat } from "./chat.svelte.ts";
+  import type { Chat, UserMessageMetadata } from "./chat.svelte.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
   import { openPath } from "$lib/utils/obsidian.ts";
   import { setContext } from "svelte";
@@ -22,7 +22,7 @@
   type Props = {
     chat: Chat;
     message: UIMessage & {
-      metadata?: { prompt: { path: string }; modified: string[] };
+      metadata?: UserMessageMetadata;
     };
     index: number;
     inputState: ChatInputState;

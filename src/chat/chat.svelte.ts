@@ -41,6 +41,9 @@ export type LoadingState =
 export type UserMessageMetadata = {
   checkpoint: Frontiers;
   modified: string[];
+  prompt?: {
+    path: string;
+  };
 };
 
 const chatCache = new Map<string, WeakRef<Chat | Promise<Chat>>>();

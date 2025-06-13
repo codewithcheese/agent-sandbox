@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
   import { createDebug } from "$lib/debug.ts";
 
   const debug = createDebug();
@@ -7,24 +7,26 @@
   let { messages, container, enabled, sentinel = $bindable() } = $props();
 
   let autoscroll = $state(true);
+  let io: IntersectionObserver;
 
   // $inspect("autoscroll", autoscroll);
 
   let previousLength = messages.length;
 
-  onMount(() => {
-    if (!container || !sentinel) return;
-
-    const io = new IntersectionObserver(
+  $effect(() => {
+    if (!container || !sentinel || io) return;
+    io = new IntersectionObserver(
       ([entry]) => {
-        debug("Autoscroll intersection trigger", entry);
+        debug("Autoscroll trigger", entry);
         autoscroll = entry.isIntersecting;
       },
       { root: container, threshold: 0.1 },
     );
-
     io.observe(sentinel);
-    return () => io.disconnect();
+  });
+
+  onDestroy(() => {
+    if (io) io.disconnect();
   });
 
   $effect(() => {
