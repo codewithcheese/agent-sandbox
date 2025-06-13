@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 import { getText } from "$lib/utils/loro.ts";
 import type { TFile } from "obsidian";
 
 describe("Sync", () => {
-  let overlay: VaultOverlaySvelte;
+  let overlay: VaultOverlay;
 
   beforeEach(() => {
-    overlay = new VaultOverlaySvelte(vault);
+    overlay = new VaultOverlay(vault);
   });
 
   afterEach(async () => {

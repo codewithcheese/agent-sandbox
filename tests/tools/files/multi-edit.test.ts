@@ -4,14 +4,14 @@ import {
   vault as mockVault,
   helpers as mockVaultHelpers,
 } from "../../mocks/obsidian";
-import { VaultOverlaySvelte } from "../../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import type { TFile } from "obsidian";
 
 describe("MultiEdit tool execute function", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
-  let vault: VaultOverlaySvelte;
+  let vault: VaultOverlay;
   let mockAbortController: AbortController;
 
   const MOCK_FILE_PATH = "/test/multi-editable.txt";
@@ -21,7 +21,7 @@ describe("MultiEdit tool execute function", () => {
     vi.resetAllMocks();
     await mockVaultHelpers.reset();
 
-    vault = new VaultOverlaySvelte(mockVault);
+    vault = new VaultOverlay(mockVault);
     mockAbortController = new AbortController();
 
     toolExecOptions = {

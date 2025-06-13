@@ -17,7 +17,7 @@ import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
-import { VaultOverlaySvelte } from "./vault-overlay.svelte.ts";
+import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { ChatModel } from "../settings/models.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
@@ -91,7 +91,7 @@ export class Chat {
   messages = $state<(UIMessage & { metadata?: UserMessageMetadata })[]>([]);
   state = $state<LoadingState>({ type: "idle" });
   sessionStore = $state<SuperJSONObject>({});
-  vault = $state<VaultOverlaySvelte>();
+  vault = $state<VaultOverlay>();
   createdAt: Date;
   updatedAt: Date;
   options = $state<ChatOptions>({
@@ -106,10 +106,7 @@ export class Chat {
 
   constructor(path: string, data: CurrentChatFile) {
     Object.assign(this, data.payload);
-    this.vault = new VaultOverlaySvelte(
-      usePlugin().app.vault,
-      data.payload.vault,
-    );
+    this.vault = new VaultOverlay(usePlugin().app.vault, data.payload.vault);
     this.path = path;
   }
 

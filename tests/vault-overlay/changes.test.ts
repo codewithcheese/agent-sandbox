@@ -2,18 +2,18 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { vault, helpers } from "../mocks/obsidian.ts";
 import { Vault } from "obsidian";
 import debug from "debug";
-import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 
 debug.enable("*");
 debug.log = console.log.bind(console);
 
 describe("Vault Overlay Tracking", () => {
-  let overlay: VaultOverlaySvelte;
+  let overlay: VaultOverlay;
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset the mock vault state before each test
     helpers.reset();
-    overlay = new VaultOverlaySvelte(vault as unknown as Vault);
+    overlay = new VaultOverlay(vault as unknown as Vault);
   });
 
   afterEach(() => {

@@ -68,7 +68,7 @@ type ApprovedChange =
 
 type SyncDiff = { path: string; added: number; removed: number }; // path is current path in proposed
 
-export class VaultOverlaySvelte implements Vault {
+export class VaultOverlay implements Vault {
   trackingDoc: LoroDoc;
   proposedDoc: LoroDoc;
   changes = $state<ProposedChange[]>([]);

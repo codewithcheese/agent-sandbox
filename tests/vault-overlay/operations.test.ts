@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { vault, helpers, MockTFile } from "../mocks/obsidian.ts";
 import { TFile, type Vault, type TAbstractFile, TFolder } from "obsidian";
 
 describe("VaultOverlaySvelte", () => {
-  let overlay: VaultOverlaySvelte;
+  let overlay: VaultOverlay;
 
   beforeEach(async () => {
     // Reset the mock vault state before each test
     helpers.reset();
 
     // Create the vault overlay with the mock vault
-    overlay = new VaultOverlaySvelte(vault as unknown as Vault);
+    overlay = new VaultOverlay(vault as unknown as Vault);
   });
 
   afterEach(async () => {

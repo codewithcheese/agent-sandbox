@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { VaultOverlaySvelte } from "../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 import type { TreeFS } from "../../src/chat/tree-fs.ts";
 import { getBuffer, getText } from "$lib/utils/loro.ts";
@@ -7,12 +7,12 @@ import { TFile, TFolder } from "obsidian";
 import type { LoroTreeNode } from "loro-crdt/base64";
 
 describe("Approve changes", () => {
-  let overlay: VaultOverlaySvelte;
+  let overlay: VaultOverlay;
   let proposedFS: TreeFS;
   let trackingFS: TreeFS;
 
   beforeEach(() => {
-    overlay = new VaultOverlaySvelte(vault);
+    overlay = new VaultOverlay(vault);
     proposedFS = overlay.proposedFS;
     trackingFS = overlay.trackingFS;
   });

@@ -4,13 +4,13 @@ import {
   vault as mockVault,
   helpers as mockVaultHelpers,
 } from "../../mocks/obsidian";
-import { VaultOverlaySvelte } from "../../../src/chat/vault-overlay.svelte.ts";
+import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 
 describe("Write tool", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
-  let vault: VaultOverlaySvelte;
+  let vault: VaultOverlay;
   let mockAbortController: AbortController;
 
   const MOCK_FILE_PATH = "/test/output.md";
@@ -22,7 +22,7 @@ describe("Write tool", () => {
     vi.resetAllMocks();
     mockVaultHelpers.reset();
 
-    vault = new VaultOverlaySvelte(mockVault);
+    vault = new VaultOverlay(mockVault);
     mockAbortController = new AbortController();
 
     toolExecOptions = {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  VaultOverlaySvelte,
+  VaultOverlay,
   type ProposedChange,
 } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
@@ -16,12 +16,12 @@ import {
 import type { LoroTreeNode } from "loro-crdt/base64";
 
 describe("Reject changes", () => {
-  let overlay: VaultOverlaySvelte;
+  let overlay: VaultOverlay;
   let proposedFS: TreeFS;
   let trackingFS: TreeFS;
 
   beforeEach(() => {
-    overlay = new VaultOverlaySvelte(vault);
+    overlay = new VaultOverlay(vault);
     proposedFS = overlay.proposedFS;
     trackingFS = overlay.trackingFS;
     // No automatic computeChanges on overlay.changes
