@@ -28,11 +28,6 @@
 
   type Props = {
     chat: Chat;
-    attachments: {
-      id: string;
-      path: string;
-    }[];
-    handleSubmit: (e) => void;
     openMergeView: (change: ProposedChange) => Promise<void>;
     view: any;
     submitOnEnter: (event: KeyboardEvent) => void;
@@ -48,8 +43,6 @@
   };
   let {
     chat,
-    attachments = $bindable(),
-    handleSubmit,
     openMergeView,
     view,
     submitOnEnter,
@@ -74,6 +67,7 @@
     }
   });
 
+  let attachments = $state<{ id: string; path: string }[]>([]);
   let textareaRef: HTMLTextAreaElement | null = $state(null);
 
   // Set text to edit content when edit mode starts
@@ -98,6 +92,20 @@
       realtime.stopSession();
     }
   });
+
+  function handleSubmit(e: Event) {
+    e.preventDefault();
+    if (!chat.options.modelId || !chat.options.accountId) {
+      new Notice("Please select a model before submitting", 3000);
+      return;
+    }
+    const form = event.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const content = formData.get("content")?.toString() ?? "";
+    form.reset();
+    chat.submit(content, $state.snapshot(attachments));
+    attachments = [];
+  }
 
   function selectDocument() {
     const plugin = usePlugin();

@@ -34,7 +34,6 @@
 
   let scrollContainer = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);
-  let attachments = $state<{ id: string; path: string }[]>([]);
   let editState = $state<{
     index: number;
     content: string;
@@ -61,7 +60,8 @@
     // Truncate the conversation to the point where we want to regenerate
     chat.messages = chat.messages.slice(0, index + 1);
 
-    revertVault(index);
+    // @ts-expect-error metadata not typed
+    message.metadata.modified = await revertVault(index);
 
     // Generate new response
     await chat.runConversation();
@@ -75,20 +75,6 @@
       e.preventDefault();
       submitBtn!.click();
     }
-  }
-
-  function handleSubmit(e: Event) {
-    e.preventDefault();
-    if (!chat.options.modelId || !chat.options.accountId) {
-      new Notice("Please select a model before submitting", 3000);
-      return;
-    }
-    const form = event.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const content = formData.get("content")?.toString() ?? "";
-    form.reset();
-    chat.submit(content, $state.snapshot(attachments));
-    attachments = [];
   }
 
   async function openMergeView(change: ProposedChange) {
@@ -127,7 +113,7 @@
     editState = null;
   }
 
-  function submitEdit(content: string) {
+  async function submitEdit(content: string) {
     if (!editState) return;
 
     const { index } = editState;
@@ -138,16 +124,18 @@
     // Remove all messages after the edited one
     chat.messages = chat.messages.slice(0, index + 1);
 
-    revertVault(index);
+    const message = chat.messages[index];
+    // @ts-expect-error metadata not typed
+    message.metadata.modified = await revertVault(index);
 
     // Clear edit state
     editState = null;
 
     // Regenerate the assistant response from this point
-    regenerateFromMessage(index);
+    return regenerateFromMessage(index);
   }
 
-  function revertVault(from: number) {
+  function revertVault(from: number): Promise<string[]> {
     // Revert vault changes
     const userMessage = chat.messages[from];
     console.log("userMessage", userMessage);
@@ -157,6 +145,9 @@
     if (checkpoint) {
       chat.vault.revert(checkpoint);
     }
+    // Sync vault after revert so it contains vault changes
+    // Fixme: will lose event dependent changes like renames
+    return chat.vault.syncAll();
   }
 
   function updateMessageText({
@@ -257,12 +248,10 @@
     </div>
     <!--footer-->
     <ChatInput
-      {attachments}
       bind:submitBtn
       {cancelEdit}
       {chat}
       {editState}
-      {handleSubmit}
       {inputState}
       {openMergeView}
       {submitEdit}

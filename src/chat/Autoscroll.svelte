@@ -17,7 +17,7 @@
 
     const io = new IntersectionObserver(
       ([entry]) => {
-        // debug("IntersectionObserver", entry);
+        debug("Autoscroll intersection trigger", entry);
         autoscroll = entry.isIntersecting;
       },
       { root: container, threshold: 0.1 },
