@@ -405,6 +405,7 @@ export async function executeToolInvocation(
   const result = await tool.execute(toolInvocation.args, {
     toolCallId: toolInvocation.toolCallId,
     messages: [],
+    abortSignal: new AbortController().signal,
     getContext: () => ({
       vault: chat.vault,
       config: {},
