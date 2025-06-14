@@ -8,7 +8,7 @@ import type {
   ToolDefinition,
   ToolExecutionOptionsWithContext,
 } from "../types.ts";
-import { COMMON_IGNORE_PATTERNS, picomatchOptions } from "./shared.ts";
+import { COMMON_IGNORE_PATTERNS, ignoreMatchOptions } from "./shared.ts";
 
 /**
  * Features:
@@ -78,7 +78,10 @@ function listDirectoryContentsRecursive(
   ];
 
   // Pre-compile matcher for better performance
-  const isIgnoredMatcher = picomatch(effectiveIgnorePatterns, picomatchOptions);
+  const isIgnoredMatcher = picomatch(
+    effectiveIgnorePatterns,
+    ignoreMatchOptions,
+  );
 
   // Cache for already checked paths to avoid redundant pattern matching
   const ignoreCache = new Map<string, boolean>();

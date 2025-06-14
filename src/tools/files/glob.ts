@@ -13,7 +13,11 @@ import type {
   ToolExecutionOptionsWithContext,
 } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
-import { COMMON_IGNORE_PATTERNS, picomatchOptions } from "./shared.ts";
+import {
+  COMMON_IGNORE_PATTERNS,
+  ignoreMatchOptions,
+  patternMatchOptions,
+} from "./shared.ts";
 
 /**
  * Features:
@@ -154,8 +158,8 @@ export async function execute(
     ];
 
     // Pre-compile matchers for better performance
-    const isIgnoredMatcher = picomatch(ignorePatterns, picomatchOptions);
-    const patternMatcher = picomatch(params.pattern, picomatchOptions);
+    const isIgnoredMatcher = picomatch(ignorePatterns, ignoreMatchOptions);
+    const patternMatcher = picomatch(params.pattern, patternMatchOptions);
 
     function isPathIgnored(path: string): boolean {
       return isIgnoredMatcher(path);

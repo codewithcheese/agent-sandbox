@@ -1,4 +1,14 @@
-export const picomatchOptions = { dot: true, matchBase: false, nocase: true };
+export const ignoreMatchOptions = {
+  dot: true,
+  basename: false,
+  nocase: true,
+};
+
+export const patternMatchOptions = {
+  dot: true,
+  basename: true,
+  nocase: false,
+};
 
 export const COMMON_IGNORE_PATTERNS = [
   "**/node_modules/**",
