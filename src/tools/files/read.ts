@@ -28,10 +28,11 @@ import type {
 
 const debug = createDebug();
 
-const defaultConfig = {
+export const defaultConfig = {
+  DEFAULT_LINE_OFFSET: 1,
   DEFAULT_LINE_LIMIT: 2000,
   MAX_LINE_LENGTH: 2000,
-  MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT: 256 * 1024,
+  MAX_TEXT_FILE_SIZE: 256 * 1024,
   MAX_IMAGE_SIZE_BYTES: 3.75 * 1024 * 1024,
   IMAGE_EXTENSIONS: new Set(["png", "jpg", "jpeg", "gif", "bmp", "webp"]),
   BINARY_EXTENSIONS_NO_IMAGE: new Set([
@@ -202,11 +203,11 @@ async function validateReadInput(
 
   if (!config.IMAGE_EXTENSIONS.has(fileExt)) {
     if (
-      fileSize > config.MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT &&
+      fileSize > config.MAX_TEXT_FILE_SIZE &&
       !params.offset &&
       !params.limit
     ) {
-      const errorMsg = `File content (${Math.round(fileSize / 1024)}KB) exceeds maximum allowed size (${Math.round(config.MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT / 1024)}KB). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.`;
+      const errorMsg = `File content (${Math.round(fileSize / 1024)}KB) exceeds maximum allowed size (${Math.round(config.MAX_TEXT_FILE_SIZE / 1024)}KB). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.`;
       return {
         result: false,
         message: errorMsg,
@@ -215,6 +216,42 @@ async function validateReadInput(
     }
   }
   return { result: true };
+}
+
+/**
+ * Formats file content with line numbers (emulates cat -n) and handles truncation
+ */
+export function formatWithLineNumbers(
+  lines: string[],
+  filePath: string,
+  offset: number, // 1-indexed
+  limit: number,
+  maxLineLength: number,
+  maxOutputLength: number,
+): string {
+  const actualOffset = Math.max(0, offset - 1);
+  const selectedLines = lines.slice(actualOffset, actualOffset + limit);
+
+  const processedLines = selectedLines.map((line) =>
+    line.length > maxLineLength
+      ? line.substring(0, maxLineLength) + "...[truncated]"
+      : line,
+  );
+
+  const numberedLines = processedLines.map(
+    (line, index) => `${String(actualOffset + index + 1).padStart(6)}\t${line}`,
+  );
+
+  let outputString = numberedLines.join("\n");
+
+  // Simplified output length check (vs. token check in original)
+  if (outputString.length > maxOutputLength) {
+    outputString =
+      outputString.substring(0, maxOutputLength) +
+      "\n...[output truncated due to excessive length]";
+  }
+
+  return `File: ${filePath}\nLines ${offset}-${offset + processedLines.length - 1} of ${lines.length}:\n\`\`\`\n${outputString}\n\`\`\``;
 }
 
 export async function execute(
@@ -282,8 +319,7 @@ export async function execute(
       };
 
     const lines = fileContentString.split("\n");
-    const userOffset = params.offset ?? 1; // User provides 1-indexed
-    const actualOffset = Math.max(0, userOffset - 1);
+    const offset = params.offset ?? config.DEFAULT_LINE_OFFSET;
     const limit = params.limit ?? config.DEFAULT_LINE_LIMIT;
 
     if (params.offset && params.offset > lines.length) {
@@ -292,32 +328,14 @@ export async function execute(
       return `<system-reminder>Warning: the file ${params.file_path} exists but the requested content is empty.</system-reminder>`;
     }
 
-    const selectedLines = lines.slice(actualOffset, actualOffset + limit);
-
-    const processedLines = selectedLines.map((line) =>
-      line.length > config.MAX_LINE_LENGTH
-        ? line.substring(0, config.MAX_LINE_LENGTH) + "...[truncated]"
-        : line,
+    return formatWithLineNumbers(
+      lines,
+      params.file_path,
+      offset,
+      limit,
+      config.MAX_LINE_LENGTH,
+      config.MAX_TEXT_FILE_SIZE * 1.5,
     );
-
-    const numberedLines = processedLines.map(
-      (line, index) =>
-        `${String(actualOffset + index + 1).padStart(6)}\t${line}`,
-    );
-
-    let outputString = numberedLines.join("\n");
-
-    // Simplified output length check (vs. token check in original)
-    if (outputString.length > config.MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT * 1.5) {
-      // Allow some leeway for line numbers
-      outputString =
-        outputString.substring(
-          0,
-          config.MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT * 1.5,
-        ) + "\n...[output truncated due to excessive length]";
-    }
-
-    return `File: ${params.file_path}\nLines ${userOffset}-${userOffset + processedLines.length - 1} of ${lines.length}:\n\`\`\`\n${outputString}\n\`\`\``;
   } catch (e) {
     debug(`Error reading file '${params.file_path}':`, e);
     return {

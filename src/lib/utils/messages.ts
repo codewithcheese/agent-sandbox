@@ -2,6 +2,10 @@ import type { Attachment, UIMessage } from "ai";
 import { extractDataFromDataUrl } from "$lib/utils/data-url.ts";
 import type { TextUIPart } from "@ai-sdk/ui-utils";
 import { createDebug } from "$lib/debug.ts";
+import {
+  defaultConfig,
+  formatWithLineNumbers,
+} from "../../tools/files/read.ts";
 
 const debug = createDebug();
 
@@ -22,9 +26,18 @@ export function wrapTextAttachments(messages: UIMessage[]): UIMessage[] {
     message.parts = [
       ...textAttachments.map((a) => {
         const file = extractDataFromDataUrl(a.url);
+        const lines = file.data.split("\n");
+        const formatted = formatWithLineNumbers(
+          lines,
+          a.name,
+          1,
+          defaultConfig.DEFAULT_LINE_LIMIT,
+          defaultConfig.MAX_LINE_LENGTH,
+          defaultConfig.MAX_TEXT_FILE_SIZE,
+        );
         return {
           type: "text",
-          text: `<Document path="${a.name}" type="${a.contentType}">\n${file.data}\n</Document>`,
+          text: `<Document type="${a.contentType}">\n${formatted}\n</Document>`,
         } satisfies TextUIPart;
       }),
       ...message.parts,
