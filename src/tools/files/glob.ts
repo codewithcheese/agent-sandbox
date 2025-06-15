@@ -159,7 +159,11 @@ export async function execute(
 
     // Pre-compile matchers for better performance
     const isIgnoredMatcher = picomatch(ignorePatterns, ignoreMatchOptions);
-    const patternMatcher = picomatch(params.pattern, patternMatchOptions);
+    const patternMatcher = picomatch(params.pattern, {
+      ...patternMatchOptions,
+      // match basename is pattern does not include '/'
+      basename: !params.pattern.includes("/"),
+    });
 
     function isPathIgnored(path: string): boolean {
       return isIgnoredMatcher(path);
