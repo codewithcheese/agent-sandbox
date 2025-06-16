@@ -204,6 +204,8 @@ export class Chat {
     // update attachments
     if (attachments.length > 0) {
       message.experimental_attachments = await loadAttachments(attachments);
+    } else {
+      message.experimental_attachments = undefined;
     }
     // Truncate the conversation
     this.messages = this.messages.slice(0, index + 1);
