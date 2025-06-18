@@ -21,7 +21,11 @@
   import type { ProposedChange } from "./vault-overlay.svelte.ts";
   import TodoList from "./TodoList.svelte";
   import ModelSelector from "./ModelSelector.svelte";
-  import { detectBacklinkTrigger, insertBacklink } from "$lib/utils/backlinks";
+  import {
+    detectBacklinkTrigger,
+    insertBacklink,
+    expandBacklinks,
+  } from "$lib/utils/backlinks";
   import { BacklinkFileSelectModal } from "$lib/modals/backlink-file-select-modal";
 
   type Props = {
@@ -55,7 +59,6 @@
 
   let textareaRef: HTMLTextAreaElement | null = $state(null);
 
-  // Set text to edit content when edit mode starts
   $effect(() => {
     if (inputState.state.type === "editing") {
       untrack(async () => {
@@ -88,10 +91,10 @@
       new Notice("Please select a model before submitting", 3000);
       return;
     }
-    chat.submit(
-      inputState.text,
-      $state.snapshot(inputState.attachments),
-    );
+
+    const transformedText = expandBacklinks(inputState.text);
+
+    chat.submit(transformedText, $state.snapshot(inputState.attachments));
     inputState.reset();
   }
 
@@ -129,9 +132,11 @@
       return new Notice("Invalid edit submit. Not in edit mode.");
     }
     if (inputState.text.trim() || inputState.attachments.length > 0) {
+      const transformedText = expandBacklinks(inputState.text.trim());
+
       chat.edit(
         inputState.state.index,
-        inputState.text.trim(),
+        transformedText,
         $state.snapshot(inputState.attachments),
       );
       inputState.reset();
@@ -172,7 +177,7 @@
   function handleTextareaInput(event: Event) {
     const textarea = event.target as HTMLTextAreaElement;
     const { value, selectionStart } = textarea;
-    
+
     // Check for backlink trigger directly in event handler
     if (detectBacklinkTrigger(value, selectionStart)) {
       openBacklinkModal(selectionStart);
@@ -191,11 +196,11 @@
     const { newText, newCursorPos } = insertBacklink(
       inputState.text,
       cursorPos,
-      fileName
+      fileName,
     );
-    
+
     inputState.text = newText;
-    
+
     // Set cursor position after the completed backlink
     setTimeout(() => {
       if (textareaRef) {
