@@ -21,6 +21,8 @@
   import type { ProposedChange } from "./vault-overlay.svelte.ts";
   import TodoList from "./TodoList.svelte";
   import ModelSelector from "./ModelSelector.svelte";
+  import { detectBacklinkTrigger, insertBacklink } from "$lib/utils/backlinks";
+  import { BacklinkFileSelectModal } from "$lib/modals/backlink-file-select-modal";
 
   type Props = {
     chat: Chat;
@@ -166,6 +168,42 @@
     chat.options.accountId = accountId;
     chat.save();
   }
+
+  function handleTextareaInput(event: Event) {
+    const textarea = event.target as HTMLTextAreaElement;
+    const { value, selectionStart } = textarea;
+    
+    // Check for backlink trigger directly in event handler
+    if (detectBacklinkTrigger(value, selectionStart)) {
+      openBacklinkModal(selectionStart);
+    }
+  }
+
+  function openBacklinkModal(cursorPos: number) {
+    const plugin = usePlugin();
+    const modal = new BacklinkFileSelectModal(plugin.app, (fileName) => {
+      completeBacklink(cursorPos, fileName);
+    });
+    modal.open();
+  }
+
+  function completeBacklink(cursorPos: number, fileName: string) {
+    const { newText, newCursorPos } = insertBacklink(
+      inputState.text,
+      cursorPos,
+      fileName
+    );
+    
+    inputState.text = newText;
+    
+    // Set cursor position after the completed backlink
+    setTimeout(() => {
+      if (textareaRef) {
+        textareaRef.focus();
+        textareaRef.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  }
 </script>
 
 <div class={cn("chat-margin py-1 px-2")}>
@@ -228,6 +266,7 @@
       placeholder="How can I assist you today?"
       aria-label="Chat message input"
       onkeypress={submitOnEnter}
+      oninput={handleTextareaInput}
       maxRows={10}
       bind:ref={textareaRef}
     />

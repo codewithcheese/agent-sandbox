@@ -103,6 +103,9 @@ This project includes a version bumping script that automates the release proces
 - [ ] Chat: Resume options for existing chat
 - [ ] Schema editor: Support for defining array items
 - [ ] Schema editor: Fix don't clobber unsupported values
+- [ ] Chat: Open merge view when a change is added
+- [ ] Merge view: Reload when changes are added
+- [ ] Chat: Add selected text as system information
 - [x] UI: Remove unused shadcn-svelte components
 - [x] Agent: New chat button
 - [x] Diff: Undo changes when messages are deleted
