@@ -28,7 +28,7 @@ import ModelModal from "./settings/ModelModal.svelte";
 import type { ChatModel, EmbeddingModel } from "./settings/models.ts";
 import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
-import { PGliteProvider } from "./pglite/provider.ts";
+import { PGliteProvider } from "$lib/pglite/provider.ts";
 import { installTools } from "./tools/command.ts";
 import superjson from "superjson";
 import { ChatSerializer } from "./chat/chat-serializer.ts";
@@ -36,11 +36,11 @@ import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
 import { RecorderWidget } from "./recorder/recorder-widget.ts";
 import mainCss from "./main.css?inline";
-import { JsonSchemaCodeBlockProcessor } from "./markdown/schema/json-schema-code-block.ts";
-import { AgentView } from "./markdown/agent/agent-view.ts";
-import { AgentBannerComponent } from "./markdown/agent/agent-banner-component.svelte.ts";
-import { PromptCommand } from "./markdown/prompt-command.ts";
-import { ContextMenu } from "./markdown/context-menu.ts";
+import { JsonSchemaCodeBlockProcessor } from "./editor/schema/json-schema-code-block.ts";
+import { AgentView } from "./editor/agent/agent-view.ts";
+import { AgentBannerComponent } from "./editor/agent/agent-banner-component.svelte.ts";
+import { PromptCommand } from "./editor/prompt-command.ts";
+import { ContextMenu } from "./editor/context-menu.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;

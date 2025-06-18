@@ -9,7 +9,7 @@
   } from "lucide-svelte";
   import Markdown from "./Markdown.svelte";
   import { Notice } from "obsidian";
-  import { loadPromptMessage } from "../markdown/prompt-command.ts";
+  import { loadPromptMessage } from "../editor/prompt-command.ts";
   import { cn, usePlugin } from "$lib/utils";
   import type { Chat, UserMessageMetadata } from "./chat.svelte.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";

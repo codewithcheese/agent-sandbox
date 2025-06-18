@@ -6,7 +6,7 @@ if (
   window.__vitest_browser__ === true
 ) {
   // Test mode - mock obsidian
-  obsidian = (await import("../../tests/mocks/obsidian.ts")).default;
+  obsidian = (await import("../../../tests/mocks/obsidian.ts")).default;
 } else if (
   typeof window !== "undefined" &&
   window.bridge &&

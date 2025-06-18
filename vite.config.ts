@@ -44,7 +44,7 @@ export default defineConfig(({ command }) => {
 
   const aliasEntries = excludePackages.map((pkg) => {
     const bridgeFile = `${slugify(pkg)}.ts`;
-    return [pkg, resolve(__dirname, `src/bridge/${bridgeFile}`)];
+    return [pkg, resolve(__dirname, `src/lib/bridge/${bridgeFile}`)];
   });
 
   // console.log(aliasEntries, {
