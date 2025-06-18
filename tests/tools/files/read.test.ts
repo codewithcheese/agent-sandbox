@@ -83,7 +83,7 @@ describe("readToolExecute", () => {
       ...toolExecOptions,
       getContext: () => ({
         vault,
-        config: { MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT: 10 },
+        config: { MAX_TEXT_FILE_SIZE: 10 },
         sessionStore: {},
       }),
     };
@@ -219,7 +219,7 @@ describe("readToolExecute", () => {
       getContext: () => ({
         vault,
         config: {
-          MAX_TEXT_FILE_SIZE_NO_OFFSET_LIMIT: 80,
+          MAX_TEXT_FILE_SIZE: 80,
         },
         sessionStore: {},
       }),
