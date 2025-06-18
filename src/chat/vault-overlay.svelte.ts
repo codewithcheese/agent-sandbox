@@ -712,16 +712,19 @@ export class VaultOverlay implements Vault {
       if (!vaultFile && trackingNode) {
         // File deleted in vault, maintains proposed as
         // created therefore no change object is returned
+        debug("Sync delete", path);
         await this.syncDelete(path);
       } else if (vaultFile && !trackingNode && proposedNode) {
         // Created in overlay, now exists in vault. Rebase to `modified`.
         // Returns difference been vault and proposed
+        debug("Sync create", path);
         const trackingNode = await this.syncCreate(path);
         const proposedNode = this.proposedFS.findById(trackingNode.id);
         modified.push(this.proposedFS.getNodePath(proposedNode));
       } else if (vaultFile && trackingNode) {
         // Check if vault file changed since tracking
         if (await this.hasVaultChanged(vaultFile, trackingNode)) {
+          debug("Sync modify", path);
           const trackingNode = await this.syncPath(path);
           const proposedNode = this.proposedFS.findById(trackingNode.id);
           modified.push(this.proposedFS.getNodePath(proposedNode));
@@ -757,6 +760,7 @@ export class VaultOverlay implements Vault {
             !isDirectory(trackingNode),
             `Expected node for ${path} to be a file, got folder.`,
           );
+          setStat(trackingNode, abstractFile.stat);
           updateText(trackingNode, contents);
           return trackingNode;
         } else {
@@ -868,138 +872,147 @@ export class VaultOverlay implements Vault {
   }
 
   async approve(ops: ApprovedChange[]) {
-    // proposed data remaining after approval is persisted and synced
-    const remainders: {
-      tracking: LoroTreeNode;
-      proposed: LoroTreeNode;
-      proposedData: NodeData;
-    }[] = [];
+    const proposedCheckpoint = this.proposedDoc.frontiers();
+    const trackingCheckpoint = this.trackingDoc.frontiers();
+    try {
+      // proposed data remaining after approval is persisted and synced
+      const remainders: {
+        tracking: LoroTreeNode;
+        proposed: LoroTreeNode;
+        proposedData: NodeData;
+      }[] = [];
 
-    // an untracked proposed node, becomes obsolete once `create`
-    // is approved and a tracking node is created
-    const obsoleteNodes: LoroTreeNode[] = [];
+      // an untracked proposed node, becomes obsolete once `create`
+      // is approved and a tracking node is created
+      const obsoleteNodes: LoroTreeNode[] = [];
 
-    for (const op of ops) {
-      const proposedNode =
-        this.proposedFS.findByPath(op.path) ||
-        this.proposedFS.findTrashed(op.path);
-      invariant(
-        proposedNode,
-        `Cannot approve ${op.type}, no proposal found for: ${op.path}`,
-      );
-      if (proposedNode.data.get(deletedFrom) && op.type !== "delete") {
-        throw new Error(
-          `Cannot approve ${op.type}, file was deleted: ${op.path}`,
+      for (const op of ops) {
+        const proposedNode =
+          this.proposedFS.findByPath(op.path) ||
+          this.proposedFS.findTrashed(op.path);
+        invariant(
+          proposedNode,
+          `Cannot approve ${op.type}, no proposal found for: ${op.path}`,
         );
-      }
-      // get proposed data before approved changes are synced
-      const proposedData = getNodeData(proposedNode);
-      const trackingNode = this.trackingFS.findById(proposedNode.id);
-      if (op.type === "create") {
-        // write change to tracking
-        const data = getNodeData(proposedNode);
-        if (data.isDirectory && op.override) {
+        if (proposedNode.data.get(deletedFrom) && op.type !== "delete") {
           throw new Error(
-            `Cannot approve create directory with text or binary data: ${op.path}`,
+            `Cannot approve ${op.type}, file was deleted: ${op.path}`,
           );
         }
-        if ("override" in op) {
-          data.text = op.override.text;
-        }
-        const trackingNode = this.trackingFS.createNode(op.path, data);
-        remainders.push({
-          tracking: trackingNode,
-          proposed: proposedNode,
-          proposedData,
-        });
-        // non-tracked proposed node is obsolete once create approved
-        obsoleteNodes.push(proposedNode);
-        await this.persistApproval("create", op.path, data);
-      } else if (op.type === "delete") {
-        this.trackingFS.deleteNode(trackingNode.id);
-        // node deletion does not sync, so mark proposed as deleted manually
-        this.proposedFS.deleteNode(proposedNode.id);
-        await this.persistApproval("delete", op.path, undefined);
-      } else if (op.type === "rename") {
-        const oldPath = this.trackingFS.getNodePath(trackingNode);
-        if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
-          let parentNode = this.trackingFS.findByPath(dirname(op.path));
-          if (!parentNode) {
-            // if parent path is not tracked, create it
-            parentNode = this.trackingFS.createNode(
-              dirname(op.path),
-              getNodeData(proposedNode.parent()),
+        // get proposed data before approved changes are synced
+        const proposedData = getNodeData(proposedNode);
+        const trackingNode = this.trackingFS.findById(proposedNode.id);
+        if (op.type === "create") {
+          // write change to tracking
+          const data = getNodeData(proposedNode);
+          if (data.isDirectory && op.override) {
+            throw new Error(
+              `Cannot approve create directory with text or binary data: ${op.path}`,
             );
           }
-          this.trackingFS.moveNode(trackingNode, parentNode.id);
-        }
-        if (getName(trackingNode) !== getName(proposedNode)) {
-          this.trackingFS.renameNode(trackingNode.id, op.path);
-        }
-        await this.persistApproval("rename", op.path, {
-          oldPath,
-        });
-      } else if (op.type === "modify") {
-        // recreate text container for last-write-wins not merge semantics
-        if (proposedData.text) {
-          replaceText(
-            trackingNode,
-            "override" in op ? op.override.text : proposedData.text,
-          );
-        } else if (proposedData.buffer) {
-          replaceBuffer(trackingNode, proposedData.buffer);
-        } else {
-          throw Error(
-            `Cannot modify file without text or binary data: ${op.path}`,
-          );
-        }
-        if ("override" in op && op.override.text !== proposedData.text) {
-          // if approved text does not match proposed text then apply remaining changes to proposed
+          if ("override" in op) {
+            data.text = op.override.text;
+          }
+          const trackingNode = this.trackingFS.createNode(op.path, data);
           remainders.push({
             tracking: trackingNode,
             proposed: proposedNode,
             proposedData,
           });
+          // non-tracked proposed node is obsolete once create approved
+          obsoleteNodes.push(proposedNode);
+          await this.persistApproval("create", op.path, data);
+        } else if (op.type === "delete") {
+          this.trackingFS.deleteNode(trackingNode.id);
+          // node deletion does not sync, so mark proposed as deleted manually
+          this.proposedFS.deleteNode(proposedNode.id);
+          await this.persistApproval("delete", op.path, undefined);
+        } else if (op.type === "rename") {
+          const oldPath = this.trackingFS.getNodePath(trackingNode);
+          if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
+            let parentNode = this.trackingFS.findByPath(dirname(op.path));
+            if (!parentNode) {
+              // if parent path is not tracked, create it
+              parentNode = this.trackingFS.createNode(
+                dirname(op.path),
+                getNodeData(proposedNode.parent()),
+              );
+            }
+            this.trackingFS.moveNode(trackingNode, parentNode.id);
+          }
+          if (getName(trackingNode) !== getName(proposedNode)) {
+            this.trackingFS.renameNode(trackingNode.id, op.path);
+          }
+          await this.persistApproval("rename", op.path, {
+            oldPath,
+          });
+        } else if (op.type === "modify") {
+          // recreate text container for last-write-wins not merge semantics
+          if (proposedData.text) {
+            replaceText(
+              trackingNode,
+              "override" in op ? op.override.text : proposedData.text,
+            );
+          } else if (proposedData.buffer) {
+            replaceBuffer(trackingNode, proposedData.buffer);
+          } else {
+            throw Error(
+              `Cannot modify file without text or binary data: ${op.path}`,
+            );
+          }
+          if ("override" in op && op.override.text !== proposedData.text) {
+            // if approved text does not match proposed text then apply remaining changes to proposed
+            remainders.push({
+              tracking: trackingNode,
+              proposed: proposedNode,
+              proposedData,
+            });
+          }
+          // Modify is approved separately from rename, modify current tracking path.
+          const trackingPath = this.trackingFS.getNodePath(trackingNode);
+          await this.persistApproval(
+            "modify",
+            trackingPath,
+            getNodeData(trackingNode),
+          );
+        } else {
+          throw Error(
+            `Unrecognized operation type: ${JSON.stringify(op satisfies never)}`,
+          );
         }
-        // Modify is approved separately from rename, modify current tracking path.
-        const trackingPath = this.trackingFS.getNodePath(trackingNode);
-        await this.persistApproval(
-          "modify",
-          trackingPath,
-          getNodeData(trackingNode),
-        );
-      } else {
-        throw Error(
-          `Unrecognized operation type: ${JSON.stringify(op satisfies never)}`,
-        );
       }
-    }
 
-    this.trackingDoc.commit();
-    this.mergeDocs();
+      this.trackingDoc.commit();
+      this.mergeDocs();
 
-    // Apply remaining changes from partial approvals
-    for (const { tracking, proposed, proposedData } of remainders) {
-      const diff = this.diffProposed(tracking, proposed, proposedData);
-      // get tracked proposed node
-      const proposedNode = this.proposedFS.findById(tracking.id);
-      if (diff.text) {
-        updateText(proposedNode, diff.text.proposed);
+      // Apply remaining changes from partial approvals
+      for (const { tracking, proposed, proposedData } of remainders) {
+        const diff = this.diffProposed(tracking, proposed, proposedData);
+        // get tracked proposed node
+        const proposedNode = this.proposedFS.findById(tracking.id);
+        if (diff.text) {
+          updateText(proposedNode, diff.text.proposed);
+        }
+        if (diff.buffer) {
+          replaceBuffer(proposedNode, diff.buffer.proposed);
+        }
+        if (diff.path) {
+          const parentPath = this.proposedFS.getNodePath(proposedNode.parent());
+          const parentNode = this.proposedFS.findByPath(parentPath);
+          proposedNode.move(parentNode);
+        }
       }
-      if (diff.buffer) {
-        replaceBuffer(proposedNode, diff.buffer.proposed);
+      // delete untracked proposed, new proposed was created when tracking synced
+      for (const node of obsoleteNodes) {
+        this.proposedFS.deleteNode(node.id);
       }
-      if (diff.path) {
-        const parentPath = this.proposedFS.getNodePath(proposedNode.parent());
-        const parentNode = this.proposedFS.findByPath(parentPath);
-        proposedNode.move(parentNode);
-      }
+      this.proposedDoc.commit();
+    } catch (e) {
+      // use TreeFS revertTo so that caches are invalidated
+      this.proposedFS.revertTo(proposedCheckpoint);
+      this.trackingFS.revertTo(trackingCheckpoint);
+      throw e;
     }
-    // delete untracked proposed, new proposed was created when tracking synced
-    for (const node of obsoleteNodes) {
-      this.proposedFS.deleteNode(node.id);
-    }
-    this.proposedDoc.commit();
   }
 
   async reject(change: ProposedChange): Promise<void> {
@@ -1103,9 +1116,18 @@ export class VaultOverlay implements Vault {
     const [type, path, data] = args;
     switch (type) {
       case "create": {
+        const folderPath = normalizePath(
+          dirname(path) === "." ? "/" : dirname(path),
+        );
+        const folder = this.vault.getFolderByPath(folderPath);
+        if (!folder) {
+          await this.vault.createFolder(folderPath);
+        }
+
         if (data.isDirectory) {
           await this.vault.createFolder(path);
         } else if (data.text != null) {
+          debug("Persist create", path, data);
           await this.vault.create(path, data.text);
         } else if (data.buffer != null) {
           await this.vault.createBinary(path, data.buffer);
@@ -1443,6 +1465,14 @@ export class VaultOverlay implements Vault {
 
     if (vaultFile instanceof TFile) {
       // For files, compare mtime and size for efficiency
+      debug(
+        "Comparing file",
+        vaultFile.path,
+        vaultFile.stat.mtime,
+        vaultFile.stat.size,
+        trackingStat.mtime,
+        trackingStat.size,
+      );
       return (
         vaultFile.stat.mtime > trackingStat.mtime ||
         vaultFile.stat.size !== trackingStat.size

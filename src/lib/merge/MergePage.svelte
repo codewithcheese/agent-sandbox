@@ -104,11 +104,6 @@
     });
   }
 
-  async function updateContent(): Promise<void> {
-    if (!editorView) return;
-    createEditor();
-  }
-
   async function acceptChange(state: EditorState): Promise<void> {
     if (!editorView) return;
     try {

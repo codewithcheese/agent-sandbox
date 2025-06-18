@@ -263,25 +263,27 @@ describe("Approve changes", () => {
 
   it("should approve create file", async () => {
     // Create file in overlay (proposed state only)
-    await overlay.create("new-document.md", "Initial content");
+    await overlay.create("new-dir/new-document.md", "Initial content");
 
     // Verify it exists in proposed but not tracking before approval
-    const proposedNode = proposedFS.findByPath("new-document.md");
+    const proposedNode = proposedFS.findByPath("new-dir/new-document.md");
     expect(proposedNode).toBeDefined();
     expect(getText(proposedNode)).toEqual("Initial content");
-    expect(trackingFS.findByPath("new-document.md")).toBeUndefined();
+    expect(trackingFS.findByPath("new-dir/new-document.md")).toBeUndefined();
 
     // Approve the creation
-    await overlay.approve([{ path: "new-document.md", type: "create" }]);
+    await overlay.approve([
+      { path: "new-dir/new-document.md", type: "create" },
+    ]);
 
     // Verify it now exists in tracking with correct content
-    const trackingNode = trackingFS.findByPath("new-document.md");
+    const trackingNode = trackingFS.findByPath("new-dir/new-document.md");
     expect(trackingNode).toBeDefined();
     expect(getText(trackingNode)).toEqual("Initial content");
     expect(getText(trackingNode)).toEqual(getText(proposedNode));
 
     // Check vault state - file should be created in vault
-    const vaultFile = vault.getFileByPath("new-document.md");
+    const vaultFile = vault.getFileByPath("new-dir/new-document.md");
     expect(vaultFile).not.toBeNull();
     expect(await vault.read(vaultFile)).toEqual("Initial content");
   });

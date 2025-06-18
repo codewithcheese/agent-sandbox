@@ -120,13 +120,19 @@ export class MergeView extends ItemView {
             return;
           }
           if (resolvedContent) {
-            await chat.vault.approve([
-              {
-                type: change.type,
-                path: change.path,
-                override: { text: resolvedContent },
-              },
-            ]);
+            try {
+              await chat.vault.approve([
+                {
+                  type: change.type,
+                  path: change.path,
+                  override: { text: resolvedContent },
+                },
+              ]);
+            } catch (e) {
+              console.error(e);
+              new Notice("Failed to approve change: " + e);
+              return;
+            }
           }
           if (
             // if some changes are remaining then apply them to the overlay

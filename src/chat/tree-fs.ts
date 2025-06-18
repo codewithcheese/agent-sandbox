@@ -1,5 +1,6 @@
 import { type FileStats, normalizePath } from "obsidian";
 import {
+  type Frontiers,
   type LoroDoc,
   LoroText,
   type LoroTree,
@@ -249,7 +250,14 @@ export class TreeFS {
   }
 
   invalidateCache(): void {
+    this.pathCache.clear();
+    this.deletedFromIndex.clear();
     this.cacheValid = false;
+  }
+
+  revertTo(frontiers: Frontiers): void {
+    this.invalidateCache();
+    this.doc.revertTo(frontiers);
   }
 
   private rebuildCache(): void {
