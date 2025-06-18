@@ -53,11 +53,11 @@ export class ChatSerializer {
       sessionStore: {},
       vault: undefined,
       options: {
-        maxSteps: 10,
+        maxSteps: 100,
         temperature: 0.7,
         thinkingEnabled: false,
         maxTokens: 4000,
-        thinkingTokensBudget: 1000,
+        thinkingTokensBudget: 1200,
       },
       createdAt: new Date(),
       updatedAt: new Date(),

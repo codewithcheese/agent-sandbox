@@ -11,6 +11,8 @@ export function applyStreamPartToMessages(
   messages: UIMessage[],
   part: TextStreamPart<any>,
 ) {
+  debug("stream part", part);
+
   const message = messages[messages.length - 1]!;
   const currentPart =
     message.parts.length > 0 ? message.parts[message.parts.length - 1] : null;
@@ -114,6 +116,8 @@ export function applyStreamPartToMessages(
         );
       }
     case "tool-call-streaming-start": {
+      debug("tool-call-streaming-start", part);
+
       const invocation = {
         state: "partial-call",
         step,
@@ -131,6 +135,8 @@ export function applyStreamPartToMessages(
       if (!toolCall) {
         throw new Error(`Partial tool call not found: ${part.toolCallId}`);
       }
+
+      debug("tool-call-delta", part);
 
       toolCall.toolInvocation.text += part.argsTextDelta;
 

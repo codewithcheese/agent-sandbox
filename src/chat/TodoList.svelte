@@ -144,7 +144,7 @@
             />
             <span
               class={cn(
-                "truncate flex-grow",
+                "truncate flex-grow text-wrap",
                 todo.status === "completed" || todo.status === "cancelled"
                   ? "line-through text-[var(--text-faint)] opacity-70"
                   : "text-[var(--text-normal)]",

@@ -401,6 +401,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
           maxRetries: 0,
           maxSteps: this.options.maxSteps,
           temperature: this.options.temperature,
+          experimental_toolCallStreaming: true,
           providerOptions: {
             anthropic: {
               ...(this.options.thinkingEnabled
