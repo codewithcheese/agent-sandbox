@@ -403,7 +403,23 @@ export const metadataCache = {
     fileCache.set(file.path, cache);
   },
 
-  getFirstLinkpathDest: () => null,
+  getFirstLinkpathDest: (linkpath: string) => {
+    // Try exact path first
+    const exactFile = vault.getFileByPath(linkpath);
+    if (exactFile) {
+      return exactFile;
+    }
+    
+    // If not found by exact path, try to find by basename
+    const allFiles = vault.getFiles();
+    const filesByBasename = allFiles.filter(file => {
+      const basename = file.basename;
+      return basename === linkpath;
+    });
+    
+    // Return first match, or null if none found
+    return filesByBasename.length > 0 ? filesByBasename[0] : null;
+  },
   on: () => {},
 };
 
