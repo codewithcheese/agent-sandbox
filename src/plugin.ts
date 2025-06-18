@@ -41,6 +41,7 @@ import { AgentView } from "./editor/agent/agent-view.ts";
 import { AgentBannerComponent } from "./editor/agent/agent-banner-component.svelte.ts";
 import { PromptCommand } from "./editor/prompt-command.ts";
 import { ContextMenu } from "./editor/context-menu.ts";
+import { HtmlEscapeCommand } from "./editor/html-escape-command.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -75,6 +76,7 @@ export class AgentSandboxPlugin extends Plugin {
     AgentBannerComponent.register(this);
     PromptCommand.register(this);
     ContextMenu.register(this);
+    HtmlEscapeCommand.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
     this.addRibbonIcon("mic", "Toggle Recorder", () => {
