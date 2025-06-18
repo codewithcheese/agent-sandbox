@@ -40,6 +40,7 @@ import { JsonSchemaCodeBlockProcessor } from "./markdown/schema/json-schema-code
 import { AgentView } from "./markdown/agent/agent-view.ts";
 import { AgentBannerComponent } from "./markdown/agent/agent-banner-component.svelte.ts";
 import { PromptCommand } from "./markdown/prompt-command.ts";
+import { ContextMenu } from "./markdown/context-menu.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settings: PluginSettings;
@@ -73,6 +74,7 @@ export class AgentSandboxPlugin extends Plugin {
     AgentView.register(this);
     AgentBannerComponent.register(this);
     PromptCommand.register(this);
+    ContextMenu.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
     this.addRibbonIcon("mic", "Toggle Recorder", () => {

@@ -270,4 +270,22 @@ export class ChatView extends FileView {
     await (leaf.view as ChatView).chat.updateOptions(options);
     return leaf.view as ChatView;
   }
+
+  static findActiveChatView(): ChatView | null {
+    const plugin = usePlugin();
+    const { workspace } = plugin.app;
+    // First, try to find an active chat view
+    let leaf = workspace.getActiveViewOfType(ChatView);
+    if (leaf && leaf.view instanceof ChatView) {
+      return leaf.view;
+    }
+
+    // If no active chat view, find any chat view (prefer right sidebar)
+    leaf = workspace.getMostRecentLeaf(workspace.rightSplit);
+    if (leaf && leaf.view instanceof ChatView) {
+      return leaf.view;
+    }
+
+    return null;
+  }
 }
