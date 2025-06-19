@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { EditorState, Transaction } from "@codemirror/state";
+  import { EditorState, type Extension, Transaction } from "@codemirror/state";
   import { drawSelection, EditorView, keymap } from "@codemirror/view";
   import {
     getChunks,
@@ -10,6 +10,11 @@
   import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
   import { Notice } from "obsidian";
   import { createDebug } from "$lib/debug.ts";
+  import { gnosis } from "@glifox/gnosis";
+
+  import { Compartment } from "@codemirror/state";
+  import { obsidianTheme } from "$lib/merge/theme.ts";
+  export const themeVariant = new Compartment();
 
   const debug = createDebug();
 
@@ -98,6 +103,8 @@
             original: currentContent,
             gutter: false,
           }),
+          (gnosis() as Extension[]).toSpliced(1, 1), // splice out the gnosis theme
+          obsidianTheme,
         ],
       }),
       parent: editorContainer,
@@ -132,7 +139,9 @@
   }
 </script>
 
-<div class="markdown-source-view mod-cm6 is-readable-line-width">
+<div
+  class="markdown-source-view cm-s-obsidian mod-cm6 node-insert-event is-readable-line-width is-live-preview is-folding show-properties"
+>
   <div class="cm-editor">
     <div class="cm-scroller">
       <div class="cm-sizer">

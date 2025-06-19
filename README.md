@@ -106,6 +106,7 @@ This project includes a version bumping script that automates the release proces
 - [ ] Chat: Open merge view when a change is added
 - [ ] Merge view: Reload when changes are added
 - [ ] Chat: Add selected text as system information
+- [ ] Chat: Attach file when linked in chat input
 - [x] UI: Remove unused shadcn-svelte components
 - [x] Agent: New chat button
 - [x] Diff: Undo changes when messages are deleted
