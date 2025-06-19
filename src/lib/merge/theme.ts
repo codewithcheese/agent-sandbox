@@ -37,7 +37,7 @@ export const obsidianTheme = EditorView.theme({
 
   // Headers
   ".hg": {
-    paddingTop: "var(--p-spacing)",
+    paddingTop: "var(--p-spacing) !important",
     marginBottom: "var(--heading-spacing)",
   },
   ".h1": {
@@ -84,7 +84,7 @@ export const obsidianTheme = EditorView.theme({
   },
 
   // Markdown syntax markers
-  ".mk, .mkl, .lk-mk, .cb-mk, .qt-mk": {
+  ".mk, .mkl, .lk-mk, .cb-mk": {
     color: "var(--text-faint)",
   },
 
