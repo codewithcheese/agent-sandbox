@@ -268,7 +268,7 @@
     <Textarea
       bind:value={inputState.text}
       name="content"
-      placeholder="How can I assist you today?"
+      placeholder="Whats on your mind? [[ to link notes."
       aria-label="Chat message input"
       onkeypress={submitOnEnter}
       oninput={handleTextareaInput}
