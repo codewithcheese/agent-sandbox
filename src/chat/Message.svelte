@@ -238,10 +238,7 @@
               .join("\n")}
           </div>
         {/if}
-        <Markdown
-          md={message.content}
-          renderObsidian={message.role === "user"}
-        />
+        <Markdown md={message.content} renderObsidian={true} />
       </div>
     {/if}
     {#if message.experimental_attachments && message.experimental_attachments.length > 0}

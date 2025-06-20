@@ -252,8 +252,6 @@ export class Chat {
       const plugin = usePlugin();
       await plugin.loadSettings();
 
-      let system: string | null = null;
-      let metadata: CachedMetadata | null = null;
       let activeTools: Record<string, Tool> = {};
 
       const agentFile = plugin.app.vault.getFileByPath(this.options.agentPath);
@@ -261,14 +259,25 @@ export class Chat {
         throw Error(`Agent at ${this.options.agentPath} not found`);
       }
 
-      metadata = plugin.app.metadataCache.getFileCache(agentFile);
-      system = await createSystemContent(agentFile);
+      let metadata: CachedMetadata | null =
+        plugin.app.metadataCache.getFileCache(agentFile);
+      if (this.messages.length === 0 || this.messages[0].role !== "system") {
+        const system = await createSystemContent(agentFile);
+        debug("System Message", { system });
+        this.messages.unshift({
+          id: nanoid(),
+          content: system,
+          role: "system",
+          parts: [{ type: "text", text: system }],
+        });
+      }
+
       activeTools = await loadToolsFromFrontmatter(
         metadata!,
         this,
         this.getAccount().provider,
       );
-      debug("System Message", { system });
+
       debug("Active tools", activeTools);
 
       this.state = { type: "loading" };
@@ -276,27 +285,28 @@ export class Chat {
 
       debug("Submitting messages", $state.snapshot(this.messages));
 
-      const messages: CoreMessage[] = [];
-      if (system) {
-        messages.push({
-          role: "system",
-          content: system,
-          providerOptions: {
-            anthropic: { cacheControl: { type: "ephemeral" } },
-          },
-        });
-      }
-      messages.push(
+      const messages: CoreMessage[] = [
         ...convertToCoreMessages(
           wrapTextAttachments($state.snapshot(this.messages)),
           // filter out empty messages, empty messages were observed after tool calls in some cases
           // potentially a bug in AI SDK or in this plugin
         ).filter((m) => m.content.length > 0),
-      );
+      ];
 
-      const lastUserMessage = messages.findLast((m) => m.role === "user");
-      if (lastUserMessage) {
-        lastUserMessage.providerOptions = {
+      const systemMessage = messages.find((m) => m.role === "system");
+      if (systemMessage) {
+        systemMessage.providerOptions = {
+          anthropic: {
+            cacheControl: { type: "ephemeral" },
+          },
+        };
+      }
+
+      const lastAssistantMessage = messages.findLast(
+        (m) => m.role === "assistant",
+      );
+      if (lastAssistantMessage) {
+        lastAssistantMessage.providerOptions = {
           anthropic: {
             cacheControl: { type: "ephemeral" },
           },
@@ -475,7 +485,12 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     if (!file) {
       throw Error(`Chat file not found: ${this.path}`);
     }
-    await plugin.app.vault.modify(file, ChatSerializer.stringify(this));
+    const raw = ChatSerializer.stringify(this);
+    // Zero-bytes saved bug when obsidian reloads while saving
+    // workaround attempt to fix it. Issue unknown.
+    if (raw) {
+      await plugin.app.vault.modify(file, raw);
+    }
   }
 
   shouldGenerateTitle() {

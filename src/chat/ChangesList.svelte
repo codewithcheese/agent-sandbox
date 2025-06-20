@@ -10,6 +10,7 @@
   import type { Chat } from "./chat.svelte.ts";
   import type { ProposedChange } from "./vault-overlay.svelte.ts";
   import { cn } from "$lib/utils";
+  import { basename, dirname } from "path-browserify";
 
   type Props = {
     chat: Chat;
@@ -146,7 +147,20 @@
                 class="truncate flex-grow text-xs text-[var(--text-normal)]"
                 title={getDisplayPath(change)}
               >
-                {getDisplayPath(change)}
+                {#if change.type === "rename" && "oldPath" in change.info}
+                  `${change.info.oldPath} → ${change.path}`
+                {:else}
+                  <span class="flex-1">
+                    {change.path.split(".").pop() === "md"
+                      ? basename(change.path)
+                      : change.path.split("/").pop()}
+                  </span>
+                  <span class="text-(--text-muted) ml-2">
+                    {dirname(change.path) === "."
+                      ? "/"
+                      : dirname(change.path) + "/"}
+                  </span>
+                {/if}
               </span>
             </button>
           {/each}

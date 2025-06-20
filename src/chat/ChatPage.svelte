@@ -123,7 +123,9 @@
         <!-- messages -->
         <div class="flex flex-col w-full flex-1 gap-1">
           {#each chat.messages as message, index}
-            <Message {chat} {message} {index} bind:inputState />
+            {#if message.role !== "system"}
+              <Message {chat} {message} {index} bind:inputState />
+            {/if}
           {/each}
 
           {#if chat.state.type === "retrying"}
