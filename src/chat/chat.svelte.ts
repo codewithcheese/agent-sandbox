@@ -38,6 +38,11 @@ export type LoadingState =
       delay: number;
     };
 
+export type SystemMessageMetadata = {
+  agentPath: string;
+  agentModified: number;
+};
+
 export type UserMessageMetadata = {
   checkpoint: Frontiers;
   modified: string[];
@@ -88,7 +93,11 @@ export type ChatOptions = {
 export class Chat {
   id = $state<string>();
   path = $state<string>();
-  messages = $state<(UIMessage & { metadata?: UserMessageMetadata })[]>([]);
+  messages = $state<
+    (UIMessage & {
+      metadata?: UserMessageMetadata | SystemMessageMetadata;
+    })[]
+  >([]);
   state = $state<LoadingState>({ type: "idle" });
   sessionStore = $state<SuperJSONObject>({});
   vault = $state<VaultOverlay>();
@@ -180,9 +189,9 @@ export class Chat {
       return;
     }
 
-    const message: UIMessage & {
+    const message = this.messages[index] as UIMessage & {
       metadata?: UserMessageMetadata;
-    } = this.messages[index];
+    };
     invariant(message, `Cannot edit message. Message not found: #${index}`);
 
     // Revert vault changes to since message
@@ -217,8 +226,9 @@ export class Chat {
   }
 
   async regenerate(index: number) {
-    const message: UIMessage & { metadata?: UserMessageMetadata } =
-      this.messages[index];
+    const message = this.messages[index] as UIMessage & {
+      metadata?: UserMessageMetadata;
+    };
     invariant(message, `Cannot edit message. Message not found: ${index}`);
     // Update attachments
     if (
@@ -245,6 +255,54 @@ export class Chat {
     await this.runConversation();
   }
 
+  async applySystemMessage() {
+    if (!this.options.agentPath) return;
+    debugger;
+
+    const plugin = usePlugin();
+    const agentFile = plugin.app.vault.getFileByPath(this.options.agentPath);
+    if (!agentFile) return;
+
+    const agentStat = await plugin.app.vault.adapter.stat(agentFile.path);
+    const agentModified = agentStat?.mtime || 0;
+
+    // Check if system message needs updating
+    const systemMessage =
+      this.messages[0]?.role === "system" ? this.messages[0] : null;
+    const systemMeta = systemMessage?.metadata as
+      | SystemMessageMetadata
+      | undefined;
+
+    if (
+      !systemMessage ||
+      systemMeta?.agentPath !== this.options.agentPath ||
+      systemMeta?.agentModified !== agentModified
+    ) {
+      const system = await createSystemContent(agentFile);
+      debug("Updating system message", {
+        agentPath: this.options.agentPath,
+        agentModified,
+      });
+
+      const newSystemMessage = {
+        id: systemMessage?.id || nanoid(),
+        content: system,
+        role: "system" as const,
+        parts: [{ type: "text" as const, text: system }],
+        metadata: {
+          agentPath: this.options.agentPath!,
+          agentModified,
+        } as SystemMessageMetadata,
+      };
+
+      if (systemMessage) {
+        this.messages[0] = newSystemMessage;
+      } else {
+        this.messages.unshift(newSystemMessage);
+      }
+    }
+  }
+
   async runConversation() {
     try {
       this.state = { type: "loading" };
@@ -259,18 +317,10 @@ export class Chat {
         throw Error(`Agent at ${this.options.agentPath} not found`);
       }
 
+      await this.applySystemMessage();
+
       let metadata: CachedMetadata | null =
         plugin.app.metadataCache.getFileCache(agentFile);
-      if (this.messages.length === 0 || this.messages[0].role !== "system") {
-        const system = await createSystemContent(agentFile);
-        debug("System Message", { system });
-        this.messages.unshift({
-          id: nanoid(),
-          content: system,
-          role: "system",
-          parts: [{ type: "text", text: system }],
-        });
-      }
 
       activeTools = await loadToolsFromFrontmatter(
         metadata!,
