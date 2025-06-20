@@ -90,7 +90,7 @@
                           prose-h4:m-0
                           prose-h5:m-0
                           prose-h6:m-0
-                          prose-p:m-1
+                          prose-p:m-1 prose-p:my-2
                           prose-blockquote:m-0
                           prose-figure:m-0
                           prose-figcaption:m-0
@@ -114,7 +114,7 @@
                           prose-a:decoration-1 text-foreground max-w-full`,
         message.role === "user"
           ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-          : "py-3",
+          : "py-2",
       )}
     >
       <div class="flex items-center gap-2 mb-2 text-sm text-(--text-accent)">
@@ -202,7 +202,7 @@
                             prose-h4:m-0
                             prose-h5:m-0
                             prose-h6:m-0
-                            prose-p:m-1
+                            prose-p:m-1 prose-p:my-2
                             prose-blockquote:m-0
                             prose-figure:m-0
                             prose-figcaption:m-0
@@ -226,7 +226,7 @@
                             prose-a:decoration-1 text-foreground max-w-full`,
           message.role === "user"
             ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-            : "py-3",
+            : "py-2",
         )}
       >
         <!-- thinking content -->
