@@ -9,6 +9,7 @@ import { mount, unmount } from "svelte";
 import ChatHistory from "./ChatHistory.svelte";
 import { usePlugin } from "$lib/utils";
 import { ChatView } from "./chat-view.svelte.ts";
+import _ from "lodash";
 
 export const CHAT_HISTORY_VIEW_TYPE = "sandbox-chat-history-view";
 
@@ -21,10 +22,11 @@ export type ChatItem = {
 export class ChatHistoryView extends FileView {
   allowNoFile: boolean = true;
   private component: any = null;
-  chats = $state<ChatItem[]>([]);
+  history = $state<{ chats: ChatItem[] }>({ chats: [] });
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
+    this.watch();
   }
 
   getViewType(): string {
@@ -37,6 +39,29 @@ export class ChatHistoryView extends FileView {
 
   getIcon(): string {
     return "history";
+  }
+
+  watch() {
+    const refresh = _.debounce(() => this.loadChats(), 150);
+
+    const isChat = (f: TFile | string) =>
+      (typeof f === "string" ? f : f.path).endsWith(".chat");
+
+    // New or deleted files
+    ["create", "delete"].forEach((evt) =>
+      this.registerEvent(
+        this.app.vault.on(evt as any, (file: TFile) => {
+          if (isChat(file)) refresh();
+        }),
+      ),
+    );
+
+    // Renames (file is new name, oldPath is the previous name)
+    this.registerEvent(
+      this.app.vault.on("rename", (file: TFile, oldPath: string) => {
+        if (isChat(file) || isChat(oldPath)) refresh();
+      }),
+    );
   }
 
   async onOpen() {
@@ -69,7 +94,7 @@ export class ChatHistoryView extends FileView {
             file.extension === "chat" && file.path.startsWith(chatsPath),
         );
 
-      this.chats = await Promise.all(
+      this.history.chats = await Promise.all(
         files.map(async (file) => {
           return {
             title: file.basename,
@@ -80,7 +105,7 @@ export class ChatHistoryView extends FileView {
       );
 
       // Sort by last modified (newest first)
-      this.chats.sort((a, b) => b.lastModified - a.lastModified);
+      this.history.chats.sort((a, b) => b.lastModified - a.lastModified);
     } catch (error) {
       console.error("Error loading chats:", error);
     }
@@ -115,7 +140,7 @@ export class ChatHistoryView extends FileView {
     this.component = mount(ChatHistory, {
       target: this.containerEl.children[1],
       props: {
-        chats: this.chats,
+        history: this.history,
         onChatClick: (path: string) => this.openChat(path),
         onNewChatClick: () => ChatView.newChat(this.leaf),
       },

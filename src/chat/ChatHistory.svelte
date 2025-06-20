@@ -9,12 +9,16 @@
   import { humanTime } from "$lib/utils/datetime.ts";
 
   type Props = {
-    chats: ChatItem[];
+    history: { chats: ChatItem[] };
     onChatClick: (path: string) => void;
     onNewChatClick: () => void;
   };
 
-  let { chats, onChatClick, onNewChatClick }: Props = $props();
+  let { history, onChatClick, onNewChatClick }: Props = $props();
+
+  let chats = $derived(history.chats);
+
+  $inspect("Chat history", chats);
 
   // Pagination
   const PAGE_SIZE = 20;
