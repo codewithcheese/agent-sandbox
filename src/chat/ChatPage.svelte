@@ -65,10 +65,6 @@
       new Notice(`Error: ${error.message}`, 3000);
     }
   }
-
-  function cancelEdit() {
-    inputState.reset();
-  }
 </script>
 
 <svelte:boundary onerror={(e) => console.error("ChatPage error:", e)}>

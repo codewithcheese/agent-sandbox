@@ -18,7 +18,7 @@
 
   let chats = $derived(history.chats);
 
-  $inspect("Chat history", chats);
+  // $inspect("Chat history", chats);
 
   // Pagination
   const PAGE_SIZE = 20;

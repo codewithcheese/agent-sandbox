@@ -9,7 +9,7 @@ import {
 } from "ai";
 import { type AIAccount, createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
-import { type CachedMetadata, Notice, TFile } from "obsidian";
+import { type CachedMetadata, normalizePath, Notice, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { loadToolsFromFrontmatter } from "../tools";
 import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
@@ -613,6 +613,11 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         newPath = file.path.replace(file.basename, newBasename);
         counter++;
       }
+
+      // Bug: In rare cases, that chat is not renamed correctly by registerChatRenameHandler
+      // unsure of the cause. Possibly a race condition between the rename event and save call.
+      // Workaround: Pre-emptively update the path reference before renaming the file
+      this.path = normalizePath(newPath);
 
       await plugin.app.fileManager.renameFile(file, newPath);
     } catch (error) {
