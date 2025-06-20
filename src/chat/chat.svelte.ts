@@ -257,7 +257,6 @@ export class Chat {
 
   async applySystemMessage() {
     if (!this.options.agentPath) return;
-    debugger;
 
     const plugin = usePlugin();
     const agentFile = plugin.app.vault.getFileByPath(this.options.agentPath);
