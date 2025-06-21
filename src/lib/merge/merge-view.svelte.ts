@@ -104,7 +104,7 @@ export class MergeView extends ItemView {
           pendingContent: string,
           chunksLeft: number,
         ) => {
-          debug("On save", resolvedContent, pendingContent);
+          debug("On save", { resolvedContent, pendingContent, chunksLeft });
 
           const change = changes.find((c) =>
             ["create", "modify"].includes(c.type),

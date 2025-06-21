@@ -11,7 +11,7 @@ export function applyStreamPartToMessages(
   messages: UIMessage[],
   part: TextStreamPart<any>,
 ) {
-  debug("stream part", part);
+  // debug("stream part", part);
 
   const message = messages[messages.length - 1]!;
   const currentPart =
@@ -136,7 +136,7 @@ export function applyStreamPartToMessages(
         throw new Error(`Partial tool call not found: ${part.toolCallId}`);
       }
 
-      debug("tool-call-delta", part);
+      // debug("tool-call-delta", part);
 
       toolCall.toolInvocation.text += part.argsTextDelta;
 
