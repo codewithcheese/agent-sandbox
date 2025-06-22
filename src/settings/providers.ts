@@ -63,7 +63,8 @@ export function createAIProvider(account: AIAccount) {
         ...account.config,
         headers: {
           "anthropic-dangerous-direct-browser-access": "true",
-          "anthropic-beta": "fine-grained-tool-streaming-2025-05-14",
+          "anthropic-beta":
+            "fine-grained-tool-streaming-2025-05-14,interleaved-thinking-2025-05-14",
         },
       });
     case "gemini":

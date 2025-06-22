@@ -25,6 +25,7 @@ import type { SuperJSONObject } from "$lib/utils/superjson.ts";
 import { loadAttachments } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
 import type { Frontiers } from "loro-crdt/base64";
+import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 
 const debug = createDebug();
 
@@ -453,8 +454,17 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       try {
         this.state = { type: "loading" };
 
+        const modelOptions =
+          account.provider === "openai"
+            ? {
+                structuredOutputs: false,
+              }
+            : {};
         const stream = streamText({
-          model: provider.languageModel(modelId),
+          model:
+            "responses" in provider
+              ? provider.responses(modelId)
+              : provider.languageModel(modelId, modelOptions),
           messages,
           tools: Object.keys(activeTools).length > 0 ? activeTools : undefined,
           maxRetries: 0,
@@ -472,6 +482,11 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
                   }
                 : {}),
             } satisfies AnthropicProviderOptions,
+            openai: {
+              reasoningEffort: "high",
+              reasoningSummary: "detailed",
+              strictSchemas: false,
+            } satisfies OpenAIResponsesProviderOptions,
           },
           abortSignal,
           onStepFinish: async (step) => {

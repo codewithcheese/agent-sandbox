@@ -69,8 +69,8 @@ export class AgentBannerComponent extends Component {
   }
 
   async update(leaf?: WorkspaceLeaf) {
-    // @ts-expect-error id not in type
-    debug("update()", leaf?.id);
+    // // @ts-expect-error id not in type
+    // debug("update()", leaf?.id);
     // @ts-expect-error id not in type
     if (leaf && leaf.id === this.leaf.id) {
       this.props.path = this.getFile().path;
@@ -126,7 +126,7 @@ export class AgentBannerComponent extends Component {
     }
     this.target?.remove();
     this.target = undefined;
-    debug("target removed");
+    // debug("target removed");
   }
 
   private getFile() {

@@ -73,7 +73,7 @@ This project includes a version bumping script that automates the release proces
 ## Todo
 
 - [ ] Chat: Add system information when tracked files modified
-- [ ] Chat: Add attachment to document using read tool format: line number and line summary
+- [x] Chat: Add attachment to document using read tool format: line number and line summary
 - [ ] Prompt: button in chat to insert a prompt
 - [ ] Tools: Remove markdown file requirement for built-in tools
 - [ ] Tools: Outline, ReadSection tools. Read should suggest using outline tool for very large notes.

@@ -45,7 +45,7 @@
   {#if diagram}
     <div>{@html diagram.svg}</div>
   {:else}
-    <pre bind:this={pre}>{@render children?.()}</pre>
+    <pre class="text-wrap" bind:this={pre}>{@render children?.()}</pre>
   {/if}
   <div class="flex">
     <div class="flex-1"></div>
