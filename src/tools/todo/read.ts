@@ -69,7 +69,7 @@ export async function execute(
     };
   }
 
-  const currentTodos: TodoItem[] = sessionStore[TODOS_STORE_KEY] || [];
+  const currentTodos: TodoItem[] = (await sessionStore.get<TodoItem[]>(TODOS_STORE_KEY)) || [];
 
   debug(`Todo list read from store. Count: ${currentTodos.length}`);
 

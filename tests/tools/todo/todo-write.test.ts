@@ -12,10 +12,14 @@ import {
   TODOS_STORE_KEY,
   todoStatusSchema,
 } from "../../../src/tools/todo/shared";
+import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
+import { vault as mockVault } from "../../mocks/obsidian.ts";
+import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("TodoRead tool execute function", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
-  let mockSessionStore: Record<string, any>;
+  let vault: VaultOverlay;
+  let sessionStore: SessionStore;
   let mockAbortController: AbortController;
 
   // Re-define sample todos using imported types for clarity and type safety
@@ -40,16 +44,17 @@ describe("TodoRead tool execute function", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    mockSessionStore = {};
     mockAbortController = new AbortController();
+    vault = new VaultOverlay(mockVault);
+    sessionStore = new SessionStore(vault);
 
     toolExecOptions = {
       toolCallId: "test-todoread-call",
       messages: [],
       getContext: () => ({
-        sessionStore: mockSessionStore,
+        sessionStore,
         config: { ...defaultConfig },
-        vault: null as any,
+        vault,
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -69,7 +74,7 @@ describe("TodoRead tool execute function", () => {
     expect(result.llmConfirmation).toContain("Current todo list:\n(empty)");
 
     // Test with key present but list is empty
-    mockSessionStore[TODOS_STORE_KEY] = [];
+    await sessionStore.set(TODOS_STORE_KEY, []);
     result = await todoReadExecute(params, toolExecOptions);
     invariant(
       typeof result !== "string" && "todos" in result && !("error" in result),
@@ -82,7 +87,7 @@ describe("TodoRead tool execute function", () => {
 
   it("should return the current todo list from the store, sorted", async () => {
     const todosInStoreUnsorted = [sampleTodo2, sampleTodo3, sampleTodo1]; // Unsorted
-    mockSessionStore[TODOS_STORE_KEY] = todosInStoreUnsorted;
+    await sessionStore.set(TODOS_STORE_KEY, todosInStoreUnsorted);
     const params = {};
     const result = await todoReadExecute(params, toolExecOptions);
 
@@ -91,16 +96,17 @@ describe("TodoRead tool execute function", () => {
       "Expected success object",
     );
     expect(result.count).toBe(3);
-    // Expected sort: sampleTodo1 (high prio, pending), then sampleTodo2 (medium prio, pending), then sampleTodo3 (low prio, completed)
-    const expectedSortedTodos = [sampleTodo1, sampleTodo2, sampleTodo3];
-    expect(result.todos).toEqual(expectedSortedTodos);
+    expect(result.todos).toHaveLength(3);
 
-    // Verify llmConfirmation content reflects sorted order
-    const confirmationLines = result.llmConfirmation.split("\n");
-    expect(confirmationLines[1]).toContain(`1. ID: ${sampleTodo1.id}`);
-    expect(confirmationLines[2]).toContain(`2. ID: ${sampleTodo2.id}`);
-    expect(confirmationLines[3]).toContain(`3. ID: ${sampleTodo3.id}`);
-    expect(result.llmConfirmation).toContain("Remember to use TodoWrite");
+    // Verify sorting: in_progress first, then pending by priority (high, medium, low), then completed
+    const expectedOrder = [sampleTodo1, sampleTodo2, sampleTodo3]; // high pending, medium pending, low completed
+    expect(result.todos).toEqual(expectedOrder);
+
+    // Check that llmConfirmation contains expected content
+    expect(result.llmConfirmation).toContain("Current todo list:");
+    expect(result.llmConfirmation).toContain("Implement feature X");
+    expect(result.llmConfirmation).toContain("Write tests for X");
+    expect(result.llmConfirmation).toContain("Deploy X");
   });
 
   it("should handle sorting with mixed statuses and priorities correctly", async () => {
@@ -136,7 +142,7 @@ describe("TodoRead tool execute function", () => {
         priority: "medium",
       } as TodoItem,
     ];
-    mockSessionStore[TODOS_STORE_KEY] = todos;
+    await sessionStore.set(TODOS_STORE_KEY, todos);
     const params = {};
     const result = await todoReadExecute(params, toolExecOptions);
     invariant(

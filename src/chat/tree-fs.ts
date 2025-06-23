@@ -12,6 +12,7 @@ import { basename, dirname } from "path-browserify";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 
 const trashPath = ".overlay-trash" as const;
+export const overlayTmpPath = ".overlay-tmp" as const;
 const deletedFrom = "deletedFrom" as const;
 // differentiate between directories created explicitly and those created ensure a path
 export const wasCreatedKey = "wasCreated" as const;

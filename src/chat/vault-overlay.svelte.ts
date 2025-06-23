@@ -37,6 +37,7 @@ import {
   setStat,
   updateText,
 } from "$lib/utils/loro.ts";
+import { overlayTmpPath } from "./tree-fs.ts";
 
 const debug = createDebug();
 
@@ -93,6 +94,9 @@ export class VaultOverlay implements Vault {
       const trash = root.createNode();
       trash.data.set("name", trashPath);
       trash.data.set(isDirectoryKey, true);
+      const overlayTmp = root.createNode();
+      overlayTmp.data.set("name", overlayTmpPath);
+      overlayTmp.data.set(isDirectoryKey, true);
       // create proposed from snapshot of tracking
       this.proposedDoc = LoroDoc.fromSnapshot(
         this.trackingDoc.export({ mode: "snapshot" }),
@@ -473,6 +477,8 @@ export class VaultOverlay implements Vault {
     } else if ("buffer" in data) {
       replaceBuffer(proposedNode, data.buffer);
     }
+    const stat = getStat(proposedNode);
+    setStat(proposedNode, { ...stat, mtime: Date.now() });
     this.proposedDoc.commit();
   }
 
@@ -576,7 +582,8 @@ export class VaultOverlay implements Vault {
           for (const childNode of childNodes) {
             if (
               childNode.data.get(deletedFrom) ||
-              childNode.data.get("name") === trashPath
+              childNode.data.get("name") === trashPath ||
+              childNode.data.get("name") === overlayTmpPath
             ) {
               continue;
             }
@@ -1272,8 +1279,15 @@ export class VaultOverlay implements Vault {
 
       if (!proposedNode) continue; // Should not happen if allIds includes proposedNode IDs.
 
+      const pnPath = this.proposedFS.getNodePath(proposedNode);
+
       // Skip the .overlay-trash folder itself
-      if (this.proposedFS.getNodePath(proposedNode) === trashPath) {
+      if (pnPath === trashPath) {
+        continue;
+      }
+
+      // Skip the .overlay-tmp folder itself
+      if (pnPath.startsWith(overlayTmpPath)) {
         continue;
       }
 
@@ -1424,7 +1438,9 @@ export class VaultOverlay implements Vault {
       this.collectPathsFromNode(root, "", paths);
     }
 
-    return paths.filter((path) => path && path !== trashPath);
+    return paths.filter(
+      (path) => path && path !== trashPath && !path.startsWith(overlayTmpPath),
+    );
   }
 
   private collectPathsFromNode(

@@ -259,7 +259,7 @@ export async function execute(
   toolExecOptions: ToolExecutionOptionsWithContext,
 ) {
   const { abortSignal } = toolExecOptions;
-  const { vault, config: contextConfig } = toolExecOptions.getContext();
+  const { vault, config: contextConfig, sessionStore } = toolExecOptions.getContext();
   const config = { ...defaultConfig, ...contextConfig };
 
   if (!vault) {
@@ -298,6 +298,12 @@ export async function execute(
         };
       const base64 = Buffer.from(binaryContents).toString("base64");
 
+      // Update read state for image files
+      await sessionStore.readState.setLastRead(
+        normalizedFilePath,
+        file.stat.mtime
+      );
+
       return {
         type: "image",
         file: {
@@ -327,6 +333,12 @@ export async function execute(
     } else if (fileContentString.length === 0) {
       return `<system-reminder>Warning: the file ${params.file_path} exists but the requested content is empty.</system-reminder>`;
     }
+
+    // Update read state for text files
+    await sessionStore.readState.setLastRead(
+      normalizedFilePath,
+      file.stat.mtime
+    );
 
     return formatWithLineNumbers(
       lines,

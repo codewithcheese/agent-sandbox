@@ -26,6 +26,7 @@ import { loadAttachments } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
 import type { Frontiers } from "loro-crdt/base64";
 import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
+import { SessionStore } from "./session-store.svelte.ts";
 
 const debug = createDebug();
 
@@ -100,7 +101,7 @@ export class Chat {
     })[]
   >([]);
   state = $state<LoadingState>({ type: "idle" });
-  sessionStore = $state<SuperJSONObject>({});
+  sessionStore = $state<SessionStore>();
   vault = $state<VaultOverlay>();
   createdAt: Date;
   updatedAt: Date;
@@ -117,6 +118,7 @@ export class Chat {
   constructor(path: string, data: CurrentChatFile) {
     Object.assign(this, data.payload);
     this.vault = new VaultOverlay(usePlugin().app.vault, data.payload.vault);
+    this.sessionStore = new SessionStore(this.vault);
     this.path = path;
   }
 
@@ -199,6 +201,8 @@ export class Chat {
     const checkpoint = message.metadata?.checkpoint;
     if (checkpoint) {
       this.vault.revert(checkpoint);
+      // Reload session store after vault revert
+      await this.sessionStore.reload();
     }
     // Sync vault to include changes made since checkpoint
     message.metadata.modified = await this.vault.syncAll();
@@ -244,6 +248,8 @@ export class Chat {
     const checkpoint = message.metadata?.checkpoint;
     if (checkpoint) {
       this.vault.revert(checkpoint);
+      // Reload session store after vault revert
+      await this.sessionStore.reload();
     }
     // Sync vault to include changes made since checkpoint
     message.metadata.modified = await this.vault.syncAll();
@@ -282,6 +288,7 @@ export class Chat {
       debug("Updating system message", {
         agentPath: this.options.agentPath,
         agentModified,
+        system,
       });
 
       const newSystemMessage = {
@@ -496,7 +503,9 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
               debug("Tool call", toolCall.toolName, toolCall.args);
             });
             step.toolResults.forEach((toolResult) => {
-              debug("Tool result", toolResult.toolName, toolResult.result);
+              debug("Tool result", toolResult.toolName, {
+                result: toolResult.result,
+              });
             });
           },
           onFinish: async (result) => {

@@ -12,11 +12,19 @@ import {
   TODOS_STORE_KEY,
   type TodoStatus,
 } from "../../../src/tools/todo/shared.ts";
+import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
+import {
+  helpers as mockVaultHelpers,
+  vault as mockVault,
+} from "../../mocks/obsidian.ts";
+import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("TodoWrite tool execute function", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
+  let vault: VaultOverlay;
   let mockSessionStore: Record<string, any>;
   let mockAbortController: AbortController;
+  let sessionStore: SessionStore;
 
   const sampleTodo1: TodoItem = {
     id: "task_1",
@@ -37,18 +45,21 @@ describe("TodoWrite tool execute function", () => {
     priority: "high",
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks();
-    mockSessionStore = {}; // Fresh store for each test
+    await mockVaultHelpers.reset();
+
     mockAbortController = new AbortController();
+    vault = new VaultOverlay(mockVault);
+    sessionStore = new SessionStore(vault);
 
     toolExecOptions = {
       toolCallId: "test-todowrite-call",
       messages: [],
       getContext: () => ({
-        sessionStore: mockSessionStore,
         config: {}, // Use tool's default config
         vault: null,
+        sessionStore,
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -69,11 +80,16 @@ describe("TodoWrite tool execute function", () => {
     expect(result.llmConfirmation).toContain(
       "Total: 2 (Pending: 2, In Progress: 0, Completed: 0)",
     );
-    expect(mockSessionStore[TODOS_STORE_KEY]).toEqual(newTodos);
+    
+    // Check using SessionStore async API
+    const storedTodos = await sessionStore.get(TODOS_STORE_KEY);
+    expect(storedTodos).toEqual(newTodos);
   });
 
   it("should replace an existing todo list in the store", async () => {
-    mockSessionStore[TODOS_STORE_KEY] = [sampleTodo3];
+    // Set up existing todos using SessionStore API
+    await sessionStore.set(TODOS_STORE_KEY, [sampleTodo3]);
+    
     const newTodos = [sampleTodo1, sampleTodo2];
     const params = { todos: newTodos };
     const result = await todoWriteExecute(params, toolExecOptions);
@@ -84,11 +100,16 @@ describe("TodoWrite tool execute function", () => {
     );
     expect(result.oldTodosCount).toBe(1);
     expect(result.newTodosCount).toBe(2);
-    expect(mockSessionStore[TODOS_STORE_KEY]).toEqual(newTodos);
+    
+    // Check using SessionStore async API
+    const storedTodos = await sessionStore.get(TODOS_STORE_KEY);
+    expect(storedTodos).toEqual(newTodos);
   });
 
   it("should clear the todo list if an empty array is provided", async () => {
-    mockSessionStore[TODOS_STORE_KEY] = [sampleTodo1, sampleTodo2, sampleTodo3];
+    // Set up existing todos using SessionStore API
+    await sessionStore.set(TODOS_STORE_KEY, [sampleTodo1, sampleTodo2, sampleTodo3]);
+    
     const params = { todos: [] };
     const result = await todoWriteExecute(params, toolExecOptions);
 
@@ -99,7 +120,10 @@ describe("TodoWrite tool execute function", () => {
     expect(result.oldTodosCount).toBe(3);
     expect(result.newTodosCount).toBe(0);
     expect(result.llmConfirmation).toContain("Total: 0");
-    expect(mockSessionStore[TODOS_STORE_KEY]).toEqual([]);
+    
+    // Check using SessionStore async API
+    const storedTodos = await sessionStore.get(TODOS_STORE_KEY);
+    expect(storedTodos).toEqual([]);
   });
 
   // --- Semantic Validation Tests ---
@@ -117,7 +141,7 @@ describe("TodoWrite tool execute function", () => {
     );
     expect(result.error).toBe("Invalid Todo List Semantics");
     expect(result.message).toContain('Only one task can be "in_progress"');
-    expect(mockSessionStore[TODOS_STORE_KEY]).toBeUndefined(); // Store should not be updated
+    expect(await sessionStore.get(TODOS_STORE_KEY)).toBeUndefined(); // Store should not be updated
   });
 
   it("should return error if duplicate todo IDs are provided", async () => {
@@ -134,7 +158,7 @@ describe("TodoWrite tool execute function", () => {
     );
     expect(result.error).toBe("Invalid Todo List Semantics");
     expect(result.message).toContain('Duplicate todo ID found: "duplicate_id"');
-    expect(mockSessionStore[TODOS_STORE_KEY]).toBeUndefined();
+    expect(await sessionStore.get(TODOS_STORE_KEY)).toBeUndefined();
   });
 
   it("should return error if todo list exceeds MAX_TODOS (via Zod schema)", async () => {
@@ -162,7 +186,7 @@ describe("TodoWrite tool execute function", () => {
       "Expected error object",
     );
     expect(result.error).toBe("Operation aborted");
-    expect(mockSessionStore[TODOS_STORE_KEY]).toBeUndefined(); // Store should not be updated
+    expect(await sessionStore.get(TODOS_STORE_KEY)).toBeUndefined(); // Store should not be updated
   });
 
   it("should correctly report counts in llmConfirmation", async () => {

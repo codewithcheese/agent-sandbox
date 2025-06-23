@@ -2,12 +2,12 @@ import type { Vault } from "obsidian";
 import type { ToolExecutionOptions } from "ai";
 import { z, ZodAny, ZodObject } from "zod";
 import type { AIProviderId } from "../settings/providers.ts";
-import type { SuperJSONObject } from "$lib/utils/superjson.ts";
+import type { SessionStore } from "../chat/session-store.svelte.ts";
 
 export type ToolExecContext = {
   vault: Vault;
   config?: Record<string, any>;
-  sessionStore: SuperJSONObject;
+  sessionStore: SessionStore;
 };
 
 export type ToolExecutionOptionsWithContext = ToolExecutionOptions & {

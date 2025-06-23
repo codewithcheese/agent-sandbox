@@ -7,26 +7,28 @@ import {
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
-import is from "@sindresorhus/is";
+import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("Glob tool execute function", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
+  let sessionStore: SessionStore;
 
   beforeEach(async () => {
     vi.resetAllMocks();
-    mockVaultHelpers.reset();
+    await mockVaultHelpers.reset();
 
     vault = new VaultOverlay(mockVault);
     mockAbortController = new AbortController();
+    sessionStore = new SessionStore(vault);
 
     toolExecOptions = {
       toolCallId: "test-glob-tool-call",
       messages: [],
       getContext: () => ({
         vault,
-        sessionStore: {},
+        sessionStore,
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -228,7 +230,7 @@ describe("Glob tool execute function", () => {
     toolExecOptions.getContext = () => ({
       vault,
       config: { RESULT_LIMIT: 2 },
-      sessionStore: {},
+      sessionStore,
     });
 
     const params = { pattern: "**/*.*", path: "/" };
@@ -264,7 +266,7 @@ describe("Glob tool execute function", () => {
       config: {
         DEFAULT_IGNORE_PATTERNS: [],
       },
-      sessionStore: {},
+      sessionStore,
     });
 
     const params = { pattern: ".obsidian/*", path: "/" };
@@ -281,20 +283,22 @@ describe("Glob tool efficiency tests", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
+  let sessionStore: SessionStore;
 
   beforeEach(async () => {
     vi.resetAllMocks();
-    mockVaultHelpers.reset();
+    await mockVaultHelpers.reset();
 
     vault = new VaultOverlay(mockVault);
     mockAbortController = new AbortController();
+    sessionStore = new SessionStore(vault);
 
     toolExecOptions = {
       toolCallId: "test-glob-efficiency",
       messages: [],
       getContext: () => ({
         vault,
-        sessionStore: {},
+        sessionStore,
       }),
       abortSignal: mockAbortController.signal,
     };

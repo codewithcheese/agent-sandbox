@@ -1,5 +1,6 @@
 import { TFile } from "obsidian";
 import { usePlugin } from "./index";
+import { stripFrontmatter } from "../../chat/system.ts";
 
 export async function processEmbeds(
   sourceFile: TFile,
@@ -25,7 +26,10 @@ export async function processEmbeds(
       // Read the file content
       const fileContent = await plugin.app.vault.read(targetPath);
       // Replace the embed with the file content
-      processedContent = processedContent.replace(fullMatch, fileContent);
+      processedContent = processedContent.replace(
+        fullMatch,
+        stripFrontmatter(fileContent),
+      );
     } catch (error) {
       console.error(`Error processing embed ${path}:`, error);
     }

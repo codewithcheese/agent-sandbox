@@ -8,6 +8,7 @@ import type {
 } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
+import type { ReadState } from "../../chat/read-state.ts";
 
 /**
  * Features:
@@ -84,6 +85,7 @@ async function validateInput(
   params: z.infer<typeof editInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
+  readState: ReadState,
 ): Promise<{ result: boolean; message?: string; meta?: any }> {
   if (params.old_string === "") {
     return {
@@ -130,6 +132,28 @@ async function validateInput(
 
   let currentContent;
   try {
+    // Read-before-write check
+    const hasBeenRead = await readState.hasBeenRead(path);
+    if (!hasBeenRead) {
+      return {
+        result: false,
+        message: "File has not been read yet. Read it first before editing it.",
+      };
+    }
+
+    // Modified-since-read check
+    const isModified = await readState.isModifiedSinceRead(
+      path,
+      file.stat.mtime,
+    );
+    if (isModified) {
+      return {
+        result: false,
+        message:
+          "File has been modified since read. Read it again before attempting to edit.",
+      };
+    }
+
     // Check if old_string exists and matches expected_replacements
     currentContent = (await vault.read(file)).replace(/\r\n/g, "\n");
   } catch (error) {
@@ -165,12 +189,21 @@ export async function execute(
   toolExecOptions: ToolExecutionOptionsWithContext,
 ): Promise<EditToolOutput> {
   const { abortSignal } = toolExecOptions;
-  const { vault, config: contextConfig } = toolExecOptions.getContext();
+  const {
+    vault,
+    config: contextConfig,
+    sessionStore,
+  } = toolExecOptions.getContext();
   const config = { ...defaultConfig, ...contextConfig };
 
   invariant(vault, "Vault not available in execution context.");
 
-  const validation = await validateInput(params, vault, config);
+  const validation = await validateInput(
+    params,
+    vault,
+    config,
+    sessionStore.readState,
+  );
   if (!validation.result) {
     return {
       error: "Input Validation Failed",
@@ -201,11 +234,21 @@ export async function execute(
     const actualReplacements = params.expected_replacements ?? 1; // Already validated this count matches
 
     await vault.modify(file, updatedFileContent);
-    if (abortSignal.aborted)
+    if (abortSignal.aborted) {
       return {
         error: "Operation aborted",
         message: "Edit operation aborted by user.",
       };
+    }
+
+    // Update read state after successful edit
+    const updatedFile = vault.getFileByPath(normalizedFilePath);
+    if (updatedFile) {
+      await sessionStore.readState.setLastRead(
+        normalizedFilePath,
+        updatedFile.stat.mtime,
+      );
+    }
 
     return {
       type: "update",

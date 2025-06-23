@@ -9,11 +9,13 @@ import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.t
 import { invariant } from "@epic-web/invariant";
 import type { TFile } from "obsidian";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
+import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("Edit tool execute function", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
+  let sessionStore: SessionStore;
 
   const MOCK_FILE_PATH = "/test/editable.md";
   const INITIAL_CONTENT =
@@ -23,9 +25,10 @@ describe("Edit tool execute function", () => {
 
   beforeEach(async () => {
     vi.resetAllMocks();
-    mockVaultHelpers.reset();
+    await mockVaultHelpers.reset();
 
     vault = new VaultOverlay(mockVault);
+    sessionStore = new SessionStore(vault);
     mockAbortController = new AbortController();
 
     toolExecOptions = {
@@ -34,15 +37,20 @@ describe("Edit tool execute function", () => {
       getContext: () => ({
         vault,
         config: {},
-        sessionStore: {},
+        sessionStore,
       }),
       abortSignal: mockAbortController.signal,
     };
 
     // Create a default file for editing in many tests
     if (MOCK_FILE_PATH) {
-      // Check to avoid error if MOCK_FILE_PATH is empty for some reason
       await vault.create(MOCK_FILE_PATH, INITIAL_CONTENT);
+      // Simulate that the file was read
+      const file = vault.getFileByPath(MOCK_FILE_PATH);
+      await sessionStore.readState.setLastRead(
+        MOCK_FILE_PATH,
+        file!.stat.mtime,
+      );
     }
   });
 
@@ -160,6 +168,54 @@ describe("Edit tool execute function", () => {
     );
   });
 
+  it("should return error when trying to edit file without reading it first", async () => {
+    // Create a new file without simulating a read
+    const newFilePath = "/test/unread-file.md";
+    await vault.create(newFilePath, "Some content to edit");
+
+    const params = {
+      file_path: newFilePath,
+      old_string: "content",
+      new_string: "modified content",
+    };
+    const result = await editToolExecute(params, toolExecOptions);
+
+    invariant(
+      typeof result !== "string" && "error" in result,
+      "Expected error object",
+    );
+    expect(result.error).toBe("Input Validation Failed");
+    expect(result.message).toContain("File has not been read yet");
+  });
+
+  it("should return error when file has been modified since last read", async () => {
+    // Create file and simulate reading it
+    const modifiedFilePath = "/test/modified-file.md";
+    await vault.create(modifiedFilePath, "Original content");
+    const file = vault.getFileByPath(modifiedFilePath);
+    const originalMtime = file!.stat.mtime;
+
+    // Simulate reading the file
+    await sessionStore.readState.setLastRead(modifiedFilePath, originalMtime);
+
+    // Simulate external modification
+    await new Promise((resolve) => setTimeout(resolve, 1)); // Ensure different timestamp
+    await vault.modify(file!, "Modified externally");
+
+    const params = {
+      file_path: modifiedFilePath,
+      old_string: "Modified",
+      new_string: "Changed",
+    };
+    const result = await editToolExecute(params, toolExecOptions);
+    invariant(
+      typeof result !== "string" && "error" in result,
+      "Expected error object",
+    );
+    expect(result.error).toBe("Input Validation Failed");
+    expect(result.message).toContain("File has been modified since read");
+  });
+
   // --- Successful Edit Operation Tests ---
   it("should perform a single replacement by default and update file content", async () => {
     // Modify initial content to have only one OLD_STRING for this test
@@ -168,6 +224,8 @@ describe("Edit tool execute function", () => {
       vault.getFileByPath(MOCK_FILE_PATH) as TFile,
       singleOccurrenceContent,
     );
+    // Simulate read
+    await sessionStore.readState.setLastRead(MOCK_FILE_PATH, Date.now());
 
     const params = {
       file_path: MOCK_FILE_PATH,
@@ -243,6 +301,8 @@ describe("Edit tool execute function", () => {
       vault.getFileByPath(MOCK_FILE_PATH) as TFile,
       INITIAL_CONTENT,
     ); // ensure original content
+    // Simulate read
+    await sessionStore.readState.setLastRead(MOCK_FILE_PATH, Date.now());
 
     const params = {
       file_path: MOCK_FILE_PATH,
@@ -250,8 +310,11 @@ describe("Edit tool execute function", () => {
       new_string: multiLineNew,
       expected_replacements: 1,
     };
-    await editToolExecute(params, toolExecOptions);
-
+    const result = await editToolExecute(params, toolExecOptions);
+    invariant(
+      typeof result !== "string" && "type" in result,
+      "Expected success object",
+    );
     const updatedContent = await vault.read(
       vault.getFileByPath(MOCK_FILE_PATH) as TFile,
     );

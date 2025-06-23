@@ -5,11 +5,13 @@ import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import { encodeBase64 } from "$lib/utils/base64.ts";
+import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("readToolExecute", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
+  let sessionStore: SessionStore;
 
   const formatExpectedTextOutput = (
     filePath: string,
@@ -21,19 +23,20 @@ describe("readToolExecute", () => {
     return `File: ${filePath}\nLines ${startLine}-${startLine + numReadLines - 1} of ${totalLines}:\n\`\`\`\n${content}\n\`\`\``;
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks();
-    helpers.reset(); // Reset the mock vault state
+    await helpers.reset(); // Reset the mock vault state
 
     vault = new VaultOverlay(mockVault); // Use your VaultOverlaySvelte
     mockAbortController = new AbortController();
+    sessionStore = new SessionStore(vault);
 
     toolExecOptions = {
       toolCallId: "test-read-tool-call",
       messages: [],
       getContext: () => ({
         vault,
-        sessionStore: {},
+        sessionStore,
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -84,7 +87,7 @@ describe("readToolExecute", () => {
       getContext: () => ({
         vault,
         config: { MAX_TEXT_FILE_SIZE: 10 },
-        sessionStore: {},
+        sessionStore,
       }),
     };
     const result = await readToolExecute(params, options);
@@ -140,7 +143,7 @@ describe("readToolExecute", () => {
       getContext: () => ({
         vault,
         config: { MAX_LINE_LENGTH },
-        sessionStore: {},
+        sessionStore,
       }),
     };
     const result = await readToolExecute(params, options);
@@ -221,7 +224,7 @@ describe("readToolExecute", () => {
         config: {
           MAX_TEXT_FILE_SIZE: 80,
         },
-        sessionStore: {},
+        sessionStore,
       }),
     };
     const result = await readToolExecute(params, options);
@@ -263,7 +266,7 @@ describe("readToolExecute", () => {
       getContext: () => ({
         vault,
         config: { MAX_IMAGE_SIZE_BYTES },
-        sessionStore: {},
+        sessionStore,
       }),
     };
     const result = await readToolExecute(params, options);

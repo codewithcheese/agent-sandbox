@@ -9,7 +9,6 @@ export type ChatFileV1 = {
   payload: {
     id: string;
     messages: UIMessage[];
-    sessionStore: SuperJSONObject;
     vault:
       | {
           tracking: Uint8Array;
@@ -50,7 +49,6 @@ export class ChatSerializer {
     payload: {
       id: nanoid(),
       messages: [],
-      sessionStore: {},
       vault: undefined,
       options: {
         maxSteps: 100,
@@ -77,7 +75,6 @@ export class ChatSerializer {
       payload: {
         id: chat.id,
         messages: chat.messages,
-        sessionStore: chat.sessionStore,
         vault: chat.vault.snapshot(),
         options: chat.options,
         createdAt: chat.createdAt,

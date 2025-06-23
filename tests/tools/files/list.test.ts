@@ -8,9 +8,9 @@ describe("LS Tool", () => {
 
   let vault: VaultOverlay;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks();
-    helpers.reset(); // Reset the mock vault state
+    await helpers.reset(); // Reset the mock vault state
 
     toolExecOptions = {
       toolCallId: "test-tool-call-id",

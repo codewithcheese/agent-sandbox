@@ -7,11 +7,13 @@ import {
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
+import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("Write tool", () => {
   let toolExecOptions: ToolExecutionOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
+  let sessionStore: SessionStore;
 
   const MOCK_FILE_PATH = "/test/output.md";
   const MOCK_FILE_CONTENT = "Hello, World!";
@@ -23,6 +25,7 @@ describe("Write tool", () => {
     mockVaultHelpers.reset();
 
     vault = new VaultOverlay(mockVault);
+    sessionStore = new SessionStore(vault);
     mockAbortController = new AbortController();
 
     toolExecOptions = {
@@ -31,7 +34,7 @@ describe("Write tool", () => {
       getContext: () => ({
         vault,
         config: {},
-        sessionStore: {},
+        sessionStore,
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -60,6 +63,45 @@ describe("Write tool", () => {
     expect(result.message).toContain("Path is a directory");
   });
 
+  it("should return error when trying to write to existing file without reading it first", async () => {
+    // Create an existing file without simulating a read
+    await vault.create(MOCK_FILE_PATH, "Old content");
+
+    const params = { file_path: MOCK_FILE_PATH, content: MOCK_FILE_CONTENT };
+    const result = await writeToolExecute(params, toolExecOptions);
+
+    invariant(
+      typeof result !== "string" && "error" in result,
+      "Expected error object",
+    );
+    expect(result.error).toBe("Input Validation Failed");
+    expect(result.message).toContain("File has not been read yet");
+  });
+
+  it("should return error when file has been modified since last read", async () => {
+    // Create file and simulate reading it
+    await vault.create(MOCK_FILE_PATH, "Old content");
+    const file = vault.getFileByPath(MOCK_FILE_PATH);
+    const originalMtime = file!.stat.mtime;
+
+    // Simulate reading the file by setting read state
+    await sessionStore.readState.setLastRead(MOCK_FILE_PATH, originalMtime);
+
+    // Simulate external modification by updating the file's mtime
+    await new Promise((resolve) => setTimeout(resolve, 1)); // Ensure different timestamp
+    await vault.modify(file!, "Modified externally");
+
+    const params = { file_path: MOCK_FILE_PATH, content: MOCK_FILE_CONTENT };
+    const result = await writeToolExecute(params, toolExecOptions);
+
+    invariant(
+      typeof result !== "string" && "error" in result,
+      "Expected error object",
+    );
+    expect(result.error).toBe("Input Validation Failed");
+    expect(result.message).toContain("File has been modified since read");
+  });
+
   // --- File Creation Tests ---
   it("should create a new file with specified content", async () => {
     const params = { file_path: MOCK_FILE_PATH, content: MOCK_FILE_CONTENT };
@@ -77,6 +119,9 @@ describe("Write tool", () => {
     const file = vault.getFileByPath(MOCK_FILE_PATH);
     expect(file).not.toBeNull();
     expect(await vault.read(file)).toBe(MOCK_FILE_CONTENT);
+
+    // Verify read state was updated
+    expect(await sessionStore.readState.hasBeenRead(MOCK_FILE_PATH)).toBe(true);
   });
 
   it("should create parent directories if they do not exist", async () => {
@@ -115,8 +160,12 @@ describe("Write tool", () => {
     expect(await vault.read(file)).toBe("");
   });
 
-  it("should overwrite an existing file with new content", async () => {
-    await vault.create(MOCK_FILE_PATH, "Old content"); // Pre-existing file
+  it("should overwrite an existing file with new content when file was read first", async () => {
+    // Create file and simulate reading it
+    await vault.create(MOCK_FILE_PATH, "Old content");
+    const file = vault.getFileByPath(MOCK_FILE_PATH);
+    await sessionStore.readState.setLastRead(MOCK_FILE_PATH, file!.stat.mtime);
+
     const params = { file_path: MOCK_FILE_PATH, content: MOCK_FILE_CONTENT };
     const result = await writeToolExecute(params, toolExecOptions);
 
@@ -129,9 +178,12 @@ describe("Write tool", () => {
     expect(result.message).toContain("Successfully updated");
     expect(result.contentSnippet).toBe(MOCK_FILE_CONTENT.substring(0, 200));
 
-    const file = vault.getFileByPath(MOCK_FILE_PATH);
-    expect(file).not.toBeNull();
-    expect(await vault.read(file)).toBe(MOCK_FILE_CONTENT);
+    const updatedFile = vault.getFileByPath(MOCK_FILE_PATH);
+    expect(updatedFile).not.toBeNull();
+    expect(await vault.read(updatedFile)).toBe(MOCK_FILE_CONTENT);
+
+    // Verify read state was updated with new mtime
+    expect(await sessionStore.readState.hasBeenRead(MOCK_FILE_PATH)).toBe(true);
   });
 
   it('should return "Operation aborted" if signal is aborted before write', async () => {

@@ -144,9 +144,10 @@ export async function execute(
     };
   }
 
-  const oldTodos: TodoItem[] = sessionStore[TODOS_STORE_KEY] || [];
-
-  sessionStore[TODOS_STORE_KEY] = newTodosFromLLM;
+  const oldTodos: TodoItem[] =
+    (await sessionStore.get<TodoItem[]>(TODOS_STORE_KEY)) || [];
+  // Replace the entire todo list with the new one from the LLM
+  await sessionStore.set(TODOS_STORE_KEY, newTodosFromLLM);
   debug(
     `Todo list updated in store. Old count: ${oldTodos.length}, New count: ${newTodosFromLLM.length}`,
   );

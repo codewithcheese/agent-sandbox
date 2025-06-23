@@ -22,8 +22,12 @@
   };
   let { chat }: Props = $props();
 
+  // $inspect("Todos", chat.sessionStore.data);
+
   let collapsed = $state(false);
-  let todos = $derived<TodoItem[]>(chat.sessionStore?.[TODOS_STORE_KEY] || []);
+  let todos = $derived<TodoItem[]>(
+    chat.sessionStore.data[TODOS_STORE_KEY] || [],
+  );
 
   const priorityOrder: Record<TodoPriority, number> = {
     high: 0,

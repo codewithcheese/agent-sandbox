@@ -47,34 +47,6 @@
   }
 </script>
 
-{#if message?.metadata?.modified?.length}
-  <div>
-    <div class="text-xs text-(--text-muted)">
-      Your modified files:
-      {#each message.metadata.modified as path}
-        <div class="flex flex-row gap-2 items-center py-1">
-          <div
-            tabindex="0"
-            role="button"
-            onkeydown={() => openPath(path)}
-            class="modified-btn"
-            onclick={() => openPath(path)}
-          >
-            {#if path.split(".").pop() === "md"}
-              {getBaseName(path)}
-            {:else}
-              {getBaseName(path)}.{path.split(".").pop()}
-            {/if}
-          </div>
-          <div class="text-(--text-muted) text-xs" style="">
-            {dirname(path) === "." ? "" : dirname(path) + "/"}
-          </div>
-        </div>
-      {/each}
-    </div>
-  </div>
-{/if}
-
 {#if inputState.state.type === "editing" && index > inputState.state.index}
   <!-- Hide messages below the one being edited -->
 {:else if inputState.state.type === "editing" && inputState.state.index === index}
@@ -125,6 +97,33 @@
     </div>
   </div>
 {:else}
+  {#if message?.metadata?.modified?.length}
+    <div>
+      <div class="text-xs text-(--text-muted)">
+        Your modified files:
+        {#each message.metadata.modified as path}
+          <div class="flex flex-row gap-2 items-center py-1">
+            <div
+              tabindex="0"
+              role="button"
+              onkeydown={() => openPath(path)}
+              class="modified-btn"
+              onclick={() => openPath(path)}
+            >
+              {#if path.split(".").pop() === "md"}
+                {getBaseName(path)}
+              {:else}
+                {getBaseName(path)}.{path.split(".").pop()}
+              {/if}
+            </div>
+            <div class="text-(--text-muted) text-xs" style="">
+              {dirname(path) === "." ? "" : dirname(path) + "/"}
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
   <!-- Normal message display -->
   <div class="group relative">
     <!-- prompt badge -->

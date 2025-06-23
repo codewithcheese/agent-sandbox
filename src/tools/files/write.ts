@@ -66,6 +66,7 @@ async function validateWriteInput(
   params: z.infer<typeof writeInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
+  readState: any, // ReadState accessed through sessionStore
 ): Promise<{ result: boolean; message?: string; meta?: any }> {
   const path = normalizePath(params.file_path);
 
@@ -86,6 +87,33 @@ async function validateWriteInput(
     };
   }
 
+  // Check if file exists - if it does, it must have been read recently
+  const existingFile = vault.getFileByPath(path);
+  if (existingFile) {
+    // Read-before-write check
+    const hasBeenRead = await readState.hasBeenRead(path);
+    if (!hasBeenRead) {
+      return {
+        result: false,
+        message:
+          "File has not been read yet. Read it first before writing to it.",
+      };
+    }
+
+    // Modified-since-read check
+    const isModified = await readState.isModifiedSinceRead(
+      path,
+      existingFile.stat.mtime,
+    );
+    if (isModified) {
+      return {
+        result: false,
+        message:
+          "File has been modified since read. Read it again before attempting to write.",
+      };
+    }
+  }
+
   return { result: true };
 }
 
@@ -94,13 +122,22 @@ export async function execute(
   toolExecOptions: ToolExecutionOptionsWithContext,
 ): Promise<WriteToolOutput> {
   const { abortSignal } = toolExecOptions;
-  const { vault, config: contextConfig } = toolExecOptions.getContext();
+  const {
+    vault,
+    config: contextConfig,
+    sessionStore,
+  } = toolExecOptions.getContext();
 
   const config = { ...defaultConfig, ...contextConfig };
 
   invariant(vault, "Vault not available in execution context.");
 
-  const validation = await validateWriteInput(params, vault, config);
+  const validation = await validateWriteInput(
+    params,
+    vault,
+    config,
+    sessionStore.readState,
+  );
   if (!validation.result) {
     return {
       error: "Input Validation Failed",
@@ -126,6 +163,15 @@ export async function execute(
       await vault.modify(abstractFile as TFile, newContent);
     } else {
       await vault.create(normalizedFilePath, newContent);
+    }
+
+    // Update read state after successful write
+    const updatedFile = vault.getFileByPath(normalizedFilePath);
+    if (updatedFile) {
+      await sessionStore.readState.setLastRead(
+        normalizedFilePath,
+        updatedFile.stat.mtime,
+      );
     }
 
     return {

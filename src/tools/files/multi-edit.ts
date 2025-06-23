@@ -126,6 +126,7 @@ async function validateMultiEditFilePath(
   filePath: string,
   vault: Vault,
   config: typeof defaultConfig,
+  readState: any, // ReadState accessed through sessionStore
 ): Promise<{ result: boolean; message?: string; meta?: any }> {
   const path = normalizePath(filePath);
 
@@ -150,6 +151,31 @@ async function validateMultiEditFilePath(
     };
   }
 
+  const file = vault.getFileByPath(path);
+  if (file) {
+    // Read-before-write check
+    const hasBeenRead = await readState.hasBeenRead(path);
+    if (!hasBeenRead) {
+      return {
+        result: false,
+        message: "File has not been read yet. Read it first before editing it.",
+      };
+    }
+
+    // Modified-since-read check
+    const isModified = await readState.isModifiedSinceRead(
+      path,
+      file.stat.mtime,
+    );
+    if (isModified) {
+      return {
+        result: false,
+        message:
+          "File has been modified since read. Read it again before attempting to edit.",
+      };
+    }
+  }
+
   return { result: true };
 }
 
@@ -158,7 +184,11 @@ export async function execute(
   toolExecOptions: ToolExecutionOptionsWithContext,
 ): Promise<MultiEditToolOutput> {
   const { abortSignal } = toolExecOptions;
-  const { vault, config: contextConfig } = toolExecOptions.getContext();
+  const {
+    vault,
+    config: contextConfig,
+    sessionStore,
+  } = toolExecOptions.getContext();
 
   const config = { ...defaultConfig, ...contextConfig };
 
@@ -168,6 +198,7 @@ export async function execute(
     params.file_path,
     vault,
     config,
+    sessionStore.readState,
   );
   if (!validation.result) {
     return {
@@ -258,6 +289,15 @@ export async function execute(
         error: "Operation aborted",
         message: "MultiEdit operation aborted by user.",
       };
+
+    // Update read state after successful multi-edit
+    const updatedFile = vault.getFileByPath(normalizePath(params.file_path));
+    if (updatedFile) {
+      await sessionStore.readState.setLastRead(
+        normalizePath(params.file_path),
+        updatedFile.stat.mtime,
+      );
+    }
 
     return {
       type: "update",
