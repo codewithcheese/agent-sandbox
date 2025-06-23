@@ -21,7 +21,7 @@ export class HtmlEscapeCommand {
   }
 
   private static escapeHtml(text: string): string {
-    // Match HTML tags and wrap them in backticks
-    return text.replace(/<[^>]*>/g, (match) => `\`${match}\``);
+    // Match HTML tags that are not already wrapped in backticks
+    return text.replace(/(?<!`)<[^>]*>(?!`)/g, (match) => `\`${match}\``);
   }
 }
