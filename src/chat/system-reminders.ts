@@ -11,8 +11,7 @@ export function syncChangesReminder(
   const sections: string[] = [];
 
   // Add system reminder header
-  sections.push("<system-reminder>");
-  sections.push("The user modified the following files:");
+  sections.push("<vault-updated>");
   sections.push("");
 
   // Process each diff
@@ -21,7 +20,7 @@ export function syncChangesReminder(
     sections.push("");
   }
 
-  sections.push("</system-reminder>");
+  sections.push("</vault-updated>");
 
   return sections.join("\n");
 }

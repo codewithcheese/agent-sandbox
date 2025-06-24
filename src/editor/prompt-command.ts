@@ -19,7 +19,6 @@ export async function loadPromptMessage(
     id: nanoid(),
     role: "user",
     content,
-    // @ts-expect-error custom property
     metadata: {
       prompt: {
         path: file.path,

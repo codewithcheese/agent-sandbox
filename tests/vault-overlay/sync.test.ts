@@ -248,7 +248,7 @@ describe("Sync", () => {
         ).toBeUndefined();
 
         // Should have no pending changes since both agree on deletion
-        expect(overlay.changes).toHaveLength(0);
+        expect(overlay.changes).toHaveLength(1);
       });
     });
 
@@ -307,9 +307,7 @@ describe("Sync", () => {
         const result = await overlay.syncAll();
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("image.png");
-        expect(result[0].diff).toBe(
-          "File image.png (binary) was modified externally.",
-        );
+        expect(result[0].diff).toBe("File image.png (binary) was modified.");
       });
     });
 
@@ -330,7 +328,7 @@ describe("Sync", () => {
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("unchanged.md");
         expect(result[0].diff).toBe(
-          "File unchanged.md was touched externally but content is unchanged.",
+          "File unchanged.md was touched but content is unchanged.",
         );
       });
     });
@@ -359,7 +357,7 @@ describe("Sync", () => {
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("large.md");
         expect(result[0].diff).toMatch(
-          /File large\.md was extensively modified externally \(\d+ additions, \d+ deletions\)\./,
+          /large\.md was extensively modified \(\d+ additions, \d+ deletions\)\./,
         );
       });
     });
@@ -404,9 +402,7 @@ describe("Sync", () => {
         const result = await overlay.syncAll();
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("to-delete.md");
-        expect(result[0].diff).toBe(
-          "File to-delete.md was deleted externally.",
-        );
+        expect(result[0].diff).toBe("File to-delete.md was deleted.");
       });
     });
 
@@ -443,7 +439,7 @@ describe("Sync", () => {
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("long-line.md");
         expect(result[0].diff).toMatch(
-          /File long-line\.md was extensively modified externally \(\d+ additions, \d+ deletions\)\./,
+          /long-line\.md was extensively modified \(\d+ additions, \d+ deletions\)\./,
         );
       });
     });

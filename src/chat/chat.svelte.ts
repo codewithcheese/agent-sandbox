@@ -51,19 +51,18 @@ export type WithSystemMetadata = {
 export type WithUserMetadata = {
   role: "user";
   metadata?: {
-    checkpoint: Frontiers;
-    modified: string[];
+    checkpoint?: Frontiers;
+    modified?: string[];
     prompt?: {
       path: string;
     };
+    isSystemMeta?: true;
   };
 };
 
 export type WithAssistantMetadata = {
   role: "assistant";
-  metadata?: {
-    isSystemReminder: true;
-  };
+  metadata?: {};
 };
 
 export type UIMessageWithMetadata = UIMessage &
@@ -189,7 +188,7 @@ export class Chat {
     // Add system reminder for external changes if any (before user message)
     if (syncResult.length > 0) {
       const changesSummary = syncChangesReminder(syncResult);
-      await this.addSystemReminder(changesSummary);
+      await this.addSystemMeta(changesSummary);
     }
 
     // Insert a user message
@@ -238,7 +237,7 @@ export class Chat {
     if (syncResult.length > 0) {
       const changesSummary = syncChangesReminder(syncResult);
       // Increment index if a system reminder was added
-      index += await this.addSystemReminder(changesSummary, index);
+      index += await this.addSystemMeta(changesSummary, index);
     }
 
     message.metadata.modified = syncResult.map((r) => r.path);
@@ -294,7 +293,7 @@ export class Chat {
     if (syncResult.length > 0) {
       const changesSummary = syncChangesReminder(syncResult);
       // Increment index if a system reminder was added
-      index += await this.addSystemReminder(changesSummary, index);
+      index += await this.addSystemMeta(changesSummary, index);
     }
 
     message.metadata.modified = syncResult.map((r) => r.path);
@@ -812,18 +811,18 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
    * Add a system reminder message to the conversation
    * Returns number of messages inserted
    */
-  private async addSystemReminder(
+  private async addSystemMeta(
     content: string,
     insertIndex?: number,
   ): Promise<number> {
     if (content.trim()) {
-      const reminderMessage: UIMessage & WithAssistantMetadata = {
+      const reminderMessage: UIMessage & WithUserMetadata = {
         id: nanoid(),
-        role: "assistant" as const,
+        role: "user" as const,
         content: content,
         parts: [{ type: "text", text: content }],
         metadata: {
-          isSystemReminder: true,
+          isSystemMeta: true,
         },
         createdAt: new Date(),
       };
@@ -833,8 +832,8 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         const existingMessage = this.messages[insertIndex - 1];
         if (
           existingMessage?.metadata &&
-          "isSystemReminder" in existingMessage.metadata &&
-          existingMessage.metadata.isSystemReminder
+          "isSystemMeta" in existingMessage.metadata &&
+          existingMessage.metadata.isSystemMeta
         ) {
           // Replace existing system reminder
           this.messages[insertIndex - 1] = reminderMessage;

@@ -121,9 +121,9 @@
           {#each chat.messages as message, index}
             {#if message.role === "system"}
               <!-- do not render system message -->
-            {:else if message.role === "assistant" && !(message.metadata && message.metadata.isSystemReminder)}
+            {:else if message.role === "assistant"}
               <Message {chat} {message} {index} bind:inputState />
-            {:else if message.role === "user"}
+            {:else if message.role === "user" && !(message.metadata && "isSystemMeta" in message.metadata && message.metadata.isSystemMeta)}
               <Message {chat} {message} {index} bind:inputState />
             {/if}
           {/each}
