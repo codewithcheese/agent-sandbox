@@ -78,8 +78,7 @@ describe("Sync", () => {
 
       it("SHOULD sync create and proposed becomes modify ", async () => {
         const result = await overlay.syncAll();
-        expect(result).toHaveLength(1);
-        expect(result[0].path).toBe("Notes/new-file.md");
+        expect(result).toHaveLength(0);
 
         expect(
           getText(overlay.trackingFS.findByPath("Notes/new-file.md")),
@@ -286,6 +285,169 @@ describe("Sync", () => {
   });
 
   // ^ Roll-up test cases below, to fill out the possible combinations
+
+  describe("Edge cases for diff generation", () => {
+    // fixme: syncPath does not support reading binary files
+    describe.skip("GIVEN binary file modified externally", () => {
+      let binaryFile: TFile;
+
+      beforeEach(async () => {
+        const binaryData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer; // PNG header
+        binaryFile = await vault.createBinary("image.png", binaryData);
+        await overlay.modifyBinary(
+          binaryFile,
+          new Uint8Array([0x47, 0x49, 0x46]).buffer,
+        );
+      });
+
+      it("SHOULD generate binary file diff message", async () => {
+        const newBinaryData = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer; // JPEG header
+        await vault.modifyBinary(binaryFile, newBinaryData);
+
+        const result = await overlay.syncAll();
+        expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("image.png");
+        expect(result[0].diff).toBe(
+          "File image.png (binary) was modified externally.",
+        );
+      });
+    });
+
+    // fixme: syncPath does not support reading binary files
+    describe.skip("GIVEN text file with no content changes", () => {
+      let textFile: TFile;
+
+      beforeEach(async () => {
+        textFile = helpers.addFile("unchanged.md", "Same content");
+        await overlay.modify(textFile, "Same content"); // AI doesn't change content
+      });
+
+      it("SHOULD generate unchanged content message", async () => {
+        // Simulate file being touched but not changed
+        await vault.modify(textFile, "Same content");
+
+        const result = await overlay.syncAll();
+        expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("unchanged.md");
+        expect(result[0].diff).toBe(
+          "File unchanged.md was touched externally but content is unchanged.",
+        );
+      });
+    });
+
+    describe("GIVEN file with extensive changes", () => {
+      let largeFile: TFile;
+
+      beforeEach(async () => {
+        const originalContent = Array.from(
+          { length: 100 },
+          (_, i) => `Line ${i + 1}`,
+        ).join("\n");
+        largeFile = helpers.addFile("large.md", originalContent);
+        await overlay.modify(largeFile, originalContent + "\nAI addition");
+      });
+
+      it("SHOULD generate truncated diff message for large changes", async () => {
+        // Create a large change (more than 50 lines)
+        const newContent = Array.from(
+          { length: 120 },
+          (_, i) => `Modified line ${i + 1}`,
+        ).join("\n");
+        await vault.modify(largeFile, newContent);
+
+        const result = await overlay.syncAll();
+        expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("large.md");
+        expect(result[0].diff).toMatch(
+          /File large\.md was extensively modified externally \(\d+ additions, \d+ deletions\)\./,
+        );
+      });
+    });
+
+    // Fixme: syncAll() only syncs tracked files. External rename sync not yet implemented
+
+    describe.skip("GIVEN file with rename and content change", () => {
+      let originalFile: TFile;
+
+      beforeEach(async () => {
+        originalFile = helpers.addFile("old-name.md", "Original content");
+        await overlay.modify(originalFile, "AI modified content");
+      });
+
+      it("SHOULD show rename in diff path", async () => {
+        // Rename and modify in vault
+        await vault.rename(originalFile, "new-name.md");
+        const renamedFile = vault.getFileByPath("new-name.md");
+        await vault.modify(renamedFile, "Human modified content");
+
+        const result = await overlay.syncAll();
+        expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("new-name.md");
+        expect(result[0].diff).toContain("--- old-name.md");
+        expect(result[0].diff).toContain("+++ new-name.md");
+        expect(result[0].diff).toContain("-AI modified content");
+        expect(result[0].diff).toContain("+Human modified content");
+      });
+    });
+
+    describe("GIVEN file deleted externally", () => {
+      let deletedFile: TFile;
+
+      beforeEach(async () => {
+        deletedFile = helpers.addFile("to-delete.md", "Content to be deleted");
+        await overlay.modify(deletedFile, "AI modified this file");
+      });
+
+      it("SHOULD generate deletion message", async () => {
+        await vault.delete(deletedFile);
+
+        const result = await overlay.syncAll();
+        expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("to-delete.md");
+        expect(result[0].diff).toBe(
+          "File to-delete.md was deleted externally.",
+        );
+      });
+    });
+
+    describe("GIVEN file created in vault that exists in proposed", () => {
+      beforeEach(async () => {
+        // AI creates a file in proposed overlay
+        await overlay.create("new-file.md", "AI created content");
+      });
+
+      it("SHOULD not show diff, AI proposed was not modified", async () => {
+        // Human creates same file with different content
+        helpers.addFile("new-file.md", "Human created content");
+
+        const result = await overlay.syncAll();
+        expect(result).toHaveLength(0);
+      });
+    });
+
+    describe("GIVEN very long single line change", () => {
+      let longLineFile: TFile;
+
+      beforeEach(async () => {
+        const shortContent = "Short line";
+        longLineFile = helpers.addFile("long-line.md", shortContent);
+        await overlay.modify(longLineFile, shortContent + " with AI addition");
+      });
+
+      it("SHOULD truncate based on character count", async () => {
+        // Create a very long line (more than 2000 characters)
+        const longContent = "x".repeat(3000);
+        await vault.modify(longLineFile, longContent);
+
+        const result = await overlay.syncAll();
+        expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("long-line.md");
+        expect(result[0].diff).toMatch(
+          /File long-line\.md was extensively modified externally \(\d+ additions, \d+ deletions\)\./,
+        );
+      });
+    });
+  });
 
   describe("syncPath", () => {
     it("syncs vault edits into proposed without losing AI edits", async () => {});

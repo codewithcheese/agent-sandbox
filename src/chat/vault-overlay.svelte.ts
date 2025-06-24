@@ -20,11 +20,20 @@ import {
 } from "loro-crdt/base64";
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
-import { type NodeData, TreeFS, wasCreatedKey } from "./tree-fs.ts";
+import {
+  type NodeData,
+  overlayTmpPath,
+  trashPath,
+  isDirectoryKey,
+  deletedFrom,
+  TreeFS,
+  wasCreatedKey,
+} from "./tree-fs.ts";
 import {
   createStat,
   getBuffer,
   getDeletedFrom,
+  getFileContent,
   getName,
   getNodeData,
   getStat,
@@ -36,15 +45,11 @@ import {
   replaceText,
   setStat,
   updateText,
+  type FileContent,
 } from "$lib/utils/loro.ts";
-import { overlayTmpPath } from "./tree-fs.ts";
 import { createTwoFilesPatch } from "diff";
 
 const debug = createDebug();
-
-const trashPath = ".overlay-trash" as const;
-const deletedFrom = "deletedFrom" as const;
-export const isDirectoryKey = "isDirectory" as const;
 
 const trackingPeerId = 1 as const;
 const proposedPeerId = 2 as const;
@@ -723,35 +728,43 @@ export class VaultOverlay implements Vault {
         // created therefore no change object is returned
         debug("Sync delete", path);
         await this.syncDelete(path);
+
         // Add result to notify AI about the deletion
         results.push({
           path,
-          diff: `File ${path} was deleted externally.`,
+          diff: this.generateDiffMessage(path, path, "delete"),
         });
       } else if (vaultFile && !trackingNode && proposedNode) {
-        // Created in overlay, now exists in vault. Rebase to `modified`.
-        // Returns difference been vault and proposed
+        if (vaultFile instanceof TFolder) {
+          // No contents to sync
+          continue;
+        }
         debug("Sync create", path);
-        // Capture proposed content before sync
-        const beforeContent = getText(proposedNode);
         await this.syncCreate(path);
-        const afterContent = getText(proposedNode);
-        results.push({
-          path,
-          diff: this.generateDiff(path, path, beforeContent, afterContent),
-        });
+        // Proposed content is not modified by sync
+        // No need to notify about change
       } else if (vaultFile && trackingNode) {
+        if (vaultFile instanceof TFolder) {
+          // No contents to sync
+          continue;
+        }
         // Check if vault file changed since tracking
         if (await this.hasVaultChanged(vaultFile, trackingNode)) {
           debug("Sync modify", path);
           // Capture proposed content before sync
           const proposedNode = this.proposedFS.findById(trackingNode.id);
-          const beforeContent = getText(proposedNode);
+          const beforeContent = getFileContent(proposedNode);
           await this.syncPath(path);
-          const afterContent = getText(proposedNode);
+          const afterContent = getFileContent(proposedNode);
           results.push({
             path,
-            diff: this.generateDiff(path, path, beforeContent, afterContent),
+            diff: this.generateDiffMessage(
+              path,
+              path,
+              "modify",
+              beforeContent,
+              afterContent,
+            ),
           });
         }
       }
@@ -763,6 +776,7 @@ export class VaultOverlay implements Vault {
 
   /**
    * Sync path from disk and sync (LoroText merge) with proposed.
+   * Fixme: does not support reading binary files
    */
   async syncPath(path: string): Promise<LoroTreeNode> {
     path = normalizePath(path);
@@ -1504,27 +1518,73 @@ export class VaultOverlay implements Vault {
 
   async destroy() {}
 
-  private generateDiff(
+  private generateDiffMessage(
     oldPath: string,
     newPath: string,
-    oldContent: string,
-    newContent: string,
-  ): string | null {
-    const patch = createTwoFilesPatch(
-      oldPath,
-      newPath,
-      oldContent,
-      newContent,
-      undefined,
-      undefined,
-      { context: 0 },
-    );
+    operation: "modify" | "delete",
+    beforeContent?: FileContent,
+    afterContent?: FileContent,
+  ): string {
+    if (operation === "delete") {
+      return `File ${oldPath} was deleted externally.`;
+    }
 
-    // Remove the Index: and === lines (first 2 lines) to save tokens
-    // Keep the ---/+++ lines and @@ headers which contain essential info
-    const lines = patch.split("\n");
-    const optimizedDiff = lines.slice(2).join("\n");
+    // For create and modify operations, show diff between before and after content
 
-    return optimizedDiff.trim() || null;
+    // Handle binary files
+    if (beforeContent?.type === "binary" || afterContent?.type === "binary") {
+      const pathInfo =
+        oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
+      return `File ${pathInfo} was modified externally.`;
+    }
+
+    // Handle text files
+    if (beforeContent?.type === "text" && afterContent?.type === "text") {
+      // Check if content is the same
+      if (beforeContent.content === afterContent.content) {
+        const pathInfo =
+          oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
+        return `File ${pathInfo} was touched externally but content is unchanged.`;
+      }
+
+      const patch = createTwoFilesPatch(
+        oldPath,
+        newPath,
+        beforeContent.content,
+        afterContent.content,
+        undefined,
+        undefined,
+        { context: 0 },
+      );
+
+      // Remove the Index: and === lines (first 2 lines) to save tokens
+      const lines = patch.split("\n");
+      const optimizedDiff = lines.slice(2).join("\n");
+
+      // Check if diff is too large (more than 50 lines or 2000 characters)
+      const diffLines = optimizedDiff.split("\n");
+      const MAX_LINES = 50;
+      const MAX_CHARS = 2000;
+
+      if (diffLines.length > MAX_LINES || optimizedDiff.length > MAX_CHARS) {
+        // Count changes for summary
+        const addedLines = diffLines.filter((line) =>
+          line.startsWith("+"),
+        ).length;
+        const removedLines = diffLines.filter((line) =>
+          line.startsWith("-"),
+        ).length;
+        const pathInfo =
+          oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
+
+        return `File ${pathInfo} was extensively modified externally (${addedLines} additions, ${removedLines} deletions).`;
+      }
+
+      return optimizedDiff.trim();
+    }
+
+    // Fallback for other cases
+    const pathInfo = oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
+    return `File ${pathInfo} was modified externally.`;
   }
 }

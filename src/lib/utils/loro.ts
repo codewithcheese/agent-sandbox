@@ -1,11 +1,16 @@
 import { LoroText, LoroTreeNode } from "loro-crdt/base64";
 import { decodeBase64, encodeBase64 } from "$lib/utils/base64.ts";
 import type { DataWriteOptions, FileStats } from "obsidian";
-import type { NodeData } from "../../chat/tree-fs.ts";
+import {
+  deletedFrom,
+  isDirectoryKey,
+  type NodeData,
+} from "../../chat/tree-fs.ts";
 
-const trashPath = ".overlay-trash" as const;
-const deletedFrom = "deletedFrom" as const;
-export const isDirectoryKey = "isDirectory" as const;
+export type FileContent =
+  | { type: "text"; content: string }
+  | { type: "binary" }
+  | { type: "missing" };
 
 export function getText(node: LoroTreeNode): string | undefined {
   return (node.data.get("text") as LoroText)?.toString();
@@ -54,11 +59,11 @@ export function setStat(node: LoroTreeNode, stat: FileStats) {
 }
 
 export function isDirectory(node: LoroTreeNode): boolean {
-  return node.data.get("isDirectory") === true;
+  return node.data.get(isDirectoryKey) === true;
 }
 
 export function setDirectory(node: LoroTreeNode, isDirectory: boolean) {
-  node.data.set("isDirectory", isDirectory);
+  node.data.set(isDirectoryKey, isDirectory);
 }
 
 export function setDeletedFrom(node: LoroTreeNode, path: string) {
@@ -157,4 +162,13 @@ export function hasContentChanged(
   }
 
   return false;
+}
+
+export function getFileContent(node: LoroTreeNode | null): FileContent {
+  if (!node) return { type: "missing" };
+
+  const text = getText(node);
+  if (text === null || text === undefined) return { type: "binary" };
+
+  return { type: "text", content: text };
 }

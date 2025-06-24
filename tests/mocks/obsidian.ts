@@ -1,7 +1,13 @@
 // polyfill for grey-matter
 import { Buffer } from "buffer";
 import matter from "gray-matter";
-import type { TAbstractFile, TFile, TFolder, Vault } from "obsidian";
+import type {
+  DataWriteOptions,
+  TAbstractFile,
+  TFile,
+  TFolder,
+  Vault,
+} from "obsidian";
 import { fs, InMemoryStore, configure, InMemory } from "@zenfs/core";
 import { normalizePath } from "./normalize-path.ts";
 
@@ -286,6 +292,14 @@ export const vault: Vault = {
   modify: async (file: MockTFile, content: string) => {
     fs.writeFileSync(file.path, content, "utf8");
   },
+  modifyBinary(
+    file: TFile,
+    data: ArrayBuffer,
+    options?: DataWriteOptions,
+  ): Promise<void> {
+    fs.writeFileSync(file.path, Buffer.from(data));
+    return;
+  },
   delete: async (file: MockTFile | MockTFolder) => {
     try {
       const stats = fs.statSync(file.path);
@@ -409,14 +423,14 @@ export const metadataCache = {
     if (exactFile) {
       return exactFile;
     }
-    
+
     // If not found by exact path, try to find by basename
     const allFiles = vault.getFiles();
-    const filesByBasename = allFiles.filter(file => {
+    const filesByBasename = allFiles.filter((file) => {
       const basename = file.basename;
       return basename === linkpath;
     });
-    
+
     // Return first match, or null if none found
     return filesByBasename.length > 0 ? filesByBasename[0] : null;
   },
