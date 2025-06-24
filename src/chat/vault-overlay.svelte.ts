@@ -38,6 +38,7 @@ import {
   updateText,
 } from "$lib/utils/loro.ts";
 import { overlayTmpPath } from "./tree-fs.ts";
+import { createTwoFilesPatch } from "diff";
 
 const debug = createDebug();
 
@@ -67,7 +68,7 @@ type ApprovedChange =
   | { type: "delete"; path: string }
   | { type: "rename"; path: string };
 
-type SyncDiff = { path: string; added: number; removed: number }; // path is current path in proposed
+export type SyncResult = { path: string; diff: string }[];
 
 export class VaultOverlay implements Vault {
   trackingDoc: LoroDoc;
@@ -700,7 +701,7 @@ export class VaultOverlay implements Vault {
     throw new Error("tryTrigger not support.");
   }
 
-  async syncAll(): Promise<string[]> {
+  async syncAll(): Promise<SyncResult> {
     // Collect all tracked paths from both docs
     const trackedPaths = new Set([
       ...this.getAllTrackedPaths(this.trackingDoc),
@@ -710,7 +711,8 @@ export class VaultOverlay implements Vault {
     debug("Syncing paths:", Array.from(trackedPaths));
 
     // Check vault state vs tracking state
-    const modified: string[] = [];
+    const results: SyncResult = [];
+
     for (const path of trackedPaths) {
       const vaultFile = this.vault.getAbstractFileByPath(path);
       const trackingNode = this.trackingFS.findByPath(path);
@@ -721,26 +723,42 @@ export class VaultOverlay implements Vault {
         // created therefore no change object is returned
         debug("Sync delete", path);
         await this.syncDelete(path);
+        // Add result to notify AI about the deletion
+        results.push({
+          path,
+          diff: `File ${path} was deleted externally.`,
+        });
       } else if (vaultFile && !trackingNode && proposedNode) {
         // Created in overlay, now exists in vault. Rebase to `modified`.
         // Returns difference been vault and proposed
         debug("Sync create", path);
-        const trackingNode = await this.syncCreate(path);
-        const proposedNode = this.proposedFS.findById(trackingNode.id);
-        modified.push(this.proposedFS.getNodePath(proposedNode));
+        // Capture proposed content before sync
+        const beforeContent = getText(proposedNode);
+        await this.syncCreate(path);
+        const afterContent = getText(proposedNode);
+        results.push({
+          path,
+          diff: this.generateDiff(path, path, beforeContent, afterContent),
+        });
       } else if (vaultFile && trackingNode) {
         // Check if vault file changed since tracking
         if (await this.hasVaultChanged(vaultFile, trackingNode)) {
           debug("Sync modify", path);
-          const trackingNode = await this.syncPath(path);
+          // Capture proposed content before sync
           const proposedNode = this.proposedFS.findById(trackingNode.id);
-          modified.push(this.proposedFS.getNodePath(proposedNode));
+          const beforeContent = getText(proposedNode);
+          await this.syncPath(path);
+          const afterContent = getText(proposedNode);
+          results.push({
+            path,
+            diff: this.generateDiff(path, path, beforeContent, afterContent),
+          });
         }
       }
     }
 
-    debug(`Vault sync completed.`, modified);
-    return modified;
+    debug(`Vault sync completed.`, results);
+    return results;
   }
 
   /**
@@ -858,24 +876,9 @@ export class VaultOverlay implements Vault {
       trackingNode,
       `Cannot sync delete, file not in tracking: ${path}`,
     );
-    const proposedNode = this.proposedFS.findById(trackingNode.id);
-    const proposedPath = this.proposedFS.getNodePath(proposedNode);
-    const wasTrashed = isTrashed(proposedNode);
-
-    // Save proposed data
-    const data = getNodeData(proposedNode);
     this.trackingFS.deleteNode(trackingNode.id);
     this.trackingDoc.commit();
     this.mergeDocs();
-
-    // Restore proposed data as create
-    if (!data.isDirectory && !wasTrashed) {
-      if (data.text != null) {
-        await this.create(proposedPath, data.text);
-      } else if (data.buffer != null) {
-        await this.createBinary(proposedPath, data.buffer);
-      }
-    }
   }
 
   async approve(ops: ApprovedChange[]) {
@@ -1500,4 +1503,28 @@ export class VaultOverlay implements Vault {
   }
 
   async destroy() {}
+
+  private generateDiff(
+    oldPath: string,
+    newPath: string,
+    oldContent: string,
+    newContent: string,
+  ): string | null {
+    const patch = createTwoFilesPatch(
+      oldPath,
+      newPath,
+      oldContent,
+      newContent,
+      undefined,
+      undefined,
+      { context: 0 },
+    );
+
+    // Remove the Index: and === lines (first 2 lines) to save tokens
+    // Keep the ---/+++ lines and @@ headers which contain essential info
+    const lines = patch.split("\n");
+    const optimizedDiff = lines.slice(2).join("\n");
+
+    return optimizedDiff.trim() || null;
+  }
 }

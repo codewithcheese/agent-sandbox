@@ -21,12 +21,12 @@ import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { ChatModel } from "../settings/models.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
-import type { SuperJSONObject } from "$lib/utils/superjson.ts";
 import { loadAttachments } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
 import type { Frontiers } from "loro-crdt/base64";
 import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { SessionStore } from "./session-store.svelte.ts";
+import { syncChangesReminder } from "./system-reminders.ts";
 
 const debug = createDebug();
 
@@ -165,6 +165,15 @@ export class Chat {
   }
 
   async submit(content: string, attachments: string[]) {
+    // Sync vault and check for external changes
+    const syncResult = await this.vault.syncAll();
+
+    // Add system reminder for external changes if any (before user message)
+    if (syncResult.length > 0) {
+      const changesSummary = syncChangesReminder(syncResult);
+      await this.addSystemReminder(changesSummary);
+    }
+
     // Insert a user message
     this.messages.push({
       id: nanoid(),
@@ -175,7 +184,7 @@ export class Chat {
         attachments.length > 0 ? await loadAttachments(attachments) : undefined,
       createdAt: new Date(),
       metadata: {
-        modified: await this.vault.syncAll(),
+        modified: syncResult.map((r) => r.path),
         checkpoint: this.vault.proposedDoc.frontiers(),
       },
     });
@@ -204,8 +213,19 @@ export class Chat {
       // Reload session store after vault revert
       await this.sessionStore.reload();
     }
-    // Sync vault to include changes made since checkpoint
-    message.metadata.modified = await this.vault.syncAll();
+
+    // Sync vault to include changes made since checkpoint and check for external changes
+    const syncResult = await this.vault.syncAll();
+
+    // Add system reminder for external changes if any (before the message being edited)
+    if (syncResult.length > 0) {
+      const changesSummary = syncChangesReminder(syncResult);
+      await this.addSystemReminder(changesSummary, index);
+      // Increment index since we inserted a message before it
+      index++;
+    }
+
+    message.metadata.modified = syncResult.map((r) => r.path);
     // remove text parts
     message.parts = message.parts.filter((p) => p.type !== "text");
     // update content
@@ -234,7 +254,7 @@ export class Chat {
     const message = this.messages[index] as UIMessage & {
       metadata?: UserMessageMetadata;
     };
-    invariant(message, `Cannot edit message. Message not found: ${index}`);
+    invariant(message, `Cannot edit message. Message not found: #${index}`);
     // Update attachments
     if (
       message.experimental_attachments &&
@@ -251,8 +271,19 @@ export class Chat {
       // Reload session store after vault revert
       await this.sessionStore.reload();
     }
-    // Sync vault to include changes made since checkpoint
-    message.metadata.modified = await this.vault.syncAll();
+
+    // Sync vault to include changes made since checkpoint and check for external changes
+    const syncResult = await this.vault.syncAll();
+
+    // Add system reminder for external changes if any (before the message being regenerated)
+    if (syncResult.length > 0) {
+      const changesSummary = syncChangesReminder(syncResult);
+      await this.addSystemReminder(changesSummary, index);
+      // Increment index since we inserted a message before it
+      index++;
+    }
+
+    message.metadata.modified = syncResult.map((r) => r.path);
     // Truncate the conversation
     this.messages = this.messages.slice(0, index + 1);
 
@@ -763,5 +794,30 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       throw Error(`AI account ${this.options.accountId} not found`);
     }
     return account;
+  }
+
+  /**
+   * Add a system reminder message to the conversation using assistant role
+   * (since Anthropic doesn't support system messages during conversation)
+   */
+  private async addSystemReminder(
+    content: string,
+    insertIndex?: number,
+  ): Promise<void> {
+    if (content.trim()) {
+      const reminderMessage: UIMessage = {
+        id: nanoid(),
+        role: "assistant" as const,
+        content: content,
+        parts: [{ type: "text", text: content }],
+        createdAt: new Date(),
+      };
+
+      if (insertIndex !== undefined) {
+        this.messages.splice(insertIndex, 0, reminderMessage);
+      } else {
+        this.messages.push(reminderMessage);
+      }
+    }
   }
 }

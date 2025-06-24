@@ -30,8 +30,8 @@ describe("Sync", () => {
 
       it("SHOULD sync vault contents to tracking, and merge proposed", async () => {
         const result = await overlay.syncAll();
-
         expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("Notes/idea.md");
 
         expect(getText(overlay.trackingFS.findByPath("Notes/idea.md"))).toEqual(
           "Hello\n\nHuman line\n\nGoodbye",
@@ -47,24 +47,19 @@ describe("Sync", () => {
         await vault.delete(ideaFile); // Human deletes file
       });
 
-      it("SHOULD sync vault delete to tracking, and retain proposed as create", async () => {
-        const modified = await overlay.syncAll();
-
-        // Retained not modified
-        expect(modified).toHaveLength(0);
+      it("SHOULD sync vault delete to tracking, and proposed deleted", async () => {
+        const result = await overlay.syncAll();
+        expect(result).toHaveLength(1);
 
         // File SHOULD be deleted from tracking
         expect(overlay.trackingFS.findByPath("Notes/idea.md")).toBeUndefined();
 
-        // Proposed changes should be retained
-        expect(overlay.proposedFS.findByPath("Notes/idea.md")).toBeDefined();
+        // Proposed changes should be deleted
+        expect(overlay.proposedFS.findByPath("Notes/idea.md")).toBeUndefined();
 
-        // Should have `create` change
+        // Should have no changes
         const changes = overlay.getFileChanges();
-        expect(changes[0]).toMatchObject({
-          type: "create",
-          path: "Notes/idea.md",
-        });
+        expect(changes).toHaveLength(0);
       });
     });
   });
@@ -84,6 +79,7 @@ describe("Sync", () => {
       it("SHOULD sync create and proposed becomes modify ", async () => {
         const result = await overlay.syncAll();
         expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("Notes/new-file.md");
 
         expect(
           getText(overlay.trackingFS.findByPath("Notes/new-file.md")),
@@ -119,8 +115,8 @@ describe("Sync", () => {
 
       it("SHOULD sync modify to tracking, merge to renamed file in proposed", async () => {
         const result = await overlay.syncAll();
-
         expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("Notes/original.md");
 
         // Original path in tracking SHOULD have human changes
         expect(
@@ -148,27 +144,23 @@ describe("Sync", () => {
         await vault.delete(originalFile);
       });
 
-      it("SHOULD sync delete to tracking, keep renamed file as create in proposed", async () => {
+      it("SHOULD sync delete to tracking, delete renamed file in proposed", async () => {
         const result = await overlay.syncAll();
-
-        // Retained not modified
-        expect(result).toHaveLength(0);
+        expect(result).toHaveLength(1);
 
         // Original file SHOULD be deleted from tracking
         expect(
           overlay.trackingFS.findByPath("Notes/original.md"),
         ).toBeUndefined();
 
-        // Renamed file SHOULD still exist in proposed
-        expect(overlay.proposedFS.findByPath("Notes/renamed.md")).toBeTruthy();
+        // Renamed file SHOULD be deleted from proposed
+        expect(
+          overlay.proposedFS.findByPath("Notes/renamed.md"),
+        ).toBeUndefined();
 
         // Should now show as a `create` change (since original was deleted)
         const changes = overlay.getFileChanges();
-        expect(changes).toHaveLength(1);
-        expect(changes[0]).toMatchObject({
-          type: "create",
-          path: "Notes/renamed.md",
-        });
+        expect(changes).toHaveLength(0);
       });
     });
 
@@ -178,24 +170,20 @@ describe("Sync", () => {
         await vault.rename(originalFile, "Notes/human-renamed.md");
       });
 
-      it("SHOULD sync delete to tracking, keep renamed file as create in proposed", async () => {
+      it("SHOULD sync delete to tracking, delete renamed file in proposed", async () => {
         const result = await overlay.syncAll();
-
-        // Retained not modified
-        expect(result).toHaveLength(0);
+        expect(result).toHaveLength(1);
 
         // Tracking SHOULD be deleted
         expect(overlay.trackingFS.findByPath("Notes/idea.md")).toBeUndefined();
         // Overlay SHOULD still have `rename`
-        expect(overlay.proposedFS.findByPath("Notes/renamed.md")).toBeDefined();
+        expect(
+          overlay.proposedFS.findByPath("Notes/renamed.md"),
+        ).toBeUndefined();
 
         // Should show as create (AI's rename) since tracking path changed
         const changes = overlay.getFileChanges();
-        expect(changes).toHaveLength(1);
-        expect(changes[0]).toMatchObject({
-          type: "create",
-          path: "Notes/renamed.md",
-        });
+        expect(changes).toHaveLength(0);
       });
     });
   });
@@ -217,8 +205,8 @@ describe("Sync", () => {
 
       it("SHOULD sync modify to tracking, retain delete in proposed", async () => {
         const result = await overlay.syncAll();
-
         expect(result).toHaveLength(1);
+        expect(result[0].path).toBe("Notes/target.md");
 
         // Tracking SHOULD have human changes
         expect(
@@ -246,11 +234,9 @@ describe("Sync", () => {
         await vault.delete(targetFile);
       });
 
-      it("SHOULD sync delete to tracking, confirm deletion in proposed", async () => {
+      it("SHOULD sync delete to tracking, retain delete in proposed", async () => {
         const result = await overlay.syncAll();
-
-        // Deleted not modified
-        expect(result).toHaveLength(0);
+        expect(result).toHaveLength(1);
 
         // File SHOULD be deleted from tracking
         expect(
@@ -275,9 +261,7 @@ describe("Sync", () => {
 
       it("SHOULD sync as delete to tracking, retain delete in proposed", async () => {
         const result = await overlay.syncAll();
-
-        // Retain not modified
-        expect(result).toHaveLength(0);
+        expect(result).toHaveLength(1);
 
         // Original path SHOULD be gone from tracking
         expect(
@@ -425,5 +409,6 @@ describe("Sync", () => {
     const result = await overlay.syncAll();
 
     expect(result).toHaveLength(2);
+    expect(result.map((r) => r.path)).toEqual(["file1.md", "file2.md"]);
   });
 });
