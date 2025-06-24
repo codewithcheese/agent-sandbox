@@ -33,6 +33,7 @@ import { installTools } from "./tools/command.ts";
 import superjson from "superjson";
 import { ChatSerializer } from "./chat/chat-serializer.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
+import { RenameTracker } from "./chat/rename-tracker.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
 import { RecorderWidget } from "./recorder/recorder-widget.ts";
 import mainCss from "./main.css?inline";
@@ -77,6 +78,7 @@ export class AgentSandboxPlugin extends Plugin {
     PromptCommand.register(this);
     ContextMenu.register(this);
     HtmlEscapeCommand.register(this);
+    RenameTracker.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
     this.addRibbonIcon("mic", "Toggle Recorder", () => {

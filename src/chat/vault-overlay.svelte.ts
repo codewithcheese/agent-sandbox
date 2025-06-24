@@ -48,6 +48,7 @@ import {
   type FileContent,
 } from "$lib/utils/loro.ts";
 import { createTwoFilesPatch } from "diff";
+import { RenameTracker } from "./rename-tracker.ts";
 
 const debug = createDebug();
 
@@ -706,7 +707,7 @@ export class VaultOverlay implements Vault {
     throw new Error("tryTrigger not support.");
   }
 
-  async syncAll(): Promise<SyncResult> {
+  async syncAll(sinceTimestamp?: Date): Promise<SyncResult> {
     // Collect all tracked paths from both docs
     const trackedPaths = new Set([
       ...this.getAllTrackedPaths(this.trackingDoc),
@@ -724,16 +725,29 @@ export class VaultOverlay implements Vault {
       const proposedNode = this.proposedFS.findByPath(path);
 
       if (!vaultFile && trackingNode) {
-        // File deleted in vault, maintains proposed as
-        // created therefore no change object is returned
-        debug("Sync delete", path);
-        await this.syncDelete(path);
+        // Check if this file was recently renamed using the global rename tracker
+        const renameTracker = RenameTracker.getInstance();
+        const cutoffTime = sinceTimestamp ? sinceTimestamp.getTime() : 0;
+        const maxAgeMs = Date.now() - cutoffTime;
+        const newPath = renameTracker?.findRename(path, maxAgeMs);
 
-        // Add result to notify AI about the deletion
-        results.push({
-          path,
-          diff: this.generateDiffMessage(path, path, "delete"),
-        });
+        if (newPath) {
+          // File was renamed after the checkpoint - sync the rename
+          debug("Detected rename via global tracker:", path, "→", newPath);
+          const renameResult = await this.syncRename(path, newPath);
+          results.push(...renameResult);
+        } else {
+          // File deleted in vault, maintains proposed as
+          // created therefore no change object is returned
+          debug("Sync delete", path);
+          await this.syncDelete(path);
+
+          // Add result to notify AI about the deletion
+          results.push({
+            path,
+            diff: this.generateDiffMessage(path, path, "delete"),
+          });
+        }
       } else if (vaultFile && !trackingNode && proposedNode) {
         if (vaultFile instanceof TFolder) {
           // No contents to sync
@@ -894,6 +908,89 @@ export class VaultOverlay implements Vault {
     this.trackingFS.deleteNode(trackingNode.id);
     this.trackingDoc.commit();
     this.mergeDocs();
+  }
+
+  async syncRename(oldPath: string, newPath: string): Promise<SyncResult> {
+    // Validate vault file exists at new path
+    const vaultFile = this.vault.getAbstractFileByPath(newPath);
+    if (!vaultFile) {
+      debug(`Dropping rename event - vault file not found: ${newPath}`);
+      return [];
+    }
+
+    const trackingNode = this.trackingFS.findByPath(oldPath);
+    if (!trackingNode) {
+      debug(`Dropping rename event - not tracking: ${oldPath}`);
+      return [];
+    }
+
+    const proposedNode = this.proposedFS.findById(trackingNode.id);
+    invariant(
+      proposedNode,
+      `Corrupted overlay state: tracking node exists at ${oldPath} but corresponding proposed node with ID ${trackingNode.id} not found`,
+    );
+    let preservedAiContent: string | undefined;
+    let preservedAiBuffer: ArrayBuffer | undefined;
+
+    // Handle conflicts at the new path BEFORE moving tracking node
+    const conflictNode = this.proposedFS.findByPath(newPath);
+    if (conflictNode && proposedNode && conflictNode.id !== proposedNode.id) {
+      const conflictTrackingNode = this.trackingFS.findById(conflictNode.id);
+
+      if (conflictTrackingNode) {
+        // AI renamed different file - undo it (similar to reject logic)
+        const originalPath = this.trackingFS.getNodePath(conflictTrackingNode);
+        const originalParent = this.proposedFS.ensureDirs(
+          dirname(originalPath),
+        );
+        this.proposedFS.moveNode(conflictNode, originalParent.id);
+        this.proposedFS.renameNode(conflictNode.id, basename(originalPath));
+      } else {
+        // AI created file - preserve its content and use syncCreate to rebase
+        preservedAiContent = getText(conflictNode);
+        preservedAiBuffer = getBuffer(conflictNode);
+
+        // Delete the AI-created node to make room for vault rename
+        this.proposedFS.deleteNode(conflictNode.id);
+        this.proposedDoc.commit();
+      }
+    }
+
+    // Move tracking node (vault rename wins)
+    const newParentTracking = this.trackingFS.ensureDirs(dirname(newPath));
+    this.trackingFS.moveNode(trackingNode, newParentTracking.id);
+    this.trackingFS.renameNode(trackingNode.id, basename(newPath));
+    this.trackingDoc.commit();
+    // Merge docs to sync the tracking changes to proposed
+    this.mergeDocs();
+
+    // Move proposed node to follow tracking
+    if (proposedNode) {
+      // Handle trashed nodes
+      if (isTrashed(proposedNode)) {
+        const newParentProposed = this.proposedFS.ensureDirs(dirname(newPath));
+        this.proposedFS.restoreNode(proposedNode, newParentProposed);
+      } else {
+        const newParentProposed = this.proposedFS.ensureDirs(dirname(newPath));
+        this.proposedFS.moveNode(proposedNode, newParentProposed.id);
+      }
+      this.proposedFS.renameNode(proposedNode.id, basename(newPath));
+      this.proposedDoc.commit();
+    }
+
+    // If we had AI-created content, restore it as a modification
+    if (
+      (preservedAiContent !== undefined || preservedAiBuffer !== undefined) &&
+      vaultFile instanceof TFile
+    ) {
+      if (preservedAiContent !== undefined) {
+        await this.modify(vaultFile, preservedAiContent);
+      } else if (preservedAiBuffer !== undefined) {
+        await this.modifyBinary(vaultFile, preservedAiBuffer);
+      }
+    }
+
+    return [{ path: newPath, diff: `Renamed ${oldPath} → ${newPath}` }];
   }
 
   async approve(ops: ApprovedChange[]) {

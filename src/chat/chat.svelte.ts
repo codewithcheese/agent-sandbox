@@ -182,8 +182,12 @@ export class Chat {
     // Checkpoint before sync to enable fresh diff calculation on edit/regenerate
     const checkpoint = this.vault.proposedDoc.frontiers();
 
+    // Get timestamp of last message to filter renames
+    const lastMessage = this.messages[this.messages.length - 1];
+    const sinceTimestamp = lastMessage?.createdAt;
+
     // Sync vault and check for external changes
-    const syncResult = await this.vault.syncAll();
+    const syncResult = await this.vault.syncAll(sinceTimestamp);
 
     // Add system reminder for external changes if any (before user message)
     if (syncResult.length > 0) {
@@ -231,7 +235,13 @@ export class Chat {
     }
 
     // Sync vault to include changes made since checkpoint and check for external changes
-    const syncResult = await this.vault.syncAll();
+    // Find the last assistant message before this user message to determine the conversation boundary
+    const lastAssistantMessage = this.messages.findLast(
+      (msg, i) => i < index && msg.role === "assistant",
+    );
+    const syncResult = await this.vault.syncAll(
+      lastAssistantMessage?.createdAt,
+    );
 
     // Add system reminder for external changes if any (before the message being edited)
     if (syncResult.length > 0) {
@@ -287,7 +297,13 @@ export class Chat {
     }
 
     // Sync vault to include changes made since checkpoint and check for external changes
-    const syncResult = await this.vault.syncAll();
+    // Find the last assistant message before this user message to determine the conversation boundary
+    const lastAssistantMessage = this.messages.findLast(
+      (msg, i) => i < index && msg.role === "assistant",
+    );
+    const syncResult = await this.vault.syncAll(
+      lastAssistantMessage?.createdAt,
+    );
 
     // Add system reminder for external changes if any (before the message being regenerated)
     if (syncResult.length > 0) {
