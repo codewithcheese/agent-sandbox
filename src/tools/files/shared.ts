@@ -7,7 +7,7 @@ export const ignoreMatchOptions = {
 export const patternMatchOptions = {
   dot: true,
   basename: true,
-  nocase: false,
+  nocase: true,
 };
 
 export const COMMON_IGNORE_PATTERNS = [

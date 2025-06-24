@@ -11,7 +11,7 @@
   import { Notice } from "obsidian";
   import { loadPromptMessage } from "../editor/prompt-command.ts";
   import { cn, usePlugin } from "$lib/utils";
-  import type { Chat, UserMessageMetadata } from "./chat.svelte.ts";
+  import type { Chat, UIMessageWithMetadata } from "./chat.svelte.ts";
   import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
   import { openPath } from "$lib/utils/obsidian.ts";
   import { setContext } from "svelte";
@@ -21,9 +21,7 @@
 
   type Props = {
     chat: Chat;
-    message: UIMessage & {
-      metadata?: UserMessageMetadata;
-    };
+    message: UIMessageWithMetadata;
     index: number;
     inputState: ChatInputState;
   };
@@ -97,7 +95,7 @@
     </div>
   </div>
 {:else}
-  {#if message?.metadata?.modified?.length}
+  {#if message.role === "user" && message.metadata?.modified?.length}
     <div>
       <div class="text-xs text-(--text-muted)">
         Your modified files:
@@ -127,7 +125,7 @@
   <!-- Normal message display -->
   <div class="group relative">
     <!-- prompt badge -->
-    {#if message?.metadata?.prompt?.path}
+    {#if message.role === "user" && message?.metadata?.prompt?.path}
       <div class="absolute top-0 left-0 text-xs text-(--text-accent)">
         <button
           class="clickable-icon"

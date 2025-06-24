@@ -771,6 +771,7 @@ export class VaultOverlay implements Vault {
     }
 
     debug(`Vault sync completed.`, results);
+    this.computeChanges();
     return results;
   }
 
@@ -1526,7 +1527,7 @@ export class VaultOverlay implements Vault {
     afterContent?: FileContent,
   ): string {
     if (operation === "delete") {
-      return `File ${oldPath} was deleted externally.`;
+      return `File ${oldPath} was deleted.`;
     }
 
     // For create and modify operations, show diff between before and after content
@@ -1535,7 +1536,7 @@ export class VaultOverlay implements Vault {
     if (beforeContent?.type === "binary" || afterContent?.type === "binary") {
       const pathInfo =
         oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
-      return `File ${pathInfo} was modified externally.`;
+      return `File ${pathInfo} was modified.`;
     }
 
     // Handle text files
@@ -1544,7 +1545,7 @@ export class VaultOverlay implements Vault {
       if (beforeContent.content === afterContent.content) {
         const pathInfo =
           oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
-        return `File ${pathInfo} was touched externally but content is unchanged.`;
+        return `File ${pathInfo} was touched but content is unchanged.`;
       }
 
       const patch = createTwoFilesPatch(
@@ -1577,7 +1578,7 @@ export class VaultOverlay implements Vault {
         const pathInfo =
           oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
 
-        return `File ${pathInfo} was extensively modified externally (${addedLines} additions, ${removedLines} deletions).`;
+        return `${pathInfo} was extensively modified (${addedLines} additions, ${removedLines} deletions).`;
       }
 
       return optimizedDiff.trim();
@@ -1585,6 +1586,6 @@ export class VaultOverlay implements Vault {
 
     // Fallback for other cases
     const pathInfo = oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
-    return `File ${pathInfo} was modified externally.`;
+    return `${pathInfo} was modified.`;
   }
 }

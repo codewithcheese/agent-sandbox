@@ -4,13 +4,14 @@ import { createSystemContent } from "../chat/system.ts";
 import { extractLinks, getActiveSidebarLeaf } from "$lib/utils/obsidian.ts";
 import { nanoid } from "nanoid";
 import { createDebug } from "$lib/debug.ts";
-import { tick } from "svelte";
-import type { UIMessage } from "ai";
 import { loadAttachments } from "../chat/attachments.ts";
+import type { UIMessageWithMetadata } from "../chat/chat.svelte.ts";
 
 const debug = createDebug();
 
-export async function loadPromptMessage(file: TFile): Promise<UIMessage> {
+export async function loadPromptMessage(
+  file: TFile,
+): Promise<UIMessageWithMetadata> {
   const content = await createSystemContent(file);
   const links = extractLinks(file, content);
   debug("Prompt links", links);

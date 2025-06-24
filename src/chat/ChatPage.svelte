@@ -18,10 +18,6 @@
   import Message from "./Message.svelte";
   import { openPath } from "$lib/utils/obsidian.ts";
 
-  const debug = createDebug();
-
-  const plugin = usePlugin();
-
   type Props = {
     chat: Chat;
     view: ViewContext;
@@ -123,7 +119,11 @@
         <!-- messages -->
         <div class="flex flex-col w-full flex-1 gap-1">
           {#each chat.messages as message, index}
-            {#if message.role !== "system"}
+            {#if message.role === "system"}
+              <!-- do not render system message -->
+            {:else if message.role === "assistant" && !(message.metadata && message.metadata.isSystemReminder)}
+              <Message {chat} {message} {index} bind:inputState />
+            {:else if message.role === "user"}
               <Message {chat} {message} {index} bind:inputState />
             {/if}
           {/each}

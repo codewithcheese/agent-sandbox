@@ -40,18 +40,34 @@ export type LoadingState =
       delay: number;
     };
 
-export type SystemMessageMetadata = {
-  agentPath: string;
-  agentModified: number;
-};
-
-export type UserMessageMetadata = {
-  checkpoint: Frontiers;
-  modified: string[];
-  prompt?: {
-    path: string;
+export type WithSystemMetadata = {
+  role: "system";
+  metadata?: {
+    agentPath: string;
+    agentModified: number;
   };
 };
+
+export type WithUserMetadata = {
+  role: "user";
+  metadata?: {
+    checkpoint: Frontiers;
+    modified: string[];
+    prompt?: {
+      path: string;
+    };
+  };
+};
+
+export type WithAssistantMetadata = {
+  role: "assistant";
+  metadata?: {
+    isSystemReminder: true;
+  };
+};
+
+export type UIMessageWithMetadata = UIMessage &
+  (WithSystemMetadata | WithUserMetadata | WithAssistantMetadata);
 
 const chatCache = new Map<string, WeakRef<Chat | Promise<Chat>>>();
 
@@ -96,9 +112,8 @@ export class Chat {
   id = $state<string>();
   path = $state<string>();
   messages = $state<
-    (UIMessage & {
-      metadata?: UserMessageMetadata | SystemMessageMetadata;
-    })[]
+    (UIMessage &
+      (WithAssistantMetadata | WithSystemMetadata | WithUserMetadata))[]
   >([]);
   state = $state<LoadingState>({ type: "idle" });
   sessionStore = $state<SessionStore>();
@@ -165,6 +180,9 @@ export class Chat {
   }
 
   async submit(content: string, attachments: string[]) {
+    // Checkpoint before sync to enable fresh diff calculation on edit/regenerate
+    const checkpoint = this.vault.proposedDoc.frontiers();
+
     // Sync vault and check for external changes
     const syncResult = await this.vault.syncAll();
 
@@ -185,7 +203,7 @@ export class Chat {
       createdAt: new Date(),
       metadata: {
         modified: syncResult.map((r) => r.path),
-        checkpoint: this.vault.proposedDoc.frontiers(),
+        checkpoint,
       },
     });
 
@@ -201,10 +219,9 @@ export class Chat {
       return;
     }
 
-    const message = this.messages[index] as UIMessage & {
-      metadata?: UserMessageMetadata;
-    };
+    const message = this.messages[index];
     invariant(message, `Cannot edit message. Message not found: #${index}`);
+    invariant(message.role === "user", "Can only edit user messages");
 
     // Revert vault changes to since message
     const checkpoint = message.metadata?.checkpoint;
@@ -220,9 +237,8 @@ export class Chat {
     // Add system reminder for external changes if any (before the message being edited)
     if (syncResult.length > 0) {
       const changesSummary = syncChangesReminder(syncResult);
-      await this.addSystemReminder(changesSummary, index);
-      // Increment index since we inserted a message before it
-      index++;
+      // Increment index if a system reminder was added
+      index += await this.addSystemReminder(changesSummary, index);
     }
 
     message.metadata.modified = syncResult.map((r) => r.path);
@@ -251,10 +267,9 @@ export class Chat {
   }
 
   async regenerate(index: number) {
-    const message = this.messages[index] as UIMessage & {
-      metadata?: UserMessageMetadata;
-    };
+    const message = this.messages[index];
     invariant(message, `Cannot edit message. Message not found: #${index}`);
+    invariant(message.role === "user", "Can only regenerate user messages");
     // Update attachments
     if (
       message.experimental_attachments &&
@@ -278,9 +293,8 @@ export class Chat {
     // Add system reminder for external changes if any (before the message being regenerated)
     if (syncResult.length > 0) {
       const changesSummary = syncChangesReminder(syncResult);
-      await this.addSystemReminder(changesSummary, index);
-      // Increment index since we inserted a message before it
-      index++;
+      // Increment index if a system reminder was added
+      index += await this.addSystemReminder(changesSummary, index);
     }
 
     message.metadata.modified = syncResult.map((r) => r.path);
@@ -306,9 +320,7 @@ export class Chat {
     // Check if system message needs updating
     const systemMessage =
       this.messages[0]?.role === "system" ? this.messages[0] : null;
-    const systemMeta = systemMessage?.metadata as
-      | SystemMessageMetadata
-      | undefined;
+    const systemMeta = systemMessage?.metadata;
 
     if (
       !systemMessage ||
@@ -330,7 +342,7 @@ export class Chat {
         metadata: {
           agentPath: this.options.agentPath!,
           agentModified,
-        } as SystemMessageMetadata,
+        },
       };
 
       if (systemMessage) {
@@ -797,26 +809,44 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
   }
 
   /**
-   * Add a system reminder message to the conversation using assistant role
-   * (since Anthropic doesn't support system messages during conversation)
+   * Add a system reminder message to the conversation
+   * Returns number of messages inserted
    */
   private async addSystemReminder(
     content: string,
     insertIndex?: number,
-  ): Promise<void> {
+  ): Promise<number> {
     if (content.trim()) {
-      const reminderMessage: UIMessage = {
+      const reminderMessage: UIMessage & WithAssistantMetadata = {
         id: nanoid(),
         role: "assistant" as const,
         content: content,
         parts: [{ type: "text", text: content }],
+        metadata: {
+          isSystemReminder: true,
+        },
         createdAt: new Date(),
       };
 
       if (insertIndex !== undefined) {
-        this.messages.splice(insertIndex, 0, reminderMessage);
+        // Check if there's already a system reminder at this index
+        const existingMessage = this.messages[insertIndex - 1];
+        if (
+          existingMessage?.metadata &&
+          "isSystemReminder" in existingMessage.metadata &&
+          existingMessage.metadata.isSystemReminder
+        ) {
+          // Replace existing system reminder
+          this.messages[insertIndex - 1] = reminderMessage;
+          return 0; // replaced
+        } else {
+          // Insert new system reminder
+          this.messages.splice(insertIndex, 0, reminderMessage);
+          return 1;
+        }
       } else {
         this.messages.push(reminderMessage);
+        return 1;
       }
     }
   }

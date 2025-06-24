@@ -12,7 +12,7 @@ export function syncChangesReminder(
 
   // Add system reminder header
   sections.push("<system-reminder>");
-  sections.push("The following files were modified:");
+  sections.push("The user modified the following files:");
   sections.push("");
 
   // Process each diff
@@ -21,9 +21,6 @@ export function syncChangesReminder(
     sections.push("");
   }
 
-  sections.push(
-    "Please consider these changes when making tool calls to avoid redundant operations.",
-  );
   sections.push("</system-reminder>");
 
   return sections.join("\n");
