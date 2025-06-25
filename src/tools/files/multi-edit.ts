@@ -151,30 +151,30 @@ async function validateMultiEditFilePath(
     };
   }
 
-  const file = vault.getFileByPath(path);
-  if (file) {
-    // Read-before-write check
-    const hasBeenRead = await readState.hasBeenRead(path);
-    if (!hasBeenRead) {
-      return {
-        result: false,
-        message: "File has not been read yet. Read it first before editing it.",
-      };
-    }
+  // const file = vault.getFileByPath(path);
+  // if (file) {
+  // Read-before-write check
+  // const hasBeenRead = await readState.hasBeenRead(path);
+  // if (!hasBeenRead) {
+  //   return {
+  //     result: false,
+  //     message: "File has not been read yet. Read it first before editing it.",
+  //   };
+  // }
 
-    // Modified-since-read check
-    const isModified = await readState.isModifiedSinceRead(
-      path,
-      file.stat.mtime,
-    );
-    if (isModified) {
-      return {
-        result: false,
-        message:
-          "File has been modified since read. Read it again before attempting to edit.",
-      };
-    }
-  }
+  // Modified-since-read check
+  // const isModified = await readState.isModifiedSinceRead(
+  //   path,
+  //   file.stat.mtime,
+  // );
+  // if (isModified) {
+  //   return {
+  //     result: false,
+  //     message:
+  //       "File has been modified since read. Read it again before attempting to edit.",
+  //   };
+  // }
+  // }
 
   return { result: true };
 }
@@ -291,13 +291,13 @@ export async function execute(
       };
 
     // Update read state after successful multi-edit
-    const updatedFile = vault.getFileByPath(normalizePath(params.file_path));
-    if (updatedFile) {
-      await sessionStore.readState.setLastRead(
-        normalizePath(params.file_path),
-        updatedFile.stat.mtime,
-      );
-    }
+    // const updatedFile = vault.getFileByPath(normalizePath(params.file_path));
+    // if (updatedFile) {
+    //   await sessionStore.readState.setLastRead(
+    //     normalizePath(params.file_path),
+    //     updatedFile.stat.mtime,
+    //   );
+    // }
 
     return {
       type: "update",

@@ -133,26 +133,26 @@ async function validateInput(
   let currentContent;
   try {
     // Read-before-write check
-    const hasBeenRead = await readState.hasBeenRead(path);
-    if (!hasBeenRead) {
-      return {
-        result: false,
-        message: "File has not been read yet. Read it first before editing it.",
-      };
-    }
+    // const hasBeenRead = await readState.hasBeenRead(path);
+    // if (!hasBeenRead) {
+    //   return {
+    //     result: false,
+    //     message: "File has not been read yet. Read it first before editing it.",
+    //   };
+    // }
 
     // Modified-since-read check
-    const isModified = await readState.isModifiedSinceRead(
-      path,
-      file.stat.mtime,
-    );
-    if (isModified) {
-      return {
-        result: false,
-        message:
-          "File has been modified since read. Read it again before attempting to edit.",
-      };
-    }
+    // const isModified = await readState.isModifiedSinceRead(
+    //   path,
+    //   file.stat.mtime,
+    // );
+    // if (isModified) {
+    //   return {
+    //     result: false,
+    //     message:
+    //       "File has been modified since read. Read it again before attempting to edit.",
+    //   };
+    // }
 
     // Check if old_string exists and matches expected_replacements
     currentContent = (await vault.read(file)).replace(/\r\n/g, "\n");
@@ -242,13 +242,13 @@ export async function execute(
     }
 
     // Update read state after successful edit
-    const updatedFile = vault.getFileByPath(normalizedFilePath);
-    if (updatedFile) {
-      await sessionStore.readState.setLastRead(
-        normalizedFilePath,
-        updatedFile.stat.mtime,
-      );
-    }
+    // const updatedFile = vault.getFileByPath(normalizedFilePath);
+    // if (updatedFile) {
+    //   await sessionStore.readState.setLastRead(
+    //     normalizedFilePath,
+    //     updatedFile.stat.mtime,
+    //   );
+    // }
 
     return {
       type: "update",

@@ -88,31 +88,31 @@ async function validateWriteInput(
   }
 
   // Check if file exists - if it does, it must have been read recently
-  const existingFile = vault.getFileByPath(path);
-  if (existingFile) {
-    // Read-before-write check
-    const hasBeenRead = await readState.hasBeenRead(path);
-    if (!hasBeenRead) {
-      return {
-        result: false,
-        message:
-          "File has not been read yet. Read it first before writing to it.",
-      };
-    }
+  // const existingFile = vault.getFileByPath(path);
+  // if (existingFile) {
+  // Read-before-write check
+  // const hasBeenRead = await readState.hasBeenRead(path);
+  // if (!hasBeenRead) {
+  //   return {
+  //     result: false,
+  //     message:
+  //       "File has not been read yet. Read it first before writing to it.",
+  //   };
+  // }
 
-    // Modified-since-read check
-    const isModified = await readState.isModifiedSinceRead(
-      path,
-      existingFile.stat.mtime,
-    );
-    if (isModified) {
-      return {
-        result: false,
-        message:
-          "File has been modified since read. Read it again before attempting to write.",
-      };
-    }
-  }
+  // Modified-since-read check
+  // const isModified = await readState.isModifiedSinceRead(
+  //   path,
+  //   existingFile.stat.mtime,
+  // );
+  // if (isModified) {
+  //   return {
+  //     result: false,
+  //     message:
+  //       "File has been modified since read. Read it again before attempting to write.",
+  //   };
+  // }
+  // }
 
   return { result: true };
 }
@@ -166,13 +166,13 @@ export async function execute(
     }
 
     // Update read state after successful write
-    const updatedFile = vault.getFileByPath(normalizedFilePath);
-    if (updatedFile) {
-      await sessionStore.readState.setLastRead(
-        normalizedFilePath,
-        updatedFile.stat.mtime,
-      );
-    }
+    // const updatedFile = vault.getFileByPath(normalizedFilePath);
+    // if (updatedFile) {
+    //   await sessionStore.readState.setLastRead(
+    //     normalizedFilePath,
+    //     updatedFile.stat.mtime,
+    //   );
+    // }
 
     return {
       type: fileExists ? "update" : "create",
