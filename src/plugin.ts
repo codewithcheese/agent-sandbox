@@ -5,6 +5,7 @@ import {
   Platform,
   Plugin,
   type PluginManifest,
+  PluginSettingTab,
   TFile,
   WorkspaceLeaf,
 } from "obsidian";
@@ -18,14 +19,12 @@ import {
   ArtifactView,
 } from "$lib/artifacts/artifact-vew.svelte.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
-import {
-  DEFAULT_SETTINGS,
-  type PluginSettings,
-  Settings,
-} from "./settings/settings.ts";
+import { SettingsManager } from "./settings/settings-manager.ts";
+import { SettingsTab } from "./settings/settings-tab.ts";
+import type { CurrentSettings } from "./settings/settings.ts";
 import AccountModal from "./settings/AccountModal.svelte";
 import ModelModal from "./settings/ModelModal.svelte";
-import type { ChatModel, EmbeddingModel } from "./settings/models.ts";
+import type { ChatModel, EmbeddingModel } from "./settings/settings.ts";
 import type { AIAccount } from "./settings/providers.ts";
 import { mount, unmount } from "svelte";
 import { PGliteProvider } from "$lib/pglite/provider.ts";
@@ -44,9 +43,12 @@ import { AgentBannerComponent } from "./editor/agent/agent-banner-component.svel
 import { PromptCommand } from "./editor/prompt-command.ts";
 import { ContextMenu } from "./editor/context-menu.ts";
 import { HtmlEscapeCommand } from "./editor/html-escape-command.ts";
+import { usePlugin } from "$lib/utils";
+import { generateText } from "ai";
+import { renderStringAsync } from "$lib/utils/nunjucks.ts";
 
 export class AgentSandboxPlugin extends Plugin {
-  settings: PluginSettings;
+  settingsManager: SettingsManager;
   pglite: PGliteProvider;
   recorder: RecorderWidget;
   styleEl?: HTMLStyleElement;
@@ -60,11 +62,40 @@ export class AgentSandboxPlugin extends Plugin {
     };
     this.pglite = new PGliteProvider();
     this.recorder = new RecorderWidget();
+    this.settingsManager = new SettingsManager(this);
+  }
+
+  /**
+   * Backward compatibility
+   */
+  get settings(): CurrentSettings {
+    return this.settingsManager.getSettings();
+  }
+
+  async saveSettings(newSettings?: CurrentSettings): Promise<void> {
+    try {
+      if (newSettings) {
+        await this.settingsManager.replaceSettings(newSettings);
+      } else {
+        await this.settingsManager.saveSettings();
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      new Notice(
+        `Failed to save settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        8000
+      );
+      throw error; // Re-throw so calling code can handle it
+    }
+  }
+
+  async loadSettings(): Promise<void> {
+    await this.settingsManager.loadSettings();
   }
 
   async onload() {
     this.loadCSS();
-    await this.loadSettings();
+    await this.settingsManager.loadSettings();
     await this.initializePGlite();
 
     this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
@@ -95,7 +126,7 @@ export class AgentSandboxPlugin extends Plugin {
       },
     });
 
-    this.addSettingTab(new Settings(this.app, this));
+    this.addSettingTab(new SettingsTab(this.app, this));
 
     // Open recorder view on startup
     this.app.workspace.onLayoutReady(() => {
@@ -127,19 +158,6 @@ export class AgentSandboxPlugin extends Plugin {
     }
   }
 
-  async loadSettings() {
-    const settings = await this.loadData();
-    const shouldSave = !settings;
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
-    if (shouldSave) {
-      await this.saveSettings();
-    }
-  }
-
-  async saveSettings() {
-    await this.saveData(this.settings);
-  }
-
   async openFileSelect(onSelect: (file: TFile) => void) {
     const modal = new FileSelectModal(this.app, onSelect);
     modal.open();
@@ -151,7 +169,7 @@ export class AgentSandboxPlugin extends Plugin {
     let counter = 1;
 
     // Get the chats path from settings
-    const chatsPath = this.settings.vault.chatsPath;
+    const chatsPath = this.settingsManager.getSettings().vault.chatsPath;
     const normalizedPath = chatsPath.startsWith("/")
       ? chatsPath.slice(1)
       : chatsPath;

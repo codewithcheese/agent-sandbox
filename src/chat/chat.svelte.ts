@@ -19,7 +19,7 @@ import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
 import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
-import type { ChatModel } from "../settings/models.ts";
+import type { ChatModel } from "../settings/settings.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { loadAttachments } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";

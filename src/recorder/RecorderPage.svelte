@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { Mic, Square, Play, Save, ClipboardPasteIcon, Ban } from "lucide-svelte";
+  import {
+    Mic,
+    Play,
+    Save,
+    ClipboardPasteIcon,
+    Ban,
+  } from "lucide-svelte";
   import { FileTextIcon, Copy } from "lucide-svelte";
   import { Notice } from "obsidian";
   import Autoscroll from "../chat/Autoscroll.svelte";
@@ -53,22 +59,26 @@
 <div class="h-full flex flex-col">
   <!-- Fixed Recording Area -->
   <div class="flex-none">
-    <div class="m-4 border border-(--background-modifier-border) rounded-lg bg-(--background-primary-alt) h-[200px] flex flex-col">
+    <div
+      class="m-4 border border-(--background-modifier-border) rounded-lg bg-(--background-primary-alt) h-[200px] flex flex-col"
+    >
       <!-- Header with status and controls -->
-      <div class="flex-none p-4 pb-2 pt-2 border-b border-(--background-modifier-border)">
+      <div
+        class="flex-none p-4 pb-2 pt-2 border-b border-(--background-modifier-border)"
+      >
         <div class="flex items-center justify-between gap-2 text-sm">
           <div class="flex items-center gap-2">
             {#if recorder.isRecording}
-              <div class="w-2 h-2 bg-(--color-accent) rounded-full animate-pulse"></div>
+              <div
+                class="w-2 h-2 bg-(--color-accent) rounded-full animate-pulse"
+              ></div>
               <span class="text-(--text-accent)">Recording...</span>
             {:else}
               <div class="w-2 h-2 bg-(--text-muted) rounded-full"></div>
               <span class="text-(--text-muted)">Ready to record</span>
             {/if}
           </div>
-          <div
-            class="flex gap-2"
-          >
+          <div class="flex gap-2">
             {#if recorder.isRecording}
               <div
                 class="clickable-icon p-1 rounded cursor-pointer"
@@ -96,7 +106,9 @@
               }}
               role="button"
               tabindex="-1"
-              aria-label={recorder.isRecording ? "Stop recording" : "Start recording"}
+              aria-label={recorder.isRecording
+                ? "Stop recording"
+                : "Start recording"}
             >
               {#if recorder.isRecording}
                 {#if recorder.insertionTarget === null}
@@ -115,11 +127,12 @@
           {#if recorder.insertionTarget === null}
             <span class="text-(--text-muted)">Click where to paste</span>
           {:else}
-            <span class="text-(--text-muted)">Paste in</span> <span class="text-(--text-normal)">{recorder.insertionTarget}</span>
+            <span class="text-(--text-muted)">Paste in</span>
+            <span class="text-(--text-normal)">{recorder.insertionTarget}</span>
           {/if}
         </div>
       </div>
-      
+
       <!-- Content area -->
       <div class="flex-1 relative min-h-0">
         {#if recorder.isRecording}
@@ -127,8 +140,8 @@
           {#if showTopFade}
             <div class="fade-top"></div>
           {/if}
-          
-          <div 
+
+          <div
             class="absolute inset-0 overflow-y-auto scrollbar-hidden p-4 pt-2"
             bind:this={scrollContainer}
             onscroll={handleScroll}
@@ -136,7 +149,7 @@
             <div class="text-sm text-(--text-normal) whitespace-pre-wrap">
               {recorder.streamingText}
             </div>
-            
+
             <Autoscroll
               messages={[{ text: recorder.streamingText }]}
               container={scrollContainer}
@@ -146,7 +159,7 @@
           </div>
         {:else}
           <!-- Clickable placeholder content -->
-          <div 
+          <div
             class="flex items-center justify-center h-full p-4 cursor-pointer hover:bg-(--background-modifier-hover) transition-colors"
             onmousedown={(e) => {
               e.preventDefault();
@@ -178,13 +191,16 @@
       {:else}
         <div class="flex flex-col gap-1">
           {#each recorder.recordings as recording}
-            <div class="flex items-start hover:bg-(--background-modifier-hover) transition-colors rounded p-3 gap-3">
+            <div
+              class="flex items-start hover:bg-(--background-modifier-hover) transition-colors rounded p-3 gap-3"
+            >
               <div
                 class="flex items-start gap-3 flex-1 cursor-pointer"
                 onclick={() => openTranscription(recording)}
                 role="button"
                 tabindex="0"
-                onkeydown={(e) => e.key === 'Enter' && openTranscription(recording)}
+                onkeydown={(e) =>
+                  e.key === "Enter" && openTranscription(recording)}
               >
                 <FileTextIcon
                   class="size-4 mt-0.5 flex-shrink-0 text-(--text-muted)"
@@ -209,7 +225,8 @@
                 onmousedown={(e) => copyTranscription(recording.text, e)}
                 role="button"
                 tabindex="0"
-                onkeydown={(e) => e.key === 'Enter' && copyTranscription(recording.text, e)}
+                onkeydown={(e) =>
+                  e.key === "Enter" && copyTranscription(recording.text, e)}
                 aria-label="Copy transcription"
               >
                 <Copy class="size-4" />
@@ -223,21 +240,6 @@
 </div>
 
 <style>
-  .checkbox-container {
-    display: inline-block;
-    position: relative;
-    width: 40px;
-    height: 20px;
-    border-radius: 10px;
-    background-color: var(--background-modifier-border);
-    transition: background-color 0.2s ease;
-  }
-  .checkbox-container.is-enabled {
-    background-color: var(--color-accent);
-  }
-  .checkbox-container input[type="checkbox"] {
-    display: none;
-  }
   .scrollbar-hidden::-webkit-scrollbar {
     display: none;
   }
@@ -251,7 +253,12 @@
     left: 0;
     width: 100%;
     height: 30px;
-    background-image: linear-gradient(to bottom, var(--background-primary-alt) 0%, var(--background-primary-alt) 30%, transparent 100%);
+    background-image: linear-gradient(
+      to bottom,
+      var(--background-primary-alt) 0%,
+      var(--background-primary-alt) 30%,
+      transparent 100%
+    );
     pointer-events: none;
     z-index: 1;
   }

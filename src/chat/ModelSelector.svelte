@@ -2,9 +2,8 @@
   import { DropdownMenu } from "bits-ui";
   import { ChevronDownIcon, ChevronRightIcon, ClockIcon } from "lucide-svelte";
   import { usePlugin } from "$lib/utils";
-  import type { AIAccount, AIProviderId } from "../settings/providers.ts";
-  import { AIProvider } from "../settings/providers.ts";
-  import type { ChatModel } from "../settings/models.ts";
+  import type { AIAccount } from "../settings/providers.ts";
+  import type { ChatModel } from "../settings/settings.ts";
   import { onMount } from "svelte";
   import { createDebug } from "$lib/debug.ts";
 
@@ -31,6 +30,7 @@
   let { selectedModelId, selectedAccountId, onModelChange }: Props = $props();
 
   let recentModels = $state<RecentModel[]>([]);
+
   onMount(() => {
     recentModels = getRecentModels();
   });
@@ -39,7 +39,10 @@
 
   // Group accounts by provider
   let accountsByProvider = $derived.by(() => {
-    const grouped = {} as Record<AIProviderId, AIAccount[]>;
+    const grouped = {} as Record<string, AIAccount[]>;
+    if (!plugin.settings?.accounts) {
+      return grouped;
+    }
     plugin.settings.accounts.forEach((account) => {
       if (!grouped[account.provider]) {
         grouped[account.provider] = [];
@@ -51,7 +54,10 @@
 
   // Group models by provider (only chat models)
   let modelsByProvider = $derived.by(() => {
-    const grouped = {} as Record<AIProviderId, ChatModel[]>;
+    const grouped = {} as Record<string, ChatModel[]>;
+    if (!plugin.settings.models.length) {
+      return grouped;
+    }
     plugin.settings.models
       .filter((model): model is ChatModel => model.type === "chat")
       .forEach((model) => {
@@ -63,14 +69,12 @@
     return grouped;
   });
 
-  // Get available providers (those that have both models and accounts)
-  let availableProviders = $derived.by(() => {
-    return Object.keys(modelsByProvider).filter(
-      (providerId) =>
-        accountsByProvider[providerId] &&
-        accountsByProvider[providerId].length > 0,
-    ) as AIProviderId[];
-  });
+  // Available providers (those with both accounts and models)
+  let availableProviders = $derived(
+    Object.keys(accountsByProvider).filter(
+      (providerId) => modelsByProvider[providerId]?.length > 0,
+    ) as string[],
+  );
 
   // Get display text for current selection
   let selectedText = $derived.by(() => {
@@ -81,11 +85,15 @@
     const account = plugin.settings.accounts.find(
       (a) => a.id === selectedAccountId,
     );
-    const accountsForProvider = accountsByProvider[account?.provider] || [];
+    if (!account) {
+      return selectedModelId;
+    }
+
+    const accountsForProvider = accountsByProvider[account.provider] || [];
     const showAccountName = accountsForProvider.length > 1;
 
     return showAccountName
-      ? `${selectedModelId} (${account?.name})`
+      ? `${selectedModelId} (${account.name})`
       : selectedModelId;
   });
 
@@ -94,22 +102,21 @@
     accountId: string,
     addToRecents = true,
   ) {
-    if (addToRecents) {
-      const account = plugin.settings.accounts.find((a) => a.id === accountId);
-      if (account) {
-        recentModels = addRecentModel({
-          modelId,
-          accountId,
-          accountName: account.name,
-          providerId: account.provider,
-        });
-      }
-    }
+    // Call the callback first
     onModelChange(modelId, accountId);
+
+    const account = plugin.settings.accounts.find((a) => a.id === accountId);
+    addRecentModel({
+      modelId,
+      accountId,
+      accountName: account.name,
+      providerId: account.provider,
+    });
   }
 
   function getRecentModels(): RecentModel[] {
     try {
+      const plugin = usePlugin();
       const stored = plugin.app.loadLocalStorage(STORAGE_KEY);
       if (!stored) return [];
       return stored as RecentModel[];
@@ -142,6 +149,10 @@
       console.warn("Failed to save recent model:", e);
       return getRecentModels();
     }
+  }
+
+  function getProviderInfo(providerId: string) {
+    return plugin.settings.providers.find((p) => p.id === providerId);
   }
 </script>
 
@@ -182,7 +193,7 @@
       {/if}
 
       {#each availableProviders as providerId}
-        {@const provider = AIProvider[providerId]}
+        {@const provider = getProviderInfo(providerId)}
         {@const models = modelsByProvider[providerId] || []}
         {@const accounts = accountsByProvider[providerId] || []}
 
@@ -190,7 +201,7 @@
           <DropdownMenu.SubTrigger
             class="flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm text-[var(--text-normal)] hover:bg-[var(--background-modifier-hover)] focus:bg-[var(--background-modifier-hover)] focus:outline-none"
           >
-            <span class="flex-1">{provider.name}</span>
+            <span class="flex-1">{provider?.name}</span>
             <ChevronRightIcon class="ml-auto size-4 text-[var(--text-muted)]" />
           </DropdownMenu.SubTrigger>
           <DropdownMenu.SubContent

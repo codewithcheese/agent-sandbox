@@ -1,7 +1,8 @@
 <script lang="ts">
   import { nanoid } from "nanoid";
-  import { type AIAccount, AIProvider, ModelConfigField } from "./providers.ts";
+  import { type AIAccount, ModelConfigField } from "./providers.ts";
   import type { AllowEmpty } from "$lib/types/allow-empty.ts";
+  import { usePlugin } from "$lib/utils";
 
   type Props = {
     current?: AIAccount;
@@ -9,6 +10,13 @@
     save: (profile: AIAccount) => void;
   };
   let { current, close, save }: Props = $props();
+
+  const plugin = usePlugin();
+  const settings = plugin.settings;
+
+  function getProviderInfo(providerId) {
+    return settings.providers.find(p => p.id === providerId) || { requiredFields: [], optionalFields: [] };
+  }
 
   let account: AllowEmpty<AIAccount, "provider"> = $state(
     current ?? {
@@ -44,8 +52,8 @@
       <div class="setting-item-control">
         <select bind:value={account.provider} required class="dropdown">
           <option value="">Select provider</option>
-          {#each Object.entries(AIProvider) as [key, provider]}
-            <option value={key}>{provider.name}</option>
+          {#each settings.providers as provider}
+            <option value={provider.id}>{provider.name}</option>
           {/each}
         </select>
       </div>
@@ -60,7 +68,7 @@
           <input required type="text" bind:value={account.name} />
         </div>
       </div>
-      {#each AIProvider[account.provider].requiredFields as fieldKey}
+      {#each getProviderInfo(account.provider).requiredFields as fieldKey}
         {@const field = ModelConfigField[fieldKey]}
         <div class="setting-item">
           <div class="setting-item-info">
@@ -77,7 +85,7 @@
           </div>
         </div>
       {/each}
-      {#each AIProvider[account.provider].optionalFields as fieldKey}
+      {#each getProviderInfo(account.provider).optionalFields as fieldKey}
         {@const field = ModelConfigField[fieldKey]}
         <div class="setting-item">
           <div class="setting-item-info">

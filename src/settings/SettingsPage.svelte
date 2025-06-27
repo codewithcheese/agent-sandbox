@@ -3,7 +3,6 @@
   import { onDestroy, onMount } from "svelte";
   import { PlusCircleIcon, SettingsIcon, Trash2Icon } from "lucide-svelte";
 
-  import { AIProvider } from "./providers.ts";
   import { createModal } from "$lib/modals/create-modal.ts";
   import TextareaModal from "./TextareaModal.svelte";
   import { Notice } from "obsidian";
@@ -12,13 +11,16 @@
   let settings = $state(plugin.settings);
   let { agents } = $props();
 
+  function getProviderInfo(providerId: string) {
+    return settings.providers.find(p => p.id === providerId) || { name: 'Unknown Provider' };
+  }
+
   onDestroy(() => {
     console.log("Unmounting");
   });
 
   function save() {
-    plugin.settings = $state.snapshot(settings);
-    plugin.saveSettings();
+    plugin.saveSettings($state.snapshot(settings));
   }
 </script>
 
@@ -39,7 +41,7 @@
       value={settings.vault.chatsPath}
       onchange={(e) => {
         plugin.settings.vault.chatsPath = e.currentTarget.value;
-        plugin.saveSettings();
+        plugin.saveSettings($state.snapshot(plugin.settings));
         settings = plugin.settings;
       }}
     />
@@ -77,7 +79,7 @@
     <div class="setting-item-info">
       <div class="setting-item-name">{provider.name}</div>
       <div class="setting-item-description">
-        Provider: {AIProvider[provider.provider].name}
+        Provider: {getProviderInfo(provider.provider).name}
       </div>
     </div>
     <div class="setting-item-control">
@@ -137,9 +139,14 @@
     <div class="setting-item-info">
       <div class="setting-item-name">{model.id}</div>
       <div class="setting-item-description">
-        Provider: {AIProvider[model.provider].name}, {model.type === "chat"
-          ? `Input: ${model.inputTokenLimit.toLocaleString()} tokens, Output: ${model.outputTokenLimit.toLocaleString()} tokens`
-          : `Dimensions: ${model.dimensions}`}
+        Provider: {getProviderInfo(model.provider).name}
+        {#if model.type === "chat"}
+          , Input: {model.inputTokenLimit.toLocaleString()} tokens, Output: {model.outputTokenLimit.toLocaleString()} tokens
+        {:else if model.type === "embedding"}
+          , Dimensions: {model.dimensions}
+        {:else if model.type === "transcription"}
+          , Transcription model
+        {/if}
       </div>
     </div>
     <div class="setting-item-control">
@@ -193,7 +200,7 @@
       <option value="">Select account...</option>
       {#each settings.accounts.filter((a) => a.provider === "assemblyai") as account}
         <option value={account.id}
-          >{AIProvider[account.provider].name} / {account.name}</option
+          >{getProviderInfo(account.provider).name} / {account.name}</option
         >
       {/each}
     </select>
@@ -225,49 +232,108 @@
   -->
 {/if}
 
-<!-- Language setting commented out - streaming endpoint doesn't support language selection
+<div class="setting-item setting-item-heading">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Post-Processing</div>
+    <div class="setting-item-description">
+      Use AI to clean up transcriptions (remove filler words, fix punctuation, etc.)
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <label class="checkbox-container" class:is-enabled={settings.recording.postProcessing.enabled}>
+      <input
+        type="checkbox"
+        bind:checked={settings.recording.postProcessing.enabled}
+        onchange={save}
+      />
+      <span class="checkmark"></span>
+    </label>
+  </div>
+</div>
+
+{#if settings.recording.postProcessing.enabled}
 <div class="setting-item">
   <div class="setting-item-info">
-    <div class="setting-item-name">Language</div>
+    <div class="setting-item-name">Post-Processing Prompt</div>
     <div class="setting-item-description">
-      Select the primary language for transcription
+      Prompt for cleaning transcriptions. Must contain {'{{ transcript }}'} variable.
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <button
+      class="mod-cta"
+      type="button"
+      onclick={() => {
+        const modal = createModal(TextareaModal, {
+          name: "Transcription post-processing prompt",
+          description: "Prompt must contain {{ transcript }} variable to be replaced with the transcript text.",
+          content: settings.recording.postProcessing.prompt,
+          onSave: (content) => {
+            settings.recording.postProcessing.prompt = content;
+            save();
+            modal.close();
+            new Notice("Saved", 3000);
+          },
+          onCancel: () => {
+            modal.close();
+          },
+        });
+        modal.open();
+      }}>Edit</button>
+  </div>
+</div>
+
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Account</div>
+    <div class="setting-item-description">
+      Select an account for transcription post-processing
     </div>
   </div>
   <div class="setting-item-control">
     <select
-      value={settings.recording.language}
+      value={settings.recording.postProcessing.accountId}
       onchange={(e) => {
-        settings.recording.language = e.currentTarget.value
-          ? e.currentTarget.value
-          : undefined;
+        settings.recording.postProcessing.accountId = e.currentTarget.value;
+        settings.recording.postProcessing.modelId = undefined;
         save();
       }}
     >
-      <option value="">Auto-detect</option>
-      <option value="en">Global English</option>
-      <option value="en_au">Australian English</option>
-      <option value="en_uk">British English</option>
-      <option value="en_us">US English</option>
-      <option value="es">Spanish</option>
-      <option value="fr">French</option>
-      <option value="de">German</option>
-      <option value="it">Italian</option>
-      <option value="pt">Portuguese</option>
-      <option value="nl">Dutch</option>
-      <option value="hi">Hindi</option>
-      <option value="ja">Japanese</option>
-      <option value="zh">Chinese</option>
-      <option value="fi">Finnish</option>
-      <option value="ko">Korean</option>
-      <option value="pl">Polish</option>
-      <option value="ru">Russian</option>
-      <option value="tr">Turkish</option>
-      <option value="uk">Ukrainian</option>
-      <option value="vi">Vietnamese</option>
+      <option value="">Select account...</option>
+      {#each settings.accounts as account}
+        <option value={account.id}
+          >{getProviderInfo(account.provider).name} / {account.name}</option
+        >
+      {/each}
     </select>
   </div>
 </div>
--->
+
+{#if settings.recording.postProcessing.accountId}
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Model</div>
+      <div class="setting-item-description">
+        Select a chat model for transcription post-processing
+      </div>
+    </div>
+    <div class="setting-item-control">
+      <select
+        value={settings.recording.postProcessing.modelId}
+        onchange={(e) => {
+          settings.recording.postProcessing.modelId = e.currentTarget.value;
+          save();
+        }}
+      >
+        <option value="">Select model...</option>
+        {#each settings.models.filter((m) => m.type === "chat" && (settings.recording.postProcessing.accountId ? m.provider === settings.accounts.find((a) => a.id === settings.recording.postProcessing.accountId).provider : true)) as model}
+          <option value={model.id}>{model.id}</option>
+        {/each}
+      </select>
+    </div>
+  </div>
+{/if}
+{/if}
 
 <div class="setting-item">
   <div class="setting-item-info">
@@ -323,10 +389,9 @@
           },
         });
         modal.open();
-      }}>Edit</button
-    >
+      }}>Edit</button>
+    </div>
   </div>
-</div>
 
 <div class="setting-item">
   <div class="setting-item-info">
@@ -347,7 +412,7 @@
       <option value="">Select account...</option>
       {#each settings.accounts as account}
         <option value={account.id}
-          >{AIProvider[account.provider].name} / {account.name}</option
+          >{getProviderInfo(account.provider).name} / {account.name}</option
         >
       {/each}
     </select>
@@ -371,7 +436,7 @@
         }}
       >
         <option value="">Select model...</option>
-        {#each settings.models.filter((m) => m.type === "chat" && (settings.title.accountId ? m.provider === settings.accounts.find((a) => a.id === settings.title.accountId)?.provider : true)) as model}
+        {#each settings.models.filter((m) => m.type === "chat" && (settings.title.accountId ? m.provider === settings.accounts.find((a) => a.id === settings.title.accountId).provider : true)) as model}
           <option value={model.id}>{model.id}</option>
         {/each}
       </select>
@@ -408,3 +473,39 @@
     </select>
   </div>
 </div>
+
+<style>
+  .checkbox-container {
+    display: inline-block;
+    position: relative;
+    width: 40px;
+    height: 20px;
+    border-radius: 10px;
+    background-color: var(--background-modifier-border);
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .checkbox-container.is-enabled {
+    background-color: var(--color-accent);
+  }
+  
+  .checkbox-container input[type="checkbox"] {
+    display: none;
+  }
+  
+  .checkmark {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--background-primary);
+    transition: transform 0.2s ease;
+  }
+  
+  .checkbox-container.is-enabled .checkmark {
+    transform: translateX(20px);
+  }
+</style>

@@ -1,19 +1,20 @@
 import { nanoid } from "nanoid";
 import { getTranscriptionAccount } from "../settings/recording";
-import type { StreamingEventMessage } from "assemblyai";
+import type { StreamingEventMessage, TurnEvent } from "assemblyai";
 import { usePlugin } from "$lib/utils";
 import {
   saveTranscriptionFile,
   loadTranscriptionFiles,
 } from "./transcription-files";
 import type { Recording } from "./types";
+import { postProcessTranscription } from "./post-processing";
 
 export class RecorderStreaming {
   // UI State
   isRecording = $state<boolean>(false);
 
   // Streaming text
-  turns = $state<string[]>([]);
+  turns: TurnEvent[] = $state([]);
 
   // Saved transcripts
   recordings = $state<Recording[]>([]);
@@ -35,67 +36,53 @@ export class RecorderStreaming {
 
   // Derived state
   get streamingText() {
-    return this.turns.length ? this.turns.join(" ").trim() : "";
+    return this.turns
+      .filter((turn) => turn && turn.transcript) // Skip empty slots and turns without text
+      .map((turn) => turn.transcript)
+      .join(" ")
+      .trim();
   }
 
   get isIdle() {
     return !this.isRecording;
   }
 
-  // Detect where text can be inserted
-  private detectInsertionTarget(): void {
-    const plugin = usePlugin();
-
-    // Check if focused element can accept paste
-    const activeElement = document.activeElement;
-    if (!activeElement) {
-      this.insertionTarget = null;
-      return;
+  // Check if we have received the final formatted turn
+  get hasFinalTurn() {
+    // Find the highest turn_order that has content
+    const lastTurnIndex = this.turns.length - 1;
+    for (let i = lastTurnIndex; i >= 0; i--) {
+      const turn = this.turns[i];
+      if (turn && turn.transcript) {
+        return turn.end_of_turn;
+      }
     }
+    return false;
+  }
 
-    // Check if it's an Obsidian editor first
-    if (plugin) {
-      const leaves = plugin.app.workspace.getLeavesOfType("markdown");
-      const editorLeaf = leaves.find((leaf) => leaf.view?.editor);
-
-      if (editorLeaf?.view?.editor && activeElement.closest(".cm-editor")) {
-        // Get the file name if available
-        const file = editorLeaf.view?.file;
-        let fileName = file?.name || "Editor";
-        // Remove .md extension since it's implied in Obsidian
-        if (fileName.endsWith(".md")) {
-          fileName = fileName.slice(0, -3);
+  // Wait for final formatted turn with timeout
+  private async waitForFinalTurn(timeoutMs = 2000): Promise<void> {
+    return new Promise((resolve) => {
+      const startTime = Date.now();
+      
+      const checkFinalTurn = () => {
+        if (this.hasFinalTurn) {
+          resolve();
+          return;
         }
-        this.insertionTarget = fileName;
-        return;
-      }
-    }
-
-    // Check if it's a text input/textarea
-    if (
-      activeElement instanceof HTMLInputElement ||
-      activeElement instanceof HTMLTextAreaElement
-    ) {
-      // Check if it's a chat input with title
-      const chatTitle = activeElement.getAttribute("data-chat-title");
-      if (chatTitle) {
-        this.insertionTarget = chatTitle;
-        return;
-      }
-
-      this.insertionTarget = "Text input";
-      return;
-    }
-
-    // Check if element is contentEditable
-    // @ts-expect-error no type narrowing
-    if (activeElement.isContentEditable) {
-      this.insertionTarget = "Editable content";
-      return;
-    }
-
-    // Default case - no valid insertion target
-    this.insertionTarget = null;
+        
+        if (Date.now() - startTime > timeoutMs) {
+          console.warn("Timeout waiting for final turn, proceeding anyway");
+          resolve();
+          return;
+        }
+        
+        // Check again in 100ms
+        setTimeout(checkFinalTurn, 100);
+      };
+      
+      checkFinalTurn();
+    });
   }
 
   constructor() {
@@ -175,7 +162,8 @@ export class RecorderStreaming {
 
       if (!("type" in msg) || msg.type !== "Turn") return;
 
-      this.turns[msg.turn_order] = msg.transcript;
+      // Use turn_order as direct array index
+      this.turns[msg.turn_order] = msg;
     } catch (err) {
       console.error("WS parse error:", err);
     }
@@ -204,7 +192,10 @@ export class RecorderStreaming {
         console.error("WS error:", e);
         this.cancelRecording();
       };
-      this.ws.onclose = () => console.log("WS closed");
+      this.ws.onclose = (e) => {
+        // WebSocket closed - this is expected when we close it or when ForceEndpoint completes
+        console.log("WS closed:", e.code, e.reason, "wasClean:", e.wasClean);
+      };
 
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -267,6 +258,142 @@ export class RecorderStreaming {
     }
   }
 
+  async acceptRecording(): Promise<void> {
+    if (!this.isRecording) return;
+
+    // Stop audio input but keep WebSocket open to receive final turn
+    this.stopAudio();
+
+    // Send ForceEndpoint message to AssemblyAI to force final turn processing
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: "ForceEndpoint" }));
+    }
+
+    // Wait for the final formatted turn
+    await this.waitForFinalTurn();
+
+    // Now close the WebSocket
+    this.closeWs(true);
+
+    const full = this.turns
+      .filter((turn) => turn && turn.transcript) // Skip empty slots and turns without text
+      .map((turn) => turn.transcript)
+      .join(" ")
+      .trim();
+    if (full) {
+      try {
+        // Apply post-processing to clean up the transcript
+        const processedText = await postProcessTranscription(full);
+        
+        // Insert text if there's a valid target
+        this.insertAtCursor(processedText);
+
+        // Save to file first
+        const file = await saveTranscriptionFile(
+          processedText,
+          new Date(),
+          (Date.now() - this.startedAt) / 1000,
+        );
+
+        // Only add to recordings if file save was successful
+        if (file) {
+          const recording: Recording = {
+            id: nanoid(),
+            text: processedText,
+            date: new Date(),
+            duration: (Date.now() - this.startedAt) / 1000,
+            audioUrl: null,
+            file: file,
+          };
+          // Add to beginning of array so newest appears first
+          this.recordings = [recording, ...this.recordings];
+        } else {
+          // Show error if file save failed
+          console.error("Failed to save transcription file");
+        }
+      } catch (error) {
+        console.error("Error processing transcription:", error);
+      }
+    }
+
+    this.resetUI();
+  }
+
+  cancelRecording(): void {
+    if (!this.isRecording) return;
+    this.closeWs(true);
+    this.stopAudio();
+    this.resetUI();
+  }
+
+  removeRecording(id: string): void {
+    this.recordings = this.recordings.filter((r) => r.id !== id);
+  }
+
+  // Cleanup method to be called when component is destroyed
+  destroy(): void {
+    this.cancelRecording();
+
+    // Clean up focus event listeners
+    document.removeEventListener("focusin", this.focusInHandler);
+    document.removeEventListener("focusout", this.focusOutHandler);
+  }
+
+  private detectInsertionTarget(): void {
+    const plugin = usePlugin();
+
+    // Check if focused element can accept paste
+    const activeElement = document.activeElement;
+    if (!activeElement) {
+      this.insertionTarget = null;
+      return;
+    }
+
+    // Check if it's an Obsidian editor first
+    if (plugin) {
+      const leaves = plugin.app.workspace.getLeavesOfType("markdown");
+      const editorLeaf = leaves.find((leaf) => leaf.view?.editor);
+
+      if (editorLeaf?.view?.editor && activeElement.closest(".cm-editor")) {
+        // Get the file name if available
+        const file = editorLeaf.view?.file;
+        let fileName = file?.name || "Editor";
+        // Remove .md extension since it's implied in Obsidian
+        if (fileName.endsWith(".md")) {
+          fileName = fileName.slice(0, -3);
+        }
+        this.insertionTarget = fileName;
+        return;
+      }
+    }
+
+    // Check if it's a text input/textarea
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement
+    ) {
+      // Check if it's a chat input with title
+      const chatTitle = activeElement.getAttribute("data-chat-title");
+      if (chatTitle) {
+        this.insertionTarget = chatTitle;
+        return;
+      }
+
+      this.insertionTarget = "Text input";
+      return;
+    }
+
+    // Check if element is contentEditable
+    // @ts-expect-error no type narrowing
+    if (activeElement.isContentEditable) {
+      this.insertionTarget = "Editable content";
+      return;
+    }
+
+    // Default case - no valid insertion target
+    this.insertionTarget = null;
+  }
+
   private insertAtCursor(text: string): void {
     const plugin = usePlugin();
     if (!plugin) return;
@@ -317,64 +444,5 @@ export class RecorderStreaming {
         selection.addRange(range);
       }
     }
-  }
-
-  async acceptRecording(): Promise<void> {
-    if (!this.isRecording) return;
-
-    this.closeWs(true);
-    this.stopAudio();
-
-    const full = this.turns.join(" ").trim();
-    if (full) {
-      // Insert text if there's a valid target
-      this.insertAtCursor(full);
-
-      // Save to file first
-      const file = await saveTranscriptionFile(
-        full,
-        new Date(),
-        (Date.now() - this.startedAt) / 1000,
-      );
-
-      // Only add to recordings if file save was successful
-      if (file) {
-        const recording: Recording = {
-          id: nanoid(),
-          text: full,
-          date: new Date(),
-          duration: (Date.now() - this.startedAt) / 1000,
-          audioUrl: null,
-          file: file,
-        };
-        // Add to beginning of array so newest appears first
-        this.recordings = [recording, ...this.recordings];
-      } else {
-        // Show error if file save failed
-        console.error("Failed to save transcription file");
-      }
-    }
-
-    this.resetUI();
-  }
-
-  cancelRecording(): void {
-    if (!this.isRecording) return;
-    this.closeWs(true);
-    this.stopAudio();
-    this.resetUI();
-  }
-
-  removeRecording(id: string): void {
-    this.recordings = this.recordings.filter((r) => r.id !== id);
-  }
-
-  // Cleanup method to be called when component is destroyed
-  destroy(): void {
-    this.cancelRecording();
-
-    // Clean up focus event listeners
-    document.removeEventListener("focusin", this.focusInHandler);
-    document.removeEventListener("focusout", this.focusOutHandler);
   }
 }
