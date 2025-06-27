@@ -2,15 +2,11 @@ import { nanoid } from "nanoid";
 import { getTranscriptionAccount } from "../settings/recording";
 import type { StreamingEventMessage } from "assemblyai";
 import { usePlugin } from "$lib/utils";
-
-interface Recording {
-  id: string;
-  text: string;
-  date: Date;
-  duration: number; // seconds
-  audioUrl: null; // reserved for future wav saving
-  state: "ready" | "error";
-}
+import {
+  saveTranscriptionFile,
+  loadTranscriptionFiles,
+} from "./transcription-files";
+import type { Recording } from "./types";
 
 export class RecorderStreaming {
   // UI State
@@ -109,6 +105,21 @@ export class RecorderStreaming {
     // Update detection when focus changes
     document.addEventListener("focusin", this.focusInHandler);
     document.addEventListener("focusout", this.focusOutHandler);
+
+    // Load existing transcriptions
+    this.loadExistingTranscriptions();
+  }
+
+  // Load transcriptions from files
+  private async loadExistingTranscriptions(): Promise<void> {
+    try {
+      const fileTranscriptions = await loadTranscriptionFiles();
+      debugger;
+      // Direct assignment - TranscriptionFile and Recording are identical
+      this.recordings = fileTranscriptions;
+    } catch (error) {
+      console.error("Failed to load existing transcriptions:", error);
+    }
   }
 
   // Public method to update insertion target detection
@@ -277,7 +288,7 @@ export class RecorderStreaming {
     }
   }
 
-  acceptRecording(): void {
+  async acceptRecording(): Promise<void> {
     if (!this.isRecording) return;
 
     this.closeWs(true);
@@ -285,21 +296,31 @@ export class RecorderStreaming {
 
     const full = this.turns.join(" ").trim();
     if (full) {
-      // Always insert at cursor
+      // Insert text if there's a valid target
       this.insertAtCursor(full);
 
-      // Always save to recordings list
-      this.recordings = [
-        ...this.recordings,
-        {
+      // Save to file first
+      const file = await saveTranscriptionFile(
+        full,
+        new Date(),
+        (Date.now() - this.startedAt) / 1000,
+      );
+
+      // Only add to recordings if file save was successful
+      if (file) {
+        const recording: Recording = {
           id: nanoid(),
           text: full,
           date: new Date(),
           duration: (Date.now() - this.startedAt) / 1000,
           audioUrl: null,
-          state: "ready",
-        },
-      ];
+          file: file,
+        };
+        this.recordings = [...this.recordings, recording];
+      } else {
+        // Show error if file save failed
+        console.error("Failed to save transcription file");
+      }
     }
 
     this.resetUI();

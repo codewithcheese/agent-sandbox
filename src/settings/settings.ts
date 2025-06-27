@@ -32,6 +32,7 @@ export interface PluginSettings {
     modelId?: string;
     accountId?: string;
     language?: string;
+    transcriptionsPath?: string;
   };
   title: {
     prompt: string;
@@ -59,7 +60,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   },
   accounts: [],
   models,
-  recording: {},
+  recording: {
+    transcriptionsPath: "transcriptions",
+  },
   agents: {
     templateRepairAgentPath: "",
   },

@@ -265,6 +265,26 @@
   </div>
 </div>
 
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Transcriptions Path</div>
+    <div class="setting-item-description">
+      Folder path where transcription files will be saved
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <input
+      type="text"
+      placeholder="transcriptions"
+      value={settings.recording.transcriptionsPath || ""}
+      oninput={(e) => {
+        settings.recording.transcriptionsPath = e.currentTarget.value || undefined;
+        save();
+      }}
+    />
+  </div>
+</div>
+
 <div class="setting-item setting-item-heading">
   <div class="setting-item-info">
     <div class="setting-item-name">Chat Title Generation</div>

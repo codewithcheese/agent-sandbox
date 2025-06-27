@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { Mic, Square, FileTextIcon } from "lucide-svelte";
+  import { Mic, Square } from "lucide-svelte";
+  import { FileTextIcon } from "lucide-svelte";
+  import Autoscroll from "../chat/Autoscroll.svelte";
+  import { openPath } from "$lib/utils/obsidian.ts";
   import { RecorderStreaming } from "./recorder-streaming.svelte.ts";
   import { onDestroy } from "svelte";
   import { humanTime } from "$lib/utils/datetime.ts";
-  import Autoscroll from "../chat/Autoscroll.svelte";
 
   // Create recorder instance
   const recorder = new RecorderStreaming();
@@ -24,9 +26,8 @@
     recorder.destroy();
   });
 
-  function openTranscription(fileName: string) {
-    // TODO: Open the transcription file
-    console.log("Opening transcription:", fileName);
+  function openTranscription(recording: { file: { path: string } }) {
+    openPath(recording.file.path);
   }
 </script>
 
@@ -44,9 +45,9 @@
             </div>
             <button
               class="clickable-icon p-1 rounded"
-              onmousedown={(e) => {
+              onmousedown={async (e) => {
                 e.preventDefault();
-                recorder.acceptRecording();
+                await recorder.acceptRecording();
               }}
               aria-label="Stop recording"
             >
@@ -116,8 +117,8 @@
           <div class="flex flex-col gap-1">
             {#each recorder.recordings as recording}
               <button
-                class="clickable-icon p-3 text-left"
-                onclick={() => openTranscription(recording.text)}
+                class="clickable-icon p-3 text-left hover:bg-(--background-modifier-hover) transition-colors"
+                onclick={() => openTranscription(recording)}
               >
                 <div class="flex items-start gap-3">
                   <FileTextIcon
