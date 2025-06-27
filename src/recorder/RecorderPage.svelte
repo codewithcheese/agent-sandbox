@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Mic, Square } from "lucide-svelte";
+  import { Mic, Square, Play } from "lucide-svelte";
   import { FileTextIcon, Copy } from "lucide-svelte";
   import Autoscroll from "../chat/Autoscroll.svelte";
   import { openPath } from "$lib/utils/obsidian.ts";
@@ -42,43 +42,55 @@
 </script>
 
 <div class="h-full flex flex-col">
-  <!-- Streaming Text Area -->
+  <!-- Fixed Recording Area -->
   <div class="flex-none">
     <div class="m-4 border border-(--background-modifier-border) rounded-lg bg-(--background-primary-alt) h-[200px] flex flex-col">
-      {#if recorder.isRecording}
-        <!-- Fixed Recording Header -->
-        <div class="flex-none p-4 pb-2 border-b border-(--background-modifier-border)">
-          <div class="flex items-center justify-between gap-2 text-sm text-(--text-accent)">
-            <div class="flex items-center gap-2">
+      <!-- Header with status and controls -->
+      <div class="flex-none p-4 pb-2 pt-2 border-b border-(--background-modifier-border)">
+        <div class="flex items-center justify-between gap-2 text-sm">
+          <div class="flex items-center gap-2">
+            {#if recorder.isRecording}
               <div class="w-2 h-2 bg-(--color-accent) rounded-full animate-pulse"></div>
-              <span>Recording...</span>
-            </div>
-            <div
-              class="clickable-icon p-1 rounded cursor-pointer"
-              onmousedown={async (e) => {
-                e.preventDefault();
-                await recorder.acceptRecording();
-              }}
-              role="button"
-              tabindex="0"
-              onkeydown={(e) => e.key === 'Enter' && recorder.acceptRecording()}
-              aria-label="Stop recording"
-            >
-              <Square class="size-4" />
-            </div>
-          </div>
-          <!-- Paste target information -->
-          <div class="text-xs text-(--text-muted) mt-1">
-            {#if recorder.insertionTarget === null}
-              Won't paste
+              <span class="text-(--text-accent)">Recording...</span>
             {:else}
-              Will paste in {recorder.insertionTarget}
+              <div class="w-2 h-2 bg-(--text-muted) rounded-full"></div>
+              <span class="text-(--text-muted)">Ready to record</span>
+            {/if}
+          </div>
+          <div
+            class="clickable-icon p-1 rounded cursor-pointer"
+            onmousedown={async (e) => {
+              e.preventDefault();
+              if (recorder.isRecording) {
+                await recorder.acceptRecording();
+              } else {
+                recorder.startRecording();
+              }
+            }}
+            role="button"
+            tabindex="-1"
+            aria-label={recorder.isRecording ? "Stop recording" : "Start recording"}
+          >
+            {#if recorder.isRecording}
+              <Square class="size-4" />
+            {:else}
+              <Play class="size-4" />
             {/if}
           </div>
         </div>
-        
-        <!-- Scrollable Transcription Text -->
-        <div class="flex-1 relative min-h-0">
+        <!-- Paste target information (always shown) -->
+        <div class="text-xs text-(--text-muted) mt-1">
+          {#if recorder.insertionTarget === null}
+            Click where to paste
+          {:else}
+            Will paste in {recorder.insertionTarget}
+          {/if}
+        </div>
+      </div>
+      
+      <!-- Content area -->
+      <div class="flex-1 relative min-h-0">
+        {#if recorder.isRecording}
           <!-- Fixed fade overlay at top (outside scroll area) -->
           {#if showTopFade}
             <div class="fade-top"></div>
@@ -100,84 +112,79 @@
               bind:sentinel
             />
           </div>
-        </div>
-      {:else}
-        <!-- Placeholder (full area clickable) -->
-        <div
-          class="flex items-center justify-center h-full cursor-pointer text-(--text-muted) hover:text-(--text-normal) transition-colors p-4"
-          onmousedown={(e) => {
-            e.preventDefault();
-            recorder.startRecording();
-          }}
-        >
-          <div class="flex flex-col items-center gap-2">
-            <Mic class="size-8" />
-            <span class="text-sm">Click to start recording</span>
-            {#if recorder.insertionTarget === null}
-              <span class="text-xs opacity-70">Won't paste</span>
-            {:else}
-              <span class="text-xs opacity-70">Will paste in {recorder.insertionTarget}</span>
-            {/if}
-          </div>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Transcription Files List -->
-    <div class="flex-1 overflow-y-auto">
-      <div class="px-2 py-2">
-        {#if recorder.recordings.length === 0}
-          <div class="flex flex-col items-center justify-center py-8 gap-2">
-            <FileTextIcon class="size-8 opacity-30" />
-            <span class="text-sm text-(--text-muted)">No transcriptions yet</span>
-            <p class="text-xs text-(--text-muted) text-center px-4">
-              Start recording to create your first transcription file
-            </p>
-          </div>
         {:else}
-          <div class="flex flex-col gap-1">
-            {#each recorder.recordings as recording}
-              <div class="flex items-start hover:bg-(--background-modifier-hover) transition-colors rounded p-3 gap-3">
-                <div
-                  class="flex items-start gap-3 flex-1 cursor-pointer"
-                  onclick={() => openTranscription(recording)}
-                  role="button"
-                  tabindex="0"
-                  onkeydown={(e) => e.key === 'Enter' && openTranscription(recording)}
-                >
-                  <FileTextIcon
-                    class="size-4 mt-0.5 flex-shrink-0 text-(--text-muted)"
-                  />
-                  <div class="flex-1 min-w-0">
-                    <div class="text-xs text-(--text-muted) mb-1">
-                      {humanTime(recording.date.getTime())} • {recording.duration.toFixed(
-                        0,
-                      )}s
-                    </div>
-                    <div
-                      class="text-sm text-(--text-normal) text-wrap leading-relaxed"
-                    >
-                      {recording.text.slice(0, 120)}{recording.text.length > 120
-                        ? "..."
-                        : ""}
-                    </div>
-                  </div>
-                </div>
-                <div
-                  class="clickable-icon p-1 rounded cursor-pointer"
-                  onmousedown={(e) => copyTranscription(recording.text, e)}
-                  role="button"
-                  tabindex="0"
-                  onkeydown={(e) => e.key === 'Enter' && copyTranscription(recording.text, e)}
-                  aria-label="Copy transcription"
-                >
-                  <Copy class="size-4" />
-                </div>
-              </div>
-            {/each}
+          <!-- Clickable placeholder content -->
+          <div 
+            class="flex items-center justify-center h-full p-4 cursor-pointer hover:bg-(--background-modifier-hover) transition-colors"
+            onmousedown={(e) => {
+              e.preventDefault();
+              recorder.startRecording();
+            }}
+          >
+            <div class="text-center text-(--text-muted)">
+              <Mic class="size-8 mb-2 mx-auto" />
+              <div class="text-sm">Click to start recording</div>
+            </div>
           </div>
         {/if}
       </div>
+    </div>
+  </div>
+
+  <!-- Scrollable Transcriptions List -->
+  <div class="flex-1 overflow-y-auto min-h-0">
+    <div class="px-2 py-2">
+      {#if recorder.recordings.length === 0}
+        <div class="flex flex-col items-center justify-center py-8 gap-2">
+          <FileTextIcon class="size-8 opacity-30" />
+          <span class="text-sm text-(--text-muted)">No transcriptions yet</span>
+          <p class="text-xs text-(--text-muted) text-center px-4">
+            Start recording to create your first transcription file
+          </p>
+        </div>
+      {:else}
+        <div class="flex flex-col gap-1">
+          {#each recorder.recordings as recording}
+            <div class="flex items-start hover:bg-(--background-modifier-hover) transition-colors rounded p-3 gap-3">
+              <div
+                class="flex items-start gap-3 flex-1 cursor-pointer"
+                onclick={() => openTranscription(recording)}
+                role="button"
+                tabindex="0"
+                onkeydown={(e) => e.key === 'Enter' && openTranscription(recording)}
+              >
+                <FileTextIcon
+                  class="size-4 mt-0.5 flex-shrink-0 text-(--text-muted)"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs text-(--text-muted) mb-1">
+                    {humanTime(recording.date.getTime())} • {recording.duration.toFixed(
+                      0,
+                    )}s
+                  </div>
+                  <div
+                    class="text-sm text-(--text-normal) text-wrap leading-relaxed"
+                  >
+                    {recording.text.slice(0, 120)}{recording.text.length > 120
+                      ? "..."
+                      : ""}
+                  </div>
+                </div>
+              </div>
+              <div
+                class="clickable-icon p-1 rounded cursor-pointer"
+                onmousedown={(e) => copyTranscription(recording.text, e)}
+                role="button"
+                tabindex="0"
+                onkeydown={(e) => e.key === 'Enter' && copyTranscription(recording.text, e)}
+                aria-label="Copy transcription"
+              >
+                <Copy class="size-4" />
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   </div>
 </div>
