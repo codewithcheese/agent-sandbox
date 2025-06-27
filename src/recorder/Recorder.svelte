@@ -241,16 +241,12 @@
     }
     try {
       const plugin = usePlugin();
-      const { account, model } = getTranscriptionAccount();
+      const { account } = getTranscriptionAccount();
       const client = new AssemblyAI({
         apiKey: account.config.apiKey,
       });
       const transcript = await client.transcripts.transcribe({
         audio: audio,
-        speech_model: model.id,
-        ...(plugin.settings?.recording?.language
-          ? { language_code: plugin.settings.recording.language }
-          : {}),
       });
       recording.text = transcript.text;
       recording.state = "ready";

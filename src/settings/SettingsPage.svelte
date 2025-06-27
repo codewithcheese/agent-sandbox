@@ -201,6 +201,7 @@
 </div>
 
 {#if settings.recording.accountId}
+  <!-- Model setting commented out - streaming endpoint uses a fixed model
   <div class="setting-item">
     <div class="setting-item-info">
       <div class="setting-item-name">Model</div>
@@ -221,8 +222,10 @@
       </select>
     </div>
   </div>
+  -->
 {/if}
 
+<!-- Language setting commented out - streaming endpoint doesn't support language selection
 <div class="setting-item">
   <div class="setting-item-info">
     <div class="setting-item-name">Language</div>
@@ -264,6 +267,7 @@
     </select>
   </div>
 </div>
+-->
 
 <div class="setting-item">
   <div class="setting-item-info">
