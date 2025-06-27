@@ -5,13 +5,17 @@
     value = $bindable(),
     ref = $bindable(),
     maxRows = 10,
+    chatTitle,
     ...restProps
   }: {
     class?: string;
     value?: string;
     ref?: HTMLTextAreaElement;
     maxRows?: number;
+    chatTitle: string;
   } & import("svelte/elements").HTMLTextareaAttributes = $props();
+
+  $inspect(chatTitle);
 
   let wrapperRef: HTMLDivElement;
 
@@ -42,6 +46,7 @@
     class={cn("w-full resize-none overflow-hidden", className)}
     bind:value
     oninput={handleInput}
+    data-chat-title={chatTitle}
     {...restProps}
   ></textarea>
 </div>

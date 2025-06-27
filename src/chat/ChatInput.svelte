@@ -59,6 +59,13 @@
 
   let textareaRef: HTMLTextAreaElement | null = $state(null);
 
+  // Extract chat title from path (remove .chat extension)
+  const chatTitle = $derived.by(() => {
+    if (!chat.path) return "Chat";
+    const fileName = chat.path.split('/').pop() || chat.path;
+    return fileName.endsWith('.chat') ? fileName.slice(0, -5) : fileName;
+  });
+
   $effect(() => {
     if (inputState.state.type === "editing") {
       untrack(async () => {
@@ -275,6 +282,7 @@
       maxRows={10}
       required
       bind:ref={textareaRef}
+      chatTitle={chatTitle}
     />
     <div class="flex items-center justify-between mt-2">
       <div class="flex flex-row align-middle gap-2">

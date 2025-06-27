@@ -15,13 +15,15 @@ interface Recording {
 export class RecorderStreaming {
   // UI State
   isRecording = $state<boolean>(false);
-  autoInsert = $state<boolean>(true); // Toggle for auto-insert at cursor
-  
+
   // Streaming text
   turns = $state<string[]>([]);
-  
+
   // Saved transcripts
   recordings = $state<Recording[]>([]);
+
+  // Insertion target detection
+  insertionTarget = $state<string | null>(null);
 
   // Internal handles
   private readonly SAMPLE_RATE = 16_000;
@@ -31,6 +33,10 @@ export class RecorderStreaming {
   private mediaStream: MediaStream | null = null;
   private startedAt = 0;
 
+  // Event listener references for cleanup
+  private focusInHandler = () => this.updateInsertionTarget();
+  private focusOutHandler = () => this.updateInsertionTarget();
+
   // Derived state
   get streamingText() {
     return this.turns.length ? this.turns.join(" ").trim() : "";
@@ -38,6 +44,76 @@ export class RecorderStreaming {
 
   get isIdle() {
     return !this.isRecording;
+  }
+
+  // Detect where text can be inserted
+  private detectInsertionTarget(): void {
+    const plugin = usePlugin();
+
+    // Check if focused element can accept paste
+    const activeElement = document.activeElement;
+    if (!activeElement) {
+      this.insertionTarget = null;
+      return;
+    }
+
+    // Check if it's an Obsidian editor first
+    if (plugin) {
+      const leaves = plugin.app.workspace.getLeavesOfType("markdown");
+      const editorLeaf = leaves.find((leaf) => leaf.view?.editor);
+
+      if (editorLeaf?.view?.editor && activeElement.closest(".cm-editor")) {
+        // Get the file name if available
+        const file = editorLeaf.view?.file;
+        let fileName = file?.name || "Editor";
+        // Remove .md extension since it's implied in Obsidian
+        if (fileName.endsWith(".md")) {
+          fileName = fileName.slice(0, -3);
+        }
+        this.insertionTarget = fileName;
+        return;
+      }
+    }
+
+    // Check if it's a text input/textarea
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement
+    ) {
+      // Check if it's a chat input with title
+      const chatTitle = activeElement.getAttribute("data-chat-title");
+      if (chatTitle) {
+        this.insertionTarget = chatTitle;
+        return;
+      }
+
+      this.insertionTarget = "Text input";
+      return;
+    }
+
+    // Check if element is contentEditable
+    // @ts-expect-error no type narrowing
+    if (activeElement.isContentEditable) {
+      this.insertionTarget = "Editable content";
+      return;
+    }
+
+    // Default case - no valid insertion target
+    this.insertionTarget = null;
+  }
+
+  constructor() {
+    // Initial detection
+    this.updateInsertionTarget();
+
+    // Update detection when focus changes
+    document.addEventListener("focusin", this.focusInHandler);
+    document.addEventListener("focusout", this.focusOutHandler);
+  }
+
+  // Public method to update insertion target detection
+  updateInsertionTarget(): void {
+    this.detectInsertionTarget();
   }
 
   /********** Utils **********/
@@ -117,7 +193,9 @@ export class RecorderStreaming {
       };
       this.ws.onclose = () => console.log("WS closed");
 
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
       this.audioCtx = new AudioContext({ sampleRate: this.SAMPLE_RATE });
       const source = this.audioCtx.createMediaStreamSource(this.mediaStream);
 
@@ -165,7 +243,8 @@ export class RecorderStreaming {
           "pcm-worklet",
         );
         awNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-          if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(e.data);
+          if (this.ws && this.ws.readyState === WebSocket.OPEN)
+            this.ws.send(e.data);
         };
         source.connect(awNode);
       }
@@ -179,9 +258,12 @@ export class RecorderStreaming {
     const plugin = usePlugin();
     if (!plugin) return;
 
-    const editor = plugin.app.workspace.activeLeaf.view.editor;
-    if (editor) {
-      editor.replaceSelection(text, "end");
+    // Find the most recent editor leaf (not the recorder view)
+    const leaves = plugin.app.workspace.getLeavesOfType("markdown");
+    const editorLeaf = leaves.find((leaf) => leaf.view?.editor);
+
+    if (editorLeaf?.view?.editor) {
+      editorLeaf.view.editor.replaceSelection(text, "end");
       return;
     }
 
@@ -203,10 +285,8 @@ export class RecorderStreaming {
 
     const full = this.turns.join(" ").trim();
     if (full) {
-      // Auto-insert at cursor if enabled
-      if (this.autoInsert) {
-        this.insertAtCursor(full);
-      }
+      // Always insert at cursor
+      this.insertAtCursor(full);
 
       // Always save to recordings list
       this.recordings = [
@@ -225,10 +305,6 @@ export class RecorderStreaming {
     this.resetUI();
   }
 
-  toggleAutoInsert(): void {
-    this.autoInsert = !this.autoInsert;
-  }
-
   cancelRecording(): void {
     if (!this.isRecording) return;
     this.closeWs(true);
@@ -242,7 +318,10 @@ export class RecorderStreaming {
 
   // Cleanup method to be called when component is destroyed
   destroy(): void {
-    this.closeWs();
-    this.stopAudio();
+    this.cancelRecording();
+
+    // Clean up focus event listeners
+    document.removeEventListener("focusin", this.focusInHandler);
+    document.removeEventListener("focusout", this.focusOutHandler);
   }
 }
