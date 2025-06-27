@@ -83,10 +83,6 @@ export class AgentSandboxPlugin extends Plugin {
     RecorderView.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
-    this.addRibbonIcon("mic", "Toggle Recorder", () => {
-      this.recorder.toggle();
-    });
-
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();
     });

@@ -31,8 +31,6 @@ duration: ${duration}
 source: voice-recorder
 ---
 
-# Transcription
-
 `;
 }
 
@@ -110,8 +108,12 @@ export async function loadTranscriptionFiles(): Promise<Recording[]> {
       }
     }
 
-    // Sort by date (newest first)
-    return transcriptions.sort((a, b) => b.date.getTime() - a.date.getTime());
+    // Sort by file modified time (newest first)
+    return transcriptions.sort((a, b) => {
+      const aModified = a.file.stat.mtime;
+      const bModified = b.file.stat.mtime;
+      return bModified - aModified;
+    });
   } catch (error) {
     console.error("Failed to load transcription files:", error);
     return [];

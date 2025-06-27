@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Mic, Square } from "lucide-svelte";
-  import { FileTextIcon } from "lucide-svelte";
+  import { FileTextIcon, Copy } from "lucide-svelte";
   import Autoscroll from "../chat/Autoscroll.svelte";
   import { openPath } from "$lib/utils/obsidian.ts";
   import { RecorderStreaming } from "./recorder-streaming.svelte.ts";
@@ -29,6 +29,16 @@
   function openTranscription(recording: { file: { path: string } }) {
     openPath(recording.file.path);
   }
+
+  async function copyTranscription(text: string, event: Event) {
+    event.stopPropagation(); // Prevent opening the transcription
+    try {
+      await navigator.clipboard.writeText(text);
+      // Could add a toast notification here if desired
+    } catch (error) {
+      console.error("Failed to copy transcription:", error);
+    }
+  }
 </script>
 
 <div class="h-full flex flex-col">
@@ -43,16 +53,27 @@
               <div class="w-2 h-2 bg-(--color-accent) rounded-full animate-pulse"></div>
               <span>Recording...</span>
             </div>
-            <button
-              class="clickable-icon p-1 rounded"
+            <div
+              class="clickable-icon p-1 rounded cursor-pointer"
               onmousedown={async (e) => {
                 e.preventDefault();
                 await recorder.acceptRecording();
               }}
+              role="button"
+              tabindex="0"
+              onkeydown={(e) => e.key === 'Enter' && recorder.acceptRecording()}
               aria-label="Stop recording"
             >
               <Square class="size-4" />
-            </button>
+            </div>
+          </div>
+          <!-- Paste target information -->
+          <div class="text-xs text-(--text-muted) mt-1">
+            {#if recorder.insertionTarget === null}
+              Won't paste
+            {:else}
+              Will paste in {recorder.insertionTarget}
+            {/if}
           </div>
         </div>
         
@@ -116,11 +137,14 @@
         {:else}
           <div class="flex flex-col gap-1">
             {#each recorder.recordings as recording}
-              <button
-                class="clickable-icon p-3 text-left hover:bg-(--background-modifier-hover) transition-colors"
-                onclick={() => openTranscription(recording)}
-              >
-                <div class="flex items-start gap-3">
+              <div class="flex items-start hover:bg-(--background-modifier-hover) transition-colors rounded p-3 gap-3">
+                <div
+                  class="flex items-start gap-3 flex-1 cursor-pointer"
+                  onclick={() => openTranscription(recording)}
+                  role="button"
+                  tabindex="0"
+                  onkeydown={(e) => e.key === 'Enter' && openTranscription(recording)}
+                >
                   <FileTextIcon
                     class="size-4 mt-0.5 flex-shrink-0 text-(--text-muted)"
                   />
@@ -139,7 +163,17 @@
                     </div>
                   </div>
                 </div>
-              </button>
+                <div
+                  class="clickable-icon p-1 rounded cursor-pointer"
+                  onmousedown={(e) => copyTranscription(recording.text, e)}
+                  role="button"
+                  tabindex="0"
+                  onkeydown={(e) => e.key === 'Enter' && copyTranscription(recording.text, e)}
+                  aria-label="Copy transcription"
+                >
+                  <Copy class="size-4" />
+                </div>
+              </div>
             {/each}
           </div>
         {/if}

@@ -114,7 +114,6 @@ export class RecorderStreaming {
   private async loadExistingTranscriptions(): Promise<void> {
     try {
       const fileTranscriptions = await loadTranscriptionFiles();
-      debugger;
       // Direct assignment - TranscriptionFile and Recording are identical
       this.recordings = fileTranscriptions;
     } catch (error) {
@@ -269,22 +268,49 @@ export class RecorderStreaming {
     const plugin = usePlugin();
     if (!plugin) return;
 
-    // Find the most recent editor leaf (not the recorder view)
-    const leaves = plugin.app.workspace.getLeavesOfType("markdown");
-    const editorLeaf = leaves.find((leaf) => leaf.view?.editor);
+    const activeElement = document.activeElement;
+    if (!activeElement) return;
 
-    if (editorLeaf?.view?.editor) {
-      editorLeaf.view.editor.replaceSelection(text, "end");
+    // Check if focused element is an Obsidian editor
+    if (activeElement.closest(".cm-editor")) {
+      const leaves = plugin.app.workspace.getLeavesOfType("markdown");
+      const editorLeaf = leaves.find((leaf) => leaf.view?.editor);
+
+      if (editorLeaf?.view?.editor) {
+        editorLeaf.view.editor.replaceSelection(text, "end");
+        return;
+      }
+    }
+
+    // Check if focused element is a text input/textarea
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement
+    ) {
+      const s = activeElement.selectionStart ?? 0;
+      const e = activeElement.selectionEnd ?? 0;
+      activeElement.value =
+        activeElement.value.slice(0, s) + text + activeElement.value.slice(e);
+      activeElement.selectionStart = activeElement.selectionEnd =
+        s + text.length;
       return;
     }
 
-    // Fallback for other input elements
-    const el = document.activeElement;
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-      const s = el.selectionStart ?? 0;
-      const e = el.selectionEnd ?? 0;
-      el.value = el.value.slice(0, s) + text + el.value.slice(e);
-      el.selectionStart = el.selectionEnd = s + text.length;
+    // Check if focused element is contentEditable
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement.isContentEditable
+    ) {
+      // Insert text at cursor position in contentEditable element
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(text));
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
     }
   }
 
@@ -316,7 +342,8 @@ export class RecorderStreaming {
           audioUrl: null,
           file: file,
         };
-        this.recordings = [...this.recordings, recording];
+        // Add to beginning of array so newest appears first
+        this.recordings = [recording, ...this.recordings];
       } else {
         // Show error if file save failed
         console.error("Failed to save transcription file");
