@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Mic, Square, Play, Save, ClipboardPasteIcon, Ban } from "lucide-svelte";
   import { FileTextIcon, Copy } from "lucide-svelte";
+  import { Notice } from "obsidian";
   import Autoscroll from "../chat/Autoscroll.svelte";
   import { openPath } from "$lib/utils/obsidian.ts";
   import { RecorderStreaming } from "./recorder-streaming.svelte.ts";
@@ -42,7 +43,7 @@
     event.stopPropagation(); // Prevent opening the transcription
     try {
       await navigator.clipboard.writeText(text);
-      // Could add a toast notification here if desired
+      new Notice("Transcription copied to clipboard");
     } catch (error) {
       console.error("Failed to copy transcription:", error);
     }
@@ -110,11 +111,11 @@
           </div>
         </div>
         <!-- Paste target information (always shown) -->
-        <div class="text-xs text-(--text-muted) mt-1">
+        <div class="text-xs mt-1">
           {#if recorder.insertionTarget === null}
-            Click where to paste
+            <span class="text-(--text-muted)">Click where to paste</span>
           {:else}
-            Will paste in {recorder.insertionTarget}
+            <span class="text-(--text-muted)">Paste in</span> <span class="text-(--text-normal)">{recorder.insertionTarget}</span>
           {/if}
         </div>
       </div>
