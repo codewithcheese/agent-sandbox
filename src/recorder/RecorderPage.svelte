@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Mic, Square, Play } from "lucide-svelte";
+  import { Mic, Square, Play, Save, ClipboardPasteIcon, Ban } from "lucide-svelte";
   import { FileTextIcon, Copy } from "lucide-svelte";
   import Autoscroll from "../chat/Autoscroll.svelte";
   import { openPath } from "$lib/utils/obsidian.ts";
@@ -18,6 +18,14 @@
   function handleScroll() {
     if (scrollContainer) {
       showTopFade = scrollContainer.scrollTop > 10;
+    }
+  }
+
+  // Reset scroll state for new recording
+  function resetScrollState() {
+    showTopFade = false;
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
     }
   }
 
@@ -58,24 +66,47 @@
             {/if}
           </div>
           <div
-            class="clickable-icon p-1 rounded cursor-pointer"
-            onmousedown={async (e) => {
-              e.preventDefault();
-              if (recorder.isRecording) {
-                await recorder.acceptRecording();
-              } else {
-                recorder.startRecording();
-              }
-            }}
-            role="button"
-            tabindex="-1"
-            aria-label={recorder.isRecording ? "Stop recording" : "Start recording"}
+            class="flex gap-2"
           >
             {#if recorder.isRecording}
-              <Square class="size-4" />
-            {:else}
-              <Play class="size-4" />
+              <div
+                class="clickable-icon p-1 rounded cursor-pointer"
+                onmousedown={async (e) => {
+                  e.preventDefault();
+                  recorder.cancelRecording();
+                }}
+                role="button"
+                tabindex="-1"
+                aria-label="Cancel recording"
+              >
+                <Ban class="size-4" />
+              </div>
             {/if}
+            <div
+              class="clickable-icon p-1 rounded cursor-pointer"
+              onmousedown={async (e) => {
+                e.preventDefault();
+                if (recorder.isRecording) {
+                  await recorder.acceptRecording();
+                } else {
+                  recorder.startRecording();
+                  resetScrollState();
+                }
+              }}
+              role="button"
+              tabindex="-1"
+              aria-label={recorder.isRecording ? "Stop recording" : "Start recording"}
+            >
+              {#if recorder.isRecording}
+                {#if recorder.insertionTarget === null}
+                  <Save class="size-4" />
+                {:else}
+                  <ClipboardPasteIcon class="size-4" />
+                {/if}
+              {:else}
+                <Play class="size-4" />
+              {/if}
+            </div>
           </div>
         </div>
         <!-- Paste target information (always shown) -->
@@ -119,6 +150,7 @@
             onmousedown={(e) => {
               e.preventDefault();
               recorder.startRecording();
+              resetScrollState();
             }}
           >
             <div class="text-center text-(--text-muted)">

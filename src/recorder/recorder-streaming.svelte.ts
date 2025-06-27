@@ -194,6 +194,9 @@ export class RecorderStreaming {
         sample_rate: this.SAMPLE_RATE.toString(),
         format_turns: "true",
         token: account.config.apiKey,
+        end_of_turn_confidence_threshold: "0.88",
+        min_end_of_turn_silence_when_confident: "320",
+        max_turn_silence: "3000",
       });
       this.ws = new WebSocket(`wss://streaming.assemblyai.com/v3/ws?${qs}`);
       this.ws.onmessage = this.onWsMessage;
@@ -293,6 +296,8 @@ export class RecorderStreaming {
         activeElement.value.slice(0, s) + text + activeElement.value.slice(e);
       activeElement.selectionStart = activeElement.selectionEnd =
         s + text.length;
+      // Trigger input event to enable auto-resizing for textareas
+      activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       return;
     }
 
