@@ -86,7 +86,7 @@
     "@types/picomatch": "^4.0.0",
     "@zenfs/core": "^2.2.3",
     "ajv": "^8.17.1",
-    "assemblyai": "^4.12.2",
+    "assemblyai": "^4.13.3",
     "comlink": "^4.4.2",
     "debug": "^4.4.1",
     "diff": "^7.0.0",

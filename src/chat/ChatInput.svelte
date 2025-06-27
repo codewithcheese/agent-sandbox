@@ -273,6 +273,7 @@
       onkeypress={submitOnEnter}
       oninput={handleTextareaInput}
       maxRows={10}
+      required
       bind:ref={textareaRef}
     />
     <div class="flex items-center justify-between mt-2">

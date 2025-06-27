@@ -340,7 +340,7 @@
     <div class="flex flex-col-reverse gap-1 w-full max-w-sm mb-2">
       {#each recordings as recording (recording.id)}
         <div
-          class="flex items-center border border-[var(--color-base-50)] bg-gray-[var(--color-base-00)] rounded-full w-full p-1"
+          class="flex items-center border border-[var(--color-base-50)] bg-(--background-primary-alt) rounded-full w-full p-1"
         >
           <!-- Remove Button -->
           <button

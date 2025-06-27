@@ -75,8 +75,8 @@ importers:
         specifier: ^8.17.1
         version: 8.17.1
       assemblyai:
-        specifier: ^4.12.2
-        version: 4.12.2
+        specifier: ^4.13.3
+        version: 4.13.3
       comlink:
         specifier: ^4.4.2
         version: 4.4.2
@@ -1509,8 +1509,8 @@ packages:
   asap@2.0.6:
     resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
 
-  assemblyai@4.12.2:
-    resolution: {integrity: sha512-T0QPhKfKoIV1hiQgUvH8fmxYeDsNZI8gSvJHCntJnzQF/WwbtMrebc4z6rFy29QP1tp28iXlmABGRZjHwW0LEQ==}
+  assemblyai@4.13.3:
+    resolution: {integrity: sha512-P4tfcoyJVfmxjbezXIM3xblLVpXMMBn7AjKDDscXAvx6GxYS1WGaC8CW8uC8SZCsl7gbh2qwcYZyAaGOrHasng==}
     engines: {node: '>=18'}
 
   assertion-error@2.0.1:
@@ -5246,7 +5246,7 @@ snapshots:
 
   asap@2.0.6: {}
 
-  assemblyai@4.12.2:
+  assemblyai@4.13.3:
     dependencies:
       ws: 8.18.1
     transitivePeerDependencies:

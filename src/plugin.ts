@@ -36,6 +36,7 @@ import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 import { RenameTracker } from "./chat/rename-tracker.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
 import { RecorderWidget } from "./recorder/recorder-widget.ts";
+import { RecorderView } from "./recorder/recorder-view.svelte.ts";
 import mainCss from "./main.css?inline";
 import { JsonSchemaCodeBlockProcessor } from "./editor/schema/json-schema-code-block.ts";
 import { AgentView } from "./editor/agent/agent-view.ts";
@@ -79,6 +80,7 @@ export class AgentSandboxPlugin extends Plugin {
     ContextMenu.register(this);
     HtmlEscapeCommand.register(this);
     RenameTracker.register(this);
+    RecorderView.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
     this.addRibbonIcon("mic", "Toggle Recorder", () => {
@@ -98,6 +100,11 @@ export class AgentSandboxPlugin extends Plugin {
     });
 
     this.addSettingTab(new Settings(this.app, this));
+
+    // Open recorder view on startup
+    this.app.workspace.onLayoutReady(() => {
+      RecorderView.openRecorderView();
+    });
   }
 
   async reload() {

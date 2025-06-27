@@ -1,5 +1,6 @@
 import { mount, unmount } from "svelte";
 import Recorder from "./Recorder.svelte";
+import RecorderStreaming from "./RecorderStreaming.svelte";
 
 const ELEMENT_ID = "recorder-container";
 
@@ -20,7 +21,7 @@ export class RecorderWidget {
       const container = document.createElement("div");
       container.id = ELEMENT_ID;
       workspaceRoot.appendChild(container);
-      this.component = mount(Recorder, {
+      this.component = mount(RecorderStreaming, {
         target: document.getElementById(ELEMENT_ID)!,
         props: {},
       });
