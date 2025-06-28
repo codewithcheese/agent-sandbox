@@ -28,6 +28,14 @@
   let { chat, message, index, inputState = $bindable() }: Props = $props();
   let plugin = usePlugin();
 
+  // Shared prose classes for consistent styling
+  const prose = `prose text-wrap select-text leading-8 prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
+  prose-h1:m-2 prose-h2:m-1 prose-h3:m-0 prose-h4:m-0 prose-h5:m-0 prose-h6:m-0 prose-p:m-1 prose-p:my-2
+  prose-blockquote:m-0 prose-figure:m-0 prose-figcaption:m-0 prose-ul:m-0 prose-ol:m-1 prose-li:m-0
+  prose-table:m-0 prose-thead:m-0 prose-tbody:m-0 prose-dl:m-0 prose-dt:m-0 prose-dd:m-0 prose-hr:my-2
+  prose-pre:m-0 prose-code:px-1 prose-lead:m-0 prose-strong:font-semibold prose-img:m-0 prose-video:m-0
+  [body.theme-dark_&]:prose-invert prose-a:decoration-1 text-foreground max-w-full`;
+
   $inspect("inputState", inputState);
 
   // Link `source` context for prompt messages Markdown links
@@ -50,49 +58,25 @@
 {:else if inputState.state.type === "editing" && inputState.state.index === index}
   <!-- Show greyed out message being edited -->
   <div class="group relative opacity-50">
-    <div
-      class={cn(
-        `prose select-text leading-8
-                prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
-                          prose-h1:m-2
-                          prose-h2:m-1
-                          prose-h3:m-0
-                          prose-h4:m-0
-                          prose-h5:m-0
-                          prose-h6:m-0
-                          prose-p:m-1 prose-p:my-2
-                          prose-blockquote:m-0
-                          prose-figure:m-0
-                          prose-figcaption:m-0
-                          prose-ul:m-0
-                          prose-ol:m-1
-                          prose-li:m-0
-                          prose-table:m-0
-                          prose-thead:m-0
-                          prose-tbody:m-0
-                          prose-dl:m-0
-                          prose-dt:m-0
-                          prose-dd:m-0
-                          prose-hr:my-2
-                          prose-pre:m-0
-                          prose-code:px-1
-                          prose-lead:m-0
-                          prose-strong:font-semibold
-                          prose-img:m-0
-                          prose-video:m-0
-                          [body.theme-dark_&]:prose-invert
-                          prose-a:decoration-1 text-foreground max-w-full`,
-        message.role === "user"
-          ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-          : "py-2",
-      )}
-    >
-      <div class="flex items-center gap-2 mb-2 text-sm text-(--text-accent)">
-        <PencilIcon class="size-4" />
-        <span>Editing...</span>
+    {#if message.parts.some((p) => p.type === "text")}
+      <div
+        class={cn(
+          prose,
+          message.role === "user"
+            ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
+            : "py-2",
+        )}
+      >
+        <div class="flex items-center gap-2 mb-2 text-sm text-(--text-accent)">
+          <PencilIcon class="size-4" />
+          <span>Editing...</span>
+        </div>
+        <Markdown
+          md={message.content}
+          renderObsidian={message.role === "user"}
+        />
       </div>
-      <Markdown md={message.content} renderObsidian={message.role === "user"} />
-    </div>
+    {/if}
   </div>
 {:else}
   {#if message.role === "user" && message.metadata?.modified?.length}
@@ -149,6 +133,21 @@
           </button>
           <button
             class="clickable-icon"
+            aria-label="Edit message"
+            onclick={() => {
+              inputState.startEditing(
+                index,
+                message.content,
+                message.experimental_attachments
+                  ? message.experimental_attachments.map((a) => a.name)
+                  : [],
+              );
+            }}
+          >
+            <PencilIcon class="size-4" />
+          </button>
+          <button
+            class="clickable-icon"
             aria-label={message.role === "user"
               ? "Regenerate assistant response"
               : "Regenerate this response"}
@@ -183,44 +182,12 @@
             <RefreshCwIcon class="size-4" />
           </button>
         {/if}
-        <!--              <button class="clickable-icon" onclick={() => deleteMessage(i)}>-->
-        <!--                <Trash2Icon class="size-4" />-->
-        <!--              </button>-->
       {/if}
     </div>
     {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
       <div
         class={cn(
-          `prose select-text leading-8
-                  prose-pre:bg-(--background-primary-alt) prose-pre:text-(--text-normal)
-                            prose-h1:m-2
-                            prose-h2:m-1
-                            prose-h3:m-0
-                            prose-h4:m-0
-                            prose-h5:m-0
-                            prose-h6:m-0
-                            prose-p:m-1 prose-p:my-2
-                            prose-blockquote:m-0
-                            prose-figure:m-0
-                            prose-figcaption:m-0
-                            prose-ul:m-0
-                            prose-ol:m-1
-                            prose-li:m-0
-                            prose-table:m-0
-                            prose-thead:m-0
-                            prose-tbody:m-0
-                            prose-dl:m-0
-                            prose-dt:m-0
-                            prose-dd:m-0
-                            prose-hr:my-2
-                            prose-pre:m-0
-                            prose-code:px-1
-                            prose-lead:m-0
-                            prose-strong:font-semibold
-                            prose-img:m-0
-                            prose-video:m-0
-                            [body.theme-dark_&]:prose-invert
-                            prose-a:decoration-1 text-foreground max-w-full`,
+          prose,
           message.role === "user"
             ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
             : "py-2",
