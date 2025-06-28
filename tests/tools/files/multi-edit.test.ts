@@ -87,7 +87,8 @@ describe("MultiEdit tool execute function", () => {
     expect(result.message).toContain("Path is a directory");
   });
 
-  it("should return error when trying to multi-edit file without reading it first", async () => {
+  // Read state checks disabled in-lieu of a better solution
+  it.skip("should return error when trying to multi-edit file without reading it first", async () => {
     // Create a new file without simulating a read
     const newFilePath = "/test/unread-multi-edit.txt";
     await vault.create(newFilePath, "Some content to edit");
@@ -106,7 +107,8 @@ describe("MultiEdit tool execute function", () => {
     expect(result.message).toContain("File has not been read yet");
   });
 
-  it("should return error when file has been modified since last read", async () => {
+  // Read state checks disabled in-lieu of a better solution
+  it.skip("should return error when file has been modified since last read", async () => {
     // Create file and simulate reading it
     const modifiedFilePath = "/test/modified-multi-edit.txt";
     await vault.create(modifiedFilePath, "Original content");

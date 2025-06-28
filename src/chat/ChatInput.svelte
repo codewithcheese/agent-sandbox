@@ -27,6 +27,7 @@
     expandBacklinks,
   } from "$lib/utils/backlinks";
   import { BacklinkFileSelectModal } from "$lib/modals/backlink-file-select-modal";
+  import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
 
   type Props = {
     chat: Chat;
@@ -58,6 +59,13 @@
   });
 
   let textareaRef: HTMLTextAreaElement | null = $state(null);
+
+  // Extract chat title from path (remove .chat extension)
+  const title = $derived.by(() => {
+    if (!chat.path) return "Chat";
+    const fileName = chat.path.split("/").pop() || chat.path;
+    return fileName.endsWith(".chat") ? fileName.slice(0, -5) : fileName;
+  });
 
   $effect(() => {
     if (inputState.state.type === "editing") {
@@ -99,10 +107,11 @@
   }
 
   function selectDocument() {
-    const plugin = usePlugin();
-    plugin.openFileSelect((file) => {
+    const { app } = usePlugin();
+    const modal = new FileSelectModal(app, (file) => {
       addAttachment(file);
     });
+    modal.open();
   }
 
   function addAttachment(file: TFile) {
@@ -273,7 +282,9 @@
       onkeypress={submitOnEnter}
       oninput={handleTextareaInput}
       maxRows={10}
+      required
       bind:ref={textareaRef}
+      {title}
     />
     <div class="flex items-center justify-between mt-2">
       <div class="flex flex-row align-middle gap-2">

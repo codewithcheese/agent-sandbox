@@ -2,9 +2,7 @@
   import { DropdownMenu } from "bits-ui";
   import { ChevronDownIcon, ChevronRightIcon, ClockIcon } from "lucide-svelte";
   import { usePlugin } from "$lib/utils";
-  import type { AIAccount, AIProviderId } from "../settings/providers.ts";
-  import { AIProvider } from "../settings/providers.ts";
-  import type { ChatModel } from "../settings/models.ts";
+  import type { AIAccount, ChatModel } from "../settings/settings.ts";
   import { onMount } from "svelte";
   import { createDebug } from "$lib/debug.ts";
 
@@ -31,6 +29,7 @@
   let { selectedModelId, selectedAccountId, onModelChange }: Props = $props();
 
   let recentModels = $state<RecentModel[]>([]);
+
   onMount(() => {
     recentModels = getRecentModels();
   });
@@ -39,8 +38,8 @@
 
   // Group accounts by provider
   let accountsByProvider = $derived.by(() => {
-    const grouped = {} as Record<AIProviderId, AIAccount[]>;
-    plugin.settings.accounts.forEach((account) => {
+    const grouped = {} as Record<string, AIAccount[]>;
+    plugin.settings.accounts.forEach((account: AIAccount) => {
       if (!grouped[account.provider]) {
         grouped[account.provider] = [];
       }
@@ -51,7 +50,7 @@
 
   // Group models by provider (only chat models)
   let modelsByProvider = $derived.by(() => {
-    const grouped = {} as Record<AIProviderId, ChatModel[]>;
+    const grouped = {} as Record<string, ChatModel[]>;
     plugin.settings.models
       .filter((model): model is ChatModel => model.type === "chat")
       .forEach((model) => {
@@ -63,14 +62,12 @@
     return grouped;
   });
 
-  // Get available providers (those that have both models and accounts)
-  let availableProviders = $derived.by(() => {
-    return Object.keys(modelsByProvider).filter(
-      (providerId) =>
-        accountsByProvider[providerId] &&
-        accountsByProvider[providerId].length > 0,
-    ) as AIProviderId[];
-  });
+  // Available providers (those with both accounts and models)
+  let availableProviders = $derived(
+    Object.keys(accountsByProvider).filter(
+      (providerId) => modelsByProvider[providerId]?.length > 0,
+    ) as string[],
+  );
 
   // Get display text for current selection
   let selectedText = $derived.by(() => {
@@ -81,67 +78,115 @@
     const account = plugin.settings.accounts.find(
       (a) => a.id === selectedAccountId,
     );
-    const accountsForProvider = accountsByProvider[account?.provider] || [];
+    if (!account) {
+      return selectedModelId;
+    }
+
+    const accountsForProvider = accountsByProvider[account.provider] || [];
     const showAccountName = accountsForProvider.length > 1;
 
     return showAccountName
-      ? `${selectedModelId} (${account?.name})`
+      ? `${selectedModelId} (${account.name})`
       : selectedModelId;
   });
 
-  function handleModelSelect(
-    modelId: string,
-    accountId: string,
-    addToRecents = true,
-  ) {
-    if (addToRecents) {
-      const account = plugin.settings.accounts.find((a) => a.id === accountId);
-      if (account) {
-        recentModels = addRecentModel({
-          modelId,
-          accountId,
-          accountName: account.name,
-          providerId: account.provider,
-        });
-      }
-    }
+  function handleModelSelect(modelId: string, accountId: string) {
+    // Call the callback first
     onModelChange(modelId, accountId);
+
+    const account = plugin.settings.accounts.find((a) => a.id === accountId);
+    if (!account) {
+      console.warn(
+        `Account ${accountId} not found, skipping recent model update`,
+      );
+      return;
+    }
+
+    addRecentModel({
+      modelId,
+      accountId,
+      accountName: account.name,
+      providerId: account.provider,
+    });
+  }
+
+  function isValidRecentModel(recent: RecentModel): boolean {
+    const accountExists = plugin.settings.accounts.some(
+      (account) =>
+        account.id === recent.accountId &&
+        account.provider === recent.providerId,
+    );
+
+    const modelExists = plugin.settings.models.some(
+      (model) =>
+        model.id === recent.modelId &&
+        model.provider === recent.providerId &&
+        model.type === "chat",
+    );
+
+    return accountExists && modelExists;
   }
 
   function getRecentModels(): RecentModel[] {
     try {
+      const plugin = usePlugin();
       const stored = plugin.app.loadLocalStorage(STORAGE_KEY);
       if (!stored) return [];
-      return stored as RecentModel[];
+
+      return (stored as RecentModel[]).filter(isValidRecentModel);
     } catch (e) {
-      console.warn("Failed to load recent models:", e);
+      console.error("Failed to load recent models:", e);
       return [];
     }
   }
 
-  function addRecentModel(
-    model: Omit<RecentModel, "timestamp">,
-  ): RecentModel[] {
-    try {
-      const recents = getRecentModels();
-      // Remove any existing entry for this model-account combination
-      const filtered = recents.filter(
-        (m) => m.modelId !== model.modelId || m.accountId !== model.accountId,
-      );
-      // Add new entry at the start
-      filtered.unshift({
-        ...model,
-        timestamp: Date.now(),
-      });
-      // Keep only the most recent MAX_RECENTS entries
-      const trimmed = filtered.slice(0, MAX_RECENTS);
-      plugin.app.saveLocalStorage(STORAGE_KEY, trimmed);
-      debug("Saving recent models:", trimmed);
-      return trimmed;
-    } catch (e) {
-      console.warn("Failed to save recent model:", e);
-      return getRecentModels();
+  function findOldestModelIndex(models: RecentModel[]): number {
+    return models.reduce(
+      (oldestIndex, current, index) =>
+        current.timestamp < models[oldestIndex].timestamp ? index : oldestIndex,
+      0,
+    );
+  }
+
+  function updateExistingModel(index: number): void {
+    recentModels[index].timestamp = Date.now();
+  }
+
+  function addNewModel(model: Omit<RecentModel, "timestamp">): void {
+    if (recentModels.length >= MAX_RECENTS) {
+      const oldestIndex = findOldestModelIndex(recentModels);
+      recentModels.splice(oldestIndex, 1);
     }
+
+    recentModels.push({
+      ...model,
+      timestamp: Date.now(),
+    });
+  }
+
+  function addRecentModel(model: Omit<RecentModel, "timestamp">) {
+    try {
+      const existingIndex = recentModels.findIndex(
+        (m) => m.modelId === model.modelId && m.accountId === model.accountId,
+      );
+
+      if (existingIndex !== -1) {
+        updateExistingModel(existingIndex);
+      } else {
+        addNewModel(model);
+      }
+
+      // Trigger reactivity and persist
+      recentModels = [...recentModels];
+      plugin.app.saveLocalStorage(STORAGE_KEY, recentModels);
+      debug("Updated recent models:", recentModels);
+    } catch (e) {
+      console.warn("Failed to save recent models:", e);
+    }
+  }
+
+  function getProviderInfo(providerId: string) {
+    return plugin.settings.providers.find((p) => p.id === providerId);
   }
 </script>
 
@@ -168,7 +213,7 @@
           {#each recentModels as recent}
             <DropdownMenu.Item
               onclick={() =>
-                handleModelSelect(recent.modelId, recent.accountId, false)}
+                handleModelSelect(recent.modelId, recent.accountId)}
               class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 pl-4 text-sm text-[var(--text-normal)] hover:bg-[var(--background-modifier-hover)] focus:bg-[var(--background-modifier-hover)] focus:outline-none"
             >
               {recent.modelId}
@@ -182,7 +227,7 @@
       {/if}
 
       {#each availableProviders as providerId}
-        {@const provider = AIProvider[providerId]}
+        {@const provider = getProviderInfo(providerId)}
         {@const models = modelsByProvider[providerId] || []}
         {@const accounts = accountsByProvider[providerId] || []}
 
@@ -190,7 +235,7 @@
           <DropdownMenu.SubTrigger
             class="flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm text-[var(--text-normal)] hover:bg-[var(--background-modifier-hover)] focus:bg-[var(--background-modifier-hover)] focus:outline-none"
           >
-            <span class="flex-1">{provider.name}</span>
+            <span class="flex-1">{provider?.name}</span>
             <ChevronRightIcon class="ml-auto size-4 text-[var(--text-muted)]" />
           </DropdownMenu.SubTrigger>
           <DropdownMenu.SubContent

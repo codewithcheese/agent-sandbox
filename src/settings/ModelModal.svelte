@@ -1,15 +1,23 @@
 <script lang="ts">
-  import type { ChatModel, EmbeddingModel, TranscriptionModel } from "./models.ts";
-
-  import { AIProvider } from "./providers.ts";
+  import type {
+    AnyModel,
+    ChatModel,
+    EmbeddingModel,
+    TranscriptionModel,
+  } from "./settings.ts";
   import type { AllowEmpty } from "$lib/types/allow-empty.ts";
+  import { nanoid } from "nanoid";
+  import { usePlugin } from "$lib/utils";
 
   type Props = {
-    current?: ChatModel | EmbeddingModel | TranscriptionModel;
+    current?: AnyModel;
     close: () => void;
-    save: (model: ChatModel | EmbeddingModel | TranscriptionModel) => void;
+    save: (model: AnyModel) => void;
   };
   let { current, close, save }: Props = $props();
+
+  const plugin = usePlugin();
+  const settings = plugin.settings;
 
   let model = $state(
     current ??
@@ -27,10 +35,10 @@
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    save($state.snapshot(model as ChatModel | EmbeddingModel | TranscriptionModel));
+    save($state.snapshot(model as AnyModel));
   }
 
-  function updateModelType(type: "chat" | "embedding" | "transcription") {
+  function updateModelType(type: AnyModel["type"]) {
     if (type === "chat") {
       model = {
         id: model.id,
@@ -104,8 +112,8 @@
       <div class="setting-item-control">
         <select bind:value={model.provider} required class="dropdown">
           <option value="">Select provider</option>
-          {#each Object.entries(AIProvider) as [key, provider]}
-            <option value={key}>{provider.name}</option>
+          {#each settings.providers as provider}
+            <option value={provider.id}>{provider.name}</option>
           {/each}
         </select>
       </div>

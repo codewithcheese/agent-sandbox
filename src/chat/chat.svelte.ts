@@ -7,7 +7,7 @@ import {
   type Tool,
   type UIMessage,
 } from "ai";
-import { type AIAccount, createAIProvider } from "../settings/providers.ts";
+import { createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
 import { type CachedMetadata, normalizePath, Notice, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
@@ -19,7 +19,7 @@ import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
 import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
-import type { ChatModel } from "../settings/models.ts";
+import type { AIAccount, ChatModel } from "../settings/settings.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { loadAttachments } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
@@ -182,8 +182,12 @@ export class Chat {
     // Checkpoint before sync to enable fresh diff calculation on edit/regenerate
     const checkpoint = this.vault.proposedDoc.frontiers();
 
+    // Get timestamp of last message to filter renames
+    const lastMessage = this.messages[this.messages.length - 1];
+    const sinceTimestamp = lastMessage?.createdAt;
+
     // Sync vault and check for external changes
-    const syncResult = await this.vault.syncAll();
+    const syncResult = await this.vault.syncAll(sinceTimestamp);
 
     // Add system reminder for external changes if any (before user message)
     if (syncResult.length > 0) {
@@ -231,7 +235,13 @@ export class Chat {
     }
 
     // Sync vault to include changes made since checkpoint and check for external changes
-    const syncResult = await this.vault.syncAll();
+    // Find the last assistant message before this user message to determine the conversation boundary
+    const lastAssistantMessage = this.messages.findLast(
+      (msg, i) => i < index && msg.role === "assistant",
+    );
+    const syncResult = await this.vault.syncAll(
+      lastAssistantMessage?.createdAt,
+    );
 
     // Add system reminder for external changes if any (before the message being edited)
     if (syncResult.length > 0) {
@@ -287,7 +297,13 @@ export class Chat {
     }
 
     // Sync vault to include changes made since checkpoint and check for external changes
-    const syncResult = await this.vault.syncAll();
+    // Find the last assistant message before this user message to determine the conversation boundary
+    const lastAssistantMessage = this.messages.findLast(
+      (msg, i) => i < index && msg.role === "assistant",
+    );
+    const syncResult = await this.vault.syncAll(
+      lastAssistantMessage?.createdAt,
+    );
 
     // Add system reminder for external changes if any (before the message being regenerated)
     if (syncResult.length > 0) {
@@ -471,8 +487,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         errorMessage = `Error: ${error.message}`;
       }
 
-      const plugin = usePlugin();
-      plugin.showNotice(errorMessage);
+      new Notice(errorMessage);
     } finally {
       // Final cleanup
       this.#abortController = undefined;
@@ -621,11 +636,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     }
 
     const file = plugin.app.vault.getAbstractFileByPath(this.path);
-    if (!file.basename.startsWith("New chat")) {
-      return false;
-    }
-
-    return true;
+    return file.basename.startsWith("New chat");
   }
 
   async generateTitle(): Promise<void> {
@@ -783,17 +794,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     );
 
     await new Promise((resolve) => setTimeout(resolve, retryDelay));
-  }
-
-  getModel() {
-    const plugin = usePlugin();
-    const model = plugin.settings.models.find(
-      (m): m is ChatModel => m.type === "chat" && m.id === this.options.modelId,
-    );
-    if (!model) {
-      throw Error(`Chat model ${this.options.modelId} not found`);
-    }
-    return model;
   }
 
   getAccount() {

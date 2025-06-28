@@ -1,7 +1,6 @@
 import type { Vault } from "obsidian";
 import type { ToolExecutionOptions } from "ai";
 import { z, ZodAny, ZodObject } from "zod";
-import type { AIProviderId } from "../settings/providers.ts";
 import type { SessionStore } from "../chat/session-store.svelte.ts";
 
 export type ToolExecContext = {
@@ -37,6 +36,6 @@ export type ServerToolDefinition = {
   humanName?: string;
   description: string;
   prompt?: string;
-  providers: AIProviderId[];
-  providerOptions?: Partial<Record<AIProviderId, Record<string, any>>>;
+  providers: string[];
+  providerOptions?: Partial<Record<string, Record<string, any>>>;
 };

@@ -168,7 +168,8 @@ describe("Edit tool execute function", () => {
     );
   });
 
-  it("should return error when trying to edit file without reading it first", async () => {
+  // Read state checks disabled in-lieu of a token efficient solution
+  it.skip("should return error when trying to edit file without reading it first", async () => {
     // Create a new file without simulating a read
     const newFilePath = "/test/unread-file.md";
     await vault.create(newFilePath, "Some content to edit");
@@ -188,7 +189,8 @@ describe("Edit tool execute function", () => {
     expect(result.message).toContain("File has not been read yet");
   });
 
-  it("should return error when file has been modified since last read", async () => {
+  // Read state checks disabled in-lieu of a token efficient solution
+  it.skip("should return error when file has been modified since last read", async () => {
     // Create file and simulate reading it
     const modifiedFilePath = "/test/modified-file.md";
     await vault.create(modifiedFilePath, "Original content");

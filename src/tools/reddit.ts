@@ -9,7 +9,7 @@ export async function redditSearch({ query, sort, time, nsfw, limit, cursor }) {
     const plugin = usePlugin();
 
     // Check if API key is available
-    if (!plugin.settings.RAPIDAPI_KEY) {
+    if (!plugin.settings.services.rapidapi.apiKey) {
       return { error: "RapidAPI key is not configured in settings" };
     }
 
@@ -31,7 +31,7 @@ export async function redditSearch({ query, sort, time, nsfw, limit, cursor }) {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "X-RapidAPI-Key": plugin.settings.RAPIDAPI_KEY,
+        "X-RapidAPI-Key": plugin.settings.services.rapidapi.apiKey,
         "X-RapidAPI-Host": "reddit-scraper2.p.rapidapi.com",
       },
     });
@@ -65,7 +65,7 @@ export async function redditGetPostComments({ postId, sort, limit }) {
     const plugin = usePlugin();
 
     // Check if API key is available
-    if (!plugin.settings.RAPIDAPI_KEY) {
+    if (!plugin.settings.services.rapidapi.apiKey) {
       return { error: "RapidAPI key is not configured in settings" };
     }
 
@@ -76,7 +76,7 @@ export async function redditGetPostComments({ postId, sort, limit }) {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "X-RapidAPI-Key": plugin.settings.RAPIDAPI_KEY,
+        "X-RapidAPI-Key": plugin.settings.services.rapidapi.apiKey,
         "X-RapidAPI-Host": "reddit-scraper2.p.rapidapi.com",
       },
     });
@@ -104,7 +104,7 @@ export async function redditSearchSubreddits({ query, limit, exact }) {
     const plugin = usePlugin();
 
     // Check if API key is available
-    if (!plugin.settings.RAPIDAPI_KEY) {
+    if (!plugin.settings.services.rapidapi.apiKey) {
       return { error: "RapidAPI key is not configured in settings" };
     }
 
@@ -115,7 +115,7 @@ export async function redditSearchSubreddits({ query, limit, exact }) {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "X-RapidAPI-Key": plugin.settings.RAPIDAPI_KEY,
+        "X-RapidAPI-Key": plugin.settings.services.rapidapi.apiKey,
         "X-RapidAPI-Host": "reddit-scraper2.p.rapidapi.com",
       },
     });
@@ -142,7 +142,7 @@ export async function redditGetPosts({ subreddit, sort, time, limit }) {
     const plugin = usePlugin();
 
     // Check if API key is available
-    if (!plugin.settings.RAPIDAPI_KEY) {
+    if (!plugin.settings.services.rapidapi.apiKey) {
       return { error: "RapidAPI key is not configured in settings" };
     }
 
@@ -153,7 +153,7 @@ export async function redditGetPosts({ subreddit, sort, time, limit }) {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "X-RapidAPI-Key": plugin.settings.RAPIDAPI_KEY,
+        "X-RapidAPI-Key": plugin.settings.services.rapidapi.apiKey,
         "X-RapidAPI-Host": "reddit-scraper2.p.rapidapi.com",
       },
     });

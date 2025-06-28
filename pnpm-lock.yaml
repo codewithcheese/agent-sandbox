@@ -75,8 +75,8 @@ importers:
         specifier: ^8.17.1
         version: 8.17.1
       assemblyai:
-        specifier: ^4.12.2
-        version: 4.12.2
+        specifier: ^4.13.3
+        version: 4.13.3
       comlink:
         specifier: ^4.4.2
         version: 4.4.2
@@ -128,6 +128,12 @@ importers:
       pyodide:
         specifier: ^0.27.4
         version: 0.27.4
+      remark-parse:
+        specifier: ^11.0.0
+        version: 11.0.0
+      remark-rehype:
+        specifier: ^11.1.2
+        version: 11.1.2
       rfdc:
         specifier: ^1.4.1
         version: 1.4.1
@@ -146,6 +152,9 @@ importers:
       tiktoken:
         specifier: ^1.0.21
         version: 1.0.21
+      unified:
+        specifier: ^11.0.5
+        version: 11.0.5
       unist-util-visit:
         specifier: ^4.1.2
         version: 4.1.2
@@ -1509,8 +1518,8 @@ packages:
   asap@2.0.6:
     resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
 
-  assemblyai@4.12.2:
-    resolution: {integrity: sha512-T0QPhKfKoIV1hiQgUvH8fmxYeDsNZI8gSvJHCntJnzQF/WwbtMrebc4z6rFy29QP1tp28iXlmABGRZjHwW0LEQ==}
+  assemblyai@4.13.3:
+    resolution: {integrity: sha512-P4tfcoyJVfmxjbezXIM3xblLVpXMMBn7AjKDDscXAvx6GxYS1WGaC8CW8uC8SZCsl7gbh2qwcYZyAaGOrHasng==}
     engines: {node: '>=18'}
 
   assertion-error@2.0.1:
@@ -3078,8 +3087,8 @@ packages:
   remark-parse@11.0.0:
     resolution: {integrity: sha512-FCxlKLNGknS5ba/1lmpYijMUzX2esxW5xQqjWxw2eHFfS2MSdaHVINFmhjo+qN1WhZhNimq0dZATN9pH0IDrpA==}
 
-  remark-rehype@11.1.1:
-    resolution: {integrity: sha512-g/osARvjkBXb6Wo0XvAeXQohVta8i84ACbenPpoSsxTOQH/Ae0/RGP4WZgnMH5pMLpsj4FG7OHmcIcXxpza8eQ==}
+  remark-rehype@11.1.2:
+    resolution: {integrity: sha512-Dh7l57ianaEoIpzbp0PC9UKAdCSVklD8E5Rpw7ETfbTl3FqcOOgq5q2LVDhgGCkaBv7p24JXikPdvhhmHvKMsw==}
 
   remark-stringify@11.0.0:
     resolution: {integrity: sha512-1OSmLd3awB/t8qdoEOMazZkNsfVTeY4fTsgzcQFdXNq8ToTN4ZGwrMnlda4K6smTFKD+GRV6O48i6Z4iKgPPpw==}
@@ -5246,7 +5255,7 @@ snapshots:
 
   asap@2.0.6: {}
 
-  assemblyai@4.12.2:
+  assemblyai@4.13.3:
     dependencies:
       ws: 8.18.1
     transitivePeerDependencies:
@@ -7023,7 +7032,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  remark-rehype@11.1.1:
+  remark-rehype@11.1.2:
     dependencies:
       '@types/hast': 3.0.4
       '@types/mdast': 4.0.4
@@ -7274,7 +7283,7 @@ snapshots:
     dependencies:
       remark-gfm: 4.0.1
       remark-parse: 11.0.0
-      remark-rehype: 11.1.1
+      remark-rehype: 11.1.2
       svelte: 5.33.14
       unified: 11.0.5
     transitivePeerDependencies:

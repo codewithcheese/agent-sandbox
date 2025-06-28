@@ -1,16 +1,6 @@
-import {
-  App,
-  Modal,
-  Notice,
-  Platform,
-  Plugin,
-  type PluginManifest,
-  TFile,
-  WorkspaceLeaf,
-} from "obsidian";
-import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
+import { App, Notice, Plugin, type PluginManifest } from "obsidian";
 import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.svelte.ts";
-import { CHAT_VIEW_TYPE, ChatView } from "./chat/chat-view.svelte.ts";
+import { ChatView } from "./chat/chat-view.svelte.ts";
 import { ChatHistoryView } from "./chat/chat-history-view.svelte.ts";
 import {
   type Artifact,
@@ -18,23 +8,14 @@ import {
   ArtifactView,
 } from "$lib/artifacts/artifact-vew.svelte.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
-import {
-  DEFAULT_SETTINGS,
-  type PluginSettings,
-  Settings,
-} from "./settings/settings.ts";
-import AccountModal from "./settings/AccountModal.svelte";
-import ModelModal from "./settings/ModelModal.svelte";
-import type { ChatModel, EmbeddingModel } from "./settings/models.ts";
-import type { AIAccount } from "./settings/providers.ts";
-import { mount, unmount } from "svelte";
+import { SettingsManager } from "./settings/settings-manager.ts";
+import type { CurrentSettings } from "./settings/settings.ts";
 import { PGliteProvider } from "$lib/pglite/provider.ts";
 import { installTools } from "./tools/command.ts";
-import superjson from "superjson";
-import { ChatSerializer } from "./chat/chat-serializer.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
+import { RenameTracker } from "./chat/rename-tracker.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
-import { RecorderWidget } from "./recorder/recorder-widget.ts";
+import { RecorderView } from "./recorder/recorder-view.svelte.ts";
 import mainCss from "./main.css?inline";
 import { JsonSchemaCodeBlockProcessor } from "./editor/schema/json-schema-code-block.ts";
 import { AgentView } from "./editor/agent/agent-view.ts";
@@ -44,9 +25,8 @@ import { ContextMenu } from "./editor/context-menu.ts";
 import { HtmlEscapeCommand } from "./editor/html-escape-command.ts";
 
 export class AgentSandboxPlugin extends Plugin {
-  settings: PluginSettings;
+  settingsManager: SettingsManager;
   pglite: PGliteProvider;
-  recorder: RecorderWidget;
   styleEl?: HTMLStyleElement;
   jsonSchemaCodeBlock: JsonSchemaCodeBlockProcessor;
 
@@ -57,12 +37,40 @@ export class AgentSandboxPlugin extends Plugin {
       Plugin: this,
     };
     this.pglite = new PGliteProvider();
-    this.recorder = new RecorderWidget();
+    this.settingsManager = new SettingsManager(this);
+  }
+
+  /**
+   * Backward compatibility
+   */
+  get settings(): CurrentSettings {
+    return this.settingsManager.getSettings();
+  }
+
+  async saveSettings(newSettings?: CurrentSettings): Promise<void> {
+    try {
+      if (newSettings) {
+        await this.settingsManager.replaceSettings(newSettings);
+      } else {
+        await this.settingsManager.saveSettings();
+      }
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      new Notice(
+        `Failed to save settings: ${error instanceof Error ? error.message : "Unknown error"}`,
+        8000,
+      );
+      throw error; // Re-throw so calling code can handle it
+    }
+  }
+
+  async loadSettings(): Promise<void> {
+    await this.settingsManager.loadSettings();
   }
 
   async onload() {
     this.loadCSS();
-    await this.loadSettings();
+    await this.settingsManager.init();
     await this.initializePGlite();
 
     this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
@@ -77,11 +85,9 @@ export class AgentSandboxPlugin extends Plugin {
     PromptCommand.register(this);
     ContextMenu.register(this);
     HtmlEscapeCommand.register(this);
+    RenameTracker.register(this);
+    RecorderView.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
-
-    this.addRibbonIcon("mic", "Toggle Recorder", () => {
-      this.recorder.toggle();
-    });
 
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
       new FileTreeModal(this.app).open();
@@ -95,7 +101,10 @@ export class AgentSandboxPlugin extends Plugin {
       },
     });
 
-    this.addSettingTab(new Settings(this.app, this));
+    // Open recorder view on startup
+    this.app.workspace.onLayoutReady(() => {
+      RecorderView.openRecorderView();
+    });
   }
 
   async reload() {
@@ -120,86 +129,6 @@ export class AgentSandboxPlugin extends Plugin {
       console.error("Failed to initialize PGlite:", error);
       new Notice("Failed to initialize PGlite: " + (error as Error).message);
     }
-  }
-
-  async loadSettings() {
-    const settings = await this.loadData();
-    const shouldSave = !settings;
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
-    if (shouldSave) {
-      await this.saveSettings();
-    }
-  }
-
-  async saveSettings() {
-    await this.saveData(this.settings);
-  }
-
-  async openFileSelect(onSelect: (file: TFile) => void) {
-    const modal = new FileSelectModal(this.app, onSelect);
-    modal.open();
-  }
-
-  async openChatView() {
-    const baseName = "New chat";
-    let fileName = baseName;
-    let counter = 1;
-
-    // Get the chats path from settings
-    const chatsPath = this.settings.vault.chatsPath;
-    const normalizedPath = chatsPath.startsWith("/")
-      ? chatsPath.slice(1)
-      : chatsPath;
-
-    // Ensure the directory exists
-    try {
-      const folderExists = this.app.vault.getAbstractFileByPath(normalizedPath);
-      if (!folderExists) {
-        await this.app.vault.createFolder(normalizedPath);
-      }
-    } catch (error) {
-      console.error("Error creating chats directory:", error);
-      this.showNotice("Failed to create chats directory", 3000);
-    }
-
-    // Create a unique filename
-    while (
-      this.app.vault.getAbstractFileByPath(`${normalizedPath}/${fileName}.chat`)
-    ) {
-      fileName = `${baseName} ${counter}`;
-      counter++;
-    }
-
-    const filePath = `${normalizedPath}/${fileName}.chat`;
-    const file = await this.app.vault.create(
-      filePath,
-      superjson.stringify(ChatSerializer.INITIAL_DATA),
-    );
-
-    let leaf: WorkspaceLeaf;
-
-    if (!Platform.isMobile) {
-      const rightChatLeaves = this.app.workspace
-        .getLeavesOfType(CHAT_VIEW_TYPE)
-        // @ts-expect-error containerEl not typed
-        .filter((l) => l.containerEl.closest(".mod-right-split"));
-
-      if (rightChatLeaves.length > 0) {
-        leaf = rightChatLeaves[0];
-      } else {
-        leaf = this.app.workspace.getRightLeaf(false);
-      }
-    } else {
-      // Mobile: fall back to the current/only leaf
-      leaf = this.app.workspace.getLeaf();
-    }
-
-    await leaf.openFile(file, {
-      active: true,
-      state: { mode: CHAT_VIEW_TYPE },
-    });
-
-    await this.app.workspace.revealLeaf(leaf);
   }
 
   async openArtifactView(artifact: Artifact) {
@@ -232,65 +161,6 @@ export class AgentSandboxPlugin extends Plugin {
     }
 
     return leaf;
-  }
-
-  showNotice(message: string, duration?: number) {
-    new Notice(message, duration);
-  }
-
-  openAccountModal(onSave: (account: AIAccount) => void, current?: AIAccount) {
-    const modal = new (class extends Modal {
-      private component?: any;
-      onOpen() {
-        this.component = mount(AccountModal, {
-          target: this.contentEl,
-          props: {
-            current,
-            close: () => this.close(),
-            save: (account: AIAccount) => {
-              this.close();
-              onSave(account);
-            },
-          },
-        });
-      }
-      onClose() {
-        if (this.component) {
-          unmount(this.component);
-        }
-        this.contentEl.empty();
-      }
-    })(this.app);
-    modal.open();
-  }
-
-  openModelModal(
-    onSave: (model: ChatModel | EmbeddingModel) => void,
-    current?: ChatModel | EmbeddingModel,
-  ) {
-    const modal = new (class extends Modal {
-      private component?: any;
-      onOpen() {
-        this.component = mount(ModelModal, {
-          target: this.contentEl,
-          props: {
-            current,
-            close: () => this.close(),
-            save: (model: ChatModel | EmbeddingModel) => {
-              this.close();
-              onSave(model);
-            },
-          },
-        });
-      }
-      async onClose() {
-        if (this.component) {
-          await unmount(this.component);
-        }
-        this.contentEl.empty();
-      }
-    })(this.app);
-    modal.open();
   }
 }
 

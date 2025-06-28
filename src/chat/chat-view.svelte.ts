@@ -6,6 +6,7 @@ import {
   WorkspaceLeaf,
   Platform,
   normalizePath,
+  Notice,
 } from "obsidian";
 import { mount, unmount } from "svelte";
 import type { ViewContext } from "$lib/obsidian/view.ts";
@@ -228,7 +229,7 @@ export class ChatView extends FileView {
       }
     } catch (error) {
       console.error("Error creating chats directory:", error);
-      plugin.showNotice("Failed to create chats directory", 3000);
+      new Notice("Failed to create chats directory", 3000);
     }
 
     // Create a unique filename

@@ -11,7 +11,7 @@ import { textEditor } from "./execute.ts";
 import { resolveInternalLink } from "../lib/utils/obsidian";
 import { getListFromFrontmatter } from "../lib/utils/frontmatter";
 import type { Chat } from "../chat/chat.svelte.ts";
-import type { AIProviderId } from "../settings/providers";
+
 import { createDebug } from "$lib/debug.ts";
 import { readTool } from "./files/read.ts";
 import { writeTool } from "./files/write.ts";
@@ -231,7 +231,7 @@ export async function parseToolDefinition(
 export async function createTool(
   toolDef: ToolDefinition,
   context: ToolExecContext,
-  providerId?: AIProviderId,
+  providerId?: string,
 ) {
   // Special case for Anthropic text editor tool
   // if (vaultTool.type === "built-in") {
@@ -340,7 +340,7 @@ async function createExecutor(
 export async function loadAllTools(
   toolsPath: string,
   chat: Chat,
-  providerId?: AIProviderId,
+  providerId?: string,
 ) {
   const plugin = usePlugin();
   const files = plugin.app.vault.getFiles();
@@ -367,7 +367,7 @@ export async function loadAllTools(
 export async function loadToolsFromFrontmatter(
   metadata: CachedMetadata,
   chat: Chat,
-  providerId?: AIProviderId,
+  providerId?: string,
 ) {
   const plugin = usePlugin();
   const tools: Record<string, Tool> = {};
