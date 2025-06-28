@@ -12,7 +12,7 @@ describe("generateText", () => {
       id: "anthropic",
       name: "Anthropic",
       config: {
-        apiKey: process.env.VITE_ANTHROPIC_API_KEY as string,
+        apiKey: process.env.VITE_ANTHROPIC_API_KEY || "dummy-key-for-testing",
       },
     });
 
