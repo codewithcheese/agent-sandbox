@@ -54,13 +54,10 @@ export async function saveTranscriptionFile(
       await plugin.app.vault.createFolder(folderPath);
     }
 
-    // Create file content
     const frontmatter = createTranscriptionFrontmatter(date, duration);
     const content = frontmatter + text;
 
-    // Create the file
-    const file = await plugin.app.vault.create(filePath, content);
-    return file;
+    return await plugin.app.vault.create(filePath, content);
   } catch (error) {
     console.error("Failed to save transcription file:", error);
     return null;

@@ -14,7 +14,7 @@ import { createDebug } from "$lib/debug.ts";
 const debug = createDebug();
 
 export class RecorderStreaming {
-  isRecording = $state<boolean>(false);
+  state = $state<"idle" | "recording" | "saving">("idle");
   turns: TurnEvent[] = $state([]);
   recordings = $state<Recording[]>([]);
   insertionTarget = $state<string | null>(null);
@@ -50,10 +50,6 @@ export class RecorderStreaming {
       .map((turn) => turn.transcript)
       .join(" ")
       .trim();
-  }
-
-  get isIdle() {
-    return !this.isRecording;
   }
 
   // Check if we have received the final formatted turn
@@ -150,7 +146,6 @@ export class RecorderStreaming {
   }
 
   private resetUI() {
-    this.isRecording = false;
     this.turns = [];
   }
 
@@ -170,9 +165,9 @@ export class RecorderStreaming {
 
   /********** Public API **********/
   async startRecording(): Promise<void> {
-    if (this.isRecording) return;
+    if (this.state !== "idle") return;
 
-    this.isRecording = true;
+    this.state = "recording";
     this.startedAt = Date.now();
 
     try {
@@ -259,7 +254,9 @@ export class RecorderStreaming {
   }
 
   async acceptRecording(): Promise<void> {
-    if (!this.isRecording) return;
+    if (this.state !== "recording") return;
+    // Set saving state
+    this.state = "saving";
 
     // Stop audio input but keep WebSocket open to receive final turn
     this.stopAudio();
@@ -317,14 +314,17 @@ export class RecorderStreaming {
       }
     }
 
+    // Reset state to idle only after all processing and saving is complete
+    this.state = "idle";
     this.resetUI();
   }
 
   cancelRecording(): void {
-    if (!this.isRecording) return;
+    if (this.state !== "recording" && this.state !== "saving") return;
     this.closeWs(true);
     this.stopAudio();
     this.resetUI();
+    this.state = "idle";
   }
 
   removeRecording(id: string): void {

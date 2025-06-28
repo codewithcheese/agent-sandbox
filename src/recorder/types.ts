@@ -4,7 +4,7 @@ export interface Recording {
   id: string;
   text: string;
   date: Date;
-  duration: number; 
-  audioUrl: string | null; 
-  file: { path: string }; 
+  duration: number;
+  audioUrl: string | null;
+  file: TFile;
 }

@@ -5,6 +5,7 @@
     Save,
     ClipboardPasteIcon,
     Ban,
+    Loader2,
   } from "lucide-svelte";
   import { FileTextIcon, Copy } from "lucide-svelte";
   import { Notice } from "obsidian";
@@ -68,7 +69,12 @@
       >
         <div class="flex items-center justify-between gap-2 text-sm">
           <div class="flex items-center gap-2">
-            {#if recorder.isRecording}
+            {#if recorder.state === "saving"}
+              <div
+                class="w-2 h-2 bg-(--color-accent) rounded-full animate-spin"
+              ></div>
+              <span class="text-(--text-accent)">Saving...</span>
+            {:else if recorder.state === "recording"}
               <div
                 class="w-2 h-2 bg-(--color-accent) rounded-full animate-pulse"
               ></div>
@@ -79,7 +85,7 @@
             {/if}
           </div>
           <div class="flex gap-2">
-            {#if recorder.isRecording}
+            {#if recorder.state === "recording" || recorder.state === "saving"}
               <div
                 class="clickable-icon p-1 rounded cursor-pointer"
                 onmousedown={async (e) => {
@@ -95,9 +101,12 @@
             {/if}
             <div
               class="clickable-icon p-1 rounded cursor-pointer"
+              class:opacity-50={recorder.state === "saving"}
+              class:cursor-not-allowed={recorder.state === "saving"}
               onmousedown={async (e) => {
                 e.preventDefault();
-                if (recorder.isRecording) {
+                if (recorder.state === "saving") return;
+                if (recorder.state === "recording") {
                   await recorder.acceptRecording();
                 } else {
                   recorder.startRecording();
@@ -106,11 +115,15 @@
               }}
               role="button"
               tabindex="-1"
-              aria-label={recorder.isRecording
-                ? "Stop recording"
-                : "Start recording"}
+              aria-label={recorder.state === "saving"
+                ? "Saving transcription..."
+                : recorder.state === "recording"
+                  ? "Stop recording"
+                  : "Start recording"}
             >
-              {#if recorder.isRecording}
+              {#if recorder.state === "saving"}
+                <Loader2 class="size-4 animate-spin" />
+              {:else if recorder.state === "recording"}
                 {#if recorder.insertionTarget === null}
                   <Save class="size-4" />
                 {:else}
@@ -135,7 +148,7 @@
 
       <!-- Content area -->
       <div class="flex-1 relative min-h-0">
-        {#if recorder.isRecording}
+        {#if recorder.state === "recording" || recorder.state === "saving"}
           <!-- Fixed fade overlay at top (outside scroll area) -->
           {#if showTopFade}
             <div class="fade-top"></div>
@@ -153,7 +166,7 @@
             <Autoscroll
               messages={[{ text: recorder.streamingText }]}
               container={scrollContainer}
-              enabled={recorder.isRecording}
+              enabled={recorder.state === "recording"}
               bind:sentinel
             />
           </div>
