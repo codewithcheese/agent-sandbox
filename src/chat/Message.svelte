@@ -134,7 +134,7 @@
             onclick={() => {
               inputState.startEditing(
                 index,
-                message.content,
+                message.content.trim(),
                 message.experimental_attachments
                   ? message.experimental_attachments.map((a) => a.name)
                   : [],
@@ -160,7 +160,7 @@
             onclick={() => {
               inputState.startEditing(
                 index,
-                message.content,
+                message.content.trim(),
                 message.experimental_attachments
                   ? message.experimental_attachments.map((a) => a.name)
                   : [],
