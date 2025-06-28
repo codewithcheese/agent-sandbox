@@ -22,6 +22,22 @@ try {
 
 export const fileCache = new Map<string, any>();
 
+/**
+ * Parse frontmatter from content and cache it if present
+ */
+function parseFrontmatterAndCache(path: string, content: string) {
+  if (content) {
+    try {
+      const { data } = matter(content);
+      if (Object.keys(data).length > 0) {
+        fileCache.set(path, { frontmatter: data });
+      }
+    } catch (error) {
+      console.warn(`Failed to parse frontmatter for ${path}:`, error);
+    }
+  }
+}
+
 export class MockTAbstractFile implements TAbstractFile {
   path: string;
   name: string;
@@ -226,6 +242,9 @@ export const vault: Vault = {
     fs.writeFileSync(path, content, "utf8");
     const file = new MockTFile(path);
     file.vault = vault;
+
+    // Parse frontmatter if present
+    parseFrontmatterAndCache(path, content);
 
     // Set parent folder
     const lastSlash = path.lastIndexOf("/");
@@ -469,16 +488,7 @@ export const helpers = {
     file.vault = vault;
 
     // Parse frontmatter if present
-    if (content) {
-      try {
-        const { data } = matter(content);
-        if (Object.keys(data).length > 0) {
-          fileCache.set(path, { frontmatter: data });
-        }
-      } catch (error) {
-        console.warn(`Failed to parse frontmatter for ${path}:`, error);
-      }
-    }
+    parseFrontmatterAndCache(path, content);
 
     return file;
   },

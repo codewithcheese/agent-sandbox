@@ -399,11 +399,7 @@ export class Chat {
       let metadata: CachedMetadata | null =
         plugin.app.metadataCache.getFileCache(agentFile);
 
-      activeTools = await loadToolsFromFrontmatter(
-        metadata!,
-        this,
-        this.getAccount().provider,
-      );
+      activeTools = await loadToolsFromFrontmatter(metadata!, this);
 
       debug("Active tools", activeTools);
 

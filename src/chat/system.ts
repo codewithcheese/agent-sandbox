@@ -10,6 +10,7 @@ type SystemMessageOptions = {
     autoescape?: boolean;
     throwOnUndefined?: boolean;
   };
+  additionalData?: Record<string, any>;
 };
 
 export async function createSystemContent(
@@ -31,6 +32,7 @@ export async function createSystemContent(
     { fileTree },
     {
       ...data,
+      ...options.additionalData,
       currentDateTime: new Date().toLocaleString("en-US", {
         weekday: "long",
         year: "numeric",
