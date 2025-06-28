@@ -374,9 +374,9 @@ export class RecorderStreaming {
       activeElement instanceof HTMLTextAreaElement
     ) {
       // Check if it's a chat input with title
-      const chatTitle = activeElement.getAttribute("data-chat-title");
-      if (chatTitle) {
-        this.insertionTarget = chatTitle;
+      const title = activeElement.getAttribute("data-title");
+      if (title) {
+        this.insertionTarget = title;
         return;
       }
 

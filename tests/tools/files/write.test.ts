@@ -63,7 +63,8 @@ describe("Write tool", () => {
     expect(result.message).toContain("Path is a directory");
   });
 
-  it("should return error when trying to write to existing file without reading it first", async () => {
+  // Read state checks disabled in-lieu of a token efficient solution
+  it.skip("should return error when trying to write to existing file without reading it first", async () => {
     // Create an existing file without simulating a read
     await vault.create(MOCK_FILE_PATH, "Old content");
 
@@ -78,7 +79,8 @@ describe("Write tool", () => {
     expect(result.message).toContain("File has not been read yet");
   });
 
-  it("should return error when file has been modified since last read", async () => {
+  // Read state checks disabled in-lieu of a token efficient solution
+  it.skip("should return error when file has been modified since last read", async () => {
     // Create file and simulate reading it
     await vault.create(MOCK_FILE_PATH, "Old content");
     const file = vault.getFileByPath(MOCK_FILE_PATH);
@@ -120,8 +122,8 @@ describe("Write tool", () => {
     expect(file).not.toBeNull();
     expect(await vault.read(file)).toBe(MOCK_FILE_CONTENT);
 
-    // Verify read state was updated
-    expect(await sessionStore.readState.hasBeenRead(MOCK_FILE_PATH)).toBe(true);
+    // Read state checks disabled in-lieu of a token efficient solution
+    // expect(await sessionStore.readState.hasBeenRead(MOCK_FILE_PATH)).toBe(true);
   });
 
   it("should create parent directories if they do not exist", async () => {

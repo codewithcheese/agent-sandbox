@@ -39,10 +39,7 @@
   // Group accounts by provider
   let accountsByProvider = $derived.by(() => {
     const grouped = {} as Record<string, AIAccount[]>;
-    if (!plugin.settings?.accounts) {
-      return grouped;
-    }
-    plugin.settings.accounts.forEach((account) => {
+    plugin.settings.accounts.forEach((account: AIAccount) => {
       if (!grouped[account.provider]) {
         grouped[account.provider] = [];
       }
