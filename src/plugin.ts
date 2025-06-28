@@ -23,6 +23,7 @@ import { AgentBannerComponent } from "./editor/agent/agent-banner-component.svel
 import { PromptCommand } from "./editor/prompt-command.ts";
 import { ContextMenu } from "./editor/context-menu.ts";
 import { HtmlEscapeCommand } from "./editor/html-escape-command.ts";
+import { Prompts } from "./chat/prompts.svelte.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settingsManager: SettingsManager;
@@ -87,6 +88,7 @@ export class AgentSandboxPlugin extends Plugin {
     HtmlEscapeCommand.register(this);
     RenameTracker.register(this);
     RecorderView.register(this);
+    Prompts.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
@@ -102,8 +104,9 @@ export class AgentSandboxPlugin extends Plugin {
     });
 
     // Open recorder view on startup
-    this.app.workspace.onLayoutReady(() => {
-      RecorderView.openRecorderView();
+    this.app.workspace.onLayoutReady(async () => {
+      await RecorderView.openRecorderView();
+      await Prompts.refresh();
     });
   }
 

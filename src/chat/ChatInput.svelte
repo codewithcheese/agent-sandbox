@@ -28,6 +28,12 @@
   } from "$lib/utils/backlinks";
   import { BacklinkFileSelectModal } from "$lib/modals/backlink-file-select-modal";
   import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
+  import {
+    detectSlashTrigger,
+    removeSlashTrigger,
+  } from "$lib/utils/slash-commands";
+  import { PromptFileSelectModal } from "$lib/modals/prompt-file-select-modal";
+  import { loadPromptMessage } from "../editor/prompt-command.ts";
 
   type Props = {
     chat: Chat;
@@ -184,12 +190,21 @@
   }
 
   function handleTextareaInput(event: Event) {
+    const inputEvent = event as InputEvent;
     const textarea = event.target as HTMLTextAreaElement;
     const { value, selectionStart } = textarea;
 
-    // Check for backlink trigger directly in event handler
-    if (detectBacklinkTrigger(value, selectionStart)) {
-      openBacklinkModal(selectionStart);
+    // Only trigger modals on manual typing, not deletion or paste
+    if (inputEvent.inputType === "insertText" || inputEvent.inputType === "insertCompositionText") {
+      // Check for backlink trigger
+      if (detectBacklinkTrigger(value, selectionStart)) {
+        openBacklinkModal(selectionStart);
+      }
+
+      // Check for slash command trigger
+      if (detectSlashTrigger(value, selectionStart)) {
+        openSlashCommandModal(selectionStart);
+      }
     }
   }
 
@@ -217,6 +232,45 @@
         textareaRef.setSelectionRange(newCursorPos, newCursorPos);
       }
     }, 0);
+  }
+
+  function openSlashCommandModal(cursorPos: number) {
+    const plugin = usePlugin();
+    const modal = new PromptFileSelectModal(plugin.app, (file) => {
+      insertPrompt(cursorPos, file);
+    });
+    modal.open();
+  }
+
+  async function insertPrompt(cursorPos: number, file: TFile) {
+    // Remove the slash trigger
+    const { newText } = removeSlashTrigger(inputState.text, cursorPos);
+    inputState.text = newText;
+
+    // Load the prompt message to get the content and metadata
+    const promptMessage = await loadPromptMessage(file);
+
+    // Extract the prompt metadata
+    const promptMetadata = promptMessage.metadata;
+
+    // If we're editing a message, update it and submit
+    if (inputState.state.type === "editing") {
+      await chat.edit(
+        inputState.state.index,
+        promptMessage.content,
+        inputState.attachments,
+        promptMetadata,
+      );
+      inputState.reset();
+    } else {
+      // For new messages, submit the prompt directly
+      await chat.submit(
+        promptMessage.content,
+        inputState.attachments,
+        promptMetadata,
+      );
+      inputState.reset();
+    }
   }
 </script>
 
@@ -277,7 +331,7 @@
     <Textarea
       bind:value={inputState.text}
       name="content"
-      placeholder="Whats on your mind? [[ to link notes."
+      placeholder="Whats on your mind? [[ to link notes, / to insert prompt."
       aria-label="Chat message input"
       onkeypress={submitOnEnter}
       oninput={handleTextareaInput}

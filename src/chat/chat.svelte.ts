@@ -178,7 +178,11 @@ export class Chat {
     return this.save();
   }
 
-  async submit(content: string, attachments: string[]) {
+  async submit(
+    content: string,
+    attachments: string[],
+    userMetadata: Partial<WithUserMetadata["metadata"]> = {},
+  ) {
     // Checkpoint before sync to enable fresh diff calculation on edit/regenerate
     const checkpoint = this.vault.proposedDoc.frontiers();
 
@@ -207,6 +211,7 @@ export class Chat {
       metadata: {
         modified: syncResult.map((r) => r.path),
         checkpoint,
+        ...userMetadata,
       },
     });
 
@@ -216,7 +221,12 @@ export class Chat {
     await this.runConversation();
   }
 
-  async edit(index: number, content: string, attachments: string[]) {
+  async edit(
+    index: number,
+    content: string,
+    attachments: string[],
+    userMetadata: Partial<WithUserMetadata["metadata"]> = {},
+  ) {
     if (!content && attachments.length === 0) {
       new Notice("Please enter a message or attach a file.", 5000);
       return;
@@ -266,6 +276,8 @@ export class Chat {
     } else {
       message.experimental_attachments = undefined;
     }
+    // Merge in any additional user metadata
+    message.metadata = { ...message.metadata, ...userMetadata };
     // Truncate the conversation
     this.messages = this.messages.slice(0, index + 1);
 
