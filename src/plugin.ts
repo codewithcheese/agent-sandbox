@@ -15,7 +15,6 @@ import { installTools } from "./tools/command.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 import { RenameTracker } from "./chat/rename-tracker.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
-import { RecorderWidget } from "./recorder/recorder-widget.ts";
 import { RecorderView } from "./recorder/recorder-view.svelte.ts";
 import mainCss from "./main.css?inline";
 import { JsonSchemaCodeBlockProcessor } from "./editor/schema/json-schema-code-block.ts";
@@ -28,7 +27,6 @@ import { HtmlEscapeCommand } from "./editor/html-escape-command.ts";
 export class AgentSandboxPlugin extends Plugin {
   settingsManager: SettingsManager;
   pglite: PGliteProvider;
-  recorder: RecorderWidget;
   styleEl?: HTMLStyleElement;
   jsonSchemaCodeBlock: JsonSchemaCodeBlockProcessor;
 
@@ -39,7 +37,6 @@ export class AgentSandboxPlugin extends Plugin {
       Plugin: this,
     };
     this.pglite = new PGliteProvider();
-    this.recorder = new RecorderWidget();
     this.settingsManager = new SettingsManager(this);
   }
 
