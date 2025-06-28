@@ -80,10 +80,10 @@ export class AgentSandboxPlugin extends Plugin {
         await this.settingsManager.saveSettings();
       }
     } catch (error) {
-      console.error('Failed to save settings:', error);
+      console.error("Failed to save settings:", error);
       new Notice(
-        `Failed to save settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        8000
+        `Failed to save settings: ${error instanceof Error ? error.message : "Unknown error"}`,
+        8000,
       );
       throw error; // Re-throw so calling code can handle it
     }
@@ -95,7 +95,7 @@ export class AgentSandboxPlugin extends Plugin {
 
   async onload() {
     this.loadCSS();
-    await this.settingsManager.loadSettings();
+    await this.settingsManager.init();
     await this.initializePGlite();
 
     this.registerView(ARTIFACT_VIEW_TYPE, (leaf) => new ArtifactView(leaf));
@@ -125,8 +125,6 @@ export class AgentSandboxPlugin extends Plugin {
         await installTools();
       },
     });
-
-    this.addSettingTab(new SettingsTab(this.app, this));
 
     // Open recorder view on startup
     this.app.workspace.onLayoutReady(() => {

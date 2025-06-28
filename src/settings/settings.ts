@@ -35,87 +35,6 @@ export type AIProviderInfo = {
   optionalFields: string[];
 };
 
-// Settings version types (will be inferred from Zod schemas)
-export type SettingsV1 = {
-  version: 1;
-  services: {
-    rapidapi: {
-      name: string;
-      apiKey: string;
-    };
-  };
-  defaults: {
-    modelId: string;
-    accountId: string;
-  };
-  vault: {
-    chatsPath: string;
-  };
-  accounts: AIAccount[];
-  models: AnyModel[];
-  providers: AIProviderInfo[];
-  recording: {
-    transcriptionsPath: string;
-    // No postProcessing in V1
-  };
-  title: {
-    prompt: string;
-    accountId: string | undefined;
-    modelId: string | undefined;
-  };
-  agents: {
-    templateRepairAgentPath: string | null;
-  };
-};
-
-export type SettingsV2 = {
-  version: 2;
-  services: {
-    rapidapi: {
-      name: string;
-      apiKey: string;
-    };
-  };
-  defaults: {
-    modelId: string;
-    accountId: string;
-  };
-  vault: {
-    chatsPath: string;
-  };
-  accounts: AIAccount[];
-  models: AnyModel[];
-  providers: AIProviderInfo[];
-  recording: {
-    transcriptionsPath: string;
-    postProcessing: {
-      enabled: boolean;
-      prompt: string;
-      accountId: string | undefined;
-      modelId: string | undefined;
-    };
-  };
-  title: {
-    prompt: string;
-    accountId: string | undefined;
-    modelId: string | undefined;
-  };
-  agents: {
-    templateRepairAgentPath: string | null;
-  };
-};
-
-export type SettingsFile = SettingsV1 | SettingsV2;
-export type CurrentSettings = SettingsV2;
-
-// Legacy interface for backward compatibility
-export interface PluginSettings extends CurrentSettings {}
-
-// =============================================================================
-// ZOD SCHEMAS FOR VALIDATION
-// =============================================================================
-
-// Base schemas for reusable components
 const AIAccountSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -175,6 +94,8 @@ export const SettingsV1Schema = z.object({
   providers: z.array(ProviderSchema) as z.ZodType<AIProviderInfo[]>,
   recording: z.object({
     transcriptionsPath: z.string(),
+    accountId: z.string().optional(),
+    modelId: z.string().optional(),
   }),
   title: z.object({
     prompt: z.string(),
@@ -184,13 +105,15 @@ export const SettingsV1Schema = z.object({
   agents: z.object({
     templateRepairAgentPath: z.string().nullable(),
   }),
-});
+}).strict();
 
 // Settings V2 Schema (extends V1 with postProcessing)
 export const SettingsV2Schema = SettingsV1Schema.extend({
   version: z.literal(2),
   recording: z.object({
     transcriptionsPath: z.string(),
+    accountId: z.string().optional(),
+    modelId: z.string().optional(),
     postProcessing: z.object({
       enabled: z.boolean(),
       prompt: z.string(),
@@ -198,16 +121,17 @@ export const SettingsV2Schema = SettingsV1Schema.extend({
       modelId: z.string().optional(),
     }),
   }),
-});
+}).strict();
 
-// Schema map for version-based validation
-export const SETTINGS_SCHEMAS = {
-  1: SettingsV1Schema,
-  2: SettingsV2Schema,
-} as const;
+// Infer types from schemas
+export type SettingsV1 = z.infer<typeof SettingsV1Schema>;
+export type SettingsV2 = z.infer<typeof SettingsV2Schema>;
 
-// Current version constant
-export const CURRENT_SETTINGS_VERSION = 2 as const;
+export type SettingsFile = SettingsV1 | SettingsV2;
+export type CurrentSettings = SettingsV2;
+
+// Legacy interface for backward compatibility
+export interface PluginSettings extends CurrentSettings {}
 
 // =============================================================================
 // SETTINGS MIGRATIONS
@@ -219,8 +143,7 @@ interface SettingsMigrator<TFrom = unknown, TTo = unknown> {
   migrate: (data: TFrom) => TTo;
 }
 
-
-
+// Migration functions
 export const SETTINGS_MIGRATIONS: SettingsMigrator[] = [
   {
     version: 1,
@@ -388,6 +311,8 @@ export const SETTINGS_MIGRATIONS: SettingsMigrator[] = [
         ],
         recording: {
           transcriptionsPath: "transcriptions",
+          accountId: "",
+          modelId: "",
         },
         agents: {
           templateRepairAgentPath: "",
@@ -448,3 +373,12 @@ Output the cleaned transcript within <cleaned> tags. Do not include any explanat
     }),
   },
 ];
+
+// Schema map for version-based validation
+export const SETTINGS_SCHEMAS = {
+  1: SettingsV1Schema,
+  2: SettingsV2Schema,
+} as const;
+
+// Current version constant
+export const CURRENT_SETTINGS_VERSION = 2 as const;

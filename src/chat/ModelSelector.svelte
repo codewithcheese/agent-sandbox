@@ -55,9 +55,6 @@
   // Group models by provider (only chat models)
   let modelsByProvider = $derived.by(() => {
     const grouped = {} as Record<string, ChatModel[]>;
-    if (!plugin.settings.models.length) {
-      return grouped;
-    }
     plugin.settings.models
       .filter((model): model is ChatModel => model.type === "chat")
       .forEach((model) => {
@@ -97,15 +94,18 @@
       : selectedModelId;
   });
 
-  function handleModelSelect(
-    modelId: string,
-    accountId: string,
-    addToRecents = true,
-  ) {
+  function handleModelSelect(modelId: string, accountId: string) {
     // Call the callback first
     onModelChange(modelId, accountId);
 
     const account = plugin.settings.accounts.find((a) => a.id === accountId);
+    if (!account) {
+      console.warn(
+        `Account ${accountId} not found, skipping recent model update`,
+      );
+      return;
+    }
+
     addRecentModel({
       modelId,
       accountId,
@@ -114,40 +114,78 @@
     });
   }
 
+  function isValidRecentModel(recent: RecentModel): boolean {
+    const accountExists = plugin.settings.accounts.some(
+      (account) =>
+        account.id === recent.accountId &&
+        account.provider === recent.providerId,
+    );
+
+    const modelExists = plugin.settings.models.some(
+      (model) =>
+        model.id === recent.modelId &&
+        model.provider === recent.providerId &&
+        model.type === "chat",
+    );
+
+    return accountExists && modelExists;
+  }
+
   function getRecentModels(): RecentModel[] {
     try {
       const plugin = usePlugin();
       const stored = plugin.app.loadLocalStorage(STORAGE_KEY);
       if (!stored) return [];
-      return stored as RecentModel[];
+
+      return (stored as RecentModel[]).filter(isValidRecentModel);
     } catch (e) {
-      console.warn("Failed to load recent models:", e);
+      console.error("Failed to load recent models:", e);
       return [];
     }
   }
 
-  function addRecentModel(
-    model: Omit<RecentModel, "timestamp">,
-  ): RecentModel[] {
+  function findOldestModelIndex(models: RecentModel[]): number {
+    return models.reduce(
+      (oldestIndex, current, index) =>
+        current.timestamp < models[oldestIndex].timestamp ? index : oldestIndex,
+      0,
+    );
+  }
+
+  function updateExistingModel(index: number): void {
+    recentModels[index].timestamp = Date.now();
+  }
+
+  function addNewModel(model: Omit<RecentModel, "timestamp">): void {
+    if (recentModels.length >= MAX_RECENTS) {
+      const oldestIndex = findOldestModelIndex(recentModels);
+      recentModels.splice(oldestIndex, 1);
+    }
+
+    recentModels.push({
+      ...model,
+      timestamp: Date.now(),
+    });
+  }
+
+  function addRecentModel(model: Omit<RecentModel, "timestamp">) {
     try {
-      const recents = getRecentModels();
-      // Remove any existing entry for this model-account combination
-      const filtered = recents.filter(
-        (m) => m.modelId !== model.modelId || m.accountId !== model.accountId,
+      const existingIndex = recentModels.findIndex(
+        (m) => m.modelId === model.modelId && m.accountId === model.accountId,
       );
-      // Add new entry at the start
-      filtered.unshift({
-        ...model,
-        timestamp: Date.now(),
-      });
-      // Keep only the most recent MAX_RECENTS entries
-      const trimmed = filtered.slice(0, MAX_RECENTS);
-      plugin.app.saveLocalStorage(STORAGE_KEY, trimmed);
-      debug("Saving recent models:", trimmed);
-      return trimmed;
+
+      if (existingIndex !== -1) {
+        updateExistingModel(existingIndex);
+      } else {
+        addNewModel(model);
+      }
+
+      // Trigger reactivity and persist
+      recentModels = [...recentModels];
+      plugin.app.saveLocalStorage(STORAGE_KEY, recentModels);
+      debug("Updated recent models:", recentModels);
     } catch (e) {
-      console.warn("Failed to save recent model:", e);
-      return getRecentModels();
+      console.warn("Failed to save recent models:", e);
     }
   }
 
@@ -179,7 +217,7 @@
           {#each recentModels as recent}
             <DropdownMenu.Item
               onclick={() =>
-                handleModelSelect(recent.modelId, recent.accountId, false)}
+                handleModelSelect(recent.modelId, recent.accountId)}
               class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 pl-4 text-sm text-[var(--text-normal)] hover:bg-[var(--background-modifier-hover)] focus:bg-[var(--background-modifier-hover)] focus:outline-none"
             >
               {recent.modelId}

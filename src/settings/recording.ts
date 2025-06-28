@@ -2,10 +2,12 @@ import { usePlugin } from "$lib/utils";
 
 export function getTranscriptionAccount() {
   const plugin = usePlugin();
-  const settings = plugin.settings?.recording;
-  
-  if (!settings?.accountId) {
-    throw new Error("Transcription account not configured");
+  const settings = plugin.settings.recording;
+
+  if (!settings.accountId) {
+    throw new Error(
+      "Transcription account not found. Select an account in settings.",
+    );
   }
 
   const account = plugin.settings.accounts.find(

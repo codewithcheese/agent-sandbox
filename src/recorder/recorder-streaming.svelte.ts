@@ -3,26 +3,22 @@ import { getTranscriptionAccount } from "../settings/recording";
 import type { StreamingEventMessage, TurnEvent } from "assemblyai";
 import { usePlugin } from "$lib/utils";
 import {
-  saveTranscriptionFile,
   loadTranscriptionFiles,
+  saveTranscriptionFile,
 } from "./transcription-files";
 import type { Recording } from "./types";
 import { postProcessTranscription } from "./post-processing";
+import { Notice } from "obsidian";
+import { createDebug } from "$lib/debug.ts";
+
+const debug = createDebug();
 
 export class RecorderStreaming {
-  // UI State
   isRecording = $state<boolean>(false);
-
-  // Streaming text
   turns: TurnEvent[] = $state([]);
-
-  // Saved transcripts
   recordings = $state<Recording[]>([]);
-
-  // Insertion target detection
   insertionTarget = $state<string | null>(null);
 
-  // Internal handles
   private readonly SAMPLE_RATE = 16_000;
   private ws: WebSocket | null = null;
   private audioCtx: AudioContext | null = null;
@@ -30,9 +26,22 @@ export class RecorderStreaming {
   private mediaStream: MediaStream | null = null;
   private startedAt = 0;
 
-  // Event listener references for cleanup
-  private focusInHandler = () => this.updateInsertionTarget();
-  private focusOutHandler = () => this.updateInsertionTarget();
+  private focusInHandler = () => {
+    if ($effect.tracking()) {
+      // In some cases, svelte triggers focus events during tear down
+      // Causing: updating state inside a derived or a template expression is forbidden.
+      return;
+    }
+    this.updateInsertionTarget();
+  };
+  private focusOutHandler = () => {
+    if ($effect.tracking()) {
+      // In some cases, svelte triggers focus events during tear down
+      // Causing: updating state inside a derived or a template expression is forbidden.
+      return;
+    }
+    this.updateInsertionTarget();
+  };
 
   // Derived state
   get streamingText() {
@@ -64,48 +73,38 @@ export class RecorderStreaming {
   private async waitForFinalTurn(timeoutMs = 2000): Promise<void> {
     return new Promise((resolve) => {
       const startTime = Date.now();
-      
+
       const checkFinalTurn = () => {
         if (this.hasFinalTurn) {
           resolve();
           return;
         }
-        
+
         if (Date.now() - startTime > timeoutMs) {
           console.warn("Timeout waiting for final turn, proceeding anyway");
           resolve();
           return;
         }
-        
+
         // Check again in 100ms
         setTimeout(checkFinalTurn, 100);
       };
-      
+
       checkFinalTurn();
     });
   }
 
   constructor() {
-    // Initial detection
     this.updateInsertionTarget();
 
-    // Update detection when focus changes
     document.addEventListener("focusin", this.focusInHandler);
     document.addEventListener("focusout", this.focusOutHandler);
 
-    // Load existing transcriptions
-    this.loadExistingTranscriptions();
+    this.loadTranscriptions();
   }
 
-  // Load transcriptions from files
-  private async loadExistingTranscriptions(): Promise<void> {
-    try {
-      const fileTranscriptions = await loadTranscriptionFiles();
-      // Direct assignment - TranscriptionFile and Recording are identical
-      this.recordings = fileTranscriptions;
-    } catch (error) {
-      console.error("Failed to load existing transcriptions:", error);
-    }
+  private async loadTranscriptions(): Promise<void> {
+    this.recordings = await loadTranscriptionFiles();
   }
 
   // Public method to update insertion target detection
@@ -253,6 +252,7 @@ export class RecorderStreaming {
         source.connect(awNode);
       }
     } catch (err) {
+      new Notice("Failed to start recording. " + String(err));
       console.error("startRecording error:", err);
       this.cancelRecording();
     }
@@ -284,7 +284,8 @@ export class RecorderStreaming {
       try {
         // Apply post-processing to clean up the transcript
         const processedText = await postProcessTranscription(full);
-        
+        debug("Post-processed transcript:", { full, processedText });
+
         // Insert text if there's a valid target
         this.insertAtCursor(processedText);
 
@@ -424,7 +425,7 @@ export class RecorderStreaming {
       activeElement.selectionStart = activeElement.selectionEnd =
         s + text.length;
       // Trigger input event to enable auto-resizing for textareas
-      activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+      activeElement.dispatchEvent(new Event("input", { bubbles: true }));
       return;
     }
 
