@@ -3,12 +3,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOllama } from "ollama-ai-provider";
 
-export type AIAccount = {
-  id: string;
-  name: string;
-  provider: string;
-  config: ModelConfig;
-};
+import type { AIAccount } from "./settings.ts";
 
 export function createAIProvider(account: AIAccount) {
   switch (account.provider) {
@@ -39,11 +34,6 @@ export function createAIProvider(account: AIAccount) {
       throw new Error(`Unsupported AI provider: ${account.provider}`);
   }
 }
-
-export type ModelConfig = {
-  baseURL?: string;
-  apiKey?: string;
-};
 
 export const ModelConfigField = {
   apiKey: {

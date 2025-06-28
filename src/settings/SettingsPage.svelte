@@ -1,11 +1,19 @@
 <script lang="ts">
   import { usePlugin } from "$lib/utils";
-  import { onDestroy, onMount } from "svelte";
+  import { mount, onDestroy, onMount, unmount } from "svelte";
   import { PlusCircleIcon, SettingsIcon, Trash2Icon } from "lucide-svelte";
 
   import { createModal } from "$lib/modals/create-modal.ts";
   import TextareaModal from "./TextareaModal.svelte";
-  import { Notice } from "obsidian";
+  import { Modal, Notice } from "obsidian";
+  import type {
+    AIAccount,
+    ChatModel,
+    EmbeddingModel,
+    AnyModel,
+  } from "./settings.ts";
+  import ModelModal from "./ModelModal.svelte";
+  import AccountModal from "./AccountModal.svelte";
 
   const plugin = usePlugin();
   let settings = $state(plugin.settings);
@@ -58,12 +66,20 @@
   <div class="setting-item-control">
     <PlusCircleIcon
       class="clickable-icon extra-setting-button"
-      onclick={() =>
-        plugin.openAccountModal((account) => {
-          settings.accounts.push(account);
-          console.log("pushed account", settings, account);
-          save();
-        })}
+      onclick={() => {
+        const modal = createModal(AccountModal, {
+          save: (account: AIAccount) => {
+            modal.close();
+            settings.accounts.push(account);
+            console.log("pushed account", settings, account);
+            save();
+          },
+          close: () => {
+            modal.close();
+          },
+        });
+        modal.open();
+      }}
     />
   </div>
 </div>
@@ -78,21 +94,30 @@
     <div class="setting-item-control"></div>
   </div>
 {/if}
-{#each settings.accounts as provider, index}
+{#each settings.accounts as account, index}
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">{provider.name}</div>
+      <div class="setting-item-name">{account.name}</div>
       <div class="setting-item-description">
-        Provider: {getProviderInfo(provider.provider).name}
+        Provider: {getProviderInfo(account.provider).name}
       </div>
     </div>
     <div class="setting-item-control">
       <button
-        onclick={() =>
-          plugin.openAccountModal((profile) => {
-            settings.accounts[index] = profile;
-            save();
-          }, $state.snapshot(provider))}
+        onclick={() => {
+          const modal = createModal(AccountModal, {
+            save: (newAccount: AIAccount) => {
+              modal.close();
+              settings.accounts[index] = newAccount;
+              save();
+            },
+            current: $state.snapshot(account),
+            close: () => {
+              modal.close();
+            },
+          });
+          modal.open();
+        }}
         class="clickable-icon extra-setting-button"
         aria-label="Options"
       >
@@ -119,11 +144,19 @@
   <div class="setting-item-control">
     <PlusCircleIcon
       class="clickable-icon extra-setting-button"
-      onclick={() =>
-        plugin.openModelModal((model) => {
-          settings.models.push(model);
-          save();
-        })}
+      onclick={() => {
+        const modal = createModal(ModelModal, {
+          save: (model: AnyModel) => {
+            modal.close();
+            settings.models.push(model);
+            save();
+          },
+          close: () => {
+            modal.close();
+          },
+        });
+        modal.open();
+      }}
     />
   </div>
 </div>
@@ -156,11 +189,20 @@
     </div>
     <div class="setting-item-control">
       <button
-        onclick={() =>
-          plugin.openModelModal((updatedModel) => {
-            settings.models[index] = updatedModel;
-            save();
-          }, $state.snapshot(model))}
+        onclick={() => {
+          const modal = createModal(ModelModal, {
+            save: (updatedModel: AnyModel) => {
+              modal.close();
+              settings.models[index] = updatedModel;
+              save();
+            },
+            current: $state.snapshot(model),
+            close: () => {
+              modal.close();
+            },
+          });
+          modal.open();
+        }}
         class="clickable-icon extra-setting-button"
         aria-label="Edit model"
       >

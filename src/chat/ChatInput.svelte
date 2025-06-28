@@ -27,6 +27,7 @@
     expandBacklinks,
   } from "$lib/utils/backlinks";
   import { BacklinkFileSelectModal } from "$lib/modals/backlink-file-select-modal";
+  import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
 
   type Props = {
     chat: Chat;
@@ -62,8 +63,8 @@
   // Extract chat title from path (remove .chat extension)
   const chatTitle = $derived.by(() => {
     if (!chat.path) return "Chat";
-    const fileName = chat.path.split('/').pop() || chat.path;
-    return fileName.endsWith('.chat') ? fileName.slice(0, -5) : fileName;
+    const fileName = chat.path.split("/").pop() || chat.path;
+    return fileName.endsWith(".chat") ? fileName.slice(0, -5) : fileName;
   });
 
   $effect(() => {
@@ -106,10 +107,11 @@
   }
 
   function selectDocument() {
-    const plugin = usePlugin();
-    plugin.openFileSelect((file) => {
+    const { app } = usePlugin();
+    const modal = new FileSelectModal(app, (file) => {
       addAttachment(file);
     });
+    modal.open();
   }
 
   function addAttachment(file: TFile) {
@@ -282,7 +284,7 @@
       maxRows={10}
       required
       bind:ref={textareaRef}
-      chatTitle={chatTitle}
+      {chatTitle}
     />
     <div class="flex items-center justify-between mt-2">
       <div class="flex flex-row align-middle gap-2">

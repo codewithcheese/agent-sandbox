@@ -1,8 +1,10 @@
 <script lang="ts">
   import { nanoid } from "nanoid";
-  import { type AIAccount, ModelConfigField } from "./providers.ts";
+  import { ModelConfigField } from "./providers.ts";
   import type { AllowEmpty } from "$lib/types/allow-empty.ts";
   import { usePlugin } from "$lib/utils";
+
+  import type { AIAccount } from "./settings.ts";
 
   type Props = {
     current?: AIAccount;
@@ -15,7 +17,12 @@
   const settings = plugin.settings;
 
   function getProviderInfo(providerId) {
-    return settings.providers.find(p => p.id === providerId) || { requiredFields: [], optionalFields: [] };
+    return (
+      settings.providers.find((p) => p.id === providerId) || {
+        requiredFields: [],
+        optionalFields: [],
+      }
+    );
   }
 
   let account: AllowEmpty<AIAccount, "provider"> = $state(

@@ -2,8 +2,7 @@
   import { DropdownMenu } from "bits-ui";
   import { ChevronDownIcon, ChevronRightIcon, ClockIcon } from "lucide-svelte";
   import { usePlugin } from "$lib/utils";
-  import type { AIAccount } from "../settings/providers.ts";
-  import type { ChatModel } from "../settings/settings.ts";
+  import type { AIAccount, ChatModel } from "../settings/settings.ts";
   import { onMount } from "svelte";
   import { createDebug } from "$lib/debug.ts";
 

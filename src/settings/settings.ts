@@ -1,8 +1,13 @@
-import type { AIAccount } from "./providers.ts";
 import { z } from "zod";
 import _ from "lodash";
 
-// Model types (moved from models.ts)
+export type ModelConfig = {
+  baseURL?: string;
+  apiKey?: string;
+};
+
+export type AIAccount = z.infer<typeof AIAccountSchema>;
+
 export type ChatModel = {
   id: string;
   provider: string;
@@ -24,10 +29,8 @@ export type TranscriptionModel = {
   type: "transcription";
 };
 
-// Union type for all model types
 export type AnyModel = ChatModel | EmbeddingModel | TranscriptionModel;
 
-// Provider info type for settings
 export type AIProviderInfo = {
   id: string;
   name: string;
@@ -74,38 +77,40 @@ const ProviderSchema = z.object({
 });
 
 // Settings V1 Schema (current state without postProcessing)
-export const SettingsV1Schema = z.object({
-  version: z.literal(1),
-  services: z.object({
-    rapidapi: z.object({
-      name: z.string(),
-      apiKey: z.string(),
+export const SettingsV1Schema = z
+  .object({
+    version: z.literal(1),
+    services: z.object({
+      rapidapi: z.object({
+        name: z.string(),
+        apiKey: z.string(),
+      }),
     }),
-  }),
-  defaults: z.object({
-    modelId: z.string(),
-    accountId: z.string(),
-  }),
-  vault: z.object({
-    chatsPath: z.string(),
-  }),
-  accounts: z.array(AIAccountSchema),
-  models: z.array(ModelSchema) as z.ZodType<AnyModel[]>,
-  providers: z.array(ProviderSchema) as z.ZodType<AIProviderInfo[]>,
-  recording: z.object({
-    transcriptionsPath: z.string(),
-    accountId: z.string().optional(),
-    modelId: z.string().optional(),
-  }),
-  title: z.object({
-    prompt: z.string(),
-    accountId: z.string().optional(),
-    modelId: z.string().optional(),
-  }),
-  agents: z.object({
-    templateRepairAgentPath: z.string().nullable(),
-  }),
-}).strict();
+    defaults: z.object({
+      modelId: z.string(),
+      accountId: z.string(),
+    }),
+    vault: z.object({
+      chatsPath: z.string(),
+    }),
+    accounts: z.array(AIAccountSchema),
+    models: z.array(ModelSchema) as z.ZodType<AnyModel[]>,
+    providers: z.array(ProviderSchema) as z.ZodType<AIProviderInfo[]>,
+    recording: z.object({
+      transcriptionsPath: z.string(),
+      accountId: z.string().optional(),
+      modelId: z.string().optional(),
+    }),
+    title: z.object({
+      prompt: z.string(),
+      accountId: z.string().optional(),
+      modelId: z.string().optional(),
+    }),
+    agents: z.object({
+      templateRepairAgentPath: z.string().nullable(),
+    }),
+  })
+  .strict();
 
 // Settings V2 Schema (extends V1 with postProcessing)
 export const SettingsV2Schema = SettingsV1Schema.extend({
@@ -123,15 +128,7 @@ export const SettingsV2Schema = SettingsV1Schema.extend({
   }),
 }).strict();
 
-// Infer types from schemas
-export type SettingsV1 = z.infer<typeof SettingsV1Schema>;
-export type SettingsV2 = z.infer<typeof SettingsV2Schema>;
-
-export type SettingsFile = SettingsV1 | SettingsV2;
-export type CurrentSettings = SettingsV2;
-
-// Legacy interface for backward compatibility
-export interface PluginSettings extends CurrentSettings {}
+export type CurrentSettings = z.infer<typeof SettingsV2Schema>;
 
 // =============================================================================
 // SETTINGS MIGRATIONS
@@ -147,7 +144,7 @@ interface SettingsMigrator<TFrom = unknown, TTo = unknown> {
 export const SETTINGS_MIGRATIONS: SettingsMigrator[] = [
   {
     version: 1,
-    migrate: (data: unknown): SettingsV1 => {
+    migrate: (_data: unknown): z.infer<typeof SettingsV1Schema> => {
       // Create initial V1 settings structure from empty/unknown data
       return {
         version: 1,
@@ -340,11 +337,13 @@ Generate the title and output it within <title> tags. Do not include any explana
   },
   {
     version: 2,
-    migrate: (data: SettingsV1): SettingsV2 => ({
+    migrate: (
+      data: z.infer<typeof SettingsV1Schema>,
+    ): z.infer<typeof SettingsV2Schema> => ({
       ...data,
       version: 2,
-      models: _.unionBy(data.models, [], 'id'),
-      providers: _.unionBy(data.providers, [], 'id'),
+      models: _.unionBy(data.models, [], "id"),
+      providers: _.unionBy(data.providers, [], "id"),
       recording: {
         ...data.recording,
         postProcessing: {

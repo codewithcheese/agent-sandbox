@@ -7,7 +7,7 @@ import {
   type Tool,
   type UIMessage,
 } from "ai";
-import { type AIAccount, createAIProvider } from "../settings/providers.ts";
+import { createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
 import { type CachedMetadata, normalizePath, Notice, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
@@ -19,7 +19,7 @@ import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
 import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
-import type { ChatModel } from "../settings/settings.ts";
+import type { AIAccount, ChatModel } from "../settings/settings.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { loadAttachments } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
@@ -487,8 +487,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         errorMessage = `Error: ${error.message}`;
       }
 
-      const plugin = usePlugin();
-      plugin.showNotice(errorMessage);
+      new Notice(errorMessage);
     } finally {
       // Final cleanup
       this.#abortController = undefined;
@@ -637,11 +636,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     }
 
     const file = plugin.app.vault.getAbstractFileByPath(this.path);
-    if (!file.basename.startsWith("New chat")) {
-      return false;
-    }
-
-    return true;
+    return file.basename.startsWith("New chat");
   }
 
   async generateTitle(): Promise<void> {
@@ -799,17 +794,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     );
 
     await new Promise((resolve) => setTimeout(resolve, retryDelay));
-  }
-
-  getModel() {
-    const plugin = usePlugin();
-    const model = plugin.settings.models.find(
-      (m): m is ChatModel => m.type === "chat" && m.id === this.options.modelId,
-    );
-    if (!model) {
-      throw Error(`Chat model ${this.options.modelId} not found`);
-    }
-    return model;
   }
 
   getAccount() {

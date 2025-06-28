@@ -1,5 +1,4 @@
 import { nanoid } from "nanoid";
-import { getTranscriptionAccount } from "../settings/recording";
 import type { StreamingEventMessage, TurnEvent } from "assemblyai";
 import { usePlugin } from "$lib/utils";
 import {
@@ -10,6 +9,7 @@ import type { Recording } from "./types";
 import { postProcessTranscription } from "./post-processing";
 import { Notice } from "obsidian";
 import { createDebug } from "$lib/debug.ts";
+import { getTranscriptionAccount } from "./settings.ts";
 
 const debug = createDebug();
 

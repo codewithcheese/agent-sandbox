@@ -1,17 +1,6 @@
-import {
-  App,
-  Modal,
-  Notice,
-  Platform,
-  Plugin,
-  type PluginManifest,
-  PluginSettingTab,
-  TFile,
-  WorkspaceLeaf,
-} from "obsidian";
-import { FileSelectModal } from "$lib/modals/file-select-modal.ts";
+import { App, Notice, Plugin, type PluginManifest } from "obsidian";
 import { MERGE_VIEW_TYPE, MergeView } from "$lib/merge/merge-view.svelte.ts";
-import { CHAT_VIEW_TYPE, ChatView } from "./chat/chat-view.svelte.ts";
+import { ChatView } from "./chat/chat-view.svelte.ts";
 import { ChatHistoryView } from "./chat/chat-history-view.svelte.ts";
 import {
   type Artifact,
@@ -20,17 +9,9 @@ import {
 } from "$lib/artifacts/artifact-vew.svelte.ts";
 import { FileTreeModal } from "$lib/modals/file-tree-modal.ts";
 import { SettingsManager } from "./settings/settings-manager.ts";
-import { SettingsTab } from "./settings/settings-tab.ts";
 import type { CurrentSettings } from "./settings/settings.ts";
-import AccountModal from "./settings/AccountModal.svelte";
-import ModelModal from "./settings/ModelModal.svelte";
-import type { ChatModel, EmbeddingModel } from "./settings/settings.ts";
-import type { AIAccount } from "./settings/providers.ts";
-import { mount, unmount } from "svelte";
 import { PGliteProvider } from "$lib/pglite/provider.ts";
 import { installTools } from "./tools/command.ts";
-import superjson from "superjson";
-import { ChatSerializer } from "./chat/chat-serializer.ts";
 import { registerChatRenameHandler } from "./chat/chat.svelte.ts";
 import { RenameTracker } from "./chat/rename-tracker.ts";
 import { registerMobileLogger } from "$lib/utils/mobile-logger.ts";
@@ -43,9 +24,6 @@ import { AgentBannerComponent } from "./editor/agent/agent-banner-component.svel
 import { PromptCommand } from "./editor/prompt-command.ts";
 import { ContextMenu } from "./editor/context-menu.ts";
 import { HtmlEscapeCommand } from "./editor/html-escape-command.ts";
-import { usePlugin } from "$lib/utils";
-import { generateText } from "ai";
-import { renderStringAsync } from "$lib/utils/nunjucks.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settingsManager: SettingsManager;
@@ -156,73 +134,6 @@ export class AgentSandboxPlugin extends Plugin {
     }
   }
 
-  async openFileSelect(onSelect: (file: TFile) => void) {
-    const modal = new FileSelectModal(this.app, onSelect);
-    modal.open();
-  }
-
-  async openChatView() {
-    const baseName = "New chat";
-    let fileName = baseName;
-    let counter = 1;
-
-    // Get the chats path from settings
-    const chatsPath = this.settingsManager.getSettings().vault.chatsPath;
-    const normalizedPath = chatsPath.startsWith("/")
-      ? chatsPath.slice(1)
-      : chatsPath;
-
-    // Ensure the directory exists
-    try {
-      const folderExists = this.app.vault.getAbstractFileByPath(normalizedPath);
-      if (!folderExists) {
-        await this.app.vault.createFolder(normalizedPath);
-      }
-    } catch (error) {
-      console.error("Error creating chats directory:", error);
-      this.showNotice("Failed to create chats directory", 3000);
-    }
-
-    // Create a unique filename
-    while (
-      this.app.vault.getAbstractFileByPath(`${normalizedPath}/${fileName}.chat`)
-    ) {
-      fileName = `${baseName} ${counter}`;
-      counter++;
-    }
-
-    const filePath = `${normalizedPath}/${fileName}.chat`;
-    const file = await this.app.vault.create(
-      filePath,
-      superjson.stringify(ChatSerializer.INITIAL_DATA),
-    );
-
-    let leaf: WorkspaceLeaf;
-
-    if (!Platform.isMobile) {
-      const rightChatLeaves = this.app.workspace
-        .getLeavesOfType(CHAT_VIEW_TYPE)
-        // @ts-expect-error containerEl not typed
-        .filter((l) => l.containerEl.closest(".mod-right-split"));
-
-      if (rightChatLeaves.length > 0) {
-        leaf = rightChatLeaves[0];
-      } else {
-        leaf = this.app.workspace.getRightLeaf(false);
-      }
-    } else {
-      // Mobile: fall back to the current/only leaf
-      leaf = this.app.workspace.getLeaf();
-    }
-
-    await leaf.openFile(file, {
-      active: true,
-      state: { mode: CHAT_VIEW_TYPE },
-    });
-
-    await this.app.workspace.revealLeaf(leaf);
-  }
-
   async openArtifactView(artifact: Artifact) {
     // Find or create a leaf in Obsidian's workspace
     let leaf = this.app.workspace
@@ -253,65 +164,6 @@ export class AgentSandboxPlugin extends Plugin {
     }
 
     return leaf;
-  }
-
-  showNotice(message: string, duration?: number) {
-    new Notice(message, duration);
-  }
-
-  openAccountModal(onSave: (account: AIAccount) => void, current?: AIAccount) {
-    const modal = new (class extends Modal {
-      private component?: any;
-      onOpen() {
-        this.component = mount(AccountModal, {
-          target: this.contentEl,
-          props: {
-            current,
-            close: () => this.close(),
-            save: (account: AIAccount) => {
-              this.close();
-              onSave(account);
-            },
-          },
-        });
-      }
-      onClose() {
-        if (this.component) {
-          unmount(this.component);
-        }
-        this.contentEl.empty();
-      }
-    })(this.app);
-    modal.open();
-  }
-
-  openModelModal(
-    onSave: (model: ChatModel | EmbeddingModel) => void,
-    current?: ChatModel | EmbeddingModel,
-  ) {
-    const modal = new (class extends Modal {
-      private component?: any;
-      onOpen() {
-        this.component = mount(ModelModal, {
-          target: this.contentEl,
-          props: {
-            current,
-            close: () => this.close(),
-            save: (model: ChatModel | EmbeddingModel) => {
-              this.close();
-              onSave(model);
-            },
-          },
-        });
-      }
-      async onClose() {
-        if (this.component) {
-          await unmount(this.component);
-        }
-        this.contentEl.empty();
-      }
-    })(this.app);
-    modal.open();
   }
 }
 

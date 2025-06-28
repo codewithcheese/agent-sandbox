@@ -18,7 +18,8 @@
   import { AssemblyAI } from "assemblyai";
   import { MarkdownView, Notice } from "obsidian";
   import { nanoid } from "nanoid";
-  import { getTranscriptionAccount } from "../settings/recording.ts";
+
+  import { getTranscriptionAccount } from "./settings.ts";
 
   // Define the structure for a recording object
   interface Recording {

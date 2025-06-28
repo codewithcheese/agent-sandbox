@@ -1,13 +1,18 @@
 <script lang="ts">
-  import type { ChatModel, EmbeddingModel, TranscriptionModel } from "./settings.ts";
+  import type {
+    AnyModel,
+    ChatModel,
+    EmbeddingModel,
+    TranscriptionModel,
+  } from "./settings.ts";
   import type { AllowEmpty } from "$lib/types/allow-empty.ts";
   import { nanoid } from "nanoid";
   import { usePlugin } from "$lib/utils";
 
   type Props = {
-    current?: ChatModel | EmbeddingModel | TranscriptionModel;
+    current?: AnyModel;
     close: () => void;
-    save: (model: ChatModel | EmbeddingModel | TranscriptionModel) => void;
+    save: (model: AnyModel) => void;
   };
   let { current, close, save }: Props = $props();
 
@@ -30,10 +35,10 @@
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    save($state.snapshot(model as ChatModel | EmbeddingModel | TranscriptionModel));
+    save($state.snapshot(model as AnyModel));
   }
 
-  function updateModelType(type: "chat" | "embedding" | "transcription") {
+  function updateModelType(type: AnyModel["type"]) {
     if (type === "chat") {
       model = {
         id: model.id,

@@ -11,8 +11,8 @@
 
   import { nanoid } from "nanoid";
   import { usePlugin } from "$lib/utils";
-  import { getTranscriptionAccount } from "../settings/recording";
   import type { StreamingEventMessage } from "assemblyai";
+  import { getTranscriptionAccount } from "./settings.ts";
 
   /********** Types **********/
   interface Recording {
