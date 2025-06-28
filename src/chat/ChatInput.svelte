@@ -4,6 +4,7 @@
     CornerDownLeftIcon,
     FileTextIcon,
     Loader2Icon,
+    SendIcon,
     SettingsIcon,
     StopCircleIcon,
     XIcon,
@@ -195,7 +196,10 @@
     const { value, selectionStart } = textarea;
 
     // Only trigger modals on manual typing, not deletion or paste
-    if (inputEvent.inputType === "insertText" || inputEvent.inputType === "insertCompositionText") {
+    if (
+      inputEvent.inputType === "insertText" ||
+      inputEvent.inputType === "insertCompositionText"
+    ) {
       // Check for backlink trigger
       if (detectBacklinkTrigger(value, selectionStart)) {
         openBacklinkModal(selectionStart);
@@ -340,8 +344,8 @@
       bind:ref={textareaRef}
       {title}
     />
-    <div class="flex items-center justify-between mt-2">
-      <div class="flex flex-row align-middle gap-2">
+    <div class="flex flex-wrap items-center justify-between gap-2 mt-2">
+      <div class="flex flex-row align-middle gap-1">
         <!--        <Button size="sm" type="button" onclick={handleTranscribeClick}>-->
         <!--          {#if realtime.state === "closed"}-->
         <!--            <MicIcon class="size-4" />-->
@@ -393,7 +397,7 @@
             bind:this={submitBtn}
           >
             Save
-            <CornerDownLeftIcon class="size-3.5" />
+            <SendIcon class="size-3.5" />
           </button>
         </div>
       {:else if chat.state.type === "idle"}
@@ -404,7 +408,7 @@
           bind:this={submitBtn}
         >
           Send
-          <CornerDownLeftIcon class="size-3.5" />
+          <SendIcon class="size-3.5" />
         </button>
       {:else}
         <button

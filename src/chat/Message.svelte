@@ -71,10 +71,7 @@
           <PencilIcon class="size-4" />
           <span>Editing...</span>
         </div>
-        <Markdown
-          md={message.content}
-          renderObsidian={message.role === "user"}
-        />
+        <Markdown md={message.content} renderObsidian={true} />
       </div>
     {/if}
   </div>
