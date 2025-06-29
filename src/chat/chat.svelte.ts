@@ -208,6 +208,7 @@ export class Chat {
       loadedAttachments.forEach((att) => {
         messageParts.push({
           type: "file",
+          filename: att.name,
           url: att.url,
           mediaType: att.contentType,
         });

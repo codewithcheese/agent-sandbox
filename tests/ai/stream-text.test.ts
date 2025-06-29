@@ -1,4 +1,4 @@
-import { generateText, stepCountIs, streamText, tool } from "ai";
+import { stepCountIs, streamText, tool } from "ai";
 import { describe, expect, it } from "vitest";
 import { createAIProvider } from "../../src/settings/providers.ts";
 import { useRecording } from "../use-recording.ts";
