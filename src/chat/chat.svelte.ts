@@ -24,7 +24,7 @@ import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { AIAccount, ChatModel } from "../settings/settings.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
-import { loadAttachments } from "./attachments.ts";
+import { loadFileParts } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
 import type { Frontiers } from "loro-crdt/base64";
 import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
@@ -204,15 +204,7 @@ export class Chat {
       { type: "text", text: content },
     ];
     if (attachments.length > 0) {
-      const loadedAttachments = await loadAttachments(attachments);
-      loadedAttachments.forEach((att) => {
-        messageParts.push({
-          type: "file",
-          filename: att.name,
-          url: att.url,
-          mediaType: att.contentType,
-        });
-      });
+      messageParts.push(...(await loadFileParts(attachments)));
     }
 
     // Insert a user message
@@ -290,19 +282,13 @@ export class Chat {
     // Re-load attachments from their paths
     const fileParts = message.parts.filter((p) => p.type === "file");
     if (fileParts.length > 0) {
-      const reloadedAttachments = await loadAttachments(
-        fileParts.map((p) => (p as any).name),
+      const reloadedFileParts = await loadFileParts(
+        fileParts.map((p) => p.filename),
       );
       // remove old file parts
       message.parts = message.parts.filter((p) => p.type !== "file");
       // add reloaded file parts
-      reloadedAttachments.forEach((att) => {
-        message.parts.push({
-          type: "file",
-          url: att.url,
-          mediaType: att.contentType,
-        });
-      });
+      message.parts.push(...reloadedFileParts);
     }
     // Revert vault changes to since message
     const checkpoint = message.metadata?.checkpoint;
