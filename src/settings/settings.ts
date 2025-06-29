@@ -1,11 +1,6 @@
 import { z } from "zod";
 import _ from "lodash";
 
-export type ModelConfig = {
-  baseURL?: string;
-  apiKey?: string;
-};
-
 export type AIAccount = z.infer<typeof AIAccountSchema>;
 
 export type ChatModel = {
@@ -128,7 +123,12 @@ export const SettingsV2Schema = SettingsV1Schema.extend({
   }),
 }).strict();
 
-export type CurrentSettings = z.infer<typeof SettingsV2Schema>;
+// Settings V3 Schema (extends V2 with latest Gemini models)
+export const SettingsV3Schema = SettingsV2Schema.extend({
+  version: z.literal(3),
+}).strict();
+
+export type CurrentSettings = z.infer<typeof SettingsV3Schema>;
 
 // =============================================================================
 // SETTINGS MIGRATIONS
@@ -371,13 +371,50 @@ Output the cleaned transcript within <cleaned> tags. Do not include any explanat
       },
     }),
   },
+  {
+    version: 3,
+    migrate: (
+      data: z.infer<typeof SettingsV2Schema>,
+    ): z.infer<typeof SettingsV3Schema> => ({
+      ...data,
+      version: 3,
+      models: _.unionBy(
+        data.models,
+        [
+          {
+            id: "gemini-2.5-pro",
+            provider: "gemini",
+            type: "chat",
+            inputTokenLimit: 1048576,
+            outputTokenLimit: 65536,
+          },
+          {
+            id: "gemini-2.5-flash",
+            provider: "gemini",
+            type: "chat",
+            inputTokenLimit: 1048576,
+            outputTokenLimit: 65536,
+          },
+          {
+            id: "gemini-2.5-flash-lite-preview-06-17",
+            provider: "gemini",
+            type: "chat",
+            inputTokenLimit: 1000000,
+            outputTokenLimit: 64000,
+          },
+        ],
+        "id",
+      ),
+    }),
+  },
 ];
 
 // Schema map for version-based validation
 export const SETTINGS_SCHEMAS = {
   1: SettingsV1Schema,
   2: SettingsV2Schema,
+  3: SettingsV3Schema,
 } as const;
 
 // Current version constant
-export const CURRENT_SETTINGS_VERSION = 2 as const;
+export const CURRENT_SETTINGS_VERSION = 3 as const;

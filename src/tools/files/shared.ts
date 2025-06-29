@@ -22,7 +22,6 @@ export const COMMON_IGNORE_PATTERNS = [
   "**/target/**",
   "**/build/**",
   "**/.gradle/**",
-  "**/packages/**",
   "**/bin/**",
   "**/obj/**",
   "**/.build/**",
