@@ -267,6 +267,23 @@ export class Chat {
     }
 
     message.metadata.modified = syncResult.map((r) => r.path);
+
+    // remove text and file parts
+    message.parts = message.parts.filter(
+      (p) => p.type !== "text" && p.type !== "file",
+    );
+    // update text parts
+    message.parts.push({
+      type: "text",
+      text: content,
+    });
+    // update file parts
+    if (attachments.length > 0) {
+      message.parts.push(...(await loadFileParts(attachments)));
+    }
+    // Merge in any additional user metadata
+    message.metadata = { ...message.metadata, ...userMetadata };
+
     // Truncate the conversation
     this.messages = this.messages.slice(0, index + 1);
 

@@ -9,6 +9,7 @@ import { nanoid } from "nanoid";
 import { createDebug } from "$lib/debug.ts";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 import { invariant } from "@epic-web/invariant";
+import type { UIMessageWithMetadata } from "../../chat/chat.svelte.ts";
 
 const debug = createDebug();
 
@@ -32,7 +33,7 @@ function parsePartialJson(text: string): { value: unknown } {
 }
 
 export function applyStreamPartToMessages(
-  messages: UIMessage[],
+  messages: UIMessageWithMetadata[],
   part: TextStreamPart<any>,
   streamingState: StreamingState,
 ) {
@@ -44,6 +45,9 @@ export function applyStreamPartToMessages(
         id: nanoid(),
         role: "assistant",
         parts: [],
+        metadata: {
+          createdAt: new Date(),
+        },
       });
       break;
 
