@@ -4,6 +4,7 @@ import { type CurrentSettings, SETTINGS_SCHEMAS } from "./settings";
 import { createDebug } from "$lib/debug.ts";
 import { SettingsTab } from "./settings-tab";
 import { migrateToLatest } from "./migrator.ts";
+import { usePlugin } from "$lib/utils";
 
 const debug = createDebug();
 
@@ -30,11 +31,25 @@ export class SettingsManager {
       console.error("Settings migration failed, using defaults.", error);
       new Notice(
         "Settings migration failed. Please downgrade the plugin to the previous version and file an issue on GitHub.",
-        8000,
       );
-      // todo: create a backup of old settings, before resuming with defaults
+      // Create a backup of old settings before resuming with defaults
+      await this.backup();
       this.settings = migrateToLatest({});
     }
+  }
+
+  private async backup(): Promise<void> {
+    const { app } = usePlugin();
+    const dataFilePath = `${this.plugin.manifest.dir}/data.json`;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupFilePath = `${this.plugin.manifest.dir}/data.json.${timestamp}.bak`;
+    // Read the current data.json
+    const currentData = await app.vault.read(dataFilePath);
+    // Write it to a backup file
+    await app.vault.write(backupFilePath, currentData);
+    new Notice(
+      `Settings backup created in plugin directory: data.json.${timestamp}.bak`,
+    );
   }
 
   async saveSettings(): Promise<void> {
