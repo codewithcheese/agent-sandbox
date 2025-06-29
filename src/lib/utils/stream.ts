@@ -34,11 +34,7 @@ function parsePartialJson(text: string): { value: unknown } {
 export function applyStreamPartToMessages(
   messages: UIMessage[],
   part: TextStreamPart<any>,
-  streamingState: StreamingState = {
-    partialToolCalls: {},
-    activeTextParts: {},
-    activeReasoningParts: {},
-  },
+  streamingState: StreamingState,
 ) {
   const message = messages[messages.length - 1]!;
 
@@ -61,8 +57,7 @@ export function applyStreamPartToMessages(
         type: "text",
         text: "",
         state: "streaming",
-      } as TextUIPart);
-
+      });
       // Track part index in streaming state
       streamingState.activeTextParts[part.id] = { partIndex: textPartIndex };
       break;
@@ -74,12 +69,11 @@ export function applyStreamPartToMessages(
       const textPart = message.parts[activeTextPart.partIndex] as TextUIPart;
       textPart.text += part.text;
       break;
-
     case "text-end":
       const endingTextPart = streamingState.activeTextParts[part.id];
       if (endingTextPart) {
         const textPart = message.parts[endingTextPart.partIndex] as TextUIPart;
-        (textPart as any).state = "done";
+        textPart.state = "done";
         delete streamingState.activeTextParts[part.id];
       }
       break;
@@ -114,7 +108,7 @@ export function applyStreamPartToMessages(
         const reasoningPart = message.parts[
           endingReasoningPart.partIndex
         ] as ReasoningUIPart;
-        (reasoningPart as any).state = "done";
+        reasoningPart.state = "done";
         delete streamingState.activeReasoningParts[part.id];
       }
       break;
@@ -291,12 +285,12 @@ export function applyStreamPartToMessages(
       // Mark all streaming parts as done using stored indices
       Object.values(streamingState.activeTextParts).forEach(({ partIndex }) => {
         const part = message.parts[partIndex] as TextUIPart;
-        (part as any).state = "done";
+        part.state = "done";
       });
       Object.values(streamingState.activeReasoningParts).forEach(
         ({ partIndex }) => {
           const part = message.parts[partIndex] as ReasoningUIPart;
-          (part as any).state = "done";
+          part.state = "done";
         },
       );
 
