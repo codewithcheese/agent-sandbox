@@ -1,10 +1,6 @@
 import type { Tool, UIMessage } from "ai";
 import { tool } from "ai";
-import {
-  jsonSchema,
-  type ToolInvocation,
-  type ToolInvocationUIPart,
-} from "@ai-sdk/ui-utils";
+import { jsonSchema, type ToolInvocation, type ToolInvocationUIPart } from "ai";
 import { type CachedMetadata, Notice, type TFile } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { resolveInternalLink } from "../lib/utils/obsidian";
