@@ -6,6 +6,7 @@ import {
   type Tool,
   type UIMessage,
   type UIMessagePart,
+  stepCountIs,
 } from "ai";
 import { createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
@@ -517,21 +518,22 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       try {
         this.state = { type: "loading" };
 
-        const modelOptions =
-          account.provider === "openai"
-            ? {
-                structuredOutputs: false,
-              }
-            : {};
+        // todo: test openai
+        // const modelOptions =
+        //   account.provider === "openai"
+        //     ? {
+        //         structuredOutputs: false,
+        //       }
+        //     : {};
         const stream = streamText({
           // todo: test openai without provider.responses (i think default is responses now)
-          model: provider.languageModel(modelId, modelOptions),
+          model: provider.languageModel(modelId),
           messages,
           tools: Object.keys(activeTools).length > 0 ? activeTools : undefined,
           maxRetries: 0,
-          maxSteps: this.options.maxSteps,
+          stopWhen: stepCountIs(this.options.maxSteps),
           temperature: this.options.temperature,
-          experimental_toolCallStreaming: true,
+          // todo: test tool call streaming
           providerOptions: {
             anthropic: {
               ...(this.options.thinkingEnabled

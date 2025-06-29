@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { normalizePath, TFile, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type {
-  ToolDefinition,
-  ToolExecutionOptionsWithContext,
-} from "../types.ts";
+import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 
 /**
@@ -119,7 +116,7 @@ async function validateWriteInput(
 
 export async function execute(
   params: z.infer<typeof writeInputSchema>,
-  toolExecOptions: ToolExecutionOptionsWithContext,
+  toolExecOptions: ToolCallOptionsWithContext,
 ): Promise<WriteToolOutput> {
   const { abortSignal } = toolExecOptions;
   const {

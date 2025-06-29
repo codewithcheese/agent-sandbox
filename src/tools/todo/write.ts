@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { createDebug } from "$lib/debug";
-import type {
-  LocalToolDefinition,
-  ToolExecutionOptionsWithContext,
-} from "../types";
+import type { LocalToolDefinition, ToolCallOptionsWithContext } from "../types";
 import { invariant } from "@epic-web/invariant";
 import { type TodoItem, todoItemSchema, TODOS_STORE_KEY } from "./shared.ts";
 
@@ -115,7 +112,7 @@ function validateTodoSemantics(
 // --- Execute Function ---
 export async function execute(
   params: z.infer<typeof inputSchema>,
-  toolExecOptions: ToolExecutionOptionsWithContext,
+  toolExecOptions: ToolCallOptionsWithContext,
 ): Promise<TodoWriteToolOutput> {
   const { abortSignal } = toolExecOptions; // abortSignal might not be heavily used here but good to have
   const { sessionStore, config: contextConfig } = toolExecOptions.getContext();

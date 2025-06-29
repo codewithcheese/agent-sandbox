@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { type App, TFile } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type {
-  ToolDefinition,
-  ToolExecutionOptionsWithContext,
-} from "../types.ts";
+import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { usePlugin } from "$lib/utils";
 
@@ -116,7 +113,7 @@ function safeCoreSearchInstance(app: App): any {
 // --- Execute Function ---
 export async function execute(
   params: z.infer<typeof searchInputSchema>,
-  toolExecOptions: ToolExecutionOptionsWithContext,
+  toolExecOptions: ToolCallOptionsWithContext,
 ): Promise<SearchToolOutput> {
   const { abortSignal } = toolExecOptions;
   const { vault, config: contextConfig } = toolExecOptions.getContext();

@@ -1,6 +1,5 @@
-import type { Tool, UIMessage } from "ai";
-import { tool } from "ai";
-import { jsonSchema, type ToolInvocation, type ToolInvocationUIPart } from "ai";
+import type { Tool, ToolUIPart } from "ai";
+import { getToolName, jsonSchema, tool } from "ai";
 import { type CachedMetadata, Notice, type TFile } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { resolveInternalLink } from "../lib/utils/obsidian";
@@ -13,7 +12,7 @@ import { editTool } from "./files/edit.ts";
 import { multiEditTool } from "./files/multi-edit.ts";
 import { globTool } from "./files/glob.ts";
 import { searchTool } from "./files/search.ts";
-import type { ToolDefinition, ToolExecContext } from "./types.ts";
+import type { ToolDefinition, ToolExecuteContext } from "./types.ts";
 import { listTool } from "./files/list.ts";
 import { toolDef as todoWrite } from "./todo/write.ts";
 import { toolDef as todoRead } from "./todo/read.ts";
@@ -34,37 +33,6 @@ export const toolRegistry: Record<string, ToolDefinition> = {
   todo_write: todoWrite,
   todo_read: todoRead,
 };
-
-export function updateToolInvocationPart(
-  message: UIMessage,
-  toolCallId: string,
-  invocation: ToolInvocation,
-) {
-  const part = message.parts.find(
-    (part) =>
-      part.type === "tool-invocation" &&
-      part.toolInvocation.toolCallId === toolCallId,
-  ) as ToolInvocationUIPart | undefined;
-
-  if (part != null) {
-    part.toolInvocation = invocation;
-  } else {
-    message.parts.push({
-      type: "tool-invocation",
-      toolInvocation: invocation,
-    });
-  }
-}
-
-export function getToolCall(message: UIMessage, toolCallId: string) {
-  return message.parts.find(
-    (p) =>
-      p.type === "tool-invocation" &&
-      p.toolInvocation.toolCallId === toolCallId,
-  ) as
-    | (ToolInvocationUIPart & { toolInvocation: { text: string } })
-    | undefined;
-}
 
 /**
  * Sanitize a string to be a valid function name
@@ -142,16 +110,13 @@ async function createPromptToolDefinition(
     inputSchema,
     execute: async (params, options) => {
       try {
-        // Use createSystemContent with additional template data
-        const content = await createSystemContent(file, {
+        return await createSystemContent(file, {
           template: {
             autoescape: false,
             throwOnUndefined: false,
           },
           additionalData: params,
         });
-
-        return content;
       } catch (error) {
         new Notice(
           `Failed to execute ${toolName}: ${error instanceof Error ? error.message : String(error)}`,
@@ -193,12 +158,12 @@ export async function parseToolDefinition(
  */
 export async function createTool(
   toolDef: ToolDefinition,
-  context: ToolExecContext,
+  context: ToolExecuteContext,
 ) {
   if (toolDef.type === "local") {
     return tool({
       description: toolDef.description,
-      parameters:
+      inputSchema:
         typeof toolDef.inputSchema === "string"
           ? jsonSchema(toolDef.inputSchema)
           : toolDef.inputSchema,
@@ -233,22 +198,19 @@ export async function loadToolsFromFrontmatter(
   return tools;
 }
 
-export async function executeToolInvocation(
-  toolInvocation: ToolInvocation,
-  chat: Chat,
-) {
+export async function executeToolCall(toolPart: ToolUIPart, chat: Chat) {
   const tool = Object.values(toolRegistry).find(
-    (toolDef) => toolDef.name === toolInvocation.toolName,
+    (toolDef) => toolDef.name === getToolName(toolPart),
   );
   if (!tool) {
-    throw new Error(`Tool not found: ${toolInvocation.toolName}`);
+    throw new Error(`Tool not found: ${getToolName(toolPart)}`);
   }
   if (!("execute" in tool)) {
-    throw new Error(`Tool is not executable: ${toolInvocation.toolName}`);
+    throw new Error(`Tool is not executable: ${getToolName(toolPart)}`);
   }
 
-  const result = await tool.execute(toolInvocation.args, {
-    toolCallId: toolInvocation.toolCallId,
+  const result = await tool.execute(toolPart.input, {
+    toolCallId: toolPart.toolCallId,
     messages: [],
     abortSignal: new AbortController().signal,
     getContext: () => ({
@@ -257,5 +219,5 @@ export async function executeToolInvocation(
       sessionStore: chat.sessionStore,
     }),
   });
-  debug("Tool result:", result, toolInvocation);
+  debug("Tool result:", result, toolPart);
 }

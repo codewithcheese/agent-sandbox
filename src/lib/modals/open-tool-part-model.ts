@@ -3,7 +3,7 @@ import ToolPartModal from "../../chat/ToolPartModal.svelte";
 import { mount, unmount } from "svelte";
 import type { Chat } from "../../chat/chat.svelte.ts";
 import { usePlugin } from "$lib/utils";
-import { executeToolInvocation } from "../../tools";
+import { executeToolCall } from "../../tools";
 import type { ToolUIPart } from "ai";
 
 export function openToolPartModal(chat: Chat, toolPart: ToolUIPart) {
@@ -19,7 +19,7 @@ export function openToolPartModal(chat: Chat, toolPart: ToolUIPart) {
           close: () => this.close(),
           execute: async () => {
             try {
-              const result = await executeToolInvocation(toolPart, chat);
+              const result = await executeToolCall(toolPart, chat);
               new Notice(`Tool result: ${result}`);
             } catch (error) {
               console.error("Error executing tool:", error);
