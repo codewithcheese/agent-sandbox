@@ -37,7 +37,7 @@
   prose-pre:m-0 prose-code:px-1 prose-lead:m-0 prose-strong:font-semibold prose-img:m-0 prose-video:m-0
   [body.theme-dark_&]:prose-invert prose-a:decoration-1 text-foreground max-w-full`;
 
-  $inspect("inputState", inputState);
+  // $inspect("inputState", inputState);
 
   // Link `source` context for prompt messages Markdown links
   setContext("linkSource", (message as any)?.metadata?.prompt?.path ?? "");
@@ -222,10 +222,9 @@
       </div>
     {/if}
   </div>
-  <!-- todo display partial tool calls before invocation -->
   {#if message.parts.some((part) => isToolUIPart(part))}
     {#each message.parts as part}
-      {#if part.type === "tool-invocation"}
+      {#if isToolUIPart(part)}
         <div class="rounded border border-(--background-modifier-border)">
           <div class="flex flex-row gap-1 text-xs p-1 items-center">
             <span>
@@ -240,8 +239,8 @@
             >
               <InfoIcon class="size-3" />
             </button>
+            <!-- fixme: display tool call metadata-->
           </div>
-          <!-- fixme: new method for displaying changes made-->
         </div>
       {/if}
     {/each}

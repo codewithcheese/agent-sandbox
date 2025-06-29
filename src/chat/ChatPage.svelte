@@ -26,7 +26,7 @@
   };
   let { chat, view, agents, inputState }: Props = $props();
 
-  $inspect("ChatPage", chat.path, inputState);
+  $inspect("ChatPage", chat.path, inputState, chat.messages);
 
   let scrollContainer = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);

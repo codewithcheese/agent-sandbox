@@ -243,7 +243,7 @@ export class Chat {
     invariant(message.role === "user", "Can only edit user messages");
 
     // Revert vault changes to since message
-    const checkpoint = message.metadata?.checkpoint;
+    const checkpoint = message.metadata.checkpoint;
     if (checkpoint) {
       this.vault.revert(checkpoint);
       // Reload session store after vault revert
