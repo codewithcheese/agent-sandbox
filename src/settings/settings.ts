@@ -16,10 +16,10 @@ export type ChatModel = {
   id: string;
   provider: string;
   type: "chat";
-  inputTokenLimit?: number;
-  outputTokenLimit?: number;
-  inputPrice: number; // Required in V4+
-  outputPrice: number; // Required in V4+
+  inputTokenLimit: number;
+  outputTokenLimit: number;
+  inputPrice: number;
+  outputPrice: number;
 };
 
 export type EmbeddingModel = {
@@ -33,7 +33,7 @@ export type TranscriptionModel = {
   id: string;
   provider: string;
   type: "transcription";
-  pricePerHour: number; // Required in V4+
+  pricePerHour: number;
 };
 
 export type AnyModel = ChatModel | EmbeddingModel | TranscriptionModel;
