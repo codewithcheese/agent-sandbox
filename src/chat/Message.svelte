@@ -182,69 +182,59 @@
         {/if}
       {/if}
     </div>
-    {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
-      <div
-        class={cn(
-          prose,
-          message.role === "user"
-            ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-            : "py-2",
-        )}
-      >
-        <!-- thinking content -->
-        {#if message.role === "assistant" && message.parts?.some((part) => part.type === "reasoning")}
-          <div class="py-1 text-sm text-(--text-muted)">
-            {message.parts
-              .filter((part) => part.type === "reasoning")
-              .flatMap((part) => part.text)
-              .join("\n")}
+    <!-- Render all parts in their original order -->
+    <div class="space-y-2">
+      {#each message.parts as part}
+        {#if part.type === "text"}
+          <div
+            class={cn(
+              prose,
+              message.role === "user"
+                ? "bg-(--background-primary-alt) border border-(--background-modifier-border) rounded p-4"
+                : "py-2",
+            )}
+          >
+            <Markdown md={part.text} renderObsidian={true} />
           </div>
-        {/if}
-        <Markdown md={getTextFromParts(message.parts)} renderObsidian={true} />
-      </div>
-    {/if}
-    {#if message.parts.filter((p) => p.type === "file").length > 0}
-      <div class="mt-2">
-        <div class="flex flex-wrap gap-2">
-          {#each message.parts.filter((p) => p.type === "file") as filePart}
+        {:else if part.type === "reasoning"}
+          <div class="py-1 text-sm text-(--text-muted) bg-(--background-secondary) rounded p-2">
+            {part.text}
+          </div>
+        {:else if part.type === "file"}
+          <div class="mt-2">
             <button
               class="clickable-icon gap-1"
               aria-label="Open attachment"
-              onclick={() => openPath(filePart.filename)}
+              onclick={() => openPath(part.filename)}
             >
               <FileTextIcon class="size-3.5" />
               <span class="max-w-[200px] truncate">
-                {filePart.filename.split("/").pop()}
+                {part.filename.split("/").pop()}
               </span>
             </button>
-          {/each}
-        </div>
-      </div>
-    {/if}
-  </div>
-  {#if message.parts.some((part) => isToolUIPart(part))}
-    {#each message.parts as part}
-      {#if isToolUIPart(part)}
-        <div class="rounded border border-(--background-modifier-border)">
-          <div class="flex flex-row gap-1 text-xs p-1 items-center">
-            <span>
-              {#if part.state === "output-available"}🟢{:else if part.state === "output-error"}🔴{:else}🟡{/if}
-            </span>
-            <div class="flex-1">{getToolName(part)}</div>
-            <button
-              type="button"
-              class="clickable-icon"
-              aria-label="Open tool invocation info"
-              onclick={() => openToolPartModal(chat, part)}
-            >
-              <InfoIcon class="size-3" />
-            </button>
-            <!-- fixme: display tool call metadata-->
           </div>
-        </div>
-      {/if}
-    {/each}
-  {/if}
+        {:else if isToolUIPart(part)}
+          <div class="rounded border border-(--background-modifier-border)">
+            <div class="flex flex-row gap-1 text-xs p-1 items-center">
+              <span>
+                {#if part.state === "output-available"}🟢{:else if part.state === "output-error"}🔴{:else}🟡{/if}
+              </span>
+              <div class="flex-1">{getToolName(part)}</div>
+              <button
+                type="button"
+                class="clickable-icon"
+                aria-label="Open tool invocation info"
+                onclick={() => openToolPartModal(chat, part)}
+              >
+                <InfoIcon class="size-3" />
+              </button>
+              <!-- fixme: display tool call metadata-->
+            </div>
+          </div>
+        {/if}
+      {/each}
+    </div>
+  </div>
 {/if}
 
 <style>
