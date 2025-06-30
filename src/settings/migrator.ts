@@ -21,8 +21,6 @@ export function migrateToLatest(data: unknown): CurrentSettings {
       sourceVersion = (data as { version: unknown }).version as number;
     }
 
-    // Validate source version is supported (0 is always supported as it means "start fresh")
-    const minVersion = Math.min(...Object.keys(SETTINGS_SCHEMAS).map(Number));
     const maxVersion = CURRENT_SETTINGS_VERSION;
 
     if (sourceVersion < 0 || sourceVersion > maxVersion) {
@@ -48,7 +46,6 @@ export function migrateToLatest(data: unknown): CurrentSettings {
       );
     }
 
-    // todo: why does safePare return optional for all keys
     return validationResult.data as CurrentSettings;
   } catch (error) {
     console.error("Settings migration failed:", error);

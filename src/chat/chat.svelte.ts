@@ -535,22 +535,13 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       try {
         this.state = { type: "loading" };
 
-        // todo: test openai
-        // const modelOptions =
-        //   account.provider === "openai"
-        //     ? {
-        //         structuredOutputs: false,
-        //       }
-        //     : {};
         const stream = streamText({
-          // todo: test openai without provider.responses (i think default is responses now)
           model: provider.languageModel(modelId),
           messages,
           tools: Object.keys(activeTools).length > 0 ? activeTools : undefined,
           maxRetries: 0,
           stopWhen: stepCountIs(this.options.maxSteps),
           temperature: this.options.temperature,
-          // todo: test tool call streaming
           providerOptions: {
             anthropic: {
               ...(this.options.thinkingEnabled
