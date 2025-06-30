@@ -8,8 +8,9 @@ import type {
   TFolder,
   Vault,
 } from "obsidian";
-import { fs, InMemoryStore, configure, InMemory } from "@zenfs/core";
+import { fs } from "@zenfs/core";
 import { normalizePath } from "./normalize-path.ts";
+import { migrateToLatest } from "../../src/settings/migrator.ts";
 
 if (typeof window !== "undefined" && typeof window.Buffer === "undefined") {
   window.Buffer = Buffer;
@@ -26,16 +27,8 @@ export const fileCache = new Map<string, any>();
  * Parse frontmatter from content and cache it if present
  */
 function parseFrontmatterAndCache(path: string, content: string) {
-  if (content) {
-    try {
-      const { data } = matter(content);
-      if (Object.keys(data).length > 0) {
-        fileCache.set(path, { frontmatter: data });
-      }
-    } catch (error) {
-      console.warn(`Failed to parse frontmatter for ${path}:`, error);
-    }
-  }
+  const { data } = matter(content);
+  fileCache.set(path, { frontmatter: data });
 }
 
 export class MockTAbstractFile implements TAbstractFile {
@@ -398,6 +391,19 @@ export const vault: Vault = {
     writeBinary: async (path: string, data: ArrayBuffer) => {
       fs.writeFileSync(path, Buffer.from(data));
     },
+    stat: async (path: string) => {
+      try {
+        const stat = fs.statSync(path);
+        return {
+          type: fs.statSync(path).isDirectory() ? "folder" : "file",
+          mtime: stat.mtimeMs || Date.now(),
+          ctime: stat.ctimeMs || Date.now(),
+          size: stat.size || 0,
+        };
+      } catch (error) {
+        throw new Error(`File not found: ${path}`);
+      }
+    },
   },
 
   // Helper method that returns all files from memfs
@@ -454,16 +460,6 @@ export const metadataCache = {
     return filesByBasename.length > 0 ? filesByBasename[0] : null;
   },
   on: () => {},
-};
-
-export const app = {
-  vault,
-  metadataCache,
-};
-
-export const plugin = {
-  app,
-  manifest: { dir: "test-dir" },
 };
 
 export const helpers = {
@@ -537,7 +533,20 @@ export const helpers = {
   },
 };
 
-// mock useProxy in src/utils/execute.ts
+export const app = {
+  vault,
+  metadataCache,
+};
+
+const settings = migrateToLatest({});
+
+export const plugin = {
+  app,
+  manifest: { dir: "test-dir" },
+  settings: settings,
+  loadSettings: () => settings,
+};
+
 window.Env = {
   Plugin: plugin,
 };

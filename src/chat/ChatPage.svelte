@@ -26,7 +26,7 @@
   };
   let { chat, view, agents, inputState }: Props = $props();
 
-  $inspect("ChatPage", chat.path, inputState);
+  $inspect("ChatPage", chat.path, inputState, chat.options.modelId);
 
   let scrollContainer = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);
@@ -114,7 +114,7 @@
       <div class="chat-margin px-2">
         <!-- system message -->
         {#if selectedAgent}
-          <AgentMessage agent={selectedAgent} />
+          <AgentMessage agent={selectedAgent} modelId={chat.options.modelId} />
         {/if}
         <!-- messages -->
         <div class="flex flex-col w-full flex-1 gap-1">

@@ -1,105 +1,145 @@
-import type { TextStreamPart, UIMessage } from "ai";
+import type {
+  ReasoningUIPart,
+  TextStreamPart,
+  TextUIPart,
+  ToolUIPart,
+  UIMessage,
+} from "ai";
 import { nanoid } from "nanoid";
-import { getToolCall, updateToolInvocationPart } from "../../tools";
-import { parsePartialJson } from "@ai-sdk/ui-utils";
 import { createDebug } from "$lib/debug.ts";
 import { encodeBase64 } from "$lib/utils/base64.ts";
+import { invariant } from "@epic-web/invariant";
+import type { UIMessageWithMetadata } from "../../chat/chat.svelte.ts";
 
 const debug = createDebug();
 
-export function applyStreamPartToMessages(
-  messages: UIMessage[],
-  part: TextStreamPart<any>,
-) {
-  // debug("stream part", part);
+// Streaming state tracks part indices for efficient updates
+export type StreamingState = {
+  partialToolCalls: Record<
+    string,
+    { text: string; toolName: string; partIndex: number }
+  >;
+  activeTextParts: Record<string, { partIndex: number }>;
+  activeReasoningParts: Record<string, { partIndex: number }>;
+};
 
+function parsePartialJson(text: string): { value: unknown } {
+  try {
+    return { value: JSON.parse(text) };
+  } catch {
+    // Return the raw text if JSON parsing fails
+    return { value: text };
+  }
+}
+
+export function applyStreamPartToMessages(
+  messages: UIMessageWithMetadata[],
+  part: TextStreamPart<any>,
+  streamingState: StreamingState,
+) {
   const message = messages[messages.length - 1]!;
-  const currentPart =
-    message.parts.length > 0 ? message.parts[message.parts.length - 1] : null;
-  let step =
-    1 +
-    // find max step in existing tool invocations:
-    (message.parts
-      .filter((part) => part.type === "tool-invocation")
-      .map((part) => part.toolInvocation)
-      .reduce((max, toolInvocation) => {
-        return Math.max(max, toolInvocation.step ?? 0);
-      }, 0) ?? 0);
 
   switch (part.type) {
-    case "step-start":
+    case "start-step":
       messages.push({
         id: nanoid(),
         role: "assistant",
-        content: "",
         parts: [],
+        metadata: {
+          createdAt: new Date(),
+        },
       });
       break;
-    case "text-delta":
-      if (currentPart?.type === "text") {
-        currentPart.text += part.textDelta;
-        message.content += part.textDelta;
-      } else {
-        message.parts.push({ type: "text", text: part.textDelta.trimStart() });
-        message.content += part.textDelta.trimStart();
-      }
+
+    case "start":
+      // Stream start - no action needed
       break;
-    case "reasoning":
-      if (currentPart && currentPart.type === "reasoning") {
-        currentPart.reasoning += part.textDelta;
-        const currentDetail =
-          currentPart.details.length > 0
-            ? currentPart.details[currentPart.details.length - 1]
-            : null;
-        if (currentDetail && currentDetail.type === "text") {
-          currentDetail.text += part.textDelta;
-        } else {
-          currentPart.details.push({ type: "text", text: part.textDelta });
-        }
-      } else {
-        message.parts.push({
-          type: "reasoning",
-          reasoning: part.textDelta,
-          details: [{ type: "text", text: part.textDelta }],
-        });
-      }
-      break;
-    case "redacted-reasoning": {
-      if (currentPart && currentPart.type === "reasoning") {
-        currentPart.details.push({ type: "redacted", data: part.data });
-      } else {
-        message.parts.push({
-          type: "reasoning",
-          reasoning: "",
-          details: [{ type: "redacted", data: part.data }],
-        });
-      }
-      break;
-    }
-    case "reasoning-signature": {
-      if (currentPart && currentPart.type === "reasoning") {
-        const currentDetail =
-          currentPart.details.length > 0
-            ? currentPart.details[currentPart.details.length - 1]
-            : null;
-        if (!currentDetail || currentDetail.type !== "text") {
-          throw Error(
-            'Received "reasoning-signature" before "reasoning" text detail',
-          );
-        } else {
-          currentDetail.signature = part.signature;
-        }
-      } else {
-        throw Error('Received "reasoning-signature" before "reasoning"');
-      }
-      break;
-    }
-    case "source":
+
+    case "text-start":
+      const textPartIndex = message.parts.length;
       message.parts.push({
-        type: "source",
-        source: part.source,
+        type: "text",
+        text: "",
+        state: "streaming",
       });
+      // Track part index in streaming state
+      streamingState.activeTextParts[part.id] = { partIndex: textPartIndex };
       break;
+
+    case "text":
+      const activeTextPart = streamingState.activeTextParts[part.id];
+      invariant(activeTextPart, "Active text part not found");
+
+      const textPart = message.parts[activeTextPart.partIndex] as TextUIPart;
+      textPart.text += part.text;
+      break;
+    case "text-end":
+      const endingTextPart = streamingState.activeTextParts[part.id];
+      if (endingTextPart) {
+        const textPart = message.parts[endingTextPart.partIndex] as TextUIPart;
+        textPart.state = "done";
+        delete streamingState.activeTextParts[part.id];
+      }
+      break;
+
+    case "reasoning-start":
+      const reasoningPartIndex = message.parts.length;
+      message.parts.push({
+        type: "reasoning",
+        text: "",
+        state: "streaming",
+      } as ReasoningUIPart);
+
+      // Track part index in streaming state
+      streamingState.activeReasoningParts[part.id] = {
+        partIndex: reasoningPartIndex,
+      };
+      break;
+
+    case "reasoning":
+      const activeReasoningPart = streamingState.activeReasoningParts[part.id];
+      invariant(activeReasoningPart, "Active reasoning part not found");
+
+      const reasoningPart = message.parts[
+        activeReasoningPart.partIndex
+      ] as ReasoningUIPart;
+      reasoningPart.text += part.text;
+      break;
+
+    case "reasoning-end":
+      const endingReasoningPart = streamingState.activeReasoningParts[part.id];
+      if (endingReasoningPart) {
+        const reasoningPart = message.parts[
+          endingReasoningPart.partIndex
+        ] as ReasoningUIPart;
+        reasoningPart.state = "done";
+        delete streamingState.activeReasoningParts[part.id];
+      }
+      break;
+
+    case "source":
+      if (part.sourceType === "url") {
+        message.parts.push({
+          type: "source-url",
+          sourceId: part.id,
+          title: part.title,
+          url: part.url,
+          providerMetadata: part.providerMetadata,
+        });
+      } else if (part.sourceType === "document") {
+        message.parts.push({
+          type: "source-document",
+          mediaType: part.mediaType,
+          title: part.title,
+          filename: part.filename,
+          sourceId: part.id,
+          providerMetadata: part.providerMetadata,
+        });
+      } else {
+        throw new Error(`Unknown source type: ${(part as any).sourceType}`);
+      }
+      break;
+
     case "error":
       console.error("Stream error:", part);
       if (part.error instanceof Error) {
@@ -115,85 +155,163 @@ export function applyStreamPartToMessages(
           typeof part.error === "string" ? part.error : "Unknown stream error",
         );
       }
-    case "tool-call-streaming-start": {
-      debug("tool-call-streaming-start", part);
 
-      const invocation = {
-        state: "partial-call",
-        step,
-        toolCallId: part.toolCallId,
-        toolName: part.toolName,
-        args: undefined,
+    case "tool-input-start": {
+      const toolPartIndex = message.parts.length;
+
+      // Track in streaming state with part index
+      streamingState.partialToolCalls[part.id] = {
         text: "",
-      } as const;
+        toolName: part.toolName,
+        partIndex: toolPartIndex,
+      };
 
-      updateToolInvocationPart(message, part.toolCallId, invocation);
+      message.parts.push({
+        type: `tool-${part.toolName}`,
+        state: "input-streaming",
+        input: undefined,
+        toolCallId: part.id,
+        providerExecuted: part.providerExecuted,
+      } as ToolUIPart);
       break;
     }
-    case "tool-call-delta": {
-      const toolCall = getToolCall(message, part.toolCallId);
-      if (!toolCall) {
-        throw new Error(`Partial tool call not found: ${part.toolCallId}`);
-      }
 
-      // debug("tool-call-delta", part);
+    case "tool-input-delta": {
+      const partialToolCall = streamingState.partialToolCalls[part.id];
+      invariant(partialToolCall, "Partial tool call not found");
 
-      toolCall.toolInvocation.text += part.argsTextDelta;
+      // Accumulate text in streaming state
+      partialToolCall.text += part.delta;
 
-      const { value: partialArgs } = parsePartialJson(
-        toolCall.toolInvocation.text,
-      );
+      // Parse partial JSON from accumulated text
+      const { value: partialArgs } = parsePartialJson(partialToolCall.text);
 
-      const invocation = {
-        state: "partial-call",
-        step: toolCall.toolInvocation.step,
-        toolCallId: part.toolCallId,
-        toolName: toolCall.toolInvocation.toolName,
-        args: partialArgs,
-        text: toolCall.toolInvocation.text,
-      } as const;
-
-      updateToolInvocationPart(message, part.toolCallId, invocation);
+      // Update the tool part using stored index
+      const toolPart = message.parts[partialToolCall.partIndex] as ToolUIPart;
+      message.parts[partialToolCall.partIndex] = {
+        ...toolPart,
+        state: "input-streaming",
+        input: partialArgs,
+      };
       break;
     }
+
+    case "tool-input-end": {
+      const partialToolCall = streamingState.partialToolCalls[part.id];
+      invariant(partialToolCall, "Partial tool call not found");
+
+      // Update the tool part using stored index
+      const toolPart = message.parts[partialToolCall.partIndex] as ToolUIPart;
+      message.parts[partialToolCall.partIndex] = {
+        ...toolPart,
+        state: "input-available",
+      };
+      break;
+    }
+
     case "tool-call": {
-      const invocation = {
-        state: "call",
-        step,
-        ...part,
-      } as const;
-
-      updateToolInvocationPart(message, part.toolCallId, invocation);
-      break;
-    }
-    case "tool-result": {
-      const toolCall = getToolCall(message, part.toolCallId);
-      if (!toolCall) {
-        throw new Error(`Tool call not found: ${part.toolCallId}`);
+      const partialToolCall = streamingState.partialToolCalls[part.toolCallId];
+      if (partialToolCall) {
+        message.parts[partialToolCall.partIndex] = {
+          type: `tool-${part.toolName}`,
+          state: "input-available",
+          toolCallId: part.toolCallId,
+          input: part.input,
+          providerExecuted: part.providerExecuted,
+        };
+      } else {
+        message.parts.push({
+          type: `tool-${part.toolName}`,
+          state: "input-available",
+          toolCallId: part.toolCallId,
+          input: part.input,
+          providerExecuted: part.providerExecuted,
+        });
       }
-
-      const invocation = {
-        ...toolCall.toolInvocation,
-        state: "result" as const,
-        ...part,
-      } as const;
-      updateToolInvocationPart(message, part.toolCallId, invocation);
       break;
     }
+
+    case "tool-result": {
+      const partIndex = message.parts.findIndex(
+        (p) =>
+          p.type === `tool-${part.toolName}` &&
+          // @ts-expect-error narrow doesn't work
+          p.toolCallId === part.toolCallId,
+      );
+      invariant(partIndex > -1, "Tool part not found");
+
+      message.parts[partIndex] = {
+        type: `tool-${part.toolName}`,
+        state: "output-available",
+        toolCallId: part.toolCallId,
+        input: part.input,
+        output: part.output,
+        providerExecuted: part.providerExecuted,
+      };
+      break;
+    }
+
+    case "tool-error": {
+      const partIndex = message.parts
+        .filter((part): part is ToolUIPart => part.type.startsWith("tool-"))
+        .findIndex((p) => p.toolCallId === part.toolCallId);
+      invariant(partIndex > -1, "Tool part not found");
+
+      message.parts[partIndex] = {
+        type: `tool-${part.toolName}`,
+        state: "output-error",
+        toolCallId: part.toolCallId,
+        input: part.input,
+        errorText:
+          part.error instanceof Error
+            ? part.error.message
+            : typeof part.error === "string"
+              ? part.error
+              : "Undefined tool error",
+        providerExecuted: part.providerExecuted,
+      };
+      break;
+    }
+
     case "file": {
       message.parts.push({
         type: "file",
-        mimeType: part.mimeType,
-        data: part.base64 ?? encodeBase64(part.uint8Array),
+        mediaType: part.file.mediaType,
+        url: part.file.uint8Array
+          ? `data:${part.file.mediaType};base64,${encodeBase64(part.file.uint8Array)}`
+          : `data:${part.file.mediaType};base64,${part.file.base64}`,
       });
       break;
     }
+
     case "finish":
       debug("finish", part);
+      // Mark all streaming parts as done using stored indices
+      Object.values(streamingState.activeTextParts).forEach(({ partIndex }) => {
+        const part = message.parts[partIndex] as TextUIPart;
+        part.state = "done";
+      });
+      Object.values(streamingState.activeReasoningParts).forEach(
+        ({ partIndex }) => {
+          const part = message.parts[partIndex] as ReasoningUIPart;
+          part.state = "done";
+        },
+      );
+
+      // Clear streaming state
+      streamingState.activeTextParts = {};
+      streamingState.activeReasoningParts = {};
+      streamingState.partialToolCalls = {};
       break;
-    case "step-finish":
-      debug("step-finish", part);
+
+    case "finish-step":
+      debug("finish-step", part);
       break;
+
+    case "raw":
+      debug("raw", part);
+      break;
+
     default: {
       const exhaustiveCheck: never = part;
       throw new Error(

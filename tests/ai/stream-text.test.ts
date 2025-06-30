@@ -1,7 +1,12 @@
-import { generateText, streamText } from "ai";
+import { stepCountIs, streamText, tool } from "ai";
 import { describe, expect, it } from "vitest";
 import { createAIProvider } from "../../src/settings/providers.ts";
 import { useRecording } from "../use-recording.ts";
+import {
+  applyStreamPartToMessages,
+  type StreamingState,
+} from "$lib/utils/stream.ts";
+import { z } from "zod";
 
 // fixme: not using har in CI
 describe.skip("generateText", () => {
@@ -23,22 +28,41 @@ describe.skip("generateText", () => {
         {
           role: "user",
           content:
-            "In Hitchhiker's Guide to the Galaxy. What number represents the meaning of life. Answer with numerals only.",
+            "Whats the weather in San Francisco? Answer with numerals only.",
         },
       ],
+      tools: {
+        get_weather: tool({
+          name: "get_weather",
+          inputSchema: z.object({
+            location: z.string(),
+          }),
+          description: "Get the weather",
+          execute: async () => {
+            return "42";
+          },
+        }),
+      },
       maxRetries: 0,
-      maxSteps: 1,
+      stopWhen: stepCountIs(2),
       temperature: 0,
       providerOptions: {
         anthropic: {},
       },
     });
 
-    let content = "";
-    for await (const part of response.textStream) {
-      content += part;
+    const messages = [];
+
+    const streamingState: StreamingState = {
+      partialToolCalls: {},
+      activeTextParts: {},
+      activeReasoningParts: {},
+    };
+    for await (const part of response.fullStream) {
+      applyStreamPartToMessages(messages, part, streamingState);
     }
 
-    expect(content).toContain("42");
+    expect(messages).toHaveLength(2);
+    expect(messages[1].parts[0].text).toContain("42");
   });
 });

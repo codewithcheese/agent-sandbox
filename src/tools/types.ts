@@ -1,19 +1,19 @@
 import type { Vault } from "obsidian";
-import type { ToolExecutionOptions } from "ai";
+import { type Tool, tool, type ToolCallOptions } from "ai";
 import { z, ZodAny, ZodObject } from "zod";
 import type { SessionStore } from "../chat/session-store.svelte.ts";
 
-export type ToolExecContext = {
+export type ToolExecuteContext = {
   vault: Vault;
   config?: Record<string, any>;
   sessionStore: SessionStore;
 };
 
-export type ToolExecutionOptionsWithContext = ToolExecutionOptions & {
-  getContext: () => ToolExecContext;
+export type ToolCallOptionsWithContext = ToolCallOptions & {
+  getContext: () => ToolExecuteContext;
 };
 
-export type ToolDefinition = LocalToolDefinition | ServerToolDefinition;
+export type ToolDefinition = LocalToolDefinition | ProviderToolDefinition;
 
 export type LocalToolDefinition<
   Schema extends ZodObject<any, any> = ZodObject<any, any>,
@@ -26,16 +26,16 @@ export type LocalToolDefinition<
   inputSchema: Schema;
   execute: (
     params: z.infer<Schema>,
-    options: ToolExecutionOptionsWithContext,
+    options: ToolCallOptionsWithContext,
   ) => Promise<any>;
 };
 
-export type ServerToolDefinition = {
-  type: "server";
+export type ProviderToolDefinition = {
+  type: "provider";
   name: string;
   humanName?: string;
   description: string;
   prompt?: string;
   providers: string[];
-  providerOptions?: Partial<Record<string, Record<string, any>>>;
+  createTool: (providerId: string, options: any) => Tool;
 };

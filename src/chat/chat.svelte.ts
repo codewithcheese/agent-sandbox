@@ -1,18 +1,22 @@
 import {
-  type Attachment,
-  convertToCoreMessages,
-  type CoreMessage,
+  convertToModelMessages,
+  type ModelMessage,
   generateText,
   streamText,
   type Tool,
   type UIMessage,
+  type UIMessagePart,
+  stepCountIs,
 } from "ai";
 import { createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
 import { type CachedMetadata, normalizePath, Notice, TFile } from "obsidian";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { loadToolsFromFrontmatter } from "../tools";
-import { applyStreamPartToMessages } from "$lib/utils/stream.ts";
+import {
+  applyStreamPartToMessages,
+  type StreamingState,
+} from "$lib/utils/stream.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import { createSystemContent } from "./system.ts";
@@ -21,12 +25,13 @@ import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { AIAccount, ChatModel } from "../settings/settings.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
-import { loadAttachments } from "./attachments.ts";
+import { loadFileParts } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
 import type { Frontiers } from "loro-crdt/base64";
 import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { SessionStore } from "./session-store.svelte.ts";
 import { syncChangesReminder } from "./system-reminders.ts";
+import { getTextFromParts } from "$lib/utils/ai.ts";
 
 const debug = createDebug();
 
@@ -65,7 +70,7 @@ export type WithAssistantMetadata = {
   metadata?: {};
 };
 
-export type UIMessageWithMetadata = UIMessage &
+export type UIMessageWithMetadata = UIMessage<{ createdAt: Date }> &
   (WithSystemMetadata | WithUserMetadata | WithAssistantMetadata);
 
 const chatCache = new Map<string, WeakRef<Chat | Promise<Chat>>>();
@@ -110,10 +115,7 @@ export type ChatOptions = {
 export class Chat {
   id = $state<string>();
   path = $state<string>();
-  messages = $state<
-    (UIMessage &
-      (WithAssistantMetadata | WithSystemMetadata | WithUserMetadata))[]
-  >([]);
+  messages = $state<UIMessageWithMetadata[]>([]);
   state = $state<LoadingState>({ type: "idle" });
   sessionStore = $state<SessionStore>();
   vault = $state<VaultOverlay>();
@@ -188,7 +190,7 @@ export class Chat {
 
     // Get timestamp of last message to filter renames
     const lastMessage = this.messages[this.messages.length - 1];
-    const sinceTimestamp = lastMessage?.createdAt;
+    const sinceTimestamp = lastMessage?.metadata.createdAt;
 
     // Sync vault and check for external changes
     const syncResult = await this.vault.syncAll(sinceTimestamp);
@@ -199,16 +201,20 @@ export class Chat {
       await this.addSystemMeta(changesSummary);
     }
 
+    const messageParts: UIMessagePart<any, any>[] = [
+      { type: "text", text: content },
+    ];
+    if (attachments.length > 0) {
+      messageParts.push(...(await loadFileParts(attachments)));
+    }
+
     // Insert a user message
     this.messages.push({
       id: nanoid(),
       role: "user",
-      content: content,
-      parts: [{ type: "text", text: content }],
-      experimental_attachments:
-        attachments.length > 0 ? await loadAttachments(attachments) : undefined,
-      createdAt: new Date(),
+      parts: messageParts,
       metadata: {
+        createdAt: new Date(),
         modified: syncResult.map((r) => r.path),
         checkpoint,
         ...userMetadata,
@@ -237,7 +243,7 @@ export class Chat {
     invariant(message.role === "user", "Can only edit user messages");
 
     // Revert vault changes to since message
-    const checkpoint = message.metadata?.checkpoint;
+    const checkpoint = message.metadata.checkpoint;
     if (checkpoint) {
       this.vault.revert(checkpoint);
       // Reload session store after vault revert
@@ -250,7 +256,7 @@ export class Chat {
       (msg, i) => i < index && msg.role === "assistant",
     );
     const syncResult = await this.vault.syncAll(
-      lastAssistantMessage?.createdAt,
+      lastAssistantMessage?.metadata.createdAt,
     );
 
     // Add system reminder for external changes if any (before the message being edited)
@@ -261,23 +267,23 @@ export class Chat {
     }
 
     message.metadata.modified = syncResult.map((r) => r.path);
-    // remove text parts
-    message.parts = message.parts.filter((p) => p.type !== "text");
-    // update content
-    message.content = content;
-    // update parts
+
+    // remove text and file parts
+    message.parts = message.parts.filter(
+      (p) => p.type !== "text" && p.type !== "file",
+    );
+    // update text parts
     message.parts.push({
       type: "text",
       text: content,
     });
-    // update attachments
+    // update file parts
     if (attachments.length > 0) {
-      message.experimental_attachments = await loadAttachments(attachments);
-    } else {
-      message.experimental_attachments = undefined;
+      message.parts.push(...(await loadFileParts(attachments)));
     }
     // Merge in any additional user metadata
     message.metadata = { ...message.metadata, ...userMetadata };
+
     // Truncate the conversation
     this.messages = this.messages.slice(0, index + 1);
 
@@ -291,14 +297,16 @@ export class Chat {
     const message = this.messages[index];
     invariant(message, `Cannot edit message. Message not found: #${index}`);
     invariant(message.role === "user", "Can only regenerate user messages");
-    // Update attachments
-    if (
-      message.experimental_attachments &&
-      message.experimental_attachments.length > 0
-    ) {
-      message.experimental_attachments = await loadAttachments(
-        message.experimental_attachments?.map((a) => a.name),
+    // Re-load attachments from their paths
+    const fileParts = message.parts.filter((p) => p.type === "file");
+    if (fileParts.length > 0) {
+      const reloadedFileParts = await loadFileParts(
+        fileParts.map((p) => p.filename),
       );
+      // remove old file parts
+      message.parts = message.parts.filter((p) => p.type !== "file");
+      // add reloaded file parts
+      message.parts.push(...reloadedFileParts);
     }
     // Revert vault changes to since message
     const checkpoint = message.metadata?.checkpoint;
@@ -314,7 +322,7 @@ export class Chat {
       (msg, i) => i < index && msg.role === "assistant",
     );
     const syncResult = await this.vault.syncAll(
-      lastAssistantMessage?.createdAt,
+      lastAssistantMessage?.metadata.createdAt,
     );
 
     // Add system reminder for external changes if any (before the message being regenerated)
@@ -361,12 +369,13 @@ export class Chat {
         system,
       });
 
-      const newSystemMessage = {
+      const newSystemMessage: UIMessage<{ createdAt: Date }> &
+        WithSystemMetadata = {
         id: systemMessage?.id || nanoid(),
-        content: system,
         role: "system" as const,
         parts: [{ type: "text" as const, text: system }],
         metadata: {
+          createdAt: new Date(),
           agentPath: this.options.agentPath!,
           agentModified,
         },
@@ -387,8 +396,6 @@ export class Chat {
       const plugin = usePlugin();
       await plugin.loadSettings();
 
-      let activeTools: Record<string, Tool> = {};
-
       const agentFile = plugin.app.vault.getFileByPath(this.options.agentPath);
       if (!agentFile) {
         throw Error(`Agent at ${this.options.agentPath} not found`);
@@ -399,17 +406,13 @@ export class Chat {
       let metadata: CachedMetadata | null =
         plugin.app.metadataCache.getFileCache(agentFile);
 
-      activeTools = await loadToolsFromFrontmatter(metadata!, this);
-
-      debug("Active tools", activeTools);
-
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
 
       debug("Submitting messages", $state.snapshot(this.messages));
 
-      const messages: CoreMessage[] = [
-        ...convertToCoreMessages(
+      const messages: ModelMessage[] = [
+        ...convertToModelMessages(
           wrapTextAttachments($state.snapshot(this.messages)),
           // filter out empty messages, empty messages were observed after tool calls in some cases
           // potentially a bug in AI SDK or in this plugin
@@ -438,10 +441,18 @@ export class Chat {
 
       debug("Core messages", messages);
 
+      const account = this.getAccount();
+      const activeTools = await loadToolsFromFrontmatter(
+        metadata!,
+        this,
+        account.provider,
+      );
+      debug("Active tools", activeTools);
+
       await this.callModel(
         messages,
         this.options.modelId!,
-        this.getAccount(),
+        account,
         activeTools,
         this.#abortController?.signal,
       );
@@ -509,7 +520,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
   }
 
   async callModel(
-    messages: CoreMessage[],
+    messages: ModelMessage[],
     modelId: string,
     account: AIAccount,
     activeTools: Record<string, any>,
@@ -525,24 +536,13 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     while (true) {
       try {
         this.state = { type: "loading" };
-
-        const modelOptions =
-          account.provider === "openai"
-            ? {
-                structuredOutputs: false,
-              }
-            : {};
         const stream = streamText({
-          model:
-            "responses" in provider
-              ? provider.responses(modelId)
-              : provider.languageModel(modelId, modelOptions),
+          model: provider.languageModel(modelId),
           messages,
           tools: Object.keys(activeTools).length > 0 ? activeTools : undefined,
           maxRetries: 0,
-          maxSteps: this.options.maxSteps,
+          stopWhen: stepCountIs(this.options.maxSteps),
           temperature: this.options.temperature,
-          experimental_toolCallStreaming: true,
           providerOptions: {
             anthropic: {
               ...(this.options.thinkingEnabled
@@ -555,7 +555,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
                 : {}),
             } satisfies AnthropicProviderOptions,
             openai: {
-              reasoningEffort: "high",
+              reasoningEffort: "medium",
               reasoningSummary: "detailed",
               strictSchemas: false,
             } satisfies OpenAIResponsesProviderOptions,
@@ -565,12 +565,10 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
             this.vault.computeChanges();
             debug("Step finish", step);
             step.toolCalls.forEach((toolCall) => {
-              debug("Tool call", toolCall.toolName, toolCall.args);
+              debug("Tool call", toolCall);
             });
             step.toolResults.forEach((toolResult) => {
-              debug("Tool result", toolResult.toolName, {
-                result: toolResult.result,
-              });
+              debug("Tool result", toolResult);
             });
           },
           onFinish: async (result) => {
@@ -579,8 +577,14 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         });
 
         // As we receive partial tokens, we apply them to `this.messages`
+        const streamingState: StreamingState = {
+          partialToolCalls: {},
+          activeTextParts: {},
+          activeReasoningParts: {},
+        };
+        debugger;
         for await (const chunk of stream.fullStream) {
-          applyStreamPartToMessages(this.messages, chunk);
+          applyStreamPartToMessages(this.messages, chunk, streamingState);
         }
 
         this.vault.computeChanges();
@@ -682,7 +686,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
 
     // Prepare the conversation content to insert into the prompt
     const conversationText = this.messages
-      .map((msg) => `${msg.role}: ${msg.content}`)
+      .map((msg) => `${msg.role}: ${getTextFromParts(msg.parts)}`)
       .join("\n\n");
 
     // Insert the conversation into the prompt template
@@ -696,7 +700,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
 
     try {
       // Create a message with the title generation prompt
-      const messages: CoreMessage[] = [
+      const messages: ModelMessage[] = [
         {
           role: "user",
           content: promptWithConversation,
@@ -824,16 +828,16 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     insertIndex?: number,
   ): Promise<number> {
     if (content.trim()) {
-      const reminderMessage: UIMessage & WithUserMetadata = {
-        id: nanoid(),
-        role: "user" as const,
-        content: content,
-        parts: [{ type: "text", text: content }],
-        metadata: {
-          isSystemMeta: true,
-        },
-        createdAt: new Date(),
-      };
+      const reminderMessage: UIMessage<{ createdAt: Date }> & WithUserMetadata =
+        {
+          id: nanoid(),
+          role: "user" as const,
+          parts: [{ type: "text", text: content }],
+          metadata: {
+            createdAt: new Date(),
+            isSystemMeta: true,
+          },
+        };
 
       if (insertIndex !== undefined) {
         // Check if there's already a system reminder at this index

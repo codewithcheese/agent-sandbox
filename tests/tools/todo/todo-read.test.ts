@@ -4,7 +4,7 @@ import {
   defaultConfig,
   toolDef,
 } from "../../../src/tools/todo/write.ts";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types";
+import type { ToolCallOptionsWithContext } from "../../../src/tools/types";
 import { invariant } from "@epic-web/invariant";
 import {
   type TodoItem,
@@ -20,7 +20,7 @@ import {
 import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("TodoWrite tool execute function", () => {
-  let toolExecOptions: ToolExecutionOptionsWithContext;
+  let toolExecOptions: ToolCallOptionsWithContext;
   let vault: VaultOverlay;
   let mockSessionStore: Record<string, any>;
   let mockAbortController: AbortController;
@@ -80,7 +80,7 @@ describe("TodoWrite tool execute function", () => {
     expect(result.llmConfirmation).toContain(
       "Total: 2 (Pending: 2, In Progress: 0, Completed: 0)",
     );
-    
+
     // Check using SessionStore async API
     const storedTodos = await sessionStore.get(TODOS_STORE_KEY);
     expect(storedTodos).toEqual(newTodos);
@@ -89,7 +89,7 @@ describe("TodoWrite tool execute function", () => {
   it("should replace an existing todo list in the store", async () => {
     // Set up existing todos using SessionStore API
     await sessionStore.set(TODOS_STORE_KEY, [sampleTodo3]);
-    
+
     const newTodos = [sampleTodo1, sampleTodo2];
     const params = { todos: newTodos };
     const result = await todoWriteExecute(params, toolExecOptions);
@@ -100,7 +100,7 @@ describe("TodoWrite tool execute function", () => {
     );
     expect(result.oldTodosCount).toBe(1);
     expect(result.newTodosCount).toBe(2);
-    
+
     // Check using SessionStore async API
     const storedTodos = await sessionStore.get(TODOS_STORE_KEY);
     expect(storedTodos).toEqual(newTodos);
@@ -108,8 +108,12 @@ describe("TodoWrite tool execute function", () => {
 
   it("should clear the todo list if an empty array is provided", async () => {
     // Set up existing todos using SessionStore API
-    await sessionStore.set(TODOS_STORE_KEY, [sampleTodo1, sampleTodo2, sampleTodo3]);
-    
+    await sessionStore.set(TODOS_STORE_KEY, [
+      sampleTodo1,
+      sampleTodo2,
+      sampleTodo3,
+    ]);
+
     const params = { todos: [] };
     const result = await todoWriteExecute(params, toolExecOptions);
 
@@ -120,7 +124,7 @@ describe("TodoWrite tool execute function", () => {
     expect(result.oldTodosCount).toBe(3);
     expect(result.newTodosCount).toBe(0);
     expect(result.llmConfirmation).toContain("Total: 0");
-    
+
     // Check using SessionStore async API
     const storedTodos = await sessionStore.get(TODOS_STORE_KEY);
     expect(storedTodos).toEqual([]);

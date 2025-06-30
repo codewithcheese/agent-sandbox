@@ -5,12 +5,12 @@ import {
   vault as mockVault,
 } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
+import type { ToolCallOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("Glob tool execute function", () => {
-  let toolExecOptions: ToolExecutionOptionsWithContext;
+  let toolExecOptions: ToolCallOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
   let sessionStore: SessionStore;
@@ -280,7 +280,7 @@ describe("Glob tool execute function", () => {
 });
 
 describe("Glob tool efficiency tests", () => {
-  let toolExecOptions: ToolExecutionOptionsWithContext;
+  let toolExecOptions: ToolCallOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
   let sessionStore: SessionStore;

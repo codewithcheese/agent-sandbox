@@ -4,7 +4,7 @@ import {
   defaultConfig as defaultConfig,
   toolDef,
 } from "../../../src/tools/todo/read";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types";
+import type { ToolCallOptionsWithContext } from "../../../src/tools/types";
 import { invariant } from "@epic-web/invariant";
 import {
   type TodoItem,
@@ -17,7 +17,7 @@ import { vault as mockVault } from "../../mocks/obsidian.ts";
 import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("TodoRead tool execute function", () => {
-  let toolExecOptions: ToolExecutionOptionsWithContext;
+  let toolExecOptions: ToolCallOptionsWithContext;
   let vault: VaultOverlay;
   let sessionStore: SessionStore;
   let mockAbortController: AbortController;

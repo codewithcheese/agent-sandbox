@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { UIMessage } from "ai";
   import {
     FileSymlinkIcon,
     FileTextIcon,
@@ -12,12 +11,14 @@
   import { loadPromptMessage } from "../editor/prompt-command.ts";
   import { cn, usePlugin } from "$lib/utils";
   import type { Chat, UIMessageWithMetadata } from "./chat.svelte.ts";
-  import { openToolInvocationInfoModal } from "$lib/modals/tool-invocation-info-modal.ts";
+  import { openToolPartModal } from "$lib/modals/open-tool-part-model.ts";
   import { openPath } from "$lib/utils/obsidian.ts";
   import { setContext } from "svelte";
   import { getBaseName } from "$lib/utils/path.ts";
   import { dirname } from "path-browserify";
   import type { ChatInputState } from "./chat-input-state.svelte.ts";
+  import { getTextFromParts } from "$lib/utils/ai.ts";
+  import { getToolName, isToolUIPart } from "ai";
 
   type Props = {
     chat: Chat;
@@ -36,7 +37,7 @@
   prose-pre:m-0 prose-code:px-1 prose-lead:m-0 prose-strong:font-semibold prose-img:m-0 prose-video:m-0
   [body.theme-dark_&]:prose-invert prose-a:decoration-1 text-foreground max-w-full`;
 
-  $inspect("inputState", inputState);
+  // $inspect("inputState", inputState);
 
   // Link `source` context for prompt messages Markdown links
   setContext("linkSource", (message as any)?.metadata?.prompt?.path ?? "");
@@ -71,7 +72,7 @@
           <PencilIcon class="size-4" />
           <span>Editing...</span>
         </div>
-        <Markdown md={message.content} renderObsidian={true} />
+        <Markdown md={getTextFromParts(message.parts)} renderObsidian={true} />
       </div>
     {/if}
   </div>
@@ -134,10 +135,10 @@
             onclick={() => {
               inputState.startEditing(
                 index,
-                message.content.trim(),
-                message.experimental_attachments
-                  ? message.experimental_attachments.map((a) => a.name)
-                  : [],
+                getTextFromParts(message.parts).trim(),
+                message.parts
+                  .filter((p) => p.type === "file")
+                  .map((p) => p.filename),
               );
             }}
           >
@@ -160,10 +161,10 @@
             onclick={() => {
               inputState.startEditing(
                 index,
-                message.content.trim(),
-                message.experimental_attachments
-                  ? message.experimental_attachments.map((a) => a.name)
-                  : [],
+                getTextFromParts(message.parts).trim(),
+                message.parts
+                  .filter((p) => p.type === "file")
+                  .map((p) => p.filename),
               );
             }}
           >
@@ -181,71 +182,59 @@
         {/if}
       {/if}
     </div>
-    {#if message.parts.some((p) => p.type === "text" || p.type === "reasoning")}
-      <div
-        class={cn(
-          prose,
-          message.role === "user"
-            ? "bg-(--background-primary-alt) border border-(--background-modifier-border)  rounded p-4"
-            : "py-2",
-        )}
-      >
-        <!-- thinking content -->
-        {#if message.role === "assistant" && message.parts?.some((part) => part.type === "reasoning")}
-          <div class="py-1 text-sm text-(--text-muted)">
-            {message.parts
-              .filter((part) => part.type === "reasoning")
-              .flatMap((part) => part.reasoning)
-              .join("\n")}
+    <!-- Render all parts in their original order -->
+    <div class="space-y-2">
+      {#each message.parts as part}
+        {#if part.type === "text"}
+          <div
+            class={cn(
+              prose,
+              message.role === "user"
+                ? "bg-(--background-primary-alt) border border-(--background-modifier-border) rounded p-4"
+                : "py-2",
+            )}
+          >
+            <Markdown md={part.text} renderObsidian={true} />
           </div>
-        {/if}
-        <Markdown md={message.content} renderObsidian={true} />
-      </div>
-    {/if}
-    {#if message.experimental_attachments && message.experimental_attachments.length > 0}
-      <div class="mt-2">
-        <div class="flex flex-wrap gap-2">
-          {#each message.experimental_attachments as attachment}
+        {:else if part.type === "reasoning"}
+          <div class="py-1 text-sm text-(--text-muted) bg-(--background-secondary) rounded p-2">
+            {part.text}
+          </div>
+        {:else if part.type === "file"}
+          <div class="mt-2">
             <button
               class="clickable-icon gap-1"
               aria-label="Open attachment"
-              onclick={() => openPath(attachment.name)}
+              onclick={() => openPath(part.filename)}
             >
               <FileTextIcon class="size-3.5" />
               <span class="max-w-[200px] truncate">
-                {attachment.name.split("/").pop()}
+                {part.filename.split("/").pop()}
               </span>
             </button>
-          {/each}
-        </div>
-      </div>
-    {/if}
-  </div>
-  <!-- todo display partial tool calls before invocation -->
-  {#if message.parts?.some((part) => part.type === "tool-invocation")}
-    {#each message.parts as part}
-      {#if part.type === "tool-invocation"}
-        <div class="rounded border border-(--background-modifier-border)">
-          <div class="flex flex-row gap-1 text-xs p-1 items-center">
-            <span>
-              {#if part.toolInvocation.state === "result"}🟢{:else}🟡{/if}
-            </span>
-            <div class="flex-1">{part.toolInvocation.toolName}</div>
-            <button
-              type="button"
-              class="clickable-icon"
-              aria-label="Open tool invocation info"
-              onclick={() =>
-                openToolInvocationInfoModal(chat, part.toolInvocation)}
-            >
-              <InfoIcon class="size-3" />
-            </button>
           </div>
-          <!-- fixme: new method for displaying changes made-->
-        </div>
-      {/if}
-    {/each}
-  {/if}
+        {:else if isToolUIPart(part)}
+          <div class="rounded border border-(--background-modifier-border)">
+            <div class="flex flex-row gap-1 text-xs p-1 items-center">
+              <span>
+                {#if part.state === "output-available"}🟢{:else if part.state === "output-error"}🔴{:else}🟡{/if}
+              </span>
+              <div class="flex-1">{getToolName(part)}</div>
+              <button
+                type="button"
+                class="clickable-icon"
+                aria-label="Open tool invocation info"
+                onclick={() => openToolPartModal(chat, part)}
+              >
+                <InfoIcon class="size-3" />
+              </button>
+              <!-- fixme: display tool call metadata-->
+            </div>
+          </div>
+        {/if}
+      {/each}
+    </div>
+  </div>
 {/if}
 
 <style>

@@ -1,11 +1,11 @@
-import type { Attachment } from "ai";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 import { extensionToMimeType } from "$lib/utils/mime.ts";
 import { usePlugin } from "$lib/utils";
+import type { FileUIPart } from "ai";
 
-export async function loadAttachments(paths: string[]): Promise<Attachment[]> {
+export async function loadFileParts(paths: string[]): Promise<FileUIPart[]> {
   const plugin = usePlugin();
-  const attachments: Attachment[] = [];
+  const files: FileUIPart[] = [];
   if (paths.length > 0) {
     for (const path of paths) {
       try {
@@ -14,34 +14,35 @@ export async function loadAttachments(paths: string[]): Promise<Attachment[]> {
           throw new Error(`Attachment not found: ${path}`);
         }
         let data;
-        let contentType;
+        let mediaType;
         if (
           IMAGE_EXTENSIONS.has(file.extension) ||
           BINARY_EXTENSIONS_NO_IMAGE.has(file.extension)
         ) {
           data = await plugin.app.vault.readBinary(file);
-          contentType = extensionToMimeType(file.extension);
+          mediaType = extensionToMimeType(file.extension);
         } else if (["md"].includes(file.extension)) {
           // Read markdown files use read
           data = await plugin.app.vault.read(file);
-          contentType = "text/plain";
+          mediaType = "text/plain";
         } else {
           // Unknown extension must be read as binary in Obsidian
           data = await plugin.app.vault.readBinary(file);
-          contentType = "text/plain";
+          mediaType = "text/plain";
         }
         const base64 = encodeBase64(data);
-        attachments.push({
-          name: path,
-          contentType,
-          url: `data:${contentType};base64,${base64}`,
+        files.push({
+          type: "file",
+          filename: path,
+          mediaType,
+          url: `data:${mediaType};base64,${base64}`,
         });
       } catch (error) {
         console.error("Failed to load attachment data:", error);
       }
     }
   }
-  return attachments;
+  return files;
 }
 
 export const IMAGE_EXTENSIONS = new Set([

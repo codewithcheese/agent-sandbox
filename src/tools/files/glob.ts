@@ -8,10 +8,7 @@ import {
 } from "obsidian";
 import picomatch from "picomatch";
 import { createDebug } from "$lib/debug";
-import type {
-  ToolDefinition,
-  ToolExecutionOptionsWithContext,
-} from "../types.ts";
+import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import {
   COMMON_IGNORE_PATTERNS,
@@ -129,7 +126,7 @@ async function validateInput(
 
 export async function execute(
   params: z.infer<typeof globInputSchema>,
-  toolExecOptions: ToolExecutionOptionsWithContext,
+  toolExecOptions: ToolCallOptionsWithContext,
 ): Promise<GlobToolOutput> {
   const { abortSignal } = toolExecOptions;
   const { vault, config: contextConfig } = toolExecOptions.getContext();

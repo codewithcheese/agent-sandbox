@@ -1,7 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOllama } from "ollama-ai-provider";
 
 import type { AIAccount } from "./settings.ts";
 
@@ -24,10 +23,11 @@ export function createAIProvider(account: AIAccount) {
       return createGoogleGenerativeAI({
         ...account.config,
       });
-    case "ollama":
-      return createOllama({
-        ...account.config,
-      });
+    // todo: bring back support when they ship v5 compatible provider
+    // case "ollama":
+    //   return createOllama({
+    //     ...account.config,
+    //   });
     case "assemblyai":
       throw Error("AssemblyAI cannot be used as a AI SDK provider.");
     default:

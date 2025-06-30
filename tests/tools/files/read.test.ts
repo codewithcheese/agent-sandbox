@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execute as readToolExecute } from "../../../src/tools/files/read";
 import { helpers, vault as mockVault } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
+import type { ToolCallOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("readToolExecute", () => {
-  let toolExecOptions: ToolExecutionOptionsWithContext;
+  let toolExecOptions: ToolCallOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
   let sessionStore: SessionStore;
@@ -82,7 +82,7 @@ describe("readToolExecute", () => {
     const largeContent = "a".repeat(100);
     await vault.create("/test/largefile.txt", largeContent);
     const params = { file_path: "/test/largefile.txt" };
-    const options: ToolExecutionOptionsWithContext = {
+    const options: ToolCallOptionsWithContext = {
       ...toolExecOptions,
       getContext: () => ({
         vault,
@@ -217,7 +217,7 @@ describe("readToolExecute", () => {
       "Line1\nLine2\nLine3\nLine4\nLine5\nLine6\nLine7\nLine8\nLine9\nLine10"; // Approx 60 chars
     await vault.create("/test/output_truncate.txt", longContentForTest);
     const params = { file_path: "/test/output_truncate.txt" };
-    const options: ToolExecutionOptionsWithContext = {
+    const options: ToolCallOptionsWithContext = {
       ...toolExecOptions,
       getContext: () => ({
         vault,

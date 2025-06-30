@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import { describe, expect, it } from "vitest";
 import { createAIProvider } from "../../src/settings/providers.ts";
 import { useRecording } from "../use-recording.ts";
@@ -27,7 +27,7 @@ describe.skip("generateText", () => {
         },
       ],
       maxRetries: 0,
-      maxSteps: 1,
+      stopWhen: stepCountIs(1),
       temperature: 0,
       providerOptions: {
         anthropic: {},
