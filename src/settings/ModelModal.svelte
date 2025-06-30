@@ -46,6 +46,8 @@
         type: "chat",
         inputTokenLimit: (model as ChatModel).inputTokenLimit || 0,
         outputTokenLimit: (model as ChatModel).outputTokenLimit || 0,
+        inputPrice: (model as ChatModel).inputPrice || 0,
+        outputPrice: (model as ChatModel).outputPrice || 0,
       };
     } else if (type === "embedding") {
       model = {
@@ -59,6 +61,7 @@
         id: model.id,
         provider: model.provider,
         type: "transcription",
+        pricePerHour: (model as TranscriptionModel).pricePerHour || 0,
       };
     }
   }
@@ -153,6 +156,42 @@
           />
         </div>
       </div>
+
+      <div class="setting-item">
+        <div class="setting-item-info">
+          <div class="setting-item-name">Input Price</div>
+          <div class="setting-item-description">
+            Cost per million input tokens in USD. Use 0 for free/local models.
+          </div>
+        </div>
+        <div class="setting-item-control">
+          <input
+            required
+            type="number"
+            min="0"
+            step="0.01"
+            bind:value={model.inputPrice}
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-item-info">
+          <div class="setting-item-name">Output Price</div>
+          <div class="setting-item-description">
+            Cost per million output tokens in USD. Use 0 for free/local models.
+          </div>
+        </div>
+        <div class="setting-item-control">
+          <input
+            required
+            type="number"
+            min="0"
+            step="0.01"
+            bind:value={model.outputPrice}
+          />
+        </div>
+      </div>
     {:else if model.type === "embedding"}
       <div class="setting-item">
         <div class="setting-item-info">
@@ -163,6 +202,24 @@
         </div>
         <div class="setting-item-control">
           <input required type="number" min="0" bind:value={model.dimensions} />
+        </div>
+      </div>
+    {:else if model.type === "transcription"}
+      <div class="setting-item">
+        <div class="setting-item-info">
+          <div class="setting-item-name">Price per Hour</div>
+          <div class="setting-item-description">
+            Cost per hour of transcription in USD. Use 0 for free/local models.
+          </div>
+        </div>
+        <div class="setting-item-control">
+          <input
+            required
+            type="number"
+            min="0"
+            step="0.01"
+            bind:value={model.pricePerHour}
+          />
         </div>
       </div>
     {/if}
