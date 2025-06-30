@@ -16,13 +16,16 @@ import type { ToolDefinition, ToolExecuteContext } from "./types.ts";
 import { listTool } from "./files/list.ts";
 import { toolDef as todoWrite } from "./todo/write.ts";
 import { toolDef as todoRead } from "./todo/read.ts";
+import { toolDef as webSearch } from "./anthropic/web-search.ts";
 import { extractCodeBlockContent } from "../lib/utils/codeblocks.ts";
 import { createSystemContent } from "../chat/system.ts";
 import { z } from "zod";
+import { anthropic } from "@ai-sdk/anthropic";
 
 const debug = createDebug();
 
 export const toolRegistry: Record<string, ToolDefinition> = {
+  web_search: webSearch,
   list: listTool,
   read: readTool,
   write: writeTool,
@@ -170,8 +173,13 @@ export async function createTool(
       execute: (params, options) =>
         toolDef.execute(params, { ...options, getContext: () => context }),
     });
+  } else if (toolDef.type === "provider") {
+    // todo: support tool options
+    // todo: support provider checking
+    return toolDef.createTool({});
   } else {
-    throw new Error(`Tool type not supported: ${toolDef.type}`);
+    const exhausted: never = toolDef;
+    throw new Error(`Tool type not supported: ${(exhausted as any).type}`);
   }
 }
 

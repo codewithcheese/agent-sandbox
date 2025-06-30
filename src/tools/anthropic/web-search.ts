@@ -1,15 +1,18 @@
-import type { ServerToolDefinition, ToolDefinition } from "../types.ts";
+import type { ProviderToolDefinition } from "../types.ts";
+import { anthropic } from "@ai-sdk/anthropic";
 
-export const toolDef: ServerToolDefinition = {
-  type: "server",
+type WebSearchOptions = Parameters<
+  typeof anthropic.tools.webSearch_20250305
+>[0];
+
+export const toolDef: ProviderToolDefinition = {
+  type: "provider",
   name: "web_search",
   humanName: "Web Search",
   description:
-    "Search the web for real-time information to answer questions with up-to-date information beyond its knowledge cutoff.",
+    "Search the web for real-time information to answer questions with up-to-date information beyond your knowledge cutoff.",
   providers: ["anthropic"],
-  providerOptions: {
-    anthropic: {
-      type: "web_search_20250305",
-    },
+  createTool: (options: WebSearchOptions) => {
+    return anthropic.tools.webSearch_20250305(options);
   },
 };
