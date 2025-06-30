@@ -396,8 +396,6 @@ export class Chat {
       const plugin = usePlugin();
       await plugin.loadSettings();
 
-      let activeTools: Record<string, Tool> = {};
-
       const agentFile = plugin.app.vault.getFileByPath(this.options.agentPath);
       if (!agentFile) {
         throw Error(`Agent at ${this.options.agentPath} not found`);
@@ -407,10 +405,6 @@ export class Chat {
 
       let metadata: CachedMetadata | null =
         plugin.app.metadataCache.getFileCache(agentFile);
-
-      activeTools = await loadToolsFromFrontmatter(metadata!, this);
-
-      debug("Active tools", activeTools);
 
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
@@ -447,10 +441,18 @@ export class Chat {
 
       debug("Core messages", messages);
 
+      const account = this.getAccount();
+      const activeTools = await loadToolsFromFrontmatter(
+        metadata!,
+        this,
+        account.provider,
+      );
+      debug("Active tools", activeTools);
+
       await this.callModel(
         messages,
         this.options.modelId!,
-        this.getAccount(),
+        account,
         activeTools,
         this.#abortController?.signal,
       );
@@ -534,7 +536,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     while (true) {
       try {
         this.state = { type: "loading" };
-
         const stream = streamText({
           model: provider.languageModel(modelId),
           messages,
@@ -554,7 +555,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
                 : {}),
             } satisfies AnthropicProviderOptions,
             openai: {
-              reasoningEffort: "high",
+              reasoningEffort: "medium",
               reasoningSummary: "detailed",
               strictSchemas: false,
             } satisfies OpenAIResponsesProviderOptions,

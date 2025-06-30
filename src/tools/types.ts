@@ -37,5 +37,5 @@ export type ProviderToolDefinition = {
   description: string;
   prompt?: string;
   providers: string[];
-  createTool: (options: any) => Tool;
+  createTool: (providerId: string, options: any) => Tool;
 };

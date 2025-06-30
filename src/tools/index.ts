@@ -16,7 +16,7 @@ import type { ToolDefinition, ToolExecuteContext } from "./types.ts";
 import { listTool } from "./files/list.ts";
 import { toolDef as todoWrite } from "./todo/write.ts";
 import { toolDef as todoRead } from "./todo/read.ts";
-import { toolDef as webSearch } from "./anthropic/web-search.ts";
+import { toolDef as webSearch } from "./web-search.ts";
 import { extractCodeBlockContent } from "../lib/utils/codeblocks.ts";
 import { createSystemContent } from "../chat/system.ts";
 import { z } from "zod";
@@ -161,6 +161,7 @@ export async function parseToolDefinition(
  */
 export async function createTool(
   toolDef: ToolDefinition,
+  provider: string,
   context: ToolExecuteContext,
 ) {
   if (toolDef.type === "local") {
@@ -176,7 +177,7 @@ export async function createTool(
   } else if (toolDef.type === "provider") {
     // todo: support tool options
     // todo: support provider checking
-    return toolDef.createTool({});
+    return toolDef.createTool(provider, {});
   } else {
     const exhausted: never = toolDef;
     throw new Error(`Tool type not supported: ${(exhausted as any).type}`);
@@ -186,6 +187,7 @@ export async function createTool(
 export async function loadToolsFromFrontmatter(
   metadata: CachedMetadata,
   chat: Chat,
+  provider: string,
 ) {
   const plugin = usePlugin();
   const tools: Record<string, Tool> = {};
@@ -196,7 +198,7 @@ export async function loadToolsFromFrontmatter(
       throw Error(`Failed to resolve tool link: ${toolLink}`);
     }
     const toolDef = await parseToolDefinition(toolFile);
-    tools[toolDef.name] = await createTool(toolDef, {
+    tools[toolDef.name] = await createTool(toolDef, provider, {
       vault: chat.vault,
       config: {},
       sessionStore: chat.sessionStore,
