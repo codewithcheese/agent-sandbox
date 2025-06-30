@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { normalizePath, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type {
-  ToolDefinition,
-  ToolExecutionOptionsWithContext,
-} from "../types.ts";
+import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
 
@@ -181,7 +178,7 @@ async function validateMultiEditFilePath(
 
 export async function execute(
   params: z.infer<typeof multiEditInputSchema>,
-  toolExecOptions: ToolExecutionOptionsWithContext,
+  toolExecOptions: ToolCallOptionsWithContext,
 ): Promise<MultiEditToolOutput> {
   const { abortSignal } = toolExecOptions;
   const {

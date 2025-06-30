@@ -35,6 +35,7 @@
   } from "$lib/utils/slash-commands";
   import { PromptFileSelectModal } from "$lib/modals/prompt-file-select-modal";
   import { loadPromptMessage } from "../editor/prompt-command.ts";
+  import { getTextFromParts } from "$lib/utils/ai.ts";
 
   type Props = {
     chat: Chat;
@@ -261,7 +262,7 @@
     if (inputState.state.type === "editing") {
       await chat.edit(
         inputState.state.index,
-        promptMessage.content,
+        getTextFromParts(promptMessage.parts),
         inputState.attachments,
         promptMetadata,
       );
@@ -269,7 +270,7 @@
     } else {
       // For new messages, submit the prompt directly
       await chat.submit(
-        promptMessage.content,
+        getTextFromParts(promptMessage.parts),
         inputState.attachments,
         promptMetadata,
       );

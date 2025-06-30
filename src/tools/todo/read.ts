@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { createDebug } from "$lib/debug";
-import type {
-  ToolExecutionOptionsWithContext,
-  LocalToolDefinition,
-} from "../types";
+import type { ToolCallOptionsWithContext, LocalToolDefinition } from "../types";
 import { invariant } from "@epic-web/invariant";
 import { TODOS_STORE_KEY, type TodoItem } from "./shared.ts"; // Import from TodoWrite
 
@@ -50,7 +47,7 @@ type TodoReadToolOutput =
 
 export async function execute(
   _params: z.infer<typeof inputSchema>,
-  toolExecOptions: ToolExecutionOptionsWithContext,
+  toolExecOptions: ToolCallOptionsWithContext,
 ): Promise<TodoReadToolOutput> {
   const { abortSignal } = toolExecOptions;
   const { sessionStore, config: contextConfig } = toolExecOptions.getContext();
@@ -69,7 +66,8 @@ export async function execute(
     };
   }
 
-  const currentTodos: TodoItem[] = (await sessionStore.get<TodoItem[]>(TODOS_STORE_KEY)) || [];
+  const currentTodos: TodoItem[] =
+    (await sessionStore.get<TodoItem[]>(TODOS_STORE_KEY)) || [];
 
   debug(`Todo list read from store. Count: ${currentTodos.length}`);
 

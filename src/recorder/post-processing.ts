@@ -1,4 +1,4 @@
-import { generateText, type CoreMessage } from "ai";
+import { generateText, type ModelMessage } from "ai";
 import { createAIProvider } from "../settings/providers";
 import { usePlugin } from "$lib/utils";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks";
@@ -63,7 +63,7 @@ export async function postProcessTranscription(transcript: string): Promise<stri
     );
 
     // Create messages with assistant priming for <cleaned> tag
-    const messages: CoreMessage[] = [
+    const messages: ModelMessage[] = [
       {
         role: "user",
         content: promptWithTranscript,

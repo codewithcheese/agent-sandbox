@@ -1,28 +1,25 @@
 import { Modal, Notice } from "obsidian";
-import ToolInvocationModal from "../../chat/ToolInvocationModal.svelte";
+import ToolPartModal from "../../chat/ToolPartModal.svelte";
 import { mount, unmount } from "svelte";
-import type { ToolInvocation } from "@ai-sdk/ui-utils";
 import type { Chat } from "../../chat/chat.svelte.ts";
 import { usePlugin } from "$lib/utils";
-import { executeToolInvocation } from "../../tools";
+import { executeToolCall } from "../../tools";
+import type { ToolUIPart } from "ai";
 
-export function openToolInvocationInfoModal(
-  chat: Chat,
-  toolInvocation: ToolInvocation,
-) {
+export function openToolPartModal(chat: Chat, toolPart: ToolUIPart) {
   const plugin = usePlugin();
   const modal = new (class extends Modal {
     private component: any;
     onOpen() {
-      this.component = mount(ToolInvocationModal, {
+      this.component = mount(ToolPartModal, {
         target: this.contentEl,
         props: {
           chat: chat,
-          toolInvocation,
+          toolPart,
           close: () => this.close(),
           execute: async () => {
             try {
-              const result = await executeToolInvocation(toolInvocation, chat);
+              const result = await executeToolCall(toolPart, chat);
               new Notice(`Tool result: ${result}`);
             } catch (error) {
               console.error("Error executing tool:", error);

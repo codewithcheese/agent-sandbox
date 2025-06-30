@@ -1,35 +1,44 @@
 <script lang="ts">
-  import type { ToolInvocation } from "@ai-sdk/ui-utils";
   import type { Chat } from "./chat.svelte.js";
+  import { getToolName, type ToolUIPart } from "ai";
 
   type Props = {
     chat: Chat;
-    toolInvocation: ToolInvocation;
+    toolPart: ToolUIPart;
     close: () => void;
     execute: () => void;
   };
-  let { toolInvocation, execute }: Props = $props();
+  let { toolPart, execute }: Props = $props();
 </script>
 
 <div class="flex flex-col gap-2">
-  <div class="font-semibold">{toolInvocation.toolName}</div>
+  <div class="font-semibold">{getToolName(toolPart)}</div>
   <div
     class="select-text text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
   >
     <p>
-      {JSON.stringify(toolInvocation.args, null, 2)}
+      {JSON.stringify(toolPart.input, null, 2)}
     </p>
   </div>
-  {#if "result" in toolInvocation}
+  {#if toolPart.state === "output-available"}
     <div
       class="select-text text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
     >
       <p>
-        {#if typeof toolInvocation.result === "string"}
-          {toolInvocation.result}
+        {#if typeof toolPart.output === "string"}
+          {toolPart.output}
         {:else}
-          {JSON.stringify(toolInvocation.result, null, 2)}
+          {JSON.stringify(toolPart.output, null, 2)}
         {/if}
+      </p>
+    </div>
+  {/if}
+  {#if toolPart.state === "output-error"}
+    <div
+      class="select-text text-xs bg-(--background-primary) border border-(--background-modifier-border) p-2 rounded font-mono whitespace-pre-wrap"
+    >
+      <p>
+        {toolPart.errorText}
       </p>
     </div>
   {/if}

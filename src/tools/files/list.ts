@@ -4,10 +4,7 @@ import picomatch from "picomatch";
 import { createDebug } from "$lib/debug.ts";
 import { type Vault, type TAbstractFile, normalizePath } from "obsidian";
 import { TFolder, TFile } from "obsidian";
-import type {
-  ToolDefinition,
-  ToolExecutionOptionsWithContext,
-} from "../types.ts";
+import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { COMMON_IGNORE_PATTERNS, ignoreMatchOptions } from "./shared.ts";
 
 /**
@@ -248,7 +245,7 @@ function buildFileTree(paths: string[]): FileSystemNode[] {
 
 export async function execute(
   params: z.infer<typeof inputSchema>,
-  options: ToolExecutionOptionsWithContext,
+  options: ToolCallOptionsWithContext,
 ) {
   const { getContext, abortSignal } = options;
   const { vault } = getContext();

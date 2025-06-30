@@ -5,14 +5,14 @@ import {
   helpers as mockVaultHelpers,
 } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import type { ToolExecutionOptionsWithContext } from "../../../src/tools/types.ts";
+import type { ToolCallOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
 import type { TFile } from "obsidian";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
 import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("Edit tool execute function", () => {
-  let toolExecOptions: ToolExecutionOptionsWithContext;
+  let toolExecOptions: ToolCallOptionsWithContext;
   let vault: VaultOverlay;
   let mockAbortController: AbortController;
   let sessionStore: SessionStore;

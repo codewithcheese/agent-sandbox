@@ -2,10 +2,7 @@ import { z } from "zod";
 import { tool } from "ai";
 import { normalizePath, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type {
-  ToolDefinition,
-  ToolExecutionOptionsWithContext,
-} from "../types.ts";
+import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
 import type { ReadState } from "../../chat/read-state.ts";
@@ -186,7 +183,7 @@ async function validateInput(
 
 export async function execute(
   params: z.infer<typeof editInputSchema>,
-  toolExecOptions: ToolExecutionOptionsWithContext,
+  toolExecOptions: ToolCallOptionsWithContext,
 ): Promise<EditToolOutput> {
   const { abortSignal } = toolExecOptions;
   const {

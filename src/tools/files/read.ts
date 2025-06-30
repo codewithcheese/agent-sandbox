@@ -2,10 +2,7 @@ import { z } from "zod";
 import { tool } from "ai";
 import { normalizePath, TFile, TFolder, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
-import type {
-  ToolDefinition,
-  ToolExecutionOptionsWithContext,
-} from "../types.ts";
+import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 
 /**
  * Features:
@@ -256,10 +253,14 @@ export function formatWithLineNumbers(
 
 export async function execute(
   params: z.infer<typeof inputSchema>,
-  toolExecOptions: ToolExecutionOptionsWithContext,
+  toolExecOptions: ToolCallOptionsWithContext,
 ) {
   const { abortSignal } = toolExecOptions;
-  const { vault, config: contextConfig, sessionStore } = toolExecOptions.getContext();
+  const {
+    vault,
+    config: contextConfig,
+    sessionStore,
+  } = toolExecOptions.getContext();
   const config = { ...defaultConfig, ...contextConfig };
 
   if (!vault) {
@@ -301,7 +302,7 @@ export async function execute(
       // Update read state for image files
       await sessionStore.readState.setLastRead(
         normalizedFilePath,
-        file.stat.mtime
+        file.stat.mtime,
       );
 
       return {
@@ -337,7 +338,7 @@ export async function execute(
     // Update read state for text files
     await sessionStore.readState.setLastRead(
       normalizedFilePath,
-      file.stat.mtime
+      file.stat.mtime,
     );
 
     return formatWithLineNumbers(

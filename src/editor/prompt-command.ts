@@ -4,7 +4,7 @@ import { createSystemContent } from "../chat/system.ts";
 import { extractLinks, getActiveSidebarLeaf } from "$lib/utils/obsidian.ts";
 import { nanoid } from "nanoid";
 import { createDebug } from "$lib/debug.ts";
-import { loadAttachments } from "../chat/attachments.ts";
+import { loadFileParts } from "../chat/attachments.ts";
 import type { WithUserMetadata } from "../chat/chat.svelte.ts";
 import type { UIMessage } from "ai";
 
@@ -12,22 +12,20 @@ const debug = createDebug();
 
 export async function loadPromptMessage(
   file: TFile,
-): Promise<UIMessage & WithUserMetadata> {
+): Promise<UIMessage<{ createdAt: Date }> & WithUserMetadata> {
   const content = await createSystemContent(file);
   const links = extractLinks(file, content);
   debug("Prompt links", links);
   return {
     id: nanoid(),
     role: "user",
-    content,
     metadata: {
+      createdAt: new Date(),
       prompt: {
         path: file.path,
       },
     },
-    experimental_attachments: await loadAttachments(links),
-
-    parts: [{ type: "text", text: content }],
+    parts: [{ type: "text", text: content }, ...(await loadFileParts(links))],
   };
 }
 
