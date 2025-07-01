@@ -582,7 +582,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
           activeTextParts: {},
           activeReasoningParts: {},
         };
-        debugger;
         for await (const chunk of stream.fullStream) {
           applyStreamPartToMessages(this.messages, chunk, streamingState);
         }
