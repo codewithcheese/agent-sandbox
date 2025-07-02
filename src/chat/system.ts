@@ -33,6 +33,7 @@ export async function createSystemContent(
     {
       ...data,
       ...options.additionalData,
+      agent_name: data.agent_name || file.basename,
       currentDateTime: new Date().toLocaleString("en-US", {
         weekday: "long",
         year: "numeric",
