@@ -94,36 +94,68 @@ judge: "[[clarity-judge]]"
 
 ## Available Tools
 
-### 1. EvaluateExample Tool
+### 1. EvaluateOutput Tool
 
-Evaluates a single text example during conversation development.
+Evaluates a single text output against judge criteria.
 
 **Parameters:**
 - `text`: The text content to evaluate
-- `judge_agent_path`: Wiki link to judge agent file (e.g., `[[clarity-judge]]`)
-- `criteria_context`: Optional additional context
+- `judge_agent_path`: Absolute path to judge agent file
+- `criteria_context`: Optional additional context for evaluation
 
 **Usage in Agent Chat:**
 ```
-Can you evaluate this text using the clarity judge:
-
-EvaluateExample:
+EvaluateOutput:
 - text: "The meeting is scheduled for 3 PM tomorrow."
-- judge_agent_path: "[[clarity-judge]]"
+- judge_agent_path: "/judges/clarity-judge.md"
+- criteria_context: "Focus on directness and clarity"
 ```
 
 **Returns:**
 ```json
 {
   "result": "PASS",
-  "reasoning": "The text is clear and direct, stating the meeting time without unnecessary complexity.",
-  "judge_version": 1,
-  "judge_model": "claude-3-5-sonnet-20241022",
-  "judge_account": "Anthropic"
+  "reasoning": "Clear, direct communication with specific time and date.",
+  "judge_version": 2
 }
 ```
 
-### 2. EvaluateTestSet Tool
+### 2. Prompt Tool
+
+Generates output from a prompt file and input text using a specified model.
+
+**Parameters:**
+- `prompt_path`: Absolute path to prompt file
+- `input`: Input text to process with the prompt
+- `model_id`: Optional model ID (uses frontmatter or plugin default if not specified)
+
+**Usage in Agent Chat:**
+```
+Prompt:
+- prompt_path: "/prompts/summarize.md"
+- input: "Long article text to summarize..."
+- model_id: "claude-3-5-sonnet-20241022"
+```
+
+**Returns:**
+```json
+{
+  "output": "Generated summary text..."
+}
+```
+
+**Prompt File Format:**
+Prompt files follow the same structure as agent files and support frontmatter for model configuration:
+
+```markdown
+---
+model_id: claude-3-5-sonnet-20241022
+---
+
+Summarize the following text in 2-3 sentences, focusing on key insights and actionable points.
+```
+
+### 3. EvaluateTestSet Tool
 
 Evaluates all examples in a test set file and updates the file with results. The test set file must have a `judge` property in its frontmatter specifying which judge to use.
 
@@ -148,6 +180,39 @@ EvaluateTestSet:
   "judge_version": 3
 }
 ```
+
+## Path Handling Architecture
+
+The system uses a clear separation between tool APIs and content references:
+
+### Tool Parameters (Absolute Paths)
+All tools require **absolute paths** as parameters for programmatic access:
+```
+EvaluateOutput:
+- judge_agent_path: "/judges/clarity-judge.md"
+
+Prompt:
+- prompt_path: "/prompts/summarize.md"
+```
+
+### Markdown Content (Wiki Links)
+Markdown files use **wiki links** for human-readable references:
+```markdown
+---
+judge: "[[clarity-judge]]"
+---
+```
+
+### Internal Resolution
+The system automatically converts wiki links to absolute paths during processing:
+- **Content Layer**: Humans write `[[clarity-judge]]` in markdown
+- **Resolution Layer**: System resolves to `/judges/clarity-judge.md`
+- **API Layer**: Tools receive absolute paths for execution
+
+This architecture provides:
+- **Human-friendly authoring** with wiki links in content
+- **Reliable programmatic access** with absolute paths in tools
+- **Obsidian integration** leveraging native link resolution
 
 ### 3. Run Test Set Command
 
@@ -215,7 +280,7 @@ Use the calibrated judge to validate new instructions:
 ### Core Components
 
 - **Evaluation Engine** (`evaluation-engine.ts`): Core logic for judge resolution, evaluation, and test set processing
-- **Tool Implementations** (`evaluate-example.ts`, `evaluate-test-set.ts`): Tool wrappers for agent interaction
+- **Tool Implementations** (`evaluate-output.ts`, `evaluate-test-set.ts`, `prompt.ts`): Tool wrappers for agent interaction
 - **Command Integration** (`test-set-command.ts`): Obsidian command for UI interaction
 
 ### Error Handling

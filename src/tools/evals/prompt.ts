@@ -95,7 +95,21 @@ async function execute(
         };
       }
     } else {
-      // Use plugin defaults
+      // Use plugin defaults - check they exist first
+      if (!plugin.settings.defaults.accountId) {
+        return {
+          error: "Default account not configured",
+          message: "Please configure a default account in plugin settings",
+        };
+      }
+      
+      if (!plugin.settings.defaults.modelId) {
+        return {
+          error: "Default model not configured",
+          message: "Please configure a default model in plugin settings",
+        };
+      }
+      
       try {
         account = getAccount(plugin.settings.defaults.accountId);
         model = getChatModel(plugin.settings.defaults.modelId);

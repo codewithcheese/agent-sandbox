@@ -411,6 +411,66 @@
 
 <div class="setting-item setting-item-heading">
   <div class="setting-item-info">
+    <div class="setting-item-name">Defaults</div>
+    <div class="setting-item-description">
+      Default account and model used by tools when not specified
+    </div>
+  </div>
+</div>
+
+<div class="setting-item">
+  <div class="setting-item-info">
+    <div class="setting-item-name">Account</div>
+    <div class="setting-item-description">
+      Select a default account for AI operations
+    </div>
+  </div>
+  <div class="setting-item-control">
+    <select
+      value={settings.defaults.accountId}
+      onchange={(e) => {
+        settings.defaults.accountId = e.currentTarget.value;
+        settings.defaults.modelId = "";
+        save();
+      }}
+    >
+      <option value="">Select account...</option>
+      {#each settings.accounts as account}
+        <option value={account.id}
+          >{getProviderInfo(account.provider).name} / {account.name}</option
+        >
+      {/each}
+    </select>
+  </div>
+</div>
+
+{#if settings.defaults.accountId}
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Model</div>
+      <div class="setting-item-description">
+        Select a default model for AI operations
+      </div>
+    </div>
+    <div class="setting-item-control">
+      <select
+        value={settings.defaults.modelId}
+        onchange={(e) => {
+          settings.defaults.modelId = e.currentTarget.value;
+          save();
+        }}
+      >
+        <option value="">Select model...</option>
+        {#each settings.models.filter((m) => m.type === "chat" && (settings.defaults.accountId ? m.provider === settings.accounts.find((a) => a.id === settings.defaults.accountId).provider : true)) as model}
+          <option value={model.id}>{model.id}</option>
+        {/each}
+      </select>
+    </div>
+  </div>
+{/if}
+
+<div class="setting-item setting-item-heading">
+  <div class="setting-item-info">
     <div class="setting-item-name">Chat Title Generation</div>
   </div>
 </div>
