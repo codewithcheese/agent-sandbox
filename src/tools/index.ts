@@ -18,6 +18,7 @@ import { toolDef as todoWrite } from "./todo/write.ts";
 import { toolDef as todoRead } from "./todo/read.ts";
 import { toolDef as webSearch } from "./web-search.ts";
 import { evaluateExampleTool } from "./evals/evaluate-example.ts";
+import { evaluateTestSetTool } from "./evals/evaluate-test-set.ts";
 import { extractCodeBlockContent } from "../lib/utils/codeblocks.ts";
 import { createSystemContent } from "../chat/system.ts";
 import { z } from "zod";
@@ -37,6 +38,7 @@ export const toolRegistry: Record<string, ToolDefinition> = {
   todo_write: todoWrite,
   todo_read: todoRead,
   evaluate_example: evaluateExampleTool,
+  evaluate_test_set: evaluateTestSetTool,
 };
 
 /**
