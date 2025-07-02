@@ -3,12 +3,12 @@ import { plugin, vault } from "../../mocks/obsidian.ts";
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { useRecording } from "../../use-recording.ts";
-import { evaluateExampleTool } from "../../../src/tools/evals/evaluate-example.ts";
+import { evaluateOutputTool } from "../../../src/tools/evals/evaluate-output.ts";
 import type { AIAccount } from "../../../src/settings/settings.ts";
 import type { ToolCallOptionsWithContext } from "../../../src/tools/types.ts";
 import { TFile } from "obsidian";
 
-describe("EvaluateExample Tool", () => {
+describe("EvaluateOutput Tool", () => {
   useRecording();
 
   let judgeFile: TFile;
@@ -82,7 +82,7 @@ Analyze the text against these criteria. Respond with valid JSON containing:
   });
 
   it("should evaluate clear text as PASS", async () => {
-    const result = await (evaluateExampleTool as any).execute(
+    const result = await (evaluateOutputTool as any).execute(
       {
         text: "The meeting is at 3 PM.",
         judge_agent_path: judgeFile.path,
@@ -103,7 +103,7 @@ Analyze the text against these criteria. Respond with valid JSON containing:
     const complexText =
       "The aforementioned temporal designation for the convening of the aforementioned assemblage has been established as the fifteenth hour of the post-meridian period.";
 
-    const result = await (evaluateExampleTool as any).execute(
+    const result = await (evaluateOutputTool as any).execute(
       {
         text: complexText,
         judge_agent_path: judgeFile.path,
@@ -118,7 +118,7 @@ Analyze the text against these criteria. Respond with valid JSON containing:
   });
 
   it("should include criteria context in evaluation", async () => {
-    const result = await (evaluateExampleTool as any).execute(
+    const result = await (evaluateOutputTool as any).execute(
       {
         text: "Let's sync up offline to ideate on this.",
         judge_agent_path: judgeFile.path,
@@ -135,7 +135,7 @@ Analyze the text against these criteria. Respond with valid JSON containing:
   });
 
   it("should return error for non-existent judge file", async () => {
-    const result = await (evaluateExampleTool as any).execute(
+    const result = await (evaluateOutputTool as any).execute(
       {
         text: "Test text",
         judge_agent_path: "/non-existent/judge.md",
@@ -157,7 +157,7 @@ model_id: non-existent-model-id
 Judge with invalid model.`,
     );
 
-    const result = await (evaluateExampleTool as any).execute(
+    const result = await (evaluateOutputTool as any).execute(
       {
         text: "Test text",
         judge_agent_path: invalidJudgeFile.path,
@@ -181,7 +181,7 @@ Evaluate the text for clarity.
 Respond with JSON: {"reasoning": "your analysis", "result": "PASS" or "FAIL"}`,
     );
 
-    const result = await (evaluateExampleTool as any).execute(
+    const result = await (evaluateOutputTool as any).execute(
       {
         text: "Clear and simple text.",
         judge_agent_path: defaultJudgeFile.path,
@@ -205,7 +205,7 @@ Respond with JSON: {"reasoning": "your analysis", "result": "PASS" or "FAIL"}`,
     // Abort immediately
     abortController.abort();
 
-    const result = await (evaluateExampleTool as any).execute(
+    const result = await (evaluateOutputTool as any).execute(
       {
         text: "Test text",
         judge_agent_path: judgeFile.path,
@@ -227,7 +227,7 @@ Respond with JSON: {"reasoning": "your analysis", "result": "PASS" or "FAIL"}`,
       }),
     };
 
-    const result = await (evaluateExampleTool as any).execute(
+    const result = await (evaluateOutputTool as any).execute(
       {
         text: "Test text",
         judge_agent_path: judgeFile.path,

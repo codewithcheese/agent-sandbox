@@ -54,32 +54,43 @@ Test set files are markdown documents containing tables of examples to evaluate.
 judge: "[[clarity-judge]]"
 ---
 
-## Current Results (Judge v3)
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ✅ | Need to explore three approaches for user onboarding: progressive disclosure vs full tutorial vs contextual hints. | Clear identification of concrete next steps and decision points. |
-| ❌ | ❌ | User onboarding represents a critical touchpoint in the customer journey where organizations must balance comprehensive guidance with cognitive load management. | Uses abstract business language rather than focusing on actionable directions. |
+## Current Results (Judge v3) - 8/10 (80%)
 
-Accuracy: 8/10 (80%)
+**Evaluation Details:**
+- Model: claude-3-5-sonnet-20241022
+- Account: Anthropic
 
-## Judge v2 Results
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ❌ | Need to explore three approaches... | Previous version was less accurate at identifying direction-focused content. |
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ✅ | Document onboarding approach | Need to explore three approaches for user onboarding: progressive disclosure vs full tutorial vs contextual hints. | Clear identification of concrete next steps and decision points. |
+| ❌ | ❌ | Document onboarding approach | User onboarding represents a critical touchpoint in the customer journey where organizations must balance comprehensive guidance with cognitive load management. | Uses abstract business language rather than focusing on actionable directions. |
 
-Accuracy: 6/10 (60%)
+## Judge v2 Results - 6/10 (60%)
+
+**Evaluation Details:**
+- Model: claude-3-5-sonnet-20241022
+- Account: Anthropic
+
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ❌ | Document onboarding approach | Need to explore three approaches... | Previous version was less accurate at identifying direction-focused content. |
 
 ## Examples for Evaluation
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ⏳ | Current API design has two unresolved questions: authentication flow timing and error state handling. | |
-| ❌ | ⏳ | The aforementioned temporal designation for the convening has been established. | |
-```
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ⏳ | Document API issues | Current API design has two unresolved questions: authentication flow timing and error state handling. | |
+| ❌ | ⏳ | Announce meeting time | The aforementioned temporal designation for the convening has been established. | |
 
 **Test Set Properties:**
 - `judge`: Wiki link to the judge agent file to use for evaluation (e.g., `"[[clarity-judge]]"`)
-- Tables with columns: Expected (✅/❌), Judge (✅/❌/⏳), Example (text), Reasoning (judge's explanation)
+- Results include evaluation details (model ID and account name) for traceability
+- Tables with columns: Expected (✅/❌), Judge (✅/❌/⏳), Input (optional context), Output (evaluated text), Reasoning (judge's explanation)
 - Version history showing performance across judge iterations
+
+**Table Format Details:**
+- **Input**: Optional column for documenting the prompt or context that generated the output. Can be left empty.
+- **Output**: The actual text content that gets evaluated by the judge. This is required.
+- **Judge evaluates only the Output**: The Input column is purely for documentation and context - only the Output text is sent to the judge for evaluation.
 
 ## Available Tools
 
@@ -89,7 +100,7 @@ Evaluates a single text example during conversation development.
 
 **Parameters:**
 - `text`: The text content to evaluate
-- `judge_agent_path`: Path to judge agent file
+- `judge_agent_path`: Wiki link to judge agent file (e.g., `[[clarity-judge]]`)
 - `criteria_context`: Optional additional context
 
 **Usage in Agent Chat:**
@@ -98,7 +109,7 @@ Can you evaluate this text using the clarity judge:
 
 EvaluateExample:
 - text: "The meeting is scheduled for 3 PM tomorrow."
-- judge_agent_path: "/judges/clarity-judge.md"
+- judge_agent_path: "[[clarity-judge]]"
 ```
 
 **Returns:**
@@ -114,17 +125,17 @@ EvaluateExample:
 
 ### 2. EvaluateTestSet Tool
 
-Evaluates all examples in a test set file and updates the file with results.
+Evaluates all examples in a test set file and updates the file with results. The test set file must have a `judge` property in its frontmatter specifying which judge to use.
 
 **Parameters:**
-- `test_set_path`: Path to test set markdown file
-- `judge_agent_path`: Path to judge agent file
+- `test_set_path`: Wiki link to test set markdown file (e.g., `[[internal-notes-style]]`)
+- `judge_agent_path`: Wiki link to judge agent file (e.g., `[[internal-notes-judge]]`)
 
 **Usage in Agent Chat:**
 ```
 EvaluateTestSet:
-- test_set_path: "/test-sets/internal-notes-style.md"
-- judge_agent_path: "/judges/internal-notes-judge.md"
+- test_set_path: "[[internal-notes-style]]"
+- judge_agent_path: "[[internal-notes-judge]]"
 ```
 
 **Returns:**
@@ -145,7 +156,8 @@ Obsidian command that runs test set evaluation from the Command Palette.
 **Usage:**
 1. Open a test set file (must have `judge` in frontmatter)
 2. Run command: "Run Test Set Evaluation"
-3. View progress and results in notices
+3. View real-time progress notices showing each example evaluation (✅/❌)
+4. Results are automatically written to the test set file with evaluation details
 
 ## Workflow Integration
 
@@ -217,9 +229,19 @@ The system includes comprehensive error handling for:
 
 ### Response Parsing
 
-- **Primary**: JSON parsing with structured schema
-- **Fallback**: Fuzzy text parsing for PASS/FAIL detection
-- **Flexible**: Handles variations in capitalization and phrasing
+The system uses AI SDK's `generateObject` with Zod schema validation for robust, structured LLM output:
+
+- **Schema Validation**: Enforces strict JSON structure with `EvaluationResponseSchema`
+- **Type Safety**: Ensures consistent response format with TypeScript types
+- **Error Handling**: Graceful fallback for malformed responses
+- **Reliable**: Eliminates manual JSON parsing and repair pipelines
+
+### Performance Optimizations
+
+- **Caching**: Uses Anthropic's ephemeral cache control to cache judge instructions
+- **Message Structure**: Separates static judge content (system) from dynamic text (user)
+- **Token Efficiency**: Reduces token usage in batch evaluations through intelligent caching
+- **Progress Feedback**: Real-time notices provide user feedback during long-running evaluations
 
 ## Example Workflows
 

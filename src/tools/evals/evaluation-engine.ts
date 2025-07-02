@@ -43,7 +43,8 @@ export interface JudgeConfig {
 
 export interface TestSetExample {
   expected: "PASS" | "FAIL";
-  example: string;
+  input: string;
+  output: string;
 }
 
 export interface TestSetEvaluationResult {
@@ -57,7 +58,8 @@ export interface TestSetEvaluationResult {
 export interface EvaluatedExample {
   expected: "PASS" | "FAIL";
   judge_result: "PASS" | "FAIL";
-  example: string;
+  input: string;
+  output: string;
   reasoning: string;
 }
 
@@ -336,15 +338,16 @@ export function parseTestSetTable(
       const row = dataRows[i] as TableRow;
       const cells = row.children as TableCell[];
 
-      if (cells.length < 3) {
+      if (cells.length < 4) {
         return {
           error: "Invalid table format",
-          message: `Row ${i + 1} must have at least 3 columns (Expected, Judge, Example). Found ${cells.length} columns.`,
+          message: `Row ${i + 1} must have at least 4 columns (Expected, Judge, Input, Output). Found ${cells.length} columns.`,
         };
       }
 
       const expectedCell = extractCellText(cells[0]);
-      const exampleCell = extractCellText(cells[2]); // Third column is Example
+      const inputCell = extractCellText(cells[2]); // Third column is Input
+      const outputCell = extractCellText(cells[3]); // Fourth column is Output
 
       // Validate expected value (must be emoji)
       let expected: "PASS" | "FAIL";
@@ -359,17 +362,20 @@ export function parseTestSetTable(
         };
       }
 
-      // Validate example is not empty
-      if (!exampleCell || exampleCell.trim() === "") {
+      // Input is optional - it's for documentation/context only
+
+      // Validate output is not empty
+      if (!outputCell || outputCell.trim() === "") {
         return {
-          error: "Empty example text",
-          message: `Row ${i + 1}: Example column cannot be empty`,
+          error: "Empty output text",
+          message: `Row ${i + 1}: Output column cannot be empty`,
         };
       }
 
       examples.push({
         expected,
-        example: exampleCell.trim(),
+        input: inputCell ? inputCell.trim() : "",
+        output: outputCell.trim(),
       });
     }
 
@@ -427,8 +433,8 @@ export function generateResultsTable(
   markdown += `\n`;
 
   // Table header
-  markdown += "| Expected | Judge | Example | Reasoning |\n";
-  markdown += "|----------|-------|---------|-----------|\n";
+  markdown += "| Expected | Judge | Input | Output | Reasoning |\n";
+  markdown += "|----------|-------|-------|--------|-----------|\n";
 
   // Table rows
   for (const example of evaluatedExamples) {
@@ -436,13 +442,14 @@ export function generateResultsTable(
     const judgeEmoji = example.judge_result === "PASS" ? "✅" : "❌";
 
     // Escape pipe characters in content
-    const exampleText = example.example.replace(/\|/g, "\\|");
+    const inputText = example.input.replace(/\|/g, "\\|");
+    const outputText = example.output.replace(/\|/g, "\\|");
     // Truncate reasoning for table readability (safety measure)
     const reasoningText = example.reasoning
       .replace(/\|/g, "\\|")
       .substring(0, 500);
 
-    markdown += `| ${expectedEmoji} | ${judgeEmoji} | ${exampleText} | ${reasoningText} |\n`;
+    markdown += `| ${expectedEmoji} | ${judgeEmoji} | ${inputText} | ${outputText} | ${reasoningText} |\n`;
   }
 
   markdown += "\n";
@@ -526,7 +533,7 @@ export async function evaluateTestSet(
       }
 
       const result = await evaluateExample(
-        example.example,
+        example.output,
         judgeConfig,
         undefined, // No criteria context for test sets
         abortSignal,
@@ -542,7 +549,8 @@ export async function evaluateTestSet(
       evaluatedExamples.push({
         expected: example.expected,
         judge_result: result.result,
-        example: example.example,
+        input: example.input,
+        output: example.output,
         reasoning: result.reasoning,
       });
 

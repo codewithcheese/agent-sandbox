@@ -48,12 +48,12 @@ test_set: "communication-style"
 
 This test set evaluates clear communication style.
 
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ⏳ | The meeting is at 3 PM. | |
-| ❌ | ⏳ | The aforementioned temporal designation for the convening of the assemblage has been established as the fifteenth hour of the post-meridian period. | |
-| ✅ | ⏳ | Please review the document. | |
-| ❌ | ⏳ | It would be greatly appreciated if you could undertake a comprehensive examination of the aforementioned documentation. | |
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ⏳ | Announce meeting time | The meeting is at 3 PM. | |
+| ❌ | ⏳ | Announce meeting time | The aforementioned temporal designation for the convening of the assemblage has been established as the fifteenth hour of the post-meridian period. | |
+| ✅ | ⏳ | Request document review | Please review the document. | |
+| ❌ | ⏳ | Request document review | It would be greatly appreciated if you could undertake a comprehensive examination of the aforementioned documentation. | |
 
 Additional notes about this test set...`
     );
@@ -201,24 +201,25 @@ This file has no table.`
     expect(result.message).toContain("must contain ✅ (for PASS) or ❌ (for FAIL)");
   });
 
-  it("should return error for test set with empty examples", async () => {
-    const emptyExampleFile = await vault.create(
-      "test-sets/empty-example.md",
-      `| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ⏳ |  | |`
+  it("should handle test set with empty input", async () => {
+    const emptyInputFile = await vault.create(
+      "test-sets/empty-input.md",
+      `| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ⏳ |  | Some output | |`
     );
 
     const result = await (evaluateTestSetTool as any).execute(
       {
-        test_set_path: emptyExampleFile.path,
+        test_set_path: emptyInputFile.path,
         judge_agent_path: judgeFile.path,
       },
       toolContext,
     );
 
-    expect(result).toHaveProperty("error");
-    expect(result.error).toBe("Empty example text");
+    expect(result).not.toHaveProperty("error");
+    expect(result.tests_run).toBe(1);
+    expect(result.successes + result.failures).toBe(1);
   });
 
   it("should handle test set with frontmatter", async () => {
@@ -231,10 +232,10 @@ description: "Test with frontmatter"
 
 # Test Set with Frontmatter
 
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ⏳ | Simple clear text | |
-| ❌ | ⏳ | Unnecessarily complex and verbose textual communication | |`
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ⏳ | Write simply | Simple clear text | |
+| ❌ | ⏳ | Write verbosely | Unnecessarily complex and verbose textual communication | |`
     );
 
     const result = await (evaluateTestSetTool as any).execute(
@@ -326,9 +327,9 @@ Respond with JSON: {"reasoning": "analysis", "result": "PASS" or "FAIL"}`
   it("should handle single example test set", async () => {
     const singleExampleFile = await vault.create(
       "test-sets/single-example.md",
-      `| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ⏳ | Clear and simple text | |`
+      `| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ⏳ | Write clearly | Clear and simple text | |`
     );
 
     const result = await (evaluateTestSetTool as any).execute(
@@ -352,15 +353,15 @@ Respond with JSON: {"reasoning": "analysis", "result": "PASS" or "FAIL"}`
       "test-sets/multi-table.md",
       `# Test Set
 
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ⏳ | First example | |
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ⏳ | Write first | First example | |
 
 ## Previous Results
 
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| ✅ | ✅ | Old example | Old reasoning |
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|
+| ✅ | ✅ | Write old | Old example | Old reasoning |
 
 Some additional content.`
     );

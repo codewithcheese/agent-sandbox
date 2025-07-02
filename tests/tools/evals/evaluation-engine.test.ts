@@ -6,7 +6,6 @@ import { useRecording } from "../../use-recording.ts";
 import {
   resolveJudgeConfig,
   evaluateExample,
-  parseEvaluationResult,
   parseTestSetTable,
   validateTestSetTable,
   generateResultsTable,
@@ -73,51 +72,7 @@ Evaluate the text against the criteria above. Respond with valid JSON containing
     plugin.settings.defaults.modelId = modelId;
   });
 
-  describe("parseEvaluationResult", () => {
-    it("should parse PASS from clear pass text", () => {
-      const result = parseEvaluationResult(
-        "This text is clear and concise. PASS",
-      );
-      expect(result).toBe("PASS");
-    });
 
-    it("should parse FAIL from clear fail text", () => {
-      const result = parseEvaluationResult(
-        "This text is confusing and verbose. FAIL",
-      );
-      expect(result).toBe("FAIL");
-    });
-
-    it("should handle fuzzy pass matching", () => {
-      const result = parseEvaluationResult(
-        "The text passes all criteria successfully.",
-      );
-      expect(result).toBe("PASS");
-    });
-
-    it("should handle fuzzy fail matching", () => {
-      const result = parseEvaluationResult(
-        "The text fails to meet the requirements.",
-      );
-      expect(result).toBe("FAIL");
-    });
-
-    it("should default to FAIL for unclear text", () => {
-      const result = parseEvaluationResult(
-        "This is ambiguous text with no clear decision.",
-      );
-      expect(result).toBe("FAIL");
-    });
-
-    it("should handle case insensitive matching", () => {
-      expect(parseEvaluationResult("PASS")).toBe("PASS");
-      expect(parseEvaluationResult("pass")).toBe("PASS");
-      expect(parseEvaluationResult("Pass")).toBe("PASS");
-      expect(parseEvaluationResult("FAIL")).toBe("FAIL");
-      expect(parseEvaluationResult("fail")).toBe("FAIL");
-      expect(parseEvaluationResult("Fail")).toBe("FAIL");
-    });
-  });
 
   describe("resolveJudgeConfig", () => {
     it("should resolve judge config with explicit model_id", async () => {
@@ -277,10 +232,10 @@ Judge with invalid model.`,
     it("should parse valid test set table", () => {
       const content = `# Test Set
 
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|  
-| ✅ | ⏳ | Clear text here | |
-| ❌ | ⏳ | Verbose complicated text | |
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|  
+| ✅ | ⏳ | Write clearly | Clear text here | |
+| ❌ | ⏳ | Write verbosely | Verbose complicated text | |
 
 Some other content.`;
 
@@ -291,11 +246,13 @@ Some other content.`;
         expect(result).toHaveLength(2);
         expect(result[0]).toEqual({
           expected: "PASS",
-          example: "Clear text here",
+          input: "Write clearly",
+          output: "Clear text here",
         });
         expect(result[1]).toEqual({
           expected: "FAIL",
-          example: "Verbose complicated text",
+          input: "Write verbosely",
+          output: "Verbose complicated text",
         });
       }
     });
@@ -327,16 +284,21 @@ Some other content.`;
       }
     });
 
-    it("should return error for empty example text", () => {
-      const content = `| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|  
-| ✅ | ⏳ |  | |`;
+    it("should allow empty input text", () => {
+      const content = `| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|  
+| ✅ | ⏳ |  | Some output | |`;
 
       const result = parseTestSetTable(content);
 
-      expect(result).toHaveProperty("error");
-      if ("error" in result) {
-        expect(result.error).toBe("Empty example text");
+      expect(result).not.toHaveProperty("error");
+      if (!("error" in result)) {
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({
+          expected: "PASS",
+          input: "",
+          output: "Some output",
+        });
       }
     });
 
@@ -350,7 +312,7 @@ Some other content.`;
       expect(result).toHaveProperty("error");
       if ("error" in result) {
         expect(result.error).toBe("Invalid table format");
-        expect(result.message).toContain("must have at least 3 columns");
+        expect(result.message).toContain("must have at least 4 columns");
       }
     });
 
@@ -359,25 +321,26 @@ Some other content.`;
 test_set: "example"
 ---
 
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|  
-| ✅ | ⏳ | Test example | |`;
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|  
+| ✅ | ⏳ | Test input | Test example | |`;
 
       const result = parseTestSetTable(content);
 
       expect(result).not.toHaveProperty("error");
       if (!("error" in result)) {
         expect(result).toHaveLength(1);
-        expect(result[0].example).toBe("Test example");
+        expect(result[0].input).toBe("Test input");
+        expect(result[0].output).toBe("Test example");
       }
     });
   });
 
   describe("validateTestSetTable", () => {
     it("should validate correct test set", () => {
-      const content = `| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|  
-| ✅ | ⏳ | Good example | |`;
+      const content = `| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|  
+| ✅ | ⏳ | Good input | Good example | |`;
 
       const result = validateTestSetTable(content);
 
@@ -402,19 +365,22 @@ test_set: "example"
         {
           expected: "PASS" as const,
           judge_result: "PASS" as const,
-          example: "Clear text",
+          input: "Write clearly",
+          output: "Clear text",
           reasoning: "This is clear and concise",
         },
         {
           expected: "FAIL" as const,
           judge_result: "FAIL" as const,
-          example: "Verbose text",
+          input: "Write verbosely",
+          output: "Verbose text",
           reasoning: "Too wordy and complex",
         },
         {
           expected: "PASS" as const,
           judge_result: "FAIL" as const,
-          example: "Misaligned example",
+          input: "Write example",
+          output: "Misaligned example",
           reasoning: "Judge disagreed",
         },
       ];
@@ -425,15 +391,15 @@ test_set: "example"
       expect(result).toContain("**Evaluation Details:**");
       expect(result).toContain("- Model: claude-4-sonnet-20250514");
       expect(result).toContain("- Account: test-account");
-      expect(result).toContain("| Expected | Judge | Example | Reasoning |");
+      expect(result).toContain("| Expected | Judge | Input | Output | Reasoning |");
       expect(result).toContain(
-        "| ✅ | ✅ | Clear text | This is clear and concise |",
+        "| ✅ | ✅ | Write clearly | Clear text | This is clear and concise |",
       );
       expect(result).toContain(
-        "| ❌ | ❌ | Verbose text | Too wordy and complex |",
+        "| ❌ | ❌ | Write verbosely | Verbose text | Too wordy and complex |",
       );
       expect(result).toContain(
-        "| ✅ | ❌ | Misaligned example | Judge disagreed |",
+        "| ✅ | ❌ | Write example | Misaligned example | Judge disagreed |",
       );
     });
 
@@ -445,7 +411,8 @@ test_set: "example"
         {
           expected: "PASS" as const,
           judge_result: "PASS" as const,
-          example: longExample,
+          input: "Long input",
+          output: longExample,
           reasoning: longReasoning,
         },
       ];
@@ -463,7 +430,8 @@ test_set: "example"
         {
           expected: "PASS" as const,
           judge_result: "PASS" as const,
-          example: "Text with | pipe character",
+          input: "Input with | pipe",
+          output: "Text with | pipe character",
           reasoning: "Reasoning with | pipe too",
         },
       ];
@@ -490,7 +458,8 @@ test_set: "example"
         {
           expected: "PASS" as const,
           judge_result: "PASS" as const,
-          example: "Test example",
+          input: "Test input",
+          output: "Test example",
           reasoning: "Good reasoning",
         },
       ];
@@ -532,7 +501,8 @@ test_set: "example"
         {
           expected: "PASS" as const,
           judge_result: "FAIL" as const,
-          example: "Test",
+          input: "Test input",
+          output: "Test",
           reasoning: "Failed",
         },
       ];
@@ -560,10 +530,10 @@ test_set: "example"
         "test-sets/complete-test.md",
         `# Test Set
 
-| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|  
-| ✅ | ⏳ | Simple clear text | |
-| ❌ | ⏳ | Overly verbose and unnecessarily complex textual communication | |`,
+| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|  
+| ✅ | ⏳ | Write simply | Simple clear text | |
+| ❌ | ⏳ | Write verbosely | Overly verbose and unnecessarily complex textual communication | |`,
       );
 
       const config = await resolveJudgeConfig(judgeFile.path, vault);
@@ -610,9 +580,9 @@ test_set: "example"
     it("should handle abort signal", async () => {
       const testSetFile = await vault.create(
         "test-sets/abort-test.md",
-        `| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|  
-| ✅ | ⏳ | Test example | |`,
+        `| Expected | Judge | Input | Output | Reasoning |
+|----------|-------|-------|--------|-----------|  
+| ✅ | ⏳ | Test input | Test example | |`,
       );
 
       const config = await resolveJudgeConfig(judgeFile.path, vault);

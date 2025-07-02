@@ -5,15 +5,15 @@ import { evaluateExample, resolveJudgeConfig } from "./evaluation-engine.ts";
 
 const debug = createDebug();
 
-const TOOL_NAME = "EvaluateExample";
+const TOOL_NAME = "EvaluateOutput";
 const TOOL_DESCRIPTION =
-  "Evaluate a single text example against judge criteria using an LLM judge agent.";
-const TOOL_PROMPT_GUIDANCE = `Evaluate a single text example against judge criteria using an LLM judge agent.
+  "Evaluate a single text output against judge criteria using an LLM judge agent.";
+const TOOL_PROMPT_GUIDANCE = `Evaluate a single text output against judge criteria using an LLM judge agent.
 
-This tool allows you to quickly test whether a piece of text meets your evaluation criteria by running it through a judge agent during conversation development.
+This tool allows you to quickly test whether a piece of text output meets your evaluation criteria by running it through a judge agent during conversation development.
 
 Usage:
-- Provide the text to evaluate
+- Provide the text output to evaluate
 - Specify the path to a judge agent file (markdown file with evaluation instructions)
 - Optionally provide additional criteria context
 - The judge will return PASS/FAIL with reasoning
@@ -24,7 +24,7 @@ The judge agent file should contain evaluation instructions and criteria. It can
 const inputSchema = z.strictObject({
   text: z
     .string()
-    .describe("The text content to evaluate against the judge criteria"),
+    .describe("The text output to evaluate against the judge criteria"),
   judge_agent_path: z
     .string()
     .describe(
@@ -67,7 +67,7 @@ async function execute(
       abortSignal,
     );
   } catch (error) {
-    debug(`Error in EvaluateExample:`, error);
+    debug(`Error in EvaluateOutput:`, error);
 
     return {
       error: "Evaluation failed",
@@ -76,7 +76,7 @@ async function execute(
   }
 }
 
-export const evaluateExampleTool: ToolDefinition = {
+export const evaluateOutputTool: ToolDefinition = {
   type: "local",
   name: TOOL_NAME,
   description: TOOL_DESCRIPTION,
