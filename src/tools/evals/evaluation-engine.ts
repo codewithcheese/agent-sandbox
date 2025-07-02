@@ -409,6 +409,8 @@ export function validateTestSetTable(content: string): true | EvaluationError {
 export function generateResultsTable(
   evaluatedExamples: EvaluatedExample[],
   judgeVersion: number,
+  modelId: string,
+  accountName: string,
 ): string {
   const successes = evaluatedExamples.filter(
     (ex) => ex.expected === ex.judge_result,
@@ -417,6 +419,12 @@ export function generateResultsTable(
   const percentage = Math.round((successes / total) * 100);
 
   let markdown = `## Results (Judge v${judgeVersion}) - ${successes}/${total} (${percentage}%)\n\n`;
+  
+  // Add model and account information
+  markdown += `**Evaluation Details:**\n`;
+  markdown += `- Model: ${modelId}\n`;
+  markdown += `- Account: ${accountName}\n`;
+  markdown += `\n`;
 
   // Table header
   markdown += "| Expected | Judge | Example | Reasoning |\n";
@@ -449,12 +457,16 @@ export async function updateTestSetFile(
   vault: Vault,
   evaluatedExamples: EvaluatedExample[],
   judgeVersion: number,
+  modelId: string,
+  accountName: string,
 ): Promise<void | EvaluationError> {
   try {
     const currentContent = await vault.read(testSetFile);
     const newResultsTable = generateResultsTable(
       evaluatedExamples,
       judgeVersion,
+      modelId,
+      accountName,
     );
 
     // Find where to insert (after frontmatter if it exists)
@@ -549,6 +561,8 @@ export async function evaluateTestSet(
       vault,
       evaluatedExamples,
       judgeConfig.judgeVersion,
+      judgeConfig.model.id,
+      judgeConfig.account.name,
     );
 
     if (updateResult && "error" in updateResult) {

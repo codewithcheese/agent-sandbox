@@ -419,9 +419,12 @@ test_set: "example"
         },
       ];
 
-      const result = generateResultsTable(evaluatedExamples, 2);
+      const result = generateResultsTable(evaluatedExamples, 2, "claude-4-sonnet-20250514", "test-account");
 
       expect(result).toContain("## Results (Judge v2) - 2/3 (67%)");
+      expect(result).toContain("**Evaluation Details:**");
+      expect(result).toContain("- Model: claude-4-sonnet-20250514");
+      expect(result).toContain("- Account: test-account");
       expect(result).toContain("| Expected | Judge | Example | Reasoning |");
       expect(result).toContain(
         "| ✅ | ✅ | Clear text | This is clear and concise |",
@@ -447,7 +450,7 @@ test_set: "example"
         },
       ];
 
-      const result = generateResultsTable(evaluatedExamples, 1);
+      const result = generateResultsTable(evaluatedExamples, 1, "claude-4-sonnet-20250514", "test-account");
 
       // Should NOT truncate example, but should truncate reasoning to 500 chars
       expect(result).toContain("A".repeat(300)); // Full example should be present
@@ -465,7 +468,7 @@ test_set: "example"
         },
       ];
 
-      const result = generateResultsTable(evaluatedExamples, 1);
+      const result = generateResultsTable(evaluatedExamples, 1, "claude-4-sonnet-20250514", "test-account");
 
       expect(result).toContain("Text with \\| pipe character");
       expect(result).toContain("Reasoning with \\| pipe too");
@@ -497,6 +500,8 @@ test_set: "example"
         vault,
         evaluatedExamples,
         1,
+        "claude-4-sonnet-20250514",
+        "test-account",
       );
 
       expect(result).toBeUndefined(); // No error
@@ -537,6 +542,8 @@ test_set: "example"
         vault,
         evaluatedExamples,
         2,
+        "claude-4-sonnet-20250514",
+        "test-account",
       );
 
       expect(result).toBeUndefined();
