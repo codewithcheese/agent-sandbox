@@ -21,7 +21,7 @@ describe("EvaluateTestSet Tool", () => {
     judgeFile = await vault.create(
       "judges/test-set-judge.md",
       `---
-judge_version: 2
+version: 2
 model_id: claude-4-sonnet-20250514
 ---
 
@@ -260,7 +260,7 @@ description: "Test with frontmatter"
     const specificModelJudge = await vault.create(
       "judges/specific-model-judge.md",
       `---
-judge_version: 3
+version: 3
 model_id: claude-4-sonnet-20250514
 ---
 

@@ -22,7 +22,6 @@ import { evaluateTestSetTool } from "./evals/evaluate-test-set.ts";
 import { extractCodeBlockContent } from "../lib/utils/codeblocks.ts";
 import { createSystemContent } from "../chat/system.ts";
 import { z } from "zod";
-import { anthropic } from "@ai-sdk/anthropic";
 
 const debug = createDebug();
 

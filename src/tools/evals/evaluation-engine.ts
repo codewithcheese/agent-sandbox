@@ -126,7 +126,7 @@ export async function resolveJudgeConfig(
   }
 
   // Get judge version if available
-  const judgeVersion = judgeFrontmatter.judge_version || 1;
+  const judgeVersion = judgeFrontmatter.version || 1;
 
   return {
     account,

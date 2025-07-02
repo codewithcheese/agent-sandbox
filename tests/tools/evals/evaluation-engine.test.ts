@@ -27,7 +27,7 @@ describe("Evaluation Engine", () => {
     judgeFile = await vault.create(
       "judges/test-judge.md",
       `---
-judge_version: 1
+version: 1
 model_id: claude-4-sonnet-20250514
 ---
 
@@ -139,7 +139,7 @@ Evaluate the text against the criteria above. Respond with valid JSON containing
       const defaultJudgeFile = await vault.create(
         "judges/default-judge.md",
         `---
-judge_version: 2
+version: 2
 ---
 
 Simple judge without explicit model.`,

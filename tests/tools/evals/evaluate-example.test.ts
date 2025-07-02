@@ -20,7 +20,7 @@ describe("EvaluateExample Tool", () => {
     judgeFile = await vault.create(
       "judges/clarity-judge.md",
       `---
-judge_version: 1
+version: 1
 model_id: claude-4-sonnet-20250514
 ---
 
@@ -175,7 +175,7 @@ Judge with invalid model.`,
     const defaultJudgeFile = await vault.create(
       "judges/default-model-judge.md",
       `---
-judge_version: 1
+version: 1
 ---
 
 Evaluate the text for clarity.
