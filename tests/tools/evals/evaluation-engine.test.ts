@@ -25,7 +25,7 @@ describe("Evaluation Engine", () => {
   beforeEach(async () => {
     // Create a test judge agent file
     judgeFile = await vault.create(
-      "judges/test-judge.md",
+      "judges/clarity-judge.md",
       `---
 version: 1
 model_id: claude-4-sonnet-20250514
@@ -127,7 +127,7 @@ Evaluate the text against the criteria above. Respond with valid JSON containing
       if (!("error" in config)) {
         expect(config.account.id).toBe(account.id);
         expect(config.model.id).toBe("claude-4-sonnet-20250514");
-        expect(config.judgeFile.path).toBe(judgeFile.path);
+        expect(config.judgeFile.basename).toBe("clarity-judge");
         expect(config.judgeVersion).toBe(1);
       }
     });
@@ -135,7 +135,7 @@ Evaluate the text against the criteria above. Respond with valid JSON containing
     it("should resolve judge config with default model", async () => {
       // Create judge without explicit model_id
       const defaultJudgeFile = await vault.create(
-        "judges/default-judge.md",
+        "judges/default-model-judge.md",
         `---
 version: 2
 ---
@@ -164,7 +164,7 @@ Simple judge without explicit model.`,
 
     it("should return error for invalid model_id", async () => {
       const invalidJudgeFile = await vault.create(
-        "judges/invalid-judge.md",
+        "judges/invalid-model-judge.md",
         `---
 model_id: non-existent-model
 ---
@@ -434,9 +434,9 @@ test_set: "example"
       );
     });
 
-    it("should handle long text by truncating", () => {
+    it("should handle long text with reasoning truncation", () => {
       const longExample = "A".repeat(300);
-      const longReasoning = "B".repeat(400);
+      const longReasoning = "B".repeat(600); // Longer than 500 char limit
 
       const evaluatedExamples = [
         {
@@ -449,11 +449,10 @@ test_set: "example"
 
       const result = generateResultsTable(evaluatedExamples, 1);
 
-      // Should truncate example to 200 chars and reasoning to 300 chars
-      expect(result).toContain("A".repeat(200));
-      expect(result).toContain("B".repeat(300));
-      expect(result).not.toContain("A".repeat(250));
-      expect(result).not.toContain("B".repeat(350));
+      // Should NOT truncate example, but should truncate reasoning to 500 chars
+      expect(result).toContain("A".repeat(300)); // Full example should be present
+      expect(result).toContain("B".repeat(500)); // Reasoning truncated at 500
+      expect(result).not.toContain("B".repeat(600)); // Reasoning should not exceed 500
     });
 
     it("should escape pipe characters", () => {

@@ -1,5 +1,5 @@
-import { generateText } from "ai";
-import { normalizePath, type TFile, type Vault } from "obsidian";
+import { generateObject } from "ai";
+import { normalizePath, Notice, type TFile, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
 import { usePlugin } from "$lib/utils";
 import { createSystemContent } from "../../chat/system.ts";
@@ -7,11 +7,19 @@ import { createAIProvider } from "../../settings/providers.ts";
 import { getAccount, getChatModel } from "../../settings/utils.ts";
 import type { AIAccount, ChatModel } from "../../settings/settings.ts";
 import { unified } from "unified";
+import { z } from "zod";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import type { Root, Table, TableRow, TableCell } from "mdast";
+import { resolveInternalLink } from "$lib/utils/obsidian.ts";
 
 const debug = createDebug();
+
+// Zod schema for evaluation response
+const EvaluationResponseSchema = z.object({
+  reasoning: z.string().min(1, "Reasoning must not be empty"),
+  result: z.enum(["PASS", "FAIL"]),
+});
 
 export interface EvaluationResult {
   result: "PASS" | "FAIL";
@@ -62,15 +70,28 @@ export async function resolveJudgeConfig(
 ): Promise<JudgeConfig | EvaluationError> {
   const plugin = usePlugin();
 
-  // Resolve and validate judge agent file
-  const normalizedJudgePath = normalizePath(judgeAgentPath);
-  const judgeFile = vault.getFileByPath(normalizedJudgePath);
+  let judgeFile: TFile | null = null;
 
-  if (!judgeFile) {
-    return {
-      error: "Judge agent file not found",
-      message: `Could not find judge agent file at path: ${judgeAgentPath}`,
-    };
+  // Check if this is a wiki link (starts with [[ and ends with ]])
+  if (judgeAgentPath.startsWith("[[") && judgeAgentPath.endsWith("]]")) {
+    // Handle wiki link format (from frontmatter)
+    judgeFile = resolveInternalLink(judgeAgentPath, plugin);
+    if (!judgeFile) {
+      return {
+        error: "Judge agent file not found",
+        message: `Could not resolve judge agent link: ${judgeAgentPath}`,
+      };
+    }
+  } else {
+    // Handle absolute path format (from tool parameters)
+    const normalizedJudgePath = normalizePath(judgeAgentPath);
+    judgeFile = vault.getFileByPath(normalizedJudgePath);
+    if (!judgeFile) {
+      return {
+        error: "Judge agent file not found",
+        message: `Could not find judge agent file at path: ${judgeAgentPath}`,
+      };
+    }
   }
 
   // Get judge agent metadata for model configuration
@@ -184,86 +205,38 @@ export async function evaluateExample(
       {
         additionalData: {
           criteria_context: criteriaContext || "",
-          json_schema: `{
-  "reasoning": "Your detailed reasoning for the evaluation",
-  "result": "PASS or FAIL"
-}`,
         },
       },
     );
 
-    // Add JSON instruction to the system content
-    const systemContentWithJsonInstruction = `${judgeSystemContent}
-
-You will receive text to evaluate in the next message. Analyze the provided text against the criteria above.
-
-Provide your evaluation as JSON following this exact schema:
-{
-  "reasoning": "Your detailed reasoning for the evaluation",
-  "result": "PASS or FAIL"
-}
-
-Respond with valid JSON only.`;
-
-    // Prepare messages for judge evaluation with caching
-    const messages = [
-      {
-        role: "system" as const,
-        content: systemContentWithJsonInstruction,
-        providerOptions: {
-          anthropic: {
-            cacheControl: { type: "ephemeral" },
-          },
-        },
-      },
-      {
-        role: "user" as const,
-        content: `Text to evaluate:
-
-${text}`,
-      },
-      {
-        role: "assistant" as const,
-        content: "{",
-      },
-    ];
-
-    // Call the judge model
+    // Call the judge model with generateObject for structured output
     const provider = createAIProvider(judgeConfig.account);
 
-    const textResult = await generateText({
+    const result = await generateObject({
       model: provider.languageModel(judgeConfig.model.id),
-      messages,
+      schema: EvaluationResponseSchema,
+      messages: [
+        {
+          role: "system" as const,
+          content: judgeSystemContent,
+          providerOptions: {
+            anthropic: {
+              cacheControl: { type: "ephemeral" },
+            },
+          },
+        },
+        {
+          role: "user" as const,
+          content: `Text to evaluate:
+
+${text}`,
+        },
+      ],
       maxRetries: 0,
       abortSignal,
     });
 
-    // Parse the JSON response
-    const fullJsonText = "{" + textResult.text;
-    let evaluationData;
-
-    try {
-      evaluationData = JSON.parse(fullJsonText);
-    } catch (parseError) {
-      debug("Failed to parse JSON response:", fullJsonText);
-      // Fallback to text parsing
-      const result = parseEvaluationResult(textResult.text);
-      return {
-        result,
-        reasoning: `${textResult.text}\n\n[Note: Could not parse JSON response, used fallback parsing]`,
-        judge_version: judgeConfig.judgeVersion,
-        judge_model: judgeConfig.model.id,
-        judge_account: judgeConfig.account.name,
-      };
-    }
-
-    // Validate the parsed JSON
-    if (!evaluationData.reasoning || !evaluationData.result) {
-      return {
-        error: "Invalid evaluation response",
-        message: "Judge response missing required fields (reasoning, result)",
-      };
-    }
+    const evaluationData = result.object;
 
     // Normalize the result
     const normalizedResult = parseEvaluationResult(evaluationData.result);
@@ -454,11 +427,12 @@ export function generateResultsTable(
     const expectedEmoji = example.expected === "PASS" ? "✅" : "❌";
     const judgeEmoji = example.judge_result === "PASS" ? "✅" : "❌";
 
-    // Escape pipe characters in content and truncate if very long
-    const exampleText = example.example.replace(/\|/g, "\\|").substring(0, 200);
+    // Escape pipe characters in content
+    const exampleText = example.example.replace(/\|/g, "\\|");
+    // Truncate reasoning for table readability (safety measure)
     const reasoningText = example.reasoning
       .replace(/\|/g, "\\|")
-      .substring(0, 300);
+      .substring(0, 500);
 
     markdown += `| ${expectedEmoji} | ${judgeEmoji} | ${exampleText} | ${reasoningText} |\n`;
   }
@@ -559,6 +533,14 @@ export async function evaluateTestSet(
         example: example.example,
         reasoning: result.reasoning,
       });
+
+      // Show progress notice
+      const isCorrect = example.expected === result.result;
+      const statusIcon = isCorrect ? "✅" : "❌";
+      new Notice(
+        `${statusIcon} Example ${i + 1}/${examples.length}: ${result.result}`,
+        2000, // Show for 2 seconds
+      );
     }
 
     // Update the test set file with results

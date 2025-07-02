@@ -51,7 +51,7 @@ Test set files are markdown documents containing tables of examples to evaluate.
 
 ```markdown
 ---
-judge_path: "/judges/internal-notes-judge.md"
+judge: "[[clarity-judge]]"
 ---
 
 ## Current Results (Judge v3)
@@ -77,7 +77,7 @@ Accuracy: 6/10 (60%)
 ```
 
 **Test Set Properties:**
-- `judge_path`: Path to the judge agent file
+- `judge`: Wiki link to the judge agent file to use for evaluation (e.g., `"[[clarity-judge]]"`)
 - Tables with columns: Expected (✅/❌), Judge (✅/❌/⏳), Example (text), Reasoning (judge's explanation)
 - Version history showing performance across judge iterations
 
@@ -143,7 +143,7 @@ EvaluateTestSet:
 Obsidian command that runs test set evaluation from the Command Palette.
 
 **Usage:**
-1. Open a test set file (must have `judge_path` in frontmatter)
+1. Open a test set file (must have `judge` in frontmatter)
 2. Run command: "Run Test Set Evaluation"
 3. View progress and results in notices
 

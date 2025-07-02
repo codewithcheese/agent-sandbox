@@ -22,12 +22,12 @@ export class TestSetCommand {
           return;
         }
 
-        // Check if this is a test set file by looking for frontmatter with judge_path
+        // Check if this is a test set file by looking for frontmatter with judge
         const metadata = plugin.app.metadataCache.getFileCache(file);
         const frontmatter = metadata?.frontmatter;
         
-        if (!frontmatter?.judge_path) {
-          new Notice("This file is not a test set. Test set files must have 'judge_path' in frontmatter.");
+        if (!frontmatter?.judge) {
+          new Notice("This file is not a test set. Test set files must have 'judge' in frontmatter.");
           return;
         }
 
@@ -43,10 +43,10 @@ export class TestSetCommand {
       
       // Get judge path from frontmatter
       const metadata = plugin.app.metadataCache.getFileCache(testSetFile);
-      const judgePath = metadata?.frontmatter?.judge_path;
+      const judgePath = metadata?.frontmatter?.judge;
       
       if (!judgePath) {
-        new Notice("Test set file must have 'judge_path' in frontmatter");
+        new Notice("Test set file must have 'judge' in frontmatter");
         return;
       }
 

@@ -19,7 +19,7 @@ describe("EvaluateTestSet Tool", () => {
   beforeEach(async () => {
     // Create a test judge agent file
     judgeFile = await vault.create(
-      "judges/test-set-judge.md",
+      "judges/clarity-judge.md",
       `---
 version: 2
 model_id: claude-4-sonnet-20250514
