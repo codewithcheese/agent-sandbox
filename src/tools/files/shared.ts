@@ -35,7 +35,12 @@ export const COMMON_IGNORE_PATTERNS = [
   "**/bower_components/**",
 ];
 
-export function removeUndefinedFields<T extends Record<string, any>>(obj: T): T {
+export function removeUndefinedFields<T extends Record<string, any>>(
+  obj: T,
+): T {
+  if (typeof obj !== "object" || obj === null) {
+    return obj;
+  }
   const result = {} as T;
   for (const [key, value] of Object.entries(obj)) {
     if (value !== undefined) {
