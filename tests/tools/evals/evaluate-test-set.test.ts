@@ -25,14 +25,12 @@ version: 2
 model_id: claude-4-sonnet-20250514
 ---
 
-Evaluate whether the provided text demonstrates clear, effective communication.
+Evaluate whether the provided text demonstrates clear, concise communication.
 
 Criteria:
-- Uses clear, simple language
-- Communicates the main point effectively
-- Avoids unnecessary complexity
-
-Text to evaluate: {{ text }}
+- Direct and to the point
+- No unnecessary jargon
+- Clear meaning
 
 Analyze the text against these criteria. Respond with valid JSON containing:
 - "reasoning": your detailed analysis of the text
@@ -265,8 +263,6 @@ model_id: claude-4-sonnet-20250514
 ---
 
 Evaluate for clarity.
-
-Text: {{ text }}
 
 Respond with JSON: {"reasoning": "analysis", "result": "PASS" or "FAIL"}`
     );

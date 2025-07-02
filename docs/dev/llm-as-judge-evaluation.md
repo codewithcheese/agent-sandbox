@@ -27,8 +27,6 @@ Criteria:
 - Avoids unnecessary complexity
 - Communicates the main point effectively
 
-Text to evaluate: {{ text }}
-
 {% if criteria_context %}
 Additional evaluation context: {{ criteria_context }}
 {% endif %}
@@ -41,7 +39,9 @@ Analyze the text against these criteria. Respond with valid JSON containing:
 **Judge Agent Properties:**
 - `version`: Version number (auto-incremented when modified)
 - `model_id`: Optional specific model to use for evaluation (defaults to plugin default)
-- Template variables: `{{ text }}`, `{{ criteria_context }}`
+- Template variables: `{{ criteria_context }}`
+
+**Note:** The text to be evaluated is now passed as a separate user message for improved caching efficiency, rather than being embedded in the judge template.
 
 ### 2. Test Set Files
 

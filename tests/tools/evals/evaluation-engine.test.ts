@@ -38,8 +38,6 @@ Criteria:
 - Avoids unnecessary jargon
 - Gets to the point quickly
 
-Text to evaluate: {{ text }}
-
 {% if criteria_context %}
 Additional context: {{ criteria_context }}
 {% endif %}

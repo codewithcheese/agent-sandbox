@@ -31,8 +31,6 @@ Criteria:
 - Avoids unnecessary complexity
 - Communicates the main point effectively
 
-Text to evaluate: {{ text }}
-
 {% if criteria_context %}
 Additional evaluation context: {{ criteria_context }}
 {% endif %}
@@ -179,8 +177,6 @@ version: 1
 ---
 
 Evaluate the text for clarity.
-
-Text: {{ text }}
 
 Respond with JSON: {"reasoning": "your analysis", "result": "PASS" or "FAIL"}`,
     );

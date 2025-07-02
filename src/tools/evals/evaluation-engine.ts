@@ -178,12 +178,11 @@ export async function evaluateExample(
   abortSignal?: AbortSignal,
 ): Promise<EvaluationResult | EvaluationError> {
   try {
-    // Create judge system content with JSON schema instruction
+    // Create cacheable judge system content (without specific text)
     const judgeSystemContent = await createSystemContent(
       judgeConfig.judgeFile,
       {
         additionalData: {
-          text,
           criteria_context: criteriaContext || "",
           json_schema: `{
   "reasoning": "Your detailed reasoning for the evaluation",
@@ -196,6 +195,8 @@ export async function evaluateExample(
     // Add JSON instruction to the system content
     const systemContentWithJsonInstruction = `${judgeSystemContent}
 
+You will receive text to evaluate in the next message. Analyze the provided text against the criteria above.
+
 Provide your evaluation as JSON following this exact schema:
 {
   "reasoning": "Your detailed reasoning for the evaluation",
@@ -204,11 +205,22 @@ Provide your evaluation as JSON following this exact schema:
 
 Respond with valid JSON only.`;
 
-    // Prepare messages for judge evaluation
+    // Prepare messages for judge evaluation with caching
     const messages = [
       {
-        role: "user" as const,
+        role: "system" as const,
         content: systemContentWithJsonInstruction,
+        providerOptions: {
+          anthropic: {
+            cacheControl: { type: "ephemeral" },
+          },
+        },
+      },
+      {
+        role: "user" as const,
+        content: `Text to evaluate:
+
+${text}`,
       },
       {
         role: "assistant" as const,
