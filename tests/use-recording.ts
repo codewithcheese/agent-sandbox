@@ -26,6 +26,7 @@ export function useRecording(
         recordIfMissing: true,
         recordFailedRequests: false,
         persister: "fs",
+        logLevel: "trace",
         persisterOptions: {
           fs: {
             recordingsDir:
