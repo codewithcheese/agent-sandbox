@@ -220,7 +220,7 @@ Third line without backlinks.`);
       const text = "Check [[note]] file.";
       expandBacklinks(text);
 
-      expect(mockGetFirstLinkpathDest).toHaveBeenCalledWith("note");
+      expect(mockGetFirstLinkpathDest).toHaveBeenCalledWith("note", "/");
     });
 
     it("should handle when getFirstLinkpathDest returns null", () => {
@@ -234,7 +234,7 @@ Third line without backlinks.`);
       const result = expandBacklinks(text);
 
       expect(result).toBe("Check [[nonexistent]] file.");
-      expect(mockGetFirstLinkpathDest).toHaveBeenCalledWith("nonexistent");
+      expect(mockGetFirstLinkpathDest).toHaveBeenCalledWith("nonexistent", "/");
     });
   });
 });
