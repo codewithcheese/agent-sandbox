@@ -23,9 +23,11 @@ export function useRecording(
       polly = new Polly(options.recordingName ?? suite.name, {
         adapters: ["fetch"],
         mode: "replay",
-        recordIfMissing: true,
+        recordIfMissing: process.env.CI == null,
         recordFailedRequests: false,
         persister: "fs",
+        // logLevel: "debug",
+        matchRequestsBy: { headers: false },
         persisterOptions: {
           fs: {
             recordingsDir:
@@ -49,6 +51,12 @@ export function useRecording(
       console.error(error);
       throw error;
     }
+
+    // 🔍 SEE WHERE POLLY IS ACTUALLY LOOKING
+    console.log(
+      "[Polly] recordingsDir →",
+      polly.config.persisterOptions.fs.recordingsDir,
+    );
   });
 
   beforeEach((context) => {

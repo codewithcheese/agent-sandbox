@@ -17,10 +17,12 @@ import { listTool } from "./files/list.ts";
 import { toolDef as todoWrite } from "./todo/write.ts";
 import { toolDef as todoRead } from "./todo/read.ts";
 import { toolDef as webSearch } from "./web-search.ts";
+import { evaluateOutputTool } from "./evals/evaluate-output.ts";
+import { evaluateTestSetTool } from "./evals/evaluate-test-set.ts";
+import { promptTool } from "./evals/prompt.ts";
 import { extractCodeBlockContent } from "../lib/utils/codeblocks.ts";
 import { createSystemContent } from "../chat/system.ts";
 import { z } from "zod";
-import { anthropic } from "@ai-sdk/anthropic";
 
 const debug = createDebug();
 
@@ -35,6 +37,9 @@ export const toolRegistry: Record<string, ToolDefinition> = {
   search: searchTool,
   todo_write: todoWrite,
   todo_read: todoRead,
+  evaluate_output: evaluateOutputTool,
+  evaluate_test_set: evaluateTestSetTool,
+  prompt: promptTool,
 };
 
 /**

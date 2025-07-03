@@ -197,7 +197,9 @@
             <Markdown md={part.text} renderObsidian={true} />
           </div>
         {:else if part.type === "reasoning"}
-          <div class="py-1 text-sm text-(--text-muted) bg-(--background-secondary) rounded p-2">
+          <div
+            class="py-1 text-sm text-(--text-muted) bg-(--background-secondary) rounded p-2 select-text"
+          >
             {part.text}
           </div>
         {:else if part.type === "file"}

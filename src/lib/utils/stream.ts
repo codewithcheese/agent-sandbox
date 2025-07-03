@@ -10,6 +10,7 @@ import { createDebug } from "$lib/debug.ts";
 import { encodeBase64 } from "$lib/utils/base64.ts";
 import { invariant } from "@epic-web/invariant";
 import type { UIMessageWithMetadata } from "../../chat/chat.svelte.ts";
+import { removeUndefinedFields } from "../../tools/files/shared.ts";
 
 const debug = createDebug();
 
@@ -245,7 +246,9 @@ export function applyStreamPartToMessages(
         state: "output-available",
         toolCallId: part.toolCallId,
         input: part.input,
-        output: part.output,
+        // tool message schema json value doesn't allow undefined
+        // https://github.com/vercel/ai/blame/main/packages/ai/core/types/json-value.ts
+        output: removeUndefinedFields(part.output),
         providerExecuted: part.providerExecuted,
       };
       break;

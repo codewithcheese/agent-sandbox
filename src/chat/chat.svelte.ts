@@ -31,7 +31,7 @@ import type { Frontiers } from "loro-crdt/base64";
 import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { SessionStore } from "./session-store.svelte.ts";
 import { syncChangesReminder } from "./system-reminders.ts";
-import { getTextFromParts } from "$lib/utils/ai.ts";
+import { getTextFromParts, filterIncompleteToolParts } from "$lib/utils/ai.ts";
 
 const debug = createDebug();
 
@@ -413,7 +413,7 @@ export class Chat {
 
       const messages: ModelMessage[] = [
         ...convertToModelMessages(
-          wrapTextAttachments($state.snapshot(this.messages)),
+          wrapTextAttachments(filterIncompleteToolParts($state.snapshot(this.messages))),
           // filter out empty messages, empty messages were observed after tool calls in some cases
           // potentially a bug in AI SDK or in this plugin
         ).filter((m) => m.content.length > 0),
@@ -582,7 +582,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
           activeTextParts: {},
           activeReasoningParts: {},
         };
-        debugger;
         for await (const chunk of stream.fullStream) {
           applyStreamPartToMessages(this.messages, chunk, streamingState);
         }

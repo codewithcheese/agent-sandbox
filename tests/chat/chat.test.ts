@@ -10,7 +10,7 @@ import type { AIAccount } from "../../src/settings/settings.ts";
 import { invariant } from "@epic-web/invariant";
 
 // fixme: not using har in CI
-describe.skip("Chat", () => {
+describe.skipIf(process.env.CI)("Chat", () => {
   useRecording();
 
   let chat: Chat;

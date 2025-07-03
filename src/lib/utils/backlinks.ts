@@ -52,7 +52,7 @@ export function expandBacklinks(text: string): string {
     if (linkText.includes("|")) return match;
 
     // Try to find file by exact path first, then by basename
-    let file = plugin.app.metadataCache.getFirstLinkpathDest(linkText);
+    let file = plugin.app.metadataCache.getFirstLinkpathDest(linkText, "/");
 
     // Transform only if file exists and link text is not already the full path
     if (file && file.path !== linkText) {

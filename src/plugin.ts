@@ -23,6 +23,7 @@ import { AgentBannerComponent } from "./editor/agent/agent-banner-component.svel
 import { PromptCommand } from "./editor/prompt-command.ts";
 import { ContextMenu } from "./editor/context-menu.ts";
 import { HtmlEscapeCommand } from "./editor/html-escape-command.ts";
+import { TestSetCommand } from "./tools/evals/test-set-command.ts";
 import { Prompts } from "./chat/prompts.svelte.ts";
 
 export class AgentSandboxPlugin extends Plugin {
@@ -86,6 +87,7 @@ export class AgentSandboxPlugin extends Plugin {
     PromptCommand.register(this);
     ContextMenu.register(this);
     HtmlEscapeCommand.register(this);
+    TestSetCommand.register(this);
     RenameTracker.register(this);
     RecorderView.register(this);
     Prompts.register(this);
@@ -105,7 +107,7 @@ export class AgentSandboxPlugin extends Plugin {
 
     // Open recorder view on startup
     this.app.workspace.onLayoutReady(async () => {
-      await RecorderView.openRecorderView();
+      // await RecorderView.openRecorderView();
       await Prompts.refresh();
     });
   }
