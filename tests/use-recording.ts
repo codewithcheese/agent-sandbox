@@ -27,6 +27,7 @@ export function useRecording(
         recordFailedRequests: false,
         persister: "fs",
         logLevel: "trace",
+        matchRequestsBy: { headers: false },
         persisterOptions: {
           fs: {
             recordingsDir:
