@@ -50,6 +50,12 @@ export function useRecording(
       console.error(error);
       throw error;
     }
+
+    // 🔍 SEE WHERE POLLY IS ACTUALLY LOOKING
+    console.log(
+      "[Polly] recordingsDir →",
+      polly.config.persisterOptions.fs.recordingsDir,
+    );
   });
 
   beforeEach((context) => {
