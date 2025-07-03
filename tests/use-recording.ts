@@ -26,7 +26,7 @@ export function useRecording(
         recordIfMissing: process.env.CI == null,
         recordFailedRequests: false,
         persister: "fs",
-        logLevel: "debug",
+        // logLevel: "debug",
         matchRequestsBy: { headers: false },
         persisterOptions: {
           fs: {
