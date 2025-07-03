@@ -65,6 +65,9 @@ importers:
       '@types/diff':
         specifier: ^7.0.2
         version: 7.0.2
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       '@types/picomatch':
         specifier: ^4.0.0
         version: 4.0.0
