@@ -189,6 +189,10 @@ export default defineConfig(({ command }) => {
               "**/tests/**/*.browser.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
               "node_modules/**",
             ],
+            // run in serial so that vault mock is consistent
+            // otherwise API requests will not match recordings
+            maxConcurrency: 1,
+            maxThreads: 1,
           },
         },
       ],

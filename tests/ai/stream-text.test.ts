@@ -9,7 +9,7 @@ import {
 import { z } from "zod";
 
 // fixme: not using har in CI
-describe.skip("generateText", () => {
+describe.skipIf(process.env.CI)("generateText", () => {
   useRecording();
 
   it("should stream text with anthropic sonnet", async () => {

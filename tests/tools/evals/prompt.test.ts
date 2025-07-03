@@ -1,5 +1,5 @@
 // mocks
-import { plugin, vault } from "../../mocks/obsidian.ts";
+import { helpers, plugin, vault } from "../../mocks/obsidian.ts";
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { useRecording } from "../../use-recording.ts";
@@ -8,7 +8,7 @@ import type { AIAccount } from "../../../src/settings/settings.ts";
 import type { ToolCallOptionsWithContext } from "../../../src/tools/types.ts";
 import { TFile } from "obsidian";
 
-describe("Prompt Tool", () => {
+describe.skipIf(process.env.CI)("Prompt Tool", () => {
   useRecording();
 
   let promptFile: TFile;
@@ -16,6 +16,7 @@ describe("Prompt Tool", () => {
   let toolContext: ToolCallOptionsWithContext;
 
   beforeEach(async () => {
+    await helpers.reset();
     // Create a test prompt file
     promptFile = await vault.create(
       "prompts/summarize.md",

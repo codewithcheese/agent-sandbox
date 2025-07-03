@@ -23,10 +23,10 @@ export function useRecording(
       polly = new Polly(options.recordingName ?? suite.name, {
         adapters: ["fetch"],
         mode: "replay",
-        recordIfMissing: true,
+        recordIfMissing: process.env.CI == null,
         recordFailedRequests: false,
         persister: "fs",
-        logLevel: "trace",
+        logLevel: "debug",
         matchRequestsBy: { headers: false },
         persisterOptions: {
           fs: {

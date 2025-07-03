@@ -4,7 +4,7 @@ import { createAIProvider } from "../../src/settings/providers.ts";
 import { useRecording } from "../use-recording.ts";
 
 // fixme: not using har in CI
-describe.skip("generateText", () => {
+describe.skipIf(process.env.CI)("generateText", () => {
   useRecording();
 
   it("should generate text with anthropic sonnet", async () => {
