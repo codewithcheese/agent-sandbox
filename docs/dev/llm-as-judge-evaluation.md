@@ -45,7 +45,7 @@ Analyze the text against these criteria. Respond with valid JSON containing:
 
 ### 2. Test Set Files
 
-Test set files are markdown documents containing tables of examples to evaluate. They track evaluation history and results across different judge versions.
+Test set files are markdown documents containing Field|Value tables for each test example. They track evaluation history and results with compact results tables.
 
 **Example Test Set (`test-sets/internal-notes-style.md`):**
 
@@ -54,43 +54,74 @@ Test set files are markdown documents containing tables of examples to evaluate.
 judge: "[[clarity-judge]]"
 ---
 
-## Current Results (Judge v3) - 8/10 (80%)
+## Results (Judge v3) - 2/2 (100%)
 
 **Evaluation Details:**
 - Model: claude-3-5-sonnet-20241022
 - Account: Anthropic
 
-| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ✅ | Document onboarding approach | Need to explore three approaches for user onboarding: progressive disclosure vs full tutorial vs contextual hints. | Clear identification of concrete next steps and decision points. |
-| ❌ | ❌ | Document onboarding approach | User onboarding represents a critical touchpoint in the customer journey where organizations must balance comprehensive guidance with cognitive load management. | Uses abstract business language rather than focusing on actionable directions. |
+| Test | Expected | Judge | Reasoning |
+|------|----------|-------|-----------|
+| [[#clear-direction]] | ✅ | ✅ | Clear identification of concrete next steps and decision points. |
+| [[#abstract-language]] | ❌ | ❌ | Uses abstract business language rather than focusing on actionable directions. |
 
-## Judge v2 Results - 6/10 (60%)
+# Test Set
 
-**Evaluation Details:**
-- Model: claude-3-5-sonnet-20241022
-- Account: Anthropic
+### Clear Direction
 
-| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ❌ | Document onboarding approach | Need to explore three approaches... | Previous version was less accurate at identifying direction-focused content. |
+| Field | Value |
+|-------|-------|
+| Expected | PASS |
+| Input | Document onboarding approach |
+| Output | Need to explore three approaches for user onboarding: progressive disclosure vs full tutorial vs contextual hints. |
 
-## Examples for Evaluation
-| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ⏳ | Document API issues | Current API design has two unresolved questions: authentication flow timing and error state handling. | |
-| ❌ | ⏳ | Announce meeting time | The aforementioned temporal designation for the convening has been established. | |
+### Abstract Language
+
+| Field | Value |
+|-------|-------|
+| Expected | FAIL |
+| Input | Document onboarding approach |
+| Output | User onboarding represents a critical touchpoint in the customer journey where organizations must balance comprehensive guidance with cognitive load management. |
+```
 
 **Test Set Properties:**
 - `judge`: Wiki link to the judge agent file to use for evaluation (e.g., `"[[clarity-judge]]"`)
 - Results include evaluation details (model ID and account name) for traceability
-- Tables with columns: Expected (✅/❌), Judge (✅/❌/⏳), Input (optional context), Output (evaluated text), Reasoning (judge's explanation)
-- Version history showing performance across judge iterations
+- **Field|Value Format**: Each test is defined with a markdown header and a Field|Value table
+- **Compact Results**: Results table shows Test (linked), Expected, Judge, and Reasoning columns
+- **Test Names**: Defined by markdown headers (### Test Name) and linked in results
 
-**Table Format Details:**
-- **Input**: Optional column for documenting the prompt or context that generated the output. Can be left empty.
-- **Output**: The actual text content that gets evaluated by the judge. This is required.
-- **Judge evaluates only the Output**: The Input column is purely for documentation and context - only the Output text is sent to the judge for evaluation.
+**Field|Value Table Format:**
+- **Expected**: PASS or FAIL - what the judge should determine
+- **Input**: Optional field for documenting the prompt or context that generated the output
+- **Output**: The actual text content that gets evaluated by the judge (required)
+- **Judge evaluates only the Output**: The Input field is purely for documentation - only the Output text is sent to the judge for evaluation
+
+### Field|Value Format Details
+
+The Field|Value format provides several advantages over traditional table formats:
+
+**Structure:**
+- Each test is defined by a markdown header (### Test Name)
+- Followed by a simple two-column table with Field and Value columns
+- Test names become anchor links in the results table
+
+**Benefits:**
+- **Token Efficiency**: Reduces token usage compared to wide multi-column tables
+- **Readability**: Easier to read and write, especially for longer text content
+- **Flexibility**: Can easily add new fields without restructuring existing tests
+- **Maintainability**: Clear separation between test definition and results
+
+**Example Structure:**
+```markdown
+### My Test Name
+
+| Field | Value |
+|-------|-------|
+| Expected | PASS |
+| Input | Optional context |
+| Output | Text to evaluate |
+```
 
 ## Available Tools
 
@@ -247,7 +278,7 @@ Obsidian command that runs test set evaluation from the Command Palette.
 During instruction development, use the evaluation system to build understanding:
 
 1. **Create examples** as you iterate with the agent
-2. **Use EvaluateExample** for quick feedback during conversation
+2. **Use EvaluateOutput** for quick feedback during conversation
 3. **Build test set** by accumulating good/bad examples
 4. **Develop judge criteria** based on what you're looking for
 

@@ -45,6 +45,7 @@ export interface TestSetExample {
   expected: "PASS" | "FAIL";
   input: string;
   output: string;
+  testName?: string;
 }
 
 export interface TestSetEvaluationResult {
@@ -68,6 +69,7 @@ export interface EvaluatedExample {
   input: string;
   output: string;
   reasoning: string;
+  testName?: string;
 }
 
 /**
@@ -279,26 +281,123 @@ ${text}`,
 }
 
 /**
- * Extracts text content from a table cell node
+ * Extracts text content from a table cell
  */
 function extractCellText(cell: TableCell): string {
-  // Extract text from all text nodes in the cell
-  let text = "";
-
-  function visitNode(node: any): void {
-    if (node.type === "text") {
-      text += node.value;
-    } else if (node.children) {
-      node.children.forEach(visitNode);
-    }
-  }
-
-  cell.children.forEach(visitNode);
-  return text.trim();
+  return cell.children
+    .map((child: any) => {
+      if (child.type === "text") {
+        return child.value;
+      } else if (child.type === "inlineCode") {
+        return child.value;
+      } else if (child.type === "strong" || child.type === "emphasis") {
+        return child.children
+          .map((grandchild: any) => grandchild.value || "")
+          .join("");
+      }
+      return "";
+    })
+    .join("");
 }
 
 /**
- * Parses test set markdown file to extract examples from first table
+ * Extracts text content from any markdown node
+ */
+function extractTextFromNode(node: any): string {
+  if (node.type === "text") {
+    return node.value;
+  } else if (node.children) {
+    return node.children
+      .map((child: any) => extractTextFromNode(child))
+      .join("");
+  }
+  return "";
+}
+
+/**
+ * Checks if a table has Field|Value headers
+ */
+function isFieldValueTable(table: Table): boolean {
+  if (table.children.length === 0) return false;
+  
+  const headerRow = table.children[0] as TableRow;
+  const cells = headerRow.children as TableCell[];
+  
+  if (cells.length !== 2) return false;
+  
+  const firstHeader = extractCellText(cells[0]).trim().toLowerCase();
+  const secondHeader = extractCellText(cells[1]).trim().toLowerCase();
+  
+  return firstHeader === "field" && secondHeader === "value";
+}
+
+/**
+ * Parses a Field|Value table to extract test data
+ */
+function parseFieldValueTable(
+  table: Table,
+  testName: string | null,
+): TestSetExample | EvaluationError {
+  const dataRows = table.children.slice(1); // Skip header row
+  
+  if (dataRows.length === 0) {
+    return {
+      error: "Empty test table",
+      message: `Test "${testName || "unknown"}" has no field definitions`,
+    };
+  }
+  
+  const fields: Record<string, string> = {};
+  
+  // Extract field-value pairs
+  for (const row of dataRows) {
+    const cells = (row as TableRow).children as TableCell[];
+    if (cells.length >= 2) {
+      const field = extractCellText(cells[0]).trim().toLowerCase();
+      const value = extractCellText(cells[1]).trim();
+      fields[field] = value;
+    }
+  }
+  
+  // Validate required fields
+  if (!fields.expected) {
+    return {
+      error: "Missing Expected field",
+      message: `Test "${testName || "unknown"}" must have an Expected field`,
+    };
+  }
+  
+  if (!fields.output) {
+    return {
+      error: "Missing Output field",
+      message: `Test "${testName || "unknown"}" must have an Output field`,
+    };
+  }
+  
+  // Parse expected value
+  let expected: "PASS" | "FAIL";
+  const expectedValue = fields.expected.toLowerCase();
+  if (expectedValue === "pass" || expectedValue === "✅") {
+    expected = "PASS";
+  } else if (expectedValue === "fail" || expectedValue === "❌") {
+    expected = "FAIL";
+  } else {
+    return {
+      error: "Invalid expected value",
+      message: `Test "${testName || "unknown"}": Expected field must be "PASS", "FAIL", "✅", or "❌". Found: "${fields.expected}"`,
+    };
+  }
+  
+  return {
+    expected,
+    input: fields.input || "",
+    output: fields.output,
+    testName: testName || "Unnamed Test",
+  };
+}
+
+/**
+ * Parses test set markdown file to extract test definitions from Field|Value tables
  */
 export function parseTestSetTable(
   content: string,
@@ -308,89 +407,57 @@ export function parseTestSetTable(
     const processor = unified().use(remarkParse).use(remarkGfm);
     const ast = processor.parse(content) as Root;
 
-    // Find the first table in the AST
-    let firstTable: Table | null = null;
+    const examples: TestSetExample[] = [];
+    let currentTestName: string | null = null;
+    let parseError: EvaluationError | null = null;
 
     function visitNode(node: any): void {
-      if (node.type === "table" && !firstTable) {
-        firstTable = node as Table;
-      } else if (node.children) {
+      // Skip processing if we already have an error
+      if (parseError) return;
+      
+      // Track test names from h3 headers
+      if (node.type === "heading" && node.depth === 3) {
+        currentTestName = extractTextFromNode(node);
+      }
+      // Process Field|Value tables
+      else if (node.type === "table") {
+        const table = node as Table;
+        
+        // Check if this is a Field|Value table
+        if (isFieldValueTable(table)) {
+          const testData = parseFieldValueTable(table, currentTestName);
+          if ("error" in testData) {
+            parseError = testData; // Store the error to return later
+            return;
+          }
+          examples.push(testData);
+        }
+      }
+      
+      if (node.children) {
         node.children.forEach(visitNode);
       }
     }
 
     ast.children.forEach(visitNode);
 
-    if (!firstTable) {
-      return {
-        error: "No table found",
-        message: "Test set file must contain at least one markdown table",
-      };
+    // Check if we encountered a parse error during traversal
+    if (parseError) {
+      return parseError;
     }
 
-    // Extract data rows (skip header row)
-    const dataRows = firstTable.children.slice(1); // Skip header row
-
-    if (dataRows.length === 0) {
+    if (examples.length === 0) {
       return {
-        error: "No data rows found",
-        message:
-          "Test set table must contain at least one data row with examples",
+        error: "No test definitions found",
+        message: "Test set file must contain at least one Field|Value table with Expected, Input, and Output fields",
       };
-    }
-
-    const examples: TestSetExample[] = [];
-
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = dataRows[i] as TableRow;
-      const cells = row.children as TableCell[];
-
-      if (cells.length < 4) {
-        return {
-          error: "Invalid table format",
-          message: `Row ${i + 1} must have at least 4 columns (Expected, Judge, Input, Output). Found ${cells.length} columns.`,
-        };
-      }
-
-      const expectedCell = extractCellText(cells[0]);
-      const inputCell = extractCellText(cells[2]); // Third column is Input
-      const outputCell = extractCellText(cells[3]); // Fourth column is Output
-
-      // Validate expected value (must be emoji)
-      let expected: "PASS" | "FAIL";
-      if (expectedCell === "✅") {
-        expected = "PASS";
-      } else if (expectedCell === "❌") {
-        expected = "FAIL";
-      } else {
-        return {
-          error: "Invalid expected value",
-          message: `Row ${i + 1}: Expected column must contain ✅ (for PASS) or ❌ (for FAIL). Found: "${expectedCell}"`,
-        };
-      }
-
-      // Input is optional - it's for documentation/context only
-
-      // Validate output is not empty
-      if (!outputCell || outputCell.trim() === "") {
-        return {
-          error: "Empty output text",
-          message: `Row ${i + 1}: Output column cannot be empty`,
-        };
-      }
-
-      examples.push({
-        expected,
-        input: inputCell ? inputCell.trim() : "",
-        output: outputCell.trim(),
-      });
     }
 
     return examples;
   } catch (error) {
-    debug(`Error parsing markdown table:`, error);
+    debug(`Error parsing test set:`, error);
     return {
-      error: "Markdown parsing failed",
+      error: "Test set parsing failed",
       message: error instanceof Error ? error.message : String(error),
     };
   }
@@ -417,7 +484,7 @@ export function validateTestSetTable(content: string): true | EvaluationError {
 }
 
 /**
- * Generates results table markdown with evaluated examples
+ * Generates compact results table markdown with test name links
  */
 export function generateResultsTable(
   evaluatedExamples: EvaluatedExample[],
@@ -439,25 +506,27 @@ export function generateResultsTable(
   markdown += `- Account: ${accountName}\n`;
   markdown += `\n`;
 
-  // Table header
-  markdown += "| Expected | Judge | Input | Output | Reasoning |\n";
-  markdown += "|----------|-------|-------|--------|-----------|\n";
+  // Table header for compact format
+  markdown += "| Test | Expected | Judge | Reasoning |\n";
+  markdown += "|------|----------|-------|-----------|\n";
 
-  // Table rows
+  // Table rows with test name links
   for (const example of evaluatedExamples) {
     const expectedEmoji = example.expected === "PASS" ? "✅" : "❌";
     const judgeEmoji = example.judge_result === "PASS" ? "✅" : "❌";
 
-    // Escape pipe characters and handle line breaks in content
-    const inputText = example.input.replace(/\|/g, "\\|").replace(/\n/g, " ");
-    const outputText = example.output.replace(/\|/g, "\\|").replace(/\n/g, " ");
-    // Truncate reasoning for table readability and handle line breaks
+    // Create header link for test name (Obsidian format)
+    const testName = example.testName || "Unnamed Test";
+    const headerAnchor = testName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+    const testLink = `[[#${headerAnchor}]]`;
+    
+    // Handle line breaks in reasoning
     const reasoningText = example.reasoning
       .replace(/\|/g, "\\|")
       .replace(/\n/g, "<br>")
       .substring(0, 500);
 
-    markdown += `| ${expectedEmoji} | ${judgeEmoji} | ${inputText} | ${outputText} | ${reasoningText} |\n`;
+    markdown += `| ${testLink} | ${expectedEmoji} | ${judgeEmoji} | ${reasoningText} |\n`;
   }
 
   markdown += "\n";
@@ -560,6 +629,7 @@ export async function evaluateTestSet(
         input: example.input,
         output: example.output,
         reasoning: result.reasoning,
+        testName: example.testName,
       });
 
       // Show progress notice

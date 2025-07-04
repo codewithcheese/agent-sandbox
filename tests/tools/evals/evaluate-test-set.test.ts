@@ -49,12 +49,37 @@ test_set: "communication-style"
 
 This test set evaluates clear communication style.
 
-| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ⏳ | Announce meeting time | The meeting is at 3 PM. | |
-| ❌ | ⏳ | Announce meeting time | The aforementioned temporal designation for the convening of the assemblage has been established as the fifteenth hour of the post-meridian period. | |
-| ✅ | ⏳ | Request document review | Please review the document. | |
-| ❌ | ⏳ | Request document review | It would be greatly appreciated if you could undertake a comprehensive examination of the aforementioned documentation. | |
+### Clear Meeting Announcement
+
+| Field | Value |
+|-------|-------|
+| Expected | PASS |
+| Input | Announce meeting time |
+| Output | The meeting is at 3 PM. |
+
+### Verbose Meeting Announcement
+
+| Field | Value |
+|-------|-------|
+| Expected | FAIL |
+| Input | Announce meeting time |
+| Output | The aforementioned temporal designation for the convening of the assemblage has been established as the fifteenth hour of the post-meridian period. |
+
+### Clear Document Request
+
+| Field | Value |
+|-------|-------|
+| Expected | PASS |
+| Input | Request document review |
+| Output | Please review the document. |
+
+### Verbose Document Request
+
+| Field | Value |
+|-------|-------|
+| Expected | FAIL |
+| Input | Request document review |
+| Output | It would be greatly appreciated if you could undertake a comprehensive examination of the aforementioned documentation. |
 
 Additional notes about this test set...`,
     );
@@ -180,15 +205,18 @@ This file has no table.`,
     );
 
     expect(result).toHaveProperty("error");
-    expect(result.error).toBe("No table found");
+    expect(result.error).toBe("No test definitions found");
   });
 
   it("should return error for test set with invalid expected values", async () => {
     const invalidExpectedFile = await vault.create(
       "test-sets/invalid-expected.md",
-      `| Expected | Judge | Example | Reasoning |
-|----------|-------|---------|-----------|
-| PASS | ⏳ | Some text | |`,
+      `### Invalid Test
+
+| Field | Value |
+|-------|-------|
+| Expected | INVALID |
+| Output | Some text |`,
     );
 
     const result = await (evaluateTestSetTool as any).execute(
@@ -202,16 +230,20 @@ This file has no table.`,
     expect(result).toHaveProperty("error");
     expect(result.error).toBe("Invalid expected value");
     expect(result.message).toContain(
-      "must contain ✅ (for PASS) or ❌ (for FAIL)",
+      "must be \"PASS\", \"FAIL\", \"✅\", or \"❌\"",
     );
   });
 
   it("should handle test set with empty input", async () => {
     const emptyInputFile = await vault.create(
       "test-sets/empty-input.md",
-      `| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ⏳ |  | Some output | |`,
+      `### Empty Input Test
+
+| Field | Value |
+|-------|-------|
+| Expected | PASS |
+| Input |  |
+| Output | Some output |`,
     );
 
     const result = await (evaluateTestSetTool as any).execute(
@@ -229,7 +261,7 @@ This file has no table.`,
 
   it("should handle test set with frontmatter", async () => {
     const frontmatterTestSetFile = await vault.create(
-      "test-sets/with-frontmatter.md",
+      "test-sets/frontmatter-test.md",
       `---
 test_set: "frontmatter-test"
 description: "Test with frontmatter"
@@ -237,10 +269,21 @@ description: "Test with frontmatter"
 
 # Test Set with Frontmatter
 
-| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ⏳ | Write simply | Simple clear text | |
-| ❌ | ⏳ | Write verbosely | Unnecessarily complex and verbose textual communication | |`,
+### Simple Test
+
+| Field | Value |
+|-------|-------|
+| Expected | PASS |
+| Input | Write simply |
+| Output | Simple clear text |
+
+### Verbose Test
+
+| Field | Value |
+|-------|-------|
+| Expected | FAIL |
+| Input | Write verbosely |
+| Output | Unnecessarily complex and verbose textual communication |`,
     );
 
     const result = await (evaluateTestSetTool as any).execute(
@@ -332,9 +375,13 @@ Respond with JSON: {"reasoning": "analysis", "result": "PASS" or "FAIL"}`,
   it("should handle single example test set", async () => {
     const singleExampleFile = await vault.create(
       "test-sets/single-example.md",
-      `| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ⏳ | Write clearly | Clear and simple text | |`,
+      `### Single Test
+
+| Field | Value |
+|-------|-------|
+| Expected | PASS |
+| Input | Write clearly |
+| Output | Clear and simple text |`,
     );
 
     const result = await (evaluateTestSetTool as any).execute(
@@ -358,15 +405,19 @@ Respond with JSON: {"reasoning": "analysis", "result": "PASS" or "FAIL"}`,
       "test-sets/multi-table.md",
       `# Test Set
 
-| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ⏳ | Write first | First example | |
+### First Test
+
+| Field | Value |
+|-------|-------|
+| Expected | PASS |
+| Input | Write first |
+| Output | First example |
 
 ## Previous Results
 
-| Expected | Judge | Input | Output | Reasoning |
-|----------|-------|-------|--------|-----------|
-| ✅ | ✅ | Write old | Old example | Old reasoning |
+| Test | Expected | Judge | Reasoning |
+|------|----------|-------|-----------|
+| [[#old-test]] | ✅ | ✅ | Old reasoning |
 
 Some additional content.`,
     );
@@ -389,7 +440,7 @@ Some additional content.`,
 
     // Should preserve previous results table
     expect(updatedContent).toContain("## Previous Results");
-    expect(updatedContent).toContain("Old example");
+    expect(updatedContent).toContain("[[#old-test]]");
     expect(updatedContent).toContain("Old reasoning");
 
     // Should preserve additional content
