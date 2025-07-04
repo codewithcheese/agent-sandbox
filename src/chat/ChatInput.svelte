@@ -279,7 +279,7 @@
   }
 </script>
 
-<div class={cn("chat-margin py-1 px-2")}>
+<div class={cn("chat-margin py-1 px-4")}>
   {#if chat.state.type === "loading"}
     <div class="flex items-center gap-2 mb-3 text-sm text-(--text-accent)">
       <Loader2Icon class="size-4 animate-spin" />

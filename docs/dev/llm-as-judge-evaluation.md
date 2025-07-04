@@ -177,7 +177,23 @@ EvaluateTestSet:
   "successes": 8,
   "failures": 2,
   "accuracy_percentage": 80,
-  "judge_version": 3
+  "judge_version": 3,
+  "results": [
+    {
+      "expected": "PASS",
+      "judge_result": "PASS",
+      "reasoning": "Clear, direct communication with specific details.",
+      "input": "Document meeting time",
+      "output": "The meeting is scheduled for 3 PM tomorrow."
+    },
+    {
+      "expected": "FAIL",
+      "judge_result": "FAIL",
+      "reasoning": "Uses unnecessarily complex language instead of being direct.",
+      "input": "Announce meeting time",
+      "output": "The aforementioned temporal designation for the convening has been established."
+    }
+  ]
 }
 ```
 

@@ -73,7 +73,7 @@
   <div class="h-full max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto]">
     <!-- header -->
     <div
-      class="chat-margin z-10 py-1 px-2"
+      class="chat-margin z-10 py-2 px-4"
       style="background-color: var(--background-primary)"
     >
       <div class="w-full flex flex-row justify-between items-center">
@@ -111,7 +111,7 @@
 
     <!-- body -->
     <div bind:this={scrollContainer} class="min-h-0 overflow-y-auto py-2">
-      <div class="chat-margin px-2">
+      <div class="chat-margin px-4">
         <!-- system message -->
         {#if selectedAgent}
           <AgentMessage agent={selectedAgent} modelId={chat.options.modelId} />

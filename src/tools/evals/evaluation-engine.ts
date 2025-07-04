@@ -53,6 +53,13 @@ export interface TestSetEvaluationResult {
   failures: number;
   accuracy_percentage: number;
   judge_version: number;
+  results: Array<{
+    expected: "PASS" | "FAIL";
+    judge_result: "PASS" | "FAIL";
+    reasoning: string;
+    input: string;
+    output: string;
+  }>;
 }
 
 export interface EvaluatedExample {
@@ -441,12 +448,13 @@ export function generateResultsTable(
     const expectedEmoji = example.expected === "PASS" ? "✅" : "❌";
     const judgeEmoji = example.judge_result === "PASS" ? "✅" : "❌";
 
-    // Escape pipe characters in content
-    const inputText = example.input.replace(/\|/g, "\\|");
-    const outputText = example.output.replace(/\|/g, "\\|");
-    // Truncate reasoning for table readability (safety measure)
+    // Escape pipe characters and handle line breaks in content
+    const inputText = example.input.replace(/\|/g, "\\|").replace(/\n/g, " ");
+    const outputText = example.output.replace(/\|/g, "\\|").replace(/\n/g, " ");
+    // Truncate reasoning for table readability and handle line breaks
     const reasoningText = example.reasoning
       .replace(/\|/g, "\\|")
+      .replace(/\n/g, "<br>")
       .substring(0, 500);
 
     markdown += `| ${expectedEmoji} | ${judgeEmoji} | ${inputText} | ${outputText} | ${reasoningText} |\n`;
@@ -592,6 +600,13 @@ export async function evaluateTestSet(
       failures,
       accuracy_percentage,
       judge_version: judgeConfig.judgeVersion,
+      results: evaluatedExamples.map(example => ({
+        expected: example.expected,
+        judge_result: example.judge_result,
+        reasoning: example.reasoning,
+        input: example.input,
+        output: example.output,
+      })),
     };
   } catch (error) {
     debug(`Error in evaluateTestSet:`, error);
