@@ -7,6 +7,7 @@ import { getBaseName } from "$lib/utils/path.ts";
 import { findMatchingView } from "$lib/obsidian/leaf.ts";
 import type { ProposedChange } from "../../chat/vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
+import { usePlugin } from "$lib/utils";
 
 const debug = createDebug();
 
@@ -310,5 +311,57 @@ export class MergeView extends ItemView {
   async setState(state: any, result: any): Promise<void> {
     this.state = state;
     await this.mount();
+  }
+
+  /**
+   * Static function to automatically open merge view when changes are detected
+   * Only opens if merge view is not already open
+   */
+  static async openForChanges(chatPath: string): Promise<void> {
+    try {
+      const plugin = usePlugin();
+      const chat = await Chat.load(chatPath);
+      const changes = chat.vault.getFileChanges();
+      
+      // Filter to only files (not directories)
+      const fileChanges = changes.filter(change => !change.info.isDirectory);
+      
+      if (fileChanges.length === 0) {
+        debug("No file changes detected, not opening merge view");
+        return;
+      }
+      
+      // Check if merge view is already open
+      const existingLeaf = plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];
+      
+      if (existingLeaf) {
+        debug("Merge view already open, not opening new one");
+        return;
+      }
+      
+      debug(`Opening merge view for ${fileChanges.length} file changes`);
+      
+      // Create new leaf for merge view
+      const leaf = plugin.app.workspace.getLeaf(true);
+      
+      // Open merge view with the first file that has changes
+      const firstFileChange = fileChanges[0];
+      await leaf.setViewState({
+        type: MERGE_VIEW_TYPE,
+        state: {
+          chatPath: chatPath,
+          path: firstFileChange.path,
+        },
+      });
+      
+      leaf.setEphemeralState();
+      plugin.app.workspace.setActiveLeaf(leaf, { focus: true });
+      plugin.app.workspace.requestSaveLayout();
+      
+      debug(`Merge view opened for file: ${firstFileChange.path}`);
+    } catch (error) {
+      console.error("Error opening merge view for changes:", error);
+      new Notice(`Error opening merge view: ${error.message}`, 3000);
+    }
   }
 }
