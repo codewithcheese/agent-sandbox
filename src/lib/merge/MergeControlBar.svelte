@@ -62,10 +62,12 @@
     <GitMergeIcon />
   </div>
 
+  <!-- Always show filename in banner title -->
+  <div class="banner-title">{fileName}</div>
+
   <!-- File Navigation (Multi-file mode) -->
   {#if isMultiFile}
-    <div class="banner-title">Merge</div>
-    <div class="flex items-center gap-2 ml-2">
+    <div class="flex items-center gap-2 ml-4">
       <button
         class="clickable-icon"
         disabled={!canGoPrevFile}
@@ -75,11 +77,8 @@
         <ChevronLeftIcon class="size-4" />
       </button>
 
-      <div class="text-sm">
-        <div class="font-medium">{fileName}</div>
-        <div class="text-(--text-muted) text-xs">
-          File {currentFileIndex} of {totalFiles}
-        </div>
+      <div class="text-sm text-(--text-muted)">
+        {currentFileIndex} of {totalFiles}
       </div>
 
       <button
@@ -91,9 +90,6 @@
         <ChevronRightIcon class="size-4" />
       </button>
     </div>
-  {:else}
-    <!-- Single file mode -->
-    <div class="banner-title">{fileName}</div>
   {/if}
 
   <!-- Spacer -->

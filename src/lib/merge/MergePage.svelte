@@ -181,13 +181,14 @@
   }
 
   /**
-   * Navigate to first chunk when editor is created
+   * Navigate to the first chunk when the merge view opens
    */
   function navigateToFirstChunk(): void {
     if (!editorView || totalChunks === 0) return;
 
+    // Reset to first chunk
     currentChunkIndex = 0;
-    // Navigate to first chunk using CodeMirror's built-in command
+    // Use CodeMirror's built-in navigation to go to first chunk
     goToNextChunk(editorView);
   }
 
@@ -199,13 +200,13 @@
 
     if (direction === "next") {
       if (currentChunkIndex < totalChunks - 1) {
-        currentChunkIndex++;
         goToNextChunk(editorView);
+        currentChunkIndex++;
       }
     } else {
       if (currentChunkIndex > 0) {
-        currentChunkIndex--;
         goToPreviousChunk(editorView);
+        currentChunkIndex--;
       }
     }
   }
@@ -253,7 +254,7 @@
   currentFileIndex={currentFileIndex + 1}
   totalFiles={allChangedFiles.length}
   fileName={allChangedFiles[currentFileIndex]?.split("/").pop() || ""}
-  onNavigateFile={onNavigateFile}
+  {onNavigateFile}
   canGoPrevFile={allChangedFiles.length > 1}
   canGoNextFile={allChangedFiles.length > 1}
   currentChunkIndex={currentChunkIndex + 1}
