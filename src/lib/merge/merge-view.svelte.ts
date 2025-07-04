@@ -35,6 +35,56 @@ export class MergeView extends ItemView {
   }
 
   /**
+   * Get list of file paths that have changes (excluding directories)
+   */
+  private getAllChangedFilePaths(changes: ProposedChange[]): string[] {
+    return changes
+      .filter(change => !change.info.isDirectory) // Only files
+      .map(change => change.path)
+      .filter((path, index, arr) => arr.indexOf(path) === index) // Deduplicate
+      .sort(); // Consistent ordering for predictable navigation
+  }
+
+  /**
+   * Navigate to a different file
+   */
+  private async navigateToFile(direction: 'prev' | 'next'): Promise<void> {
+    const chat = await Chat.load(this.state.chatPath);
+    const allChanges = chat.vault.getFileChanges();
+    const allChangedFiles = this.getAllChangedFilePaths(allChanges);
+    
+    if (allChangedFiles.length === 0) {
+      new Notice("No files with changes remaining");
+      this.leaf.detach();
+      return;
+    }
+    
+    // Find current position dynamically
+    const currentIndex = allChangedFiles.indexOf(this.state.path);
+    
+    // Calculate new index
+    let newIndex: number;
+    if (currentIndex === -1) {
+      // Current file not in list anymore, go to first file
+      newIndex = 0;
+    } else {
+      newIndex = direction === 'next' 
+        ? Math.min(currentIndex + 1, allChangedFiles.length - 1)
+        : Math.max(currentIndex - 1, 0);
+    }
+    
+    if (newIndex === currentIndex && currentIndex !== -1) {
+      return; // No change needed
+    }
+    
+    // Navigate to new file - only update path, index computed on remount
+    await this.setState({
+      chatPath: this.state.chatPath,
+      path: allChangedFiles[newIndex]
+    }, null);
+  }
+
+  /**
    * Mount the Svelte component
    */
   private async mount(): Promise<void> {
@@ -50,9 +100,33 @@ export class MergeView extends ItemView {
     debug("Mount", this.state);
 
     const chat = await Chat.load(this.state.chatPath);
-    const changes = chat.vault
-      .getFileChanges()
-      .filter((c) => c.path === this.state.path);
+    
+    // Get changes once and reuse (more efficient)
+    const allChanges = chat.vault.getFileChanges();
+    const allChangedFiles = this.getAllChangedFilePaths(allChanges);
+    
+    // Handle empty file list
+    if (allChangedFiles.length === 0) {
+      new Notice("No files with changes remaining");
+      this.leaf.detach();
+      return;
+    }
+    
+    // Handle current file no longer in list
+    if (!allChangedFiles.includes(this.state.path)) {
+      // Auto-navigate to first available file
+      await this.setState({
+        chatPath: this.state.chatPath,
+        path: allChangedFiles[0]
+      }, null);
+      return; // Will remount with new file
+    }
+    
+    // Calculate current index dynamically
+    const currentFileIndex = allChangedFiles.indexOf(this.state.path);
+    
+    // Get changes for current file
+    const changes = allChanges.filter((c) => c.path === this.state.path);
     if (!changes.length) {
       new Notice(`No changes for ${this.state.path}`);
       return;
@@ -80,6 +154,12 @@ export class MergeView extends ItemView {
         currentContent,
         newContent,
         name: getBaseName(this.state.path),
+        // NEW: Navigation props
+        allChangedFiles: allChangedFiles,
+        currentFileIndex: currentFileIndex,
+        onNavigateFile: async (direction: 'prev' | 'next') => {
+          await this.navigateToFile(direction);
+        },
         onReject: async (
           resolvedContent: string,
           pendingContent: string,

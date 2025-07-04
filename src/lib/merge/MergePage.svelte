@@ -14,6 +14,7 @@
 
   import { Compartment } from "@codemirror/state";
   import { obsidianTheme } from "$lib/merge/theme.ts";
+  import MergeControlBar from "./MergeControlBar.svelte";
   export const themeVariant = new Compartment();
 
   const debug = createDebug();
@@ -22,6 +23,11 @@
     name: string;
     currentContent: string;
     newContent: string;
+    // NEW: Navigation props
+    allChangedFiles: string[];
+    currentFileIndex: number;
+    onNavigateFile: (direction: 'prev' | 'next') => Promise<void>;
+    // Existing callback props
     onAccept: (
       resolvedContent: string,
       pendingContent: string,
@@ -33,8 +39,16 @@
       chunksLeft: number,
     ) => Promise<void>;
   };
-  let { name, currentContent, newContent, onAccept, onReject }: Props =
-    $props();
+  let { 
+    name, 
+    currentContent, 
+    newContent, 
+    allChangedFiles,
+    currentFileIndex,
+    onNavigateFile,
+    onAccept, 
+    onReject 
+  }: Props = $props();
 
   // State
   let editorView: EditorView | null = $state(null);
@@ -142,6 +156,16 @@
 <div
   class="markdown-source-view cm-s-obsidian mod-cm6 node-insert-event is-readable-line-width is-live-preview is-folding show-properties"
 >
+  <!-- NEW: Control bar at top -->
+  {#if allChangedFiles.length > 1}
+    <MergeControlBar 
+      {allChangedFiles}
+      {currentFileIndex}
+      {onNavigateFile}
+    />
+  {/if}
+  
+  <!-- Existing editor -->
   <div class="cm-editor">
     <div class="cm-scroller">
       <div class="cm-sizer">
