@@ -10,9 +10,8 @@
   let { allChangedFiles, currentFileIndex, onNavigateFile }: Props = $props();
   
   // Reactive calculations
-  const canGoPrevious = $derived(currentFileIndex > 0);
-  const canGoNext = $derived(currentFileIndex < allChangedFiles.length - 1);
   const currentFileName = $derived(allChangedFiles[currentFileIndex]?.split('/').pop() || '');
+  // Note: No need for canGoPrevious/canGoNext since we cycle through files
 </script>
 
 <div class="merge-control-bar">
@@ -20,9 +19,8 @@
   <div class="file-navigation">
     <button 
       class="clickable-icon"
-      disabled={!canGoPrevious}
       onclick={() => onNavigateFile('prev')}
-      aria-label="Previous file with changes"
+      aria-label="Previous file with changes (cycles to end)"
     >
       <ChevronLeftIcon class="size-4" />
     </button>
@@ -34,9 +32,8 @@
     
     <button 
       class="clickable-icon"
-      disabled={!canGoNext}
       onclick={() => onNavigateFile('next')}
-      aria-label="Next file with changes"
+      aria-label="Next file with changes (cycles to beginning)"
     >
       <ChevronRightIcon class="size-4" />
     </button>
@@ -45,6 +42,11 @@
 
 <style>
   .merge-control-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -52,6 +54,8 @@
     border-bottom: 1px solid var(--background-modifier-border);
     background-color: var(--background-secondary);
     font-size: var(--font-ui-smaller);
+    /* Ensure it stays above editor content */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
   
   .file-navigation {
@@ -82,8 +86,5 @@
     white-space: nowrap;
   }
   
-  .clickable-icon:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
+  /* Removed disabled styles since buttons now cycle */
 </style>

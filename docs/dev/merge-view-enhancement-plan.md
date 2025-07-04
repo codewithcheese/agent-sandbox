@@ -49,7 +49,32 @@ This document outlines the plan to enhance the merge view with a control bar con
 - Comprehensive testing of edge cases
 - UI polish and accessibility improvements
 
-## Phase 1: File Navigation - Detailed Implementation
+## Phase 1: File Navigation - ✅ COMPLETED
+
+### Implementation Summary
+
+**Status**: ✅ Fully implemented and functional
+
+**Files Created/Modified:**
+1. `src/lib/merge/MergeControlBar.svelte` - New control bar component
+2. `src/lib/merge/MergePage.svelte` - Updated to integrate control bar
+3. `src/lib/merge/merge-view.svelte.ts` - Enhanced with file navigation logic
+
+**Key Features Implemented:**
+- ✅ Multi-file navigation with cycling (wraps around at ends)
+- ✅ Absolute positioned control bar (stays visible during scrolling)
+- ✅ Dynamic file list retrieval from vault changes
+- ✅ Robust edge case handling (empty lists, resolved files)
+- ✅ Proper Obsidian styling and theming
+- ✅ Backward compatibility with single-file usage
+
+**Navigation Behavior:**
+- **Cycling**: Next/Previous buttons cycle through files seamlessly
+- **No Disabled States**: Buttons always functional (Next: 1→2→3→1, Previous: 3→2→1→3)
+- **Dynamic Updates**: File list refreshed on each navigation
+- **Auto-handling**: Automatically navigates when current file is resolved
+
+### Detailed Implementation
 
 ### 1. State Structure
 
@@ -381,4 +406,131 @@ private async navigateToFile(direction: 'prev' | 'next'): Promise<void> {
 3. Test edge cases (files resolved during review)
 4. Test dynamic file list updates (chat continues)
 
-This plan provides a solid foundation for implementing file navigation while maintaining the existing architecture and ensuring robust handling of edge cases.
+## Phase 2: Change Navigation - Analysis & Planning
+
+### Uncertainty Analysis for Phase 2
+
+#### **🔴 High Uncertainty: CodeMirror Merge Extension APIs**
+
+**Primary Challenge**: Limited documentation on programmatic chunk navigation in CodeMirror 6 merge extension.
+
+**Open Questions:**
+1. **Chunk Position Detection**: How do we determine which chunk is currently visible/active in the viewport?
+2. **Programmatic Scrolling**: Can we reliably scroll to specific chunks using line positions?
+3. **Dynamic Chunk Updates**: How do chunks change when user accepts/rejects individual changes?
+4. **Chunk Ordering**: Are chunks returned by `getChunks()` in document order?
+
+**Research Needed:**
+- Investigate `getChunks(state)` return structure and chunk properties
+- Test `EditorView.dispatch()` with scroll actions to specific line positions
+- Understand relationship between chunk `fromA/toA/fromB/toB` and document positions
+- Explore CodeMirror's viewport and scroll APIs
+
+#### **🟡 Medium Uncertainty: User Experience Design**
+
+**Navigation Behavior Questions:**
+1. **Current Chunk Detection**: How do we visually indicate which chunk is "current"?
+2. **Scroll Behavior**: Should we scroll to chunk start, middle, or ensure entire chunk is visible?
+3. **Cycling**: Should chunk navigation cycle like file navigation, or stop at ends?
+4. **Visual Feedback**: How do we show chunk position (e.g., "Change 2 of 5")?
+
+**Design Decisions Needed:**
+- Chunk highlighting or selection mechanism
+- Scroll positioning strategy
+- Control bar layout for chunk navigation buttons
+- Integration with existing file navigation
+
+#### **🟡 Medium Uncertainty: State Management**
+
+**Synchronization Challenges:**
+1. **Manual Scrolling**: How do we detect when user manually scrolls to different chunk?
+2. **Accept/Reject Impact**: How do we update current chunk index when chunks are modified?
+3. **Chunk Count Updates**: How do we handle dynamic chunk count changes?
+4. **Performance**: How often should we poll/update chunk position?
+
+**Technical Questions:**
+- Should we listen to scroll events, cursor position, or viewport changes?
+- How do we efficiently track current chunk without constant recalculation?
+- What happens to chunk indices when chunks are accepted/rejected?
+
+### Phase 2 Implementation Strategy
+
+#### **Step 1: Research & Prototyping**
+**Duration**: 1 day
+- Create minimal test to understand `getChunks()` API
+- Experiment with `EditorView.dispatch()` scroll actions
+- Test chunk position calculation and line mapping
+- Investigate viewport change listeners
+
+#### **Step 2: Core Navigation Logic**
+**Duration**: 1-2 days
+- Implement chunk position detection
+- Add scroll-to-chunk functionality
+- Create chunk navigation methods (next/previous)
+- Handle edge cases (no chunks, single chunk)
+
+#### **Step 3: UI Integration**
+**Duration**: 1 day
+- Add chunk navigation buttons to control bar
+- Implement chunk counter display
+- Add visual feedback for current chunk
+- Test integration with file navigation
+
+### Proposed Control Bar Layout
+
+```
+[← File] [File 1 of 3: filename.md] [File →]  |  [↑ Change] [Change 2 of 5] [Change ↓]
+```
+
+### Research Questions to Answer
+
+1. **CodeMirror API Investigation**:
+   ```typescript
+   // What does getChunks() actually return?
+   const chunks = getChunks(editorView.state);
+   console.log(chunks); // Structure? Properties? Order?
+   
+   // How do we scroll to a specific line?
+   editorView.dispatch({
+     selection: { anchor: pos },
+     scrollIntoView: true
+   });
+   ```
+
+2. **Viewport Detection**:
+   ```typescript
+   // How do we detect current viewport position?
+   const viewport = editorView.viewport;
+   // How do we map viewport to chunks?
+   ```
+
+3. **Event Handling**:
+   ```typescript
+   // What events fire when user scrolls or changes chunks?
+   EditorView.updateListener.of((update) => {
+     // Detect scroll changes?
+     // Detect chunk changes?
+   });
+   ```
+
+### Risk Mitigation
+
+**If CodeMirror APIs are insufficient:**
+- **Fallback 1**: Line-based navigation instead of chunk-based
+- **Fallback 2**: Simple "scroll to top/bottom" navigation
+- **Fallback 3**: Defer to Phase 3 and implement bulk operations first
+
+**If performance is poor:**
+- **Throttle**: Debounce chunk position detection
+- **Cache**: Store chunk positions and update only on content changes
+- **Lazy**: Only calculate current chunk when navigation buttons are used
+
+### Success Criteria for Phase 2
+
+✅ **Functional Navigation**: Up/Down buttons scroll between diff chunks  
+✅ **Position Awareness**: Display current chunk number (e.g., "Change 2 of 5")  
+✅ **Smooth Scrolling**: Chunks are properly centered/visible when navigated to  
+✅ **State Sync**: Current chunk updates when user manually scrolls  
+✅ **Edge Handling**: Works with single chunk, no chunks, dynamic changes  
+
+This analysis identifies the key uncertainties and provides a structured approach to tackle Phase 2 implementation.

@@ -154,7 +154,8 @@
 </script>
 
 <div
-  class="markdown-source-view cm-s-obsidian mod-cm6 node-insert-event is-readable-line-width is-live-preview is-folding show-properties"
+  class="markdown-source-view cm-s-obsidian mod-cm6 node-insert-event is-readable-line-width is-live-preview is-folding show-properties merge-view-container"
+  class:with-control-bar={allChangedFiles.length > 1}
 >
   <!-- NEW: Control bar at top -->
   {#if allChangedFiles.length > 1}
@@ -175,3 +176,22 @@
     </div>
   </div>
 </div>
+
+<style>
+  .merge-view-container {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .merge-view-container.with-control-bar {
+    /* Add top padding to account for absolute positioned control bar */
+    padding-top: 50px; /* Approximate height of control bar */
+  }
+  
+  .cm-editor {
+    flex: 1;
+    height: 100%;
+  }
+</style>

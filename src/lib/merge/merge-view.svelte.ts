@@ -62,15 +62,19 @@ export class MergeView extends ItemView {
     // Find current position dynamically
     const currentIndex = allChangedFiles.indexOf(this.state.path);
     
-    // Calculate new index
+    // Calculate new index with cycling
     let newIndex: number;
     if (currentIndex === -1) {
       // Current file not in list anymore, go to first file
       newIndex = 0;
     } else {
-      newIndex = direction === 'next' 
-        ? Math.min(currentIndex + 1, allChangedFiles.length - 1)
-        : Math.max(currentIndex - 1, 0);
+      if (direction === 'next') {
+        // Cycle to first file if at the end
+        newIndex = (currentIndex + 1) % allChangedFiles.length;
+      } else {
+        // Cycle to last file if at the beginning
+        newIndex = currentIndex === 0 ? allChangedFiles.length - 1 : currentIndex - 1;
+      }
     }
     
     if (newIndex === currentIndex && currentIndex !== -1) {
