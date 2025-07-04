@@ -1,4 +1,12 @@
-import { ItemView, MarkdownView, normalizePath, Notice } from "obsidian";
+import {
+  ItemView,
+  MarkdownView,
+  normalizePath,
+  Notice,
+  type TAbstractFile,
+  TFile,
+  WorkspaceLeaf,
+} from "obsidian";
 import { mount, unmount } from "svelte";
 import MergePage from "./MergePage.svelte";
 import { Chat } from "../../chat/chat.svelte.ts";
@@ -8,8 +16,21 @@ import { findMatchingView } from "$lib/obsidian/leaf.ts";
 import type { ProposedChange } from "../../chat/vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import { usePlugin } from "$lib/utils";
-import { Text, EditorState, Transaction, Compartment, ChangeSet } from "@codemirror/state";
-import { updateOriginalDoc, unifiedMergeView, getChunks, getOriginalDoc, goToNextChunk, goToPreviousChunk } from "@codemirror/merge";
+import {
+  Text,
+  EditorState,
+  Transaction,
+  Compartment,
+  ChangeSet,
+} from "@codemirror/state";
+import {
+  updateOriginalDoc,
+  unifiedMergeView,
+  getChunks,
+  getOriginalDoc,
+  goToNextChunk,
+  goToPreviousChunk,
+} from "@codemirror/merge";
 import { EditorView, drawSelection, keymap } from "@codemirror/view";
 import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
 import { gnosis } from "@glifox/gnosis";
@@ -28,16 +49,34 @@ export class MergeView extends ItemView {
   private component: any = null;
   private state: MergeViewState | undefined;
   private editorView: EditorView | null = null;
-  
+
   // Store content as properties for comparison
   private currentContent: string = "";
   private newContent: string = "";
-  
+
   // Chunk navigation state
-  private currentChunkIndex = $state(0);
-  private totalChunks = $state(0);
-  
+  private chunkInfo = $state<{
+    totalChunks: number;
+    currentChunkIndex: number;
+  }>({
+    totalChunks: 0,
+    currentChunkIndex: 0,
+  });
+
   navigation = false;
+
+  constructor(leaf: WorkspaceLeaf) {
+    super(leaf);
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => this.onVaultModify(file)),
+    );
+  }
+
+  onVaultModify(file: TAbstractFile) {
+    if (file instanceof TFile && file.path === this.state?.path) {
+      return this.refreshContent();
+    }
+  }
 
   getViewType(): string {
     return MERGE_VIEW_TYPE;
@@ -194,8 +233,6 @@ export class MergeView extends ItemView {
           history(),
           EditorView.lineWrapping,
           EditorView.updateListener.of(async (v) => {
-            debug("Merge view update", v);
-
             // Update chunk info when content changes
             this.updateChunkInfo();
 
@@ -237,8 +274,7 @@ export class MergeView extends ItemView {
         editorView: this.editorView,
         name: getBaseName(this.state.path),
         // Chunk navigation state
-        currentChunkIndex: this.currentChunkIndex,
-        totalChunks: this.totalChunks,
+        chunkInfo: this.chunkInfo,
         // Navigation props
         allChangedFiles: allChangedFiles,
         currentFileIndex: currentFileIndex,
@@ -278,71 +314,84 @@ export class MergeView extends ItemView {
     if (!this.editorView) return;
 
     const chunkInfo = getChunks(this.editorView.state);
-    this.totalChunks = chunkInfo?.chunks.length || 0;
+    this.chunkInfo.totalChunks = chunkInfo?.chunks.length || 0;
 
     // Reset to first chunk when chunks change
-    if (this.currentChunkIndex >= this.totalChunks) {
-      this.currentChunkIndex = 0;
+    if (this.chunkInfo.currentChunkIndex >= this.chunkInfo.totalChunks) {
+      this.chunkInfo.currentChunkIndex = 0;
     }
+    debug("Chunk info", this.chunkInfo);
   }
 
   async refreshContent(): Promise<void> {
     try {
       const chat = await Chat.load(this.state.chatPath);
-      
+
       // Get changes for current file to determine paths
       const allChanges = chat.vault.getFileChanges();
       const changes = allChanges.filter((c) => c.path === this.state.path);
-      
+
       if (!changes.length) {
         debug("No changes found for current file, skipping refresh");
         return;
       }
-      
-      const currentPath = changes.find((c) => c.type === "rename")?.info.oldPath || this.state.path;
-      
+
+      const currentPath =
+        changes.find((c) => c.type === "rename")?.info.oldPath ||
+        this.state.path;
+
       // Read latest content from both sources
       let latestCurrentContent = "";
-      const currentFile = this.app.vault.getFileByPath(normalizePath(currentPath));
+      const currentFile = this.app.vault.getFileByPath(
+        normalizePath(currentPath),
+      );
       if (currentFile) {
         latestCurrentContent = await this.app.vault.read(currentFile);
       }
-      
+
       const newFile = chat.vault.getFileByPath(this.state.path);
       const latestNewContent = await chat.vault.read(newFile);
-      
+
       // Compare with stored content
-      const currentContentChanged = latestCurrentContent !== this.currentContent;
+      const currentContentChanged =
+        latestCurrentContent !== this.currentContent;
       const newContentChanged = latestNewContent !== this.newContent;
-      
+
       if (currentContentChanged || newContentChanged) {
-        debug(`Content changed - Current: ${currentContentChanged}, New: ${newContentChanged}`);
+        debug(
+          `Content changed - Current: ${currentContentChanged}, New: ${newContentChanged}`,
+        );
         debug(`Old new content length: ${this.newContent.length}`);
         debug(`New new content length: ${latestNewContent.length}`);
-        
+
         if (currentContentChanged) {
-          // Update original document using CodeMirror effect
-          this.editorView?.dispatch({
-            effects: updateOriginalDoc.of({
-              doc: Text.of(latestCurrentContent.split("\n")),
-              changes: ChangeSet.empty(this.editorView.state.doc.length)
-            })
+          const newDoc = Text.of(latestCurrentContent.split("\n"));
+
+          const oldDoc = getOriginalDoc(this.editorView.state);
+          const changes = ChangeSet.of(
+            { from: 0, to: oldDoc.length, insert: latestCurrentContent },
+            oldDoc.length, // length of the old original
+          );
+
+          this.editorView.dispatch({
+            effects: updateOriginalDoc.of({ doc: newDoc, changes }),
           });
+
           this.currentContent = latestCurrentContent;
         }
-        
+
         if (newContentChanged) {
           // Update editor content
           this.editorView?.dispatch({
             changes: {
               from: 0,
               to: this.editorView.state.doc.length,
-              insert: latestNewContent
-            }
+              insert: latestNewContent,
+            },
           });
           this.newContent = latestNewContent;
         }
-        
+
         // Update chunk info after content changes
         this.updateChunkInfo();
       } else {
@@ -361,7 +410,7 @@ export class MergeView extends ItemView {
       const chunkInfo = getChunks(state);
       const resolvedContent = getOriginalDoc(state).toString();
       const pendingContent = state.doc.toString();
-      
+
       // Call the onAccept callback from the component props
       this.onAccept(resolvedContent, pendingContent, chunkInfo.chunks.length);
     } catch (error) {
@@ -376,7 +425,7 @@ export class MergeView extends ItemView {
       const chunkInfo = getChunks(state);
       const resolvedContent = getOriginalDoc(state).toString();
       const pendingContent = state.doc.toString();
-      
+
       // Call the onReject callback from the component props
       this.onReject(resolvedContent, pendingContent, chunkInfo.chunks.length);
     } catch (error) {
@@ -425,7 +474,9 @@ export class MergeView extends ItemView {
     debug("On save", { resolvedContent, pendingContent, chunksLeft });
 
     const chat = await Chat.load(this.state.chatPath);
-    const changes = chat.vault.getFileChanges().filter((c) => c.path === this.state.path);
+    const changes = chat.vault
+      .getFileChanges()
+      .filter((c) => c.path === this.state.path);
     const change = changes.find((c) => ["create", "modify"].includes(c.type));
 
     debug("Handling onAccept", change);
@@ -437,7 +488,7 @@ export class MergeView extends ItemView {
       );
       return;
     }
-    
+
     if (resolvedContent) {
       try {
         await chat.vault.approve([
@@ -453,7 +504,7 @@ export class MergeView extends ItemView {
         return;
       }
     }
-    
+
     if (
       // if some changes are remaining then apply them to the overlay
       resolvedContent !== pendingContent ||
@@ -466,12 +517,14 @@ export class MergeView extends ItemView {
         pendingContent,
       );
       debug("Applying unapproved/resolved changes to overlay", remaining);
-      const currentFile = this.app.vault.getFileByPath(normalizePath(this.state.path));
+      const currentFile = this.app.vault.getFileByPath(
+        normalizePath(this.state.path),
+      );
       if (currentFile) {
         await chat.vault.modify(currentFile, pendingContent);
       }
     }
-    
+
     chat.vault.computeChanges();
     debug("Remaining changes", $state.snapshot(chat.vault.changes));
     await chat.save();
@@ -502,9 +555,7 @@ export class MergeView extends ItemView {
       } else {
         // No more files with changes, close the merge view
         debug("No more files with changes, closing merge view");
-        const file = this.app.vault.getFileByPath(
-          normalizePath(change.path),
-        );
+        const file = this.app.vault.getFileByPath(normalizePath(change.path));
         const view = findMatchingView(
           MarkdownView,
           (view) => view.file.path === file.path,
@@ -527,7 +578,9 @@ export class MergeView extends ItemView {
     chunksLeft: number,
   ): Promise<void> {
     const chat = await Chat.load(this.state.chatPath);
-    const changes = chat.vault.getFileChanges().filter((c) => c.path === this.state.path);
+    const changes = chat.vault
+      .getFileChanges()
+      .filter((c) => c.path === this.state.path);
     const change = changes.find((c) => ["create", "modify"].includes(c.type));
 
     debug("Handling onReject", change, chunksLeft);
@@ -560,9 +613,7 @@ export class MergeView extends ItemView {
         );
       } else {
         // No more files with changes, close the merge view
-        debug(
-          "No more files with changes after reject, closing merge view",
-        );
+        debug("No more files with changes after reject, closing merge view");
         this.leaf.detach();
       }
     }
@@ -582,9 +633,7 @@ export class MergeView extends ItemView {
       debug("All changes", changes);
 
       // Filter to file changes only (exclude directories)
-      const fileChanges = changes.filter(
-        (change) => !change.info.isDirectory,
-      );
+      const fileChanges = changes.filter((change) => !change.info.isDirectory);
 
       if (fileChanges.length === 0) {
         debug("No file changes to display");
@@ -592,17 +641,16 @@ export class MergeView extends ItemView {
       }
 
       // Check if merge view is already open
-      const existingLeaf = plugin.app.workspace.getLeavesOfType(
-        MERGE_VIEW_TYPE,
-      )[0];
-      
+      const existingLeaf =
+        plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];
+
       if (existingLeaf) {
         const existingView = existingLeaf.view as MergeView;
-        
+
         // Always refresh - let refreshContent() do the content comparison
         debug(`Refreshing merge view content`);
         await existingView.refreshContent();
-        
+
         // Focus the existing view
         plugin.app.workspace.revealLeaf(existingLeaf);
         return;

@@ -1,32 +1,17 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { EditorState, type Extension, Transaction } from "@codemirror/state";
-  import { drawSelection, EditorView, keymap } from "@codemirror/view";
-  import {
-    getChunks,
-    getOriginalDoc,
-    unifiedMergeView,
-    goToNextChunk,
-    goToPreviousChunk,
-  } from "@codemirror/merge";
-  import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
-  import { Notice } from "obsidian";
-  import { createDebug } from "$lib/debug.ts";
-  import { gnosis } from "@glifox/gnosis";
-
-  import { Compartment } from "@codemirror/state";
-  import { obsidianTheme } from "$lib/merge/theme.ts";
+  import { EditorView } from "@codemirror/view";
+  import { goToNextChunk, goToPreviousChunk } from "@codemirror/merge";
   import MergeControlBar from "./MergeControlBar.svelte";
-  export const themeVariant = new Compartment();
-
-  const debug = createDebug();
 
   type Props = {
     editorView: EditorView;
     name: string;
     // Chunk navigation state
-    currentChunkIndex: number;
-    totalChunks: number;
+    chunkInfo: {
+      currentChunkIndex: number;
+      totalChunks: number;
+    };
     // Navigation props
     allChangedFiles: string[];
     currentFileIndex: number;
@@ -38,14 +23,15 @@
   let {
     editorView,
     name,
-    currentChunkIndex,
-    totalChunks,
+    chunkInfo,
     allChangedFiles,
     currentFileIndex,
     onNavigateFile,
     onAcceptAll,
     onRejectAll,
   }: Props = $props();
+  let currentChunkIndex = $derived(chunkInfo.currentChunkIndex);
+  let totalChunks = $derived(chunkInfo.totalChunks);
 
   // State
   let editorContainer: HTMLElement;
@@ -54,7 +40,7 @@
     // Attach the existing editor to the DOM
     if (editorView && editorContainer) {
       editorContainer.appendChild(editorView.dom);
-      
+
       // Navigate to first chunk
       navigateToFirstChunk();
     }
@@ -98,8 +84,6 @@
       }
     }
   }
-
-
 </script>
 
 <MergeControlBar
@@ -114,8 +98,8 @@
   onNavigateChunk={navigateToChunk}
   canGoPrevChunk={totalChunks > 1 && currentChunkIndex > 0}
   canGoNextChunk={totalChunks > 1 && currentChunkIndex < totalChunks - 1}
-  onAcceptAll={onAcceptAll}
-  onRejectAll={onRejectAll}
+  {onAcceptAll}
+  {onRejectAll}
 />
 
 <div
@@ -140,6 +124,10 @@
     display: flex;
     flex-direction: column;
   }
+
+  /*:global(.cm-changedText > .cb-content) {*/
+  /*  display: inline !important;*/
+  /*}*/
 
   .cm-editor {
     flex: 1;
