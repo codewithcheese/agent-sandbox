@@ -181,7 +181,24 @@ export class MergeView extends ItemView {
             await chat.vault.reject(change);
             chat.vault.computeChanges();
             await chat.save();
-            this.leaf.detach();
+            
+            // Check if there are other files with changes remaining
+            const currentChanges = chat.vault.getFileChanges();
+            const allChangedFiles = this.getAllChangedFilePaths(currentChanges);
+            const otherFilesWithChanges = allChangedFiles.filter(filePath => filePath !== this.state.path);
+            
+            if (otherFilesWithChanges.length > 0) {
+              // Navigate to the next file with changes
+              debug("Navigating to next file with changes after reject:", otherFilesWithChanges[0]);
+              await this.setState({
+                chatPath: this.state.chatPath,
+                path: otherFilesWithChanges[0]
+              }, {});
+            } else {
+              // No more files with changes, close the merge view
+              debug("No more files with changes after reject, closing merge view");
+              this.leaf.detach();
+            }
           }
         },
         onAccept: async (
@@ -238,21 +255,38 @@ export class MergeView extends ItemView {
           await chat.save();
 
           if (resolvedContent === pendingContent) {
-            debug("Closing merge view for path: ", change.path);
-            const file = this.app.vault.getFileByPath(
-              normalizePath(change.path),
-            );
-            const view = findMatchingView(
-              MarkdownView,
-              (view) => view.file.path === file.path,
-            );
-            if (view) {
-              await this.app.workspace.revealLeaf(view.leaf);
-              this.leaf.detach();
+            debug("File fully resolved, checking for other files with changes");
+            
+            // Check if there are other files with changes remaining
+            const currentChanges = chat.vault.getFileChanges();
+            const allChangedFiles = this.getAllChangedFilePaths(currentChanges);
+            const otherFilesWithChanges = allChangedFiles.filter(filePath => filePath !== this.state.path);
+            
+            if (otherFilesWithChanges.length > 0) {
+              // Navigate to the next file with changes
+              debug("Navigating to next file with changes:", otherFilesWithChanges[0]);
+              await this.setState({
+                chatPath: this.state.chatPath,
+                path: otherFilesWithChanges[0]
+              }, {});
             } else {
-              const leaf = this.app.workspace.getLeaf(true);
-              await leaf.openFile(file);
-              this.leaf.detach();
+              // No more files with changes, close the merge view
+              debug("No more files with changes, closing merge view");
+              const file = this.app.vault.getFileByPath(
+                normalizePath(change.path),
+              );
+              const view = findMatchingView(
+                MarkdownView,
+                (view) => view.file.path === file.path,
+              );
+              if (view) {
+                await this.app.workspace.revealLeaf(view.leaf);
+                this.leaf.detach();
+              } else {
+                const leaf = this.app.workspace.getLeaf(true);
+                await leaf.openFile(file);
+                this.leaf.detach();
+              }
             }
           }
         },

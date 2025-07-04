@@ -14,6 +14,9 @@
     totalChunks?: number;
     currentChunkIndex?: number;
     onNavigateChunk?: (direction: "prev" | "next") => void;
+    // Bulk operation props
+    onAcceptAll?: () => Promise<void>;
+    onRejectAll?: () => Promise<void>;
   };
 
   let {
@@ -23,6 +26,8 @@
     totalChunks = 0,
     currentChunkIndex = 0,
     onNavigateChunk,
+    onAcceptAll,
+    onRejectAll,
   }: Props = $props();
 
   // Reactive calculations
@@ -71,6 +76,26 @@
     <!-- Single file - just show filename -->
     <div class="file-info">
       <span class="file-name">{currentFileName}</span>
+    </div>
+  {/if}
+
+  <!-- Bulk Operations -->
+  {#if hasChunks && onAcceptAll && onRejectAll}
+    <div class="bulk-operations">
+      <button
+        class="bulk-button accept"
+        onclick={() => onAcceptAll?.()}
+        aria-label="Accept all changes in this file"
+      >
+        Accept All
+      </button>
+      <button
+        class="bulk-button reject"
+        onclick={() => onRejectAll?.()}
+        aria-label="Reject all changes in this file"
+      >
+        Reject All
+      </button>
     </div>
   {/if}
 
@@ -179,6 +204,47 @@
     min-width: 100px;
     text-align: center;
     justify-content: center;
+  }
+
+  .bulk-operations {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bulk-button {
+    padding: 4px 12px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: var(--font-ui-smaller);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .bulk-button:hover {
+    background-color: var(--background-modifier-hover);
+    border-color: var(--background-modifier-border-hover);
+  }
+
+  .bulk-button.accept {
+    color: var(--text-success);
+    border-color: var(--text-success);
+  }
+
+  .bulk-button.accept:hover {
+    background-color: var(--background-modifier-success);
+  }
+
+  .bulk-button.reject {
+    color: var(--text-error);
+    border-color: var(--text-error);
+  }
+
+  .bulk-button.reject:hover {
+    background-color: var(--background-modifier-error);
   }
 
   .clickable-icon:disabled {

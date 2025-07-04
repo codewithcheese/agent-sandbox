@@ -209,6 +209,44 @@
       }
     }
   }
+
+  /**
+   * Accept all chunks by calling onAccept with final content
+   */
+  async function acceptAllChunks(): Promise<void> {
+    if (!editorView) return;
+
+    try {
+      // Accept all: resolved content = new content (accept all changes)
+      const resolvedContent = newContent;
+      const pendingContent = newContent;
+      const chunksLeft = 0; // No chunks remaining
+
+      await onAccept(resolvedContent, pendingContent, chunksLeft);
+    } catch (error) {
+      console.error("Error accepting all changes:", error);
+      new Notice(`Error accepting all changes: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Reject all chunks by calling onReject with original content
+   */
+  async function rejectAllChunks(): Promise<void> {
+    if (!editorView) return;
+
+    try {
+      // Reject all: resolved content = original content (reject all changes)
+      const resolvedContent = currentContent;
+      const pendingContent = currentContent;
+      const chunksLeft = 0; // No chunks remaining
+
+      await onReject(resolvedContent, pendingContent, chunksLeft);
+    } catch (error) {
+      console.error("Error rejecting all changes:", error);
+      new Notice(`Error rejecting all changes: ${(error as Error).message}`);
+    }
+  }
 </script>
 
 <MergeControlBar
@@ -218,6 +256,8 @@
   {totalChunks}
   {currentChunkIndex}
   onNavigateChunk={navigateToChunk}
+  onAcceptAll={acceptAllChunks}
+  onRejectAll={rejectAllChunks}
 />
 
 <div
