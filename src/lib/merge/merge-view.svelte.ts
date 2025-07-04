@@ -100,6 +100,7 @@ export class MergeView extends ItemView {
     const viewContent = this.containerEl.children[1] as HTMLDivElement;
     viewContent.style.padding = "0px";
     viewContent.style.backgroundColor = "var(--background-primary)";
+    viewContent.style.position = "relative"; // Create positioning context for control bar
 
     debug("Mount", this.state);
 

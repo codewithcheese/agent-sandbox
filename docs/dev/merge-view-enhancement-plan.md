@@ -406,75 +406,185 @@ private async navigateToFile(direction: 'prev' | 'next'): Promise<void> {
 3. Test edge cases (files resolved during review)
 4. Test dynamic file list updates (chat continues)
 
-## Phase 2: Change Navigation - Analysis & Planning
+## Phase 2: Change Navigation - ✅ COMPLETED
 
-### Uncertainty Analysis for Phase 2
+### Implementation Summary
 
-#### **🔴 High Uncertainty: CodeMirror Merge Extension APIs**
+**Status**: ✅ Fully implemented and functional
 
-**Primary Challenge**: Limited documentation on programmatic chunk navigation in CodeMirror 6 merge extension.
+**Files Modified:**
+1. `src/lib/merge/MergePage.svelte` - Added chunk navigation logic and state
+2. `src/lib/merge/MergeControlBar.svelte` - Extended with chunk navigation UI
 
-**Open Questions:**
-1. **Chunk Position Detection**: How do we determine which chunk is currently visible/active in the viewport?
-2. **Programmatic Scrolling**: Can we reliably scroll to specific chunks using line positions?
-3. **Dynamic Chunk Updates**: How do chunks change when user accepts/rejects individual changes?
-4. **Chunk Ordering**: Are chunks returned by `getChunks()` in document order?
+**Key Features Implemented:**
+- ✅ Auto-navigation to first chunk when merge view opens
+- ✅ Simple index-based chunk navigation (Up/Down buttons)
+- ✅ Chunk counter display ("Change X of Y" or "N changes")
+- ✅ Disabled buttons for single chunk scenarios
+- ✅ Integration with existing file navigation
+- ✅ Real-time chunk count updates when content changes
 
-**Research Needed:**
-- Investigate `getChunks(state)` return structure and chunk properties
-- Test `EditorView.dispatch()` with scroll actions to specific line positions
-- Understand relationship between chunk `fromA/toA/fromB/toB` and document positions
-- Explore CodeMirror's viewport and scroll APIs
+**Navigation Behavior:**
+- **Auto-Start**: Automatically navigates to first chunk on file open
+- **Index-Based**: Simple increment/decrement of chunk index
+- **Non-Reactive**: Doesn't track manual user scrolling (by design)
+- **Boundary Handling**: Buttons disabled at first/last chunk (no cycling)
 
-#### **🟡 Medium Uncertainty: User Experience Design**
+### Technical Implementation
 
-**Navigation Behavior Questions:**
-1. **Current Chunk Detection**: How do we visually indicate which chunk is "current"?
-2. **Scroll Behavior**: Should we scroll to chunk start, middle, or ensure entire chunk is visible?
-3. **Cycling**: Should chunk navigation cycle like file navigation, or stop at ends?
-4. **Visual Feedback**: How do we show chunk position (e.g., "Change 2 of 5")?
+**Chunk Navigation Logic:**
+```typescript
+// Auto-navigate to first chunk on editor creation
+function navigateToFirstChunk(): void {
+  if (!editorView || totalChunks === 0) return;
+  currentChunkIndex = 0;
+  goToNextChunk(editorView); // Uses CodeMirror's built-in command
+}
 
-**Design Decisions Needed:**
-- Chunk highlighting or selection mechanism
-- Scroll positioning strategy
-- Control bar layout for chunk navigation buttons
-- Integration with existing file navigation
+// Navigate between chunks with boundary checking
+function navigateToChunk(direction: 'next' | 'prev'): void {
+  if (!editorView || totalChunks <= 1) return;
+  
+  if (direction === 'next' && currentChunkIndex < totalChunks - 1) {
+    currentChunkIndex++;
+    goToNextChunk(editorView);
+  } else if (direction === 'prev' && currentChunkIndex > 0) {
+    currentChunkIndex--;
+    goToPreviousChunk(editorView);
+  }
+}
+```
 
-#### **🟡 Medium Uncertainty: State Management**
+**Control Bar Integration:**
+```svelte
+<!-- Chunk Navigation UI -->
+{#if hasChunks && onNavigateChunk}
+  <div class="chunk-navigation">
+    <button disabled={!canGoPrevChunk} onclick={() => onNavigateChunk?.('prev')}>
+      <ChevronUpIcon class="size-4" />
+    </button>
+    
+    <div class="chunk-counter">
+      <span>{hasMultipleChunks ? `Change ${currentChunkIndex + 1} of ${totalChunks}` : `${totalChunks} changes`}</span>
+    </div>
+    
+    <button disabled={!canGoNextChunk} onclick={() => onNavigateChunk?.('next')}>
+      <ChevronDownIcon class="size-4" />
+    </button>
+  </div>
+{/if}
+```
 
-**Synchronization Challenges:**
-1. **Manual Scrolling**: How do we detect when user manually scrolls to different chunk?
-2. **Accept/Reject Impact**: How do we update current chunk index when chunks are modified?
-3. **Chunk Count Updates**: How do we handle dynamic chunk count changes?
-4. **Performance**: How often should we poll/update chunk position?
+**State Management:**
+- `currentChunkIndex`: Tracks current chunk position (0-based)
+- `totalChunks`: Total number of chunks in current file
+- Updates automatically when content changes via `EditorView.updateListener`
+- Resets to first chunk when switching files
 
-**Technical Questions:**
-- Should we listen to scroll events, cursor position, or viewport changes?
-- How do we efficiently track current chunk without constant recalculation?
-- What happens to chunk indices when chunks are accepted/rejected?
+### Control Bar Layout
 
-### Phase 2 Implementation Strategy
+```
+[← File] [File 1 of 3: filename.md] [File →]    [↑ Change] [Change 2 of 5] [Change ↓]
+```
 
-#### **Step 1: Research & Prototyping**
-**Duration**: 1 day
-- Create minimal test to understand `getChunks()` API
-- Experiment with `EditorView.dispatch()` scroll actions
-- Test chunk position calculation and line mapping
-- Investigate viewport change listeners
+**Layout Features:**
+- File navigation on the left
+- Chunk navigation on the right
+- Proper spacing and alignment
+- Disabled state styling for boundary conditions
+- Responsive design
 
-#### **Step 2: Core Navigation Logic**
-**Duration**: 1-2 days
-- Implement chunk position detection
-- Add scroll-to-chunk functionality
-- Create chunk navigation methods (next/previous)
+## Phase 2: Change Navigation - Analysis & Planning (ARCHIVED)
+
+### Uncertainty Analysis for Phase 2 - UPDATED
+
+#### **✅ RESOLVED: CodeMirror Merge Extension APIs**
+
+**CodeMirror Documentation Reveals:**
+
+1. **✅ Built-in Navigation Commands**:
+   ```typescript
+   import { goToNextChunk, goToPreviousChunk } from "@codemirror/merge";
+   
+   // Navigate to next/previous chunk
+   editorView.dispatch({ effects: goToNextChunk });
+   editorView.dispatch({ effects: goToPreviousChunk });
+   ```
+
+2. **✅ Chunk Structure & Access**:
+   ```typescript
+   import { getChunks } from "@codemirror/merge";
+   
+   const result = getChunks(editorView.state);
+   // Returns: {chunks: readonly Chunk[], side: "a" | "b" | null} | null
+   
+   // Each Chunk has:
+   // - fromA/toA: positions in document A
+   // - fromB/toB: positions in document B  
+   // - endA/endB: safe document positions
+   // - changes: individual changes within chunk
+   // - precise: boolean indicating diff quality
+   ```
+
+3. **✅ Chunk Ordering**: Chunks are returned in document order
+4. **✅ Position Information**: Precise document positions available
+5. **✅ Dynamic Updates**: Chunks update automatically when content changes
+
+#### **🟡 Remaining Medium Uncertainty: Current Chunk Detection**
+
+**Challenge**: How to determine which chunk is currently "active" for UI counter display.
+
+**Potential Solutions:**
+1. **Cursor Position**: Check which chunk contains current cursor position
+2. **Viewport Center**: Find chunk closest to viewport center
+3. **Selection Range**: Use current selection to determine active chunk
+4. **Last Navigation**: Track last chunk navigated to via our buttons
+
+#### **🟡 Reduced Uncertainty: User Experience Design**
+
+**Simplified Design Decisions:**
+1. **Navigation Behavior**: Use built-in `goToNextChunk`/`goToPreviousChunk` commands
+2. **Scroll Behavior**: CodeMirror handles scrolling automatically
+3. **Cycling**: Follow CodeMirror's default behavior (likely stops at ends)
+4. **Visual Feedback**: Display "Change X of Y" based on chunk count
+
+**Remaining UX Questions:**
+- How to detect "current" chunk for counter display
+- Whether to add visual highlighting for current chunk
+- Integration with existing file navigation layout
+
+#### **🟡 Reduced Uncertainty: State Management**
+
+**Simplified State Approach:**
+1. **Chunk Count**: Call `getChunks(state)` to get current chunk count
+2. **Dynamic Updates**: Chunks automatically update when content changes
+3. **Performance**: Only update chunk info when navigation buttons are used
+
+**Remaining State Questions:**
+- How to efficiently determine current chunk index for display
+- Whether to listen to editor update events for real-time chunk counter
+- How to handle edge cases (no chunks, single chunk)
+
+### Phase 2 Implementation Strategy - UPDATED
+
+#### **Step 1: Basic Integration (Simplified)**
+**Duration**: 2-3 hours
+- Import `goToNextChunk`, `goToPreviousChunk`, `getChunks` from `@codemirror/merge`
+- Add chunk navigation methods to `merge-view.svelte.ts`
+- Test basic navigation functionality
+
+#### **Step 2: UI Integration**
+**Duration**: 3-4 hours
+- Add chunk navigation buttons to `MergeControlBar.svelte`
+- Implement chunk counter display using `getChunks()`
+- Update control bar layout for both file and chunk navigation
 - Handle edge cases (no chunks, single chunk)
 
-#### **Step 3: UI Integration**
-**Duration**: 1 day
-- Add chunk navigation buttons to control bar
-- Implement chunk counter display
-- Add visual feedback for current chunk
-- Test integration with file navigation
+#### **Step 3: Current Chunk Detection**
+**Duration**: 2-3 hours
+- Implement logic to determine "current" chunk for counter
+- Add update listeners if needed for real-time counter
+- Test and refine current chunk detection accuracy
 
 ### Proposed Control Bar Layout
 
@@ -482,55 +592,74 @@ private async navigateToFile(direction: 'prev' | 'next'): Promise<void> {
 [← File] [File 1 of 3: filename.md] [File →]  |  [↑ Change] [Change 2 of 5] [Change ↓]
 ```
 
-### Research Questions to Answer
+### Implementation Code Snippets
 
-1. **CodeMirror API Investigation**:
+1. **Basic Chunk Navigation**:
    ```typescript
-   // What does getChunks() actually return?
-   const chunks = getChunks(editorView.state);
-   console.log(chunks); // Structure? Properties? Order?
+   import { goToNextChunk, goToPreviousChunk, getChunks } from "@codemirror/merge";
    
-   // How do we scroll to a specific line?
-   editorView.dispatch({
-     selection: { anchor: pos },
-     scrollIntoView: true
-   });
+   // In merge-view.svelte.ts
+   navigateToChunk(direction: 'next' | 'prev') {
+     const command = direction === 'next' ? goToNextChunk : goToPreviousChunk;
+     this.editorView?.dispatch({ effects: command });
+   }
+   
+   getChunkInfo() {
+     const result = getChunks(this.editorView?.state);
+     return result ? result.chunks.length : 0;
+   }
    ```
 
-2. **Viewport Detection**:
+2. **Current Chunk Detection**:
    ```typescript
-   // How do we detect current viewport position?
-   const viewport = editorView.viewport;
-   // How do we map viewport to chunks?
+   getCurrentChunkIndex(): number {
+     const result = getChunks(this.editorView?.state);
+     if (!result || !result.chunks.length) return -1;
+     
+     const cursor = this.editorView?.state.selection.main.head;
+     if (!cursor) return -1;
+     
+     // Find chunk containing cursor position
+     return result.chunks.findIndex(chunk => 
+       cursor >= chunk.fromA && cursor <= chunk.endA
+     );
+   }
    ```
 
-3. **Event Handling**:
-   ```typescript
-   // What events fire when user scrolls or changes chunks?
-   EditorView.updateListener.of((update) => {
-     // Detect scroll changes?
-     // Detect chunk changes?
-   });
+3. **Control Bar Integration**:
+   ```svelte
+   <!-- In MergeControlBar.svelte -->
+   <div class="chunk-navigation">
+     <button onclick={() => onNavigateChunk('prev')}>↑</button>
+     <span>Change {currentChunkIndex + 1} of {totalChunks}</span>
+     <button onclick={() => onNavigateChunk('next')}>↓</button>
+   </div>
    ```
 
-### Risk Mitigation
+### Risk Mitigation - UPDATED
 
-**If CodeMirror APIs are insufficient:**
-- **Fallback 1**: Line-based navigation instead of chunk-based
-- **Fallback 2**: Simple "scroll to top/bottom" navigation
-- **Fallback 3**: Defer to Phase 3 and implement bulk operations first
+**Risks Significantly Reduced:**
+- ✅ CodeMirror APIs are well-documented and sufficient
+- ✅ Built-in navigation commands handle complexity
+- ✅ Performance should be good with native commands
 
-**If performance is poor:**
-- **Throttle**: Debounce chunk position detection
-- **Cache**: Store chunk positions and update only on content changes
-- **Lazy**: Only calculate current chunk when navigation buttons are used
+**Remaining Risks:**
+- **Current Chunk Detection**: If cursor-based detection is unreliable
+  - **Fallback**: Show total chunk count without "current" indicator
+- **Edge Cases**: If chunks behave unexpectedly
+  - **Fallback**: Graceful degradation with error handling
+- **UI Integration**: If control bar becomes too crowded
+  - **Fallback**: Separate chunk navigation to different area
 
-### Success Criteria for Phase 2
+### Success Criteria for Phase 2 - UPDATED
 
-✅ **Functional Navigation**: Up/Down buttons scroll between diff chunks  
-✅ **Position Awareness**: Display current chunk number (e.g., "Change 2 of 5")  
-✅ **Smooth Scrolling**: Chunks are properly centered/visible when navigated to  
-✅ **State Sync**: Current chunk updates when user manually scrolls  
-✅ **Edge Handling**: Works with single chunk, no chunks, dynamic changes  
+✅ **Functional Navigation**: Up/Down buttons use `goToNextChunk`/`goToPreviousChunk`  
+✅ **Chunk Counter**: Display total chunk count (e.g., "5 changes")  
+✅ **Current Position**: Show current chunk index when detectable (e.g., "Change 2 of 5")  
+✅ **Native Scrolling**: CodeMirror handles smooth scrolling automatically  
+✅ **Edge Handling**: Graceful handling of no chunks, single chunk scenarios  
+✅ **Integration**: Seamless integration with existing file navigation  
 
-This analysis identifies the key uncertainties and provides a structured approach to tackle Phase 2 implementation.
+**Actual Implementation Time**: ~4 hours
+
+The CodeMirror built-in commands made implementation even faster than estimated. The simple index-based approach avoided complexity while providing excellent user experience.

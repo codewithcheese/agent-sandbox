@@ -6,6 +6,8 @@
     getChunks,
     getOriginalDoc,
     unifiedMergeView,
+    goToNextChunk,
+    goToPreviousChunk,
   } from "@codemirror/merge";
   import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
   import { Notice } from "obsidian";
@@ -26,7 +28,7 @@
     // NEW: Navigation props
     allChangedFiles: string[];
     currentFileIndex: number;
-    onNavigateFile: (direction: 'prev' | 'next') => Promise<void>;
+    onNavigateFile: (direction: "prev" | "next") => Promise<void>;
     // Existing callback props
     onAccept: (
       resolvedContent: string,
@@ -39,20 +41,24 @@
       chunksLeft: number,
     ) => Promise<void>;
   };
-  let { 
-    name, 
-    currentContent, 
-    newContent, 
+  let {
+    name,
+    currentContent,
+    newContent,
     allChangedFiles,
     currentFileIndex,
     onNavigateFile,
-    onAccept, 
-    onReject 
+    onAccept,
+    onReject,
   }: Props = $props();
 
   // State
   let editorView: EditorView | null = $state(null);
   let editorContainer: HTMLElement;
+
+  // Chunk navigation state
+  let currentChunkIndex = $state(0);
+  let totalChunks = $state(0);
 
   onMount(() => {
     createEditor();
@@ -92,6 +98,9 @@
 
             debug("Merge view update", v);
 
+            // Update chunk info when content changes
+            updateChunkInfo();
+
             // How many chunks are left?
             const chunks = getChunks(v.state);
             debug("Chunks left", chunks);
@@ -123,6 +132,10 @@
       }),
       parent: editorContainer,
     });
+
+    // Initialize chunk navigation and go to first chunk
+    updateChunkInfo();
+    navigateToFirstChunk();
   }
 
   async function acceptChange(state: EditorState): Promise<void> {
@@ -151,21 +164,66 @@
       new Notice(`Error saving changes: ${(error as Error).message}`);
     }
   }
+
+  /**
+   * Update chunk navigation state
+   */
+  function updateChunkInfo(): void {
+    if (!editorView) return;
+
+    const chunkInfo = getChunks(editorView.state);
+    totalChunks = chunkInfo?.chunks.length || 0;
+
+    // Reset to first chunk when chunks change
+    if (currentChunkIndex >= totalChunks) {
+      currentChunkIndex = 0;
+    }
+  }
+
+  /**
+   * Navigate to first chunk when editor is created
+   */
+  function navigateToFirstChunk(): void {
+    if (!editorView || totalChunks === 0) return;
+
+    currentChunkIndex = 0;
+    // Navigate to first chunk using CodeMirror's built-in command
+    goToNextChunk(editorView);
+  }
+
+  /**
+   * Navigate to next or previous chunk
+   */
+  function navigateToChunk(direction: "next" | "prev"): void {
+    if (!editorView || totalChunks <= 1) return;
+
+    if (direction === "next") {
+      if (currentChunkIndex < totalChunks - 1) {
+        currentChunkIndex++;
+        goToNextChunk(editorView);
+      }
+    } else {
+      if (currentChunkIndex > 0) {
+        currentChunkIndex--;
+        goToPreviousChunk(editorView);
+      }
+    }
+  }
 </script>
+
+<MergeControlBar
+  {allChangedFiles}
+  {currentFileIndex}
+  {onNavigateFile}
+  {totalChunks}
+  {currentChunkIndex}
+  onNavigateChunk={navigateToChunk}
+/>
 
 <div
   class="markdown-source-view cm-s-obsidian mod-cm6 node-insert-event is-readable-line-width is-live-preview is-folding show-properties merge-view-container"
   class:with-control-bar={allChangedFiles.length > 1}
 >
-  <!-- NEW: Control bar at top -->
-  {#if allChangedFiles.length > 1}
-    <MergeControlBar 
-      {allChangedFiles}
-      {currentFileIndex}
-      {onNavigateFile}
-    />
-  {/if}
-  
   <!-- Existing editor -->
   <div class="cm-editor">
     <div class="cm-scroller">
@@ -184,12 +242,7 @@
     display: flex;
     flex-direction: column;
   }
-  
-  .merge-view-container.with-control-bar {
-    /* Add top padding to account for absolute positioned control bar */
-    padding-top: 50px; /* Approximate height of control bar */
-  }
-  
+
   .cm-editor {
     flex: 1;
     height: 100%;
