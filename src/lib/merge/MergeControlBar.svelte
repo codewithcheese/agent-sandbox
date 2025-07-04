@@ -4,104 +4,129 @@
     ChevronRightIcon,
     ChevronUpIcon,
     ChevronDownIcon,
+    CheckIcon,
+    XIcon,
+    GitMergeIcon,
   } from "lucide-svelte";
 
   type Props = {
-    allChangedFiles: string[];
-    currentFileIndex: number;
-    onNavigateFile: (direction: "prev" | "next") => Promise<void>;
-    // Chunk navigation props
-    totalChunks?: number;
+    // File navigation
+    currentFileIndex?: number;
+    totalFiles?: number;
+    fileName?: string;
+    onNavigateFile?: (direction: "prev" | "next") => void;
+    canGoPrevFile?: boolean;
+    canGoNextFile?: boolean;
+
+    // Chunk navigation
     currentChunkIndex?: number;
+    totalChunks?: number;
     onNavigateChunk?: (direction: "prev" | "next") => void;
-    // Bulk operation props
-    onAcceptAll?: () => Promise<void>;
-    onRejectAll?: () => Promise<void>;
+    canGoPrevChunk?: boolean;
+    canGoNextChunk?: boolean;
+
+    // Bulk operations
+    onAcceptAll?: () => void;
+    onRejectAll?: () => void;
   };
 
   let {
-    allChangedFiles,
     currentFileIndex,
+    totalFiles,
+    fileName,
     onNavigateFile,
-    totalChunks = 0,
-    currentChunkIndex = 0,
+    canGoPrevFile = false,
+    canGoNextFile = false,
+    currentChunkIndex,
+    totalChunks,
     onNavigateChunk,
+    canGoPrevChunk = false,
+    canGoNextChunk = false,
     onAcceptAll,
     onRejectAll,
   }: Props = $props();
 
-  // Reactive calculations
-  const currentFileName = $derived(
-    allChangedFiles[currentFileIndex]?.split("/").pop() || "",
-  );
-  const hasMultipleFiles = $derived(allChangedFiles.length > 1);
-
-  // Chunk navigation calculations
-  const hasChunks = $derived(totalChunks > 0);
-  const hasMultipleChunks = $derived(totalChunks > 1);
-  const canGoPrevChunk = $derived(hasMultipleChunks && currentChunkIndex > 0);
-  const canGoNextChunk = $derived(
-    hasMultipleChunks && currentChunkIndex < totalChunks - 1,
-  );
+  // Determine if we're in multi-file mode
+  const isMultiFile = $derived(totalFiles && totalFiles > 1);
+  const hasChunks = $derived(totalChunks && totalChunks > 0);
 </script>
 
-<div class="merge-control-bar" class:single-file={!hasMultipleFiles}>
-  <!-- File Navigation (only show if multiple files) -->
-  {#if hasMultipleFiles}
-    <div class="file-navigation">
+<div
+  data-banner-metadata=""
+  data-banner-fold=""
+  data-banner="merge"
+  class="banner merge-control-bar"
+>
+  <!-- Banner Icon -->
+  <div class="banner-icon">
+    <GitMergeIcon />
+  </div>
+
+  <!-- File Navigation (Multi-file mode) -->
+  {#if isMultiFile}
+    <div class="banner-title">Merge</div>
+    <div class="flex items-center gap-2 ml-2">
       <button
         class="clickable-icon"
-        onclick={() => onNavigateFile("prev")}
-        aria-label="Previous file with changes (cycles to end)"
+        disabled={!canGoPrevFile}
+        onclick={() => onNavigateFile?.("prev")}
+        aria-label="Previous file"
       >
         <ChevronLeftIcon class="size-4" />
       </button>
 
-      <div class="file-counter">
-        <span class="counter-text"
-          >{currentFileIndex + 1} of {allChangedFiles.length}</span
-        >
-        <span class="file-name">{currentFileName}</span>
+      <div class="text-sm">
+        <div class="font-medium">{fileName}</div>
+        <div class="text-(--text-muted) text-xs">
+          File {currentFileIndex} of {totalFiles}
+        </div>
       </div>
 
       <button
         class="clickable-icon"
-        onclick={() => onNavigateFile("next")}
-        aria-label="Next file with changes (cycles to beginning)"
+        disabled={!canGoNextFile}
+        onclick={() => onNavigateFile?.("next")}
+        aria-label="Next file"
       >
         <ChevronRightIcon class="size-4" />
       </button>
     </div>
   {:else}
-    <!-- Single file - just show filename -->
-    <div class="file-info">
-      <span class="file-name">{currentFileName}</span>
-    </div>
+    <!-- Single file mode -->
+    <div class="banner-title">{fileName}</div>
   {/if}
 
-  <!-- Bulk Operations -->
-  {#if hasChunks && onAcceptAll && onRejectAll}
-    <div class="bulk-operations">
+  <!-- Spacer -->
+  <div class="flex-1"></div>
+
+  <!-- Controls Section -->
+  <div class="flex items-center gap-2">
+    <!-- Bulk Operations -->
+    {#if hasChunks}
       <button
-        class="bulk-button accept"
+        class="clickable-icon gap-1 text-(--color-green)"
         onclick={() => onAcceptAll?.()}
-        aria-label="Accept all changes in this file"
+        aria-label="Accept all changes"
       >
+        <CheckIcon class="size-4" />
         Accept All
       </button>
+
       <button
-        class="bulk-button reject"
+        class="clickable-icon gap-1 text-(--color-red)"
         onclick={() => onRejectAll?.()}
-        aria-label="Reject all changes in this file"
+        aria-label="Reject all changes"
       >
+        <XIcon class="size-4" />
         Reject All
       </button>
-    </div>
-  {/if}
 
-  <!-- Chunk Navigation -->
-  {#if hasChunks && onNavigateChunk}
-    <div class="chunk-navigation">
+      <!-- Separator -->
+      <div class="w-px h-4 bg-(--background-modifier-border) mx-1"></div>
+    {/if}
+
+    <!-- Chunk Navigation -->
+    {#if hasChunks}
       <button
         class="clickable-icon"
         disabled={!canGoPrevChunk}
@@ -111,12 +136,8 @@
         <ChevronUpIcon class="size-4" />
       </button>
 
-      <div class="chunk-counter">
-        <span class="counter-text">
-          {hasMultipleChunks
-            ? `Change ${currentChunkIndex + 1} of ${totalChunks}`
-            : `${totalChunks} change${totalChunks === 1 ? "" : "s"}`}
-        </span>
+      <div class="text-sm text-(--text-muted) min-w-20 text-center">
+        {currentChunkIndex} of {totalChunks}
       </div>
 
       <button
@@ -127,124 +148,44 @@
       >
         <ChevronDownIcon class="size-4" />
       </button>
-    </div>
-  {/if}
+    {/if}
+  </div>
 </div>
 
 <style>
-  .merge-control-bar {
+  .banner {
     position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    border-style: solid;
+    border-color: rgba(var(--callout-color), var(--callout-border-opacity));
+    border-width: var(--callout-border-width);
+    mix-blend-mode: var(--callout-blend-mode);
+    background-color: rgba(var(--callout-color), 0.1);
+    gap: var(--size-4-1);
+    padding: var(--size-4-2);
     z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--background-modifier-border);
-    background-color: var(--background-secondary);
-    font-size: var(--font-ui-smaller);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    gap: 24px;
-    height: 50px;
-    min-height: 50px;
-    flex-shrink: 0;
   }
 
-  /* Single file layout - center chunk navigation */
-  .merge-control-bar.single-file {
-    justify-content: center;
+  .banner[data-banner="merge"] {
+    --callout-color: var(--callout-example);
+    --callout-icon: lucide-git-merge;
   }
 
-  .file-navigation {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  .banner-icon {
+    color: rgb(var(--callout-color));
   }
 
-  .file-info {
-    display: flex;
-    align-items: center;
-    position: absolute;
-    left: 16px;
-  }
-
-  .file-counter {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    min-width: 120px;
-  }
-
-  .counter-text {
-    color: var(--text-muted);
-    font-weight: 500;
-  }
-
-  .file-name {
-    color: var(--text-normal);
-    font-weight: 600;
+  .banner-title {
+    font-weight: var(--callout-title-weight);
+    font-size: var(--callout-title-size);
+    color: rgb(var(--callout-color));
     max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .chunk-navigation {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .chunk-counter {
-    display: flex;
-    align-items: center;
-    min-width: 100px;
-    text-align: center;
-    justify-content: center;
-  }
-
-  .bulk-operations {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .bulk-button {
-    padding: 4px 12px;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
-    background-color: var(--background-primary);
-    color: var(--text-normal);
-    font-size: var(--font-ui-smaller);
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .bulk-button:hover {
-    background-color: var(--background-modifier-hover);
-    border-color: var(--background-modifier-border-hover);
-  }
-
-  .bulk-button.accept {
-    color: var(--text-success);
-    border-color: var(--text-success);
-  }
-
-  .bulk-button.accept:hover {
-    background-color: var(--background-modifier-success);
-  }
-
-  .bulk-button.reject {
-    color: var(--text-error);
-    border-color: var(--text-error);
-  }
-
-  .bulk-button.reject:hover {
-    background-color: var(--background-modifier-error);
   }
 
   .clickable-icon:disabled {

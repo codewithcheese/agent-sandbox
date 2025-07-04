@@ -250,12 +250,17 @@
 </script>
 
 <MergeControlBar
-  {allChangedFiles}
-  {currentFileIndex}
-  {onNavigateFile}
+  currentFileIndex={currentFileIndex + 1}
+  totalFiles={allChangedFiles.length}
+  fileName={allChangedFiles[currentFileIndex]?.split("/").pop() || ""}
+  onNavigateFile={onNavigateFile}
+  canGoPrevFile={allChangedFiles.length > 1}
+  canGoNextFile={allChangedFiles.length > 1}
+  currentChunkIndex={currentChunkIndex + 1}
   {totalChunks}
-  {currentChunkIndex}
   onNavigateChunk={navigateToChunk}
+  canGoPrevChunk={totalChunks > 1 && currentChunkIndex > 0}
+  canGoNextChunk={totalChunks > 1 && currentChunkIndex < totalChunks - 1}
   onAcceptAll={acceptAllChunks}
   onRejectAll={rejectAllChunks}
 />
