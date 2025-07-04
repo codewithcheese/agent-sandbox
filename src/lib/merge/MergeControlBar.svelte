@@ -162,8 +162,8 @@
     border-style: solid;
     border-color: rgba(var(--callout-color), var(--callout-border-opacity));
     border-width: var(--callout-border-width);
-    mix-blend-mode: var(--callout-blend-mode);
-    background-color: rgba(var(--callout-color), 0.1);
+    /* Solid purple-tinted background */
+    background-color: color-mix(in srgb, rgb(var(--callout-color)) 10%, var(--background-primary));
     gap: var(--size-4-1);
     padding: var(--size-4-2);
     z-index: 1000;
