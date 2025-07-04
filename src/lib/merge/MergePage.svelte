@@ -22,163 +22,51 @@
   const debug = createDebug();
 
   type Props = {
+    editorView: EditorView;
     name: string;
-    currentContent: string;
-    newContent: string;
-    // NEW: Navigation props
+    // Chunk navigation state
+    currentChunkIndex: number;
+    totalChunks: number;
+    // Navigation props
     allChangedFiles: string[];
     currentFileIndex: number;
     onNavigateFile: (direction: "prev" | "next") => Promise<void>;
-    // Existing callback props
-    onAccept: (
-      resolvedContent: string,
-      pendingContent: string,
-      chunksLeft: number,
-    ) => Promise<void>;
-    onReject: (
-      resolvedContent: string,
-      pendingContent: string,
-      chunksLeft: number,
-    ) => Promise<void>;
+    // Bulk operation callbacks
+    onAcceptAll: () => Promise<void>;
+    onRejectAll: () => Promise<void>;
   };
   let {
+    editorView,
     name,
-    currentContent,
-    newContent,
+    currentChunkIndex,
+    totalChunks,
     allChangedFiles,
     currentFileIndex,
     onNavigateFile,
-    onAccept,
-    onReject,
+    onAcceptAll,
+    onRejectAll,
   }: Props = $props();
 
   // State
-  let editorView: EditorView | null = $state(null);
   let editorContainer: HTMLElement;
 
-  // Chunk navigation state
-  let currentChunkIndex = $state(0);
-  let totalChunks = $state(0);
-
   onMount(() => {
-    createEditor();
+    // Attach the existing editor to the DOM
+    if (editorView && editorContainer) {
+      editorContainer.appendChild(editorView.dom);
+      
+      // Navigate to first chunk
+      navigateToFirstChunk();
+    }
   });
 
   onDestroy(() => {
-    if (editorView) {
-      editorView.destroy();
-      editorView = null;
+    // Don't destroy the editor - it's owned by MergeView
+    // Just detach from DOM if needed
+    if (editorView && editorView.dom.parentNode) {
+      editorView.dom.parentNode.removeChild(editorView.dom);
     }
   });
-
-  /**
-   * Create or update the editor instance
-   */
-  function createEditor(): void {
-    // Destroy existing editor if it exists
-    if (editorView) {
-      editorView.destroy();
-      editorView = null;
-    }
-
-    // Create the editor
-    editorView = new EditorView({
-      state: EditorState.create({
-        doc: newContent,
-        extensions: [
-          drawSelection(),
-          keymap.of([...defaultKeymap, indentWithTab]),
-          history(),
-          EditorView.lineWrapping,
-          EditorView.updateListener.of(async (v) => {
-            // if (v.docChanged) {
-            //   console.log("Doc changed", v.state.doc.toString());
-            //   proposedContent = v.state.doc.toString();
-            // }
-
-            debug("Merge view update", v);
-
-            // Update chunk info when content changes
-            updateChunkInfo();
-
-            // How many chunks are left?
-            const chunks = getChunks(v.state);
-            debug("Chunks left", chunks);
-
-            // Check for accept/reject actions
-            if (
-              v.transactions.some(
-                (tr) => tr.annotation(Transaction.userEvent) === "accept",
-              )
-            ) {
-              await acceptChange(v.state);
-            }
-
-            if (
-              v.transactions.some(
-                (tr) => tr.annotation(Transaction.userEvent) === "revert",
-              )
-            ) {
-              await rejectChange(v.state);
-            }
-          }),
-          unifiedMergeView({
-            original: currentContent,
-            gutter: false,
-          }),
-          (gnosis() as Extension[]).toSpliced(1, 1), // splice out the gnosis theme
-          obsidianTheme,
-        ],
-      }),
-      parent: editorContainer,
-    });
-
-    // Initialize chunk navigation and go to first chunk
-    updateChunkInfo();
-    navigateToFirstChunk();
-  }
-
-  async function acceptChange(state: EditorState): Promise<void> {
-    if (!editorView) return;
-    try {
-      const chunkInfo = getChunks(state);
-      const resolvedContent = getOriginalDoc(state).toString();
-      const pendingContent = state.doc.toString();
-      await onAccept(resolvedContent, pendingContent, chunkInfo.chunks.length);
-    } catch (error) {
-      console.error("Error saving changes:", error);
-      new Notice(`Error saving changes: ${(error as Error).message}`);
-    }
-  }
-
-  async function rejectChange(state: EditorState): Promise<void> {
-    if (!editorView) return;
-
-    try {
-      const chunkInfo = getChunks(state);
-      const resolvedContent = getOriginalDoc(state).toString();
-      const pendingContent = state.doc.toString();
-      await onReject(resolvedContent, pendingContent, chunkInfo.chunks.length);
-    } catch (error) {
-      console.error("Error saving changes:", error);
-      new Notice(`Error saving changes: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Update chunk navigation state
-   */
-  function updateChunkInfo(): void {
-    if (!editorView) return;
-
-    const chunkInfo = getChunks(editorView.state);
-    totalChunks = chunkInfo?.chunks.length || 0;
-
-    // Reset to first chunk when chunks change
-    if (currentChunkIndex >= totalChunks) {
-      currentChunkIndex = 0;
-    }
-  }
 
   /**
    * Navigate to the first chunk when the merge view opens
@@ -211,43 +99,7 @@
     }
   }
 
-  /**
-   * Accept all chunks by calling onAccept with final content
-   */
-  async function acceptAllChunks(): Promise<void> {
-    if (!editorView) return;
 
-    try {
-      // Accept all: resolved content = new content (accept all changes)
-      const resolvedContent = newContent;
-      const pendingContent = newContent;
-      const chunksLeft = 0; // No chunks remaining
-
-      await onAccept(resolvedContent, pendingContent, chunksLeft);
-    } catch (error) {
-      console.error("Error accepting all changes:", error);
-      new Notice(`Error accepting all changes: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Reject all chunks by calling onReject with original content
-   */
-  async function rejectAllChunks(): Promise<void> {
-    if (!editorView) return;
-
-    try {
-      // Reject all: resolved content = original content (reject all changes)
-      const resolvedContent = currentContent;
-      const pendingContent = currentContent;
-      const chunksLeft = 0; // No chunks remaining
-
-      await onReject(resolvedContent, pendingContent, chunksLeft);
-    } catch (error) {
-      console.error("Error rejecting all changes:", error);
-      new Notice(`Error rejecting all changes: ${(error as Error).message}`);
-    }
-  }
 </script>
 
 <MergeControlBar
@@ -262,8 +114,8 @@
   onNavigateChunk={navigateToChunk}
   canGoPrevChunk={totalChunks > 1 && currentChunkIndex > 0}
   canGoNextChunk={totalChunks > 1 && currentChunkIndex < totalChunks - 1}
-  onAcceptAll={acceptAllChunks}
-  onRejectAll={rejectAllChunks}
+  onAcceptAll={onAcceptAll}
+  onRejectAll={onRejectAll}
 />
 
 <div
