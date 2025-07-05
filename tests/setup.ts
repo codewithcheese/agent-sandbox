@@ -12,5 +12,6 @@ vi.mock("obsidian", async (importOriginal) => {
     TFolder: MockTFolder,
     TAbstractFile: MockTAbstractFile,
     Notice: class {},
+    ItemView: class {},
   };
 });

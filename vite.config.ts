@@ -39,7 +39,7 @@ function copyManifestToDist() {
   }
 }
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
   const isDev = command === "serve";
 
   const aliasEntries = excludePackages.map((pkg) => {
@@ -57,8 +57,11 @@ export default defineConfig(({ command }) => {
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),
-        // Spread the dynamically generated bridge aliases
-        ...Object.fromEntries(aliasEntries),
+        ...(mode === "test"
+          ? // Only alias obsidian in test mode, allow codemirror to be loaded
+            { obsidian: resolve(__dirname, `src/lib/bridge/obsidian.ts`) }
+          : // Spread the dynamically generated bridge aliases
+            Object.fromEntries(aliasEntries)),
       },
     },
     server: {

@@ -16,20 +16,12 @@ import { findMatchingView } from "$lib/obsidian/leaf.ts";
 import type { ProposedChange } from "../../chat/vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import { usePlugin } from "$lib/utils";
-import {
-  Text,
-  EditorState,
-  Transaction,
-  Compartment,
-  ChangeSet,
-} from "@codemirror/state";
+import { Text, EditorState, Transaction, ChangeSet } from "@codemirror/state";
 import {
   updateOriginalDoc,
   unifiedMergeView,
   getChunks,
   getOriginalDoc,
-  goToNextChunk,
-  goToPreviousChunk,
 } from "@codemirror/merge";
 import { EditorView, drawSelection, keymap } from "@codemirror/view";
 import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
