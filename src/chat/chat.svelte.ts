@@ -32,6 +32,7 @@ import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { SessionStore } from "./session-store.svelte.ts";
 import { syncChangesReminder } from "./system-reminders.ts";
 import { getTextFromParts, filterIncompleteToolParts } from "$lib/utils/ai.ts";
+import { MergeView } from "$lib/merge/merge-view.svelte.ts";
 
 const debug = createDebug();
 
@@ -563,6 +564,9 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
           abortSignal,
           onStepFinish: async (step) => {
             this.vault.computeChanges();
+            if (this.vault.changes.length > 0) {
+              await MergeView.openForChanges(this.path);
+            }
             debug("Step finish", step);
             step.toolCalls.forEach((toolCall) => {
               debug("Tool call", toolCall);
@@ -587,8 +591,10 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         }
 
         this.vault.computeChanges();
+        if (this.vault.changes.length > 0) {
+          await MergeView.openForChanges(this.path);
+        }
 
-        // If we get here, the call was successful
         return;
       } catch (error: any) {
         // Handle user abort

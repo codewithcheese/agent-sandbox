@@ -1,153 +1,133 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { EditorState, type Extension, Transaction } from "@codemirror/state";
-  import { drawSelection, EditorView, keymap } from "@codemirror/view";
-  import {
-    getChunks,
-    getOriginalDoc,
-    unifiedMergeView,
-  } from "@codemirror/merge";
-  import { defaultKeymap, history, indentWithTab } from "@codemirror/commands";
-  import { Notice } from "obsidian";
-  import { createDebug } from "$lib/debug.ts";
-  import { gnosis } from "@glifox/gnosis";
-
-  import { Compartment } from "@codemirror/state";
-  import { obsidianTheme } from "$lib/merge/theme.ts";
-  export const themeVariant = new Compartment();
-
-  const debug = createDebug();
+  import { EditorView } from "@codemirror/view";
+  import { goToNextChunk, goToPreviousChunk } from "@codemirror/merge";
+  import MergeControlBar from "./MergeControlBar.svelte";
+  import type { NavigationState } from "$lib/merge/merge-view.svelte.ts";
 
   type Props = {
+    editorView: EditorView;
     name: string;
-    currentContent: string;
-    newContent: string;
-    onAccept: (
-      resolvedContent: string,
-      pendingContent: string,
-      chunksLeft: number,
-    ) => Promise<void>;
-    onReject: (
-      resolvedContent: string,
-      pendingContent: string,
-      chunksLeft: number,
-    ) => Promise<void>;
+    // Chunk navigation state
+    navigationState: NavigationState;
+    onNavigateFile: (direction: "prev" | "next") => Promise<void>;
+    // Bulk operation callbacks
+    onAcceptAll: () => Promise<void>;
+    onRejectAll: () => Promise<void>;
   };
-  let { name, currentContent, newContent, onAccept, onReject }: Props =
-    $props();
+  let {
+    editorView,
+    name,
+    navigationState,
+    onNavigateFile,
+    onAcceptAll,
+    onRejectAll,
+  }: Props = $props();
+  let currentChunkIndex = $derived(navigationState.currentChunkIndex);
+  let totalChunks = $derived(navigationState.totalChunks);
+  let changedFilePaths = $derived(navigationState.changedFilePaths);
+  let currentFilePathIndex = $derived(navigationState.currentFilePathIndex);
+
+  $inspect("Merge page", navigationState);
 
   // State
-  let editorView: EditorView | null = $state(null);
   let editorContainer: HTMLElement;
 
   onMount(() => {
-    createEditor();
+    // Attach the existing editor to the DOM
+    if (editorView && editorContainer) {
+      editorContainer.appendChild(editorView.dom);
+
+      // Navigate to first chunk
+      navigateToFirstChunk();
+    }
   });
 
   onDestroy(() => {
-    if (editorView) {
-      editorView.destroy();
-      editorView = null;
+    // Don't destroy the editor - it's owned by MergeView
+    // Just detach from DOM if needed
+    if (editorView && editorView.dom.parentNode) {
+      editorView.dom.parentNode.removeChild(editorView.dom);
     }
   });
 
   /**
-   * Create or update the editor instance
+   * Navigate to the first chunk when the merge view opens
    */
-  function createEditor(): void {
-    // Destroy existing editor if it exists
-    if (editorView) {
-      editorView.destroy();
-      editorView = null;
-    }
+  function navigateToFirstChunk(): void {
+    if (!editorView || totalChunks === 0) return;
 
-    // Create the editor
-    editorView = new EditorView({
-      state: EditorState.create({
-        doc: newContent,
-        extensions: [
-          drawSelection(),
-          keymap.of([...defaultKeymap, indentWithTab]),
-          history(),
-          EditorView.lineWrapping,
-          EditorView.updateListener.of(async (v) => {
-            // if (v.docChanged) {
-            //   console.log("Doc changed", v.state.doc.toString());
-            //   proposedContent = v.state.doc.toString();
-            // }
-
-            debug("Merge view update", v);
-
-            // How many chunks are left?
-            const chunks = getChunks(v.state);
-            debug("Chunks left", chunks);
-
-            // Check for accept/reject actions
-            if (
-              v.transactions.some(
-                (tr) => tr.annotation(Transaction.userEvent) === "accept",
-              )
-            ) {
-              await acceptChange(v.state);
-            }
-
-            if (
-              v.transactions.some(
-                (tr) => tr.annotation(Transaction.userEvent) === "revert",
-              )
-            ) {
-              await rejectChange(v.state);
-            }
-          }),
-          unifiedMergeView({
-            original: currentContent,
-            gutter: false,
-          }),
-          (gnosis() as Extension[]).toSpliced(1, 1), // splice out the gnosis theme
-          obsidianTheme,
-        ],
-      }),
-      parent: editorContainer,
-    });
+    // Reset to first chunk
+    currentChunkIndex = 0;
+    // Use CodeMirror's built-in navigation to go to first chunk
+    goToNextChunk(editorView);
   }
 
-  async function acceptChange(state: EditorState): Promise<void> {
-    if (!editorView) return;
-    try {
-      const chunkInfo = getChunks(state);
-      const resolvedContent = getOriginalDoc(state).toString();
-      const pendingContent = state.doc.toString();
-      await onAccept(resolvedContent, pendingContent, chunkInfo.chunks.length);
-    } catch (error) {
-      console.error("Error saving changes:", error);
-      new Notice(`Error saving changes: ${(error as Error).message}`);
-    }
-  }
+  /**
+   * Navigate to next or previous chunk
+   */
+  function navigateToChunk(direction: "next" | "prev"): void {
+    if (!editorView || totalChunks <= 1) return;
 
-  async function rejectChange(state: EditorState): Promise<void> {
-    if (!editorView) return;
-
-    try {
-      const chunkInfo = getChunks(state);
-      const resolvedContent = getOriginalDoc(state).toString();
-      const pendingContent = state.doc.toString();
-      await onReject(resolvedContent, pendingContent, chunkInfo.chunks.length);
-    } catch (error) {
-      console.error("Error saving changes:", error);
-      new Notice(`Error saving changes: ${(error as Error).message}`);
+    if (direction === "next") {
+      if (currentChunkIndex < totalChunks - 1) {
+        goToNextChunk(editorView);
+        currentChunkIndex++;
+      }
+    } else {
+      if (currentChunkIndex > 0) {
+        goToPreviousChunk(editorView);
+        currentChunkIndex--;
+      }
     }
   }
 </script>
 
+<MergeControlBar
+  currentFileIndex={currentFilePathIndex + 1}
+  totalFiles={changedFilePaths.length}
+  fileName={changedFilePaths[currentFilePathIndex]?.split("/").pop() || ""}
+  {onNavigateFile}
+  canGoPrevFile={changedFilePaths.length > 1}
+  canGoNextFile={changedFilePaths.length > 1}
+  currentChunkIndex={currentChunkIndex + 1}
+  {totalChunks}
+  onNavigateChunk={navigateToChunk}
+  canGoPrevChunk={totalChunks > 1 && currentChunkIndex > 0}
+  canGoNextChunk={totalChunks > 1 && currentChunkIndex < totalChunks - 1}
+  {onAcceptAll}
+  {onRejectAll}
+/>
+
 <div
-  class="markdown-source-view cm-s-obsidian mod-cm6 node-insert-event is-readable-line-width is-live-preview is-folding show-properties"
+  class="markdown-source-view cm-s-obsidian mod-cm6 node-insert-event is-readable-line-width is-live-preview is-folding show-properties merge-view-container"
+  class:with-control-bar={changedFilePaths.length > 1}
 >
+  <!-- Existing editor -->
   <div class="cm-editor">
     <div class="cm-scroller">
       <div class="cm-sizer">
-        <div class="inline-title">Review: {name}</div>
+        <div class="inline-title">{name}</div>
         <div bind:this={editorContainer}></div>
       </div>
     </div>
   </div>
 </div>
+
+<style>
+  .merge-view-container {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /*:global(.cm-changedText > .cb-content) {*/
+  /*  display: inline !important;*/
+  /*}*/
+
+  .cm-editor {
+    flex: 1;
+    height: 100%;
+  }
+</style>

@@ -292,7 +292,6 @@
 
   <form
     name="input"
-    style="background-color: var(--background-primary)"
     onsubmit={inputState.state.type === "editing"
       ? handleEditSubmit
       : handleSubmit}
@@ -333,110 +332,112 @@
 
     <ChangesList {chat} {openMergeView} />
 
-    <Textarea
-      bind:value={inputState.text}
-      name="content"
-      placeholder="Whats on your mind? [[ to link notes, / to insert prompt."
-      aria-label="Chat message input"
-      onkeypress={submitOnEnter}
-      oninput={handleTextareaInput}
-      maxRows={10}
-      required
-      bind:ref={textareaRef}
-      {title}
-    />
-    <div class="flex flex-wrap items-center justify-between gap-2 mt-2">
-      <div class="flex flex-row align-middle gap-1">
-        <!--        <Button size="sm" type="button" onclick={handleTranscribeClick}>-->
-        <!--          {#if realtime.state === "closed"}-->
-        <!--            <MicIcon class="size-4" />-->
-        <!--          {:else if realtime.state === "open"}-->
-        <!--            <MicOffIcon class="size-4" />-->
-        <!--          {:else if realtime.state === "connecting"}-->
-        <!--            <Loader2Icon class="size-4 animate-spin" />-->
-        <!--          {/if}-->
-        <!--        </Button>-->
-        <button
-          type="button"
-          class="gap-1.5 rounded"
-          aria-label="Select document"
-          onclick={selectDocument}
-        >
-          <FileTextIcon class="size-3.5" />
-        </button>
-        <button
-          type="button"
-          class="gap-1.5 rounded"
-          aria-label="Open settings"
-          onclick={handleSettingsClick}
-        >
-          <SettingsIcon class="size-3.5" />
-        </button>
-
-        <!-- model select -->
-        <ModelSelector
-          selectedModelId={chat.options.modelId}
-          selectedAccountId={chat.options.accountId}
-          onModelChange={handleModelChange}
-        />
-      </div>
-      {#if inputState.state.type === "editing"}
-        <div class="flex gap-2">
+    <div style="background-color: var(--background-primary)">
+      <Textarea
+        bind:value={inputState.text}
+        name="content"
+        placeholder="Whats on your mind? [[ to link notes, / to insert prompt."
+        aria-label="Chat message input"
+        onkeypress={submitOnEnter}
+        oninput={handleTextareaInput}
+        maxRows={10}
+        required
+        bind:ref={textareaRef}
+        {title}
+      />
+      <div class="flex flex-wrap items-center justify-between gap-2 mt-2">
+        <div class="flex flex-row align-middle gap-1">
+          <!--        <Button size="sm" type="button" onclick={handleTranscribeClick}>-->
+          <!--          {#if realtime.state === "closed"}-->
+          <!--            <MicIcon class="size-4" />-->
+          <!--          {:else if realtime.state === "open"}-->
+          <!--            <MicOffIcon class="size-4" />-->
+          <!--          {:else if realtime.state === "connecting"}-->
+          <!--            <Loader2Icon class="size-4 animate-spin" />-->
+          <!--          {/if}-->
+          <!--        </Button>-->
           <button
             type="button"
             class="gap-1.5 rounded"
-            aria-label="Cancel editing"
-            onclick={handleEditCancel}
+            aria-label="Select document"
+            onclick={selectDocument}
+          >
+            <FileTextIcon class="size-3.5" />
+          </button>
+          <button
+            type="button"
+            class="gap-1.5 rounded"
+            aria-label="Open settings"
+            onclick={handleSettingsClick}
+          >
+            <SettingsIcon class="size-3.5" />
+          </button>
+
+          <!-- model select -->
+          <ModelSelector
+            selectedModelId={chat.options.modelId}
+            selectedAccountId={chat.options.accountId}
+            onModelChange={handleModelChange}
+          />
+        </div>
+        {#if inputState.state.type === "editing"}
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="gap-1.5 rounded"
+              aria-label="Cancel editing"
+              onclick={handleEditCancel}
+            >
+              <StopCircleIcon class="size-3.5" />
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="gap-1.5 rounded"
+              aria-label="Save edited message"
+              bind:this={submitBtn}
+            >
+              Save
+              <SendIcon class="size-3.5" />
+            </button>
+          </div>
+        {:else if chat.state.type === "idle"}
+          <button
+            type="submit"
+            class="gap-1.5 rounded"
+            aria-label="Send message"
+            bind:this={submitBtn}
+          >
+            Send
+            <SendIcon class="size-3.5" />
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="gap-1.5 rounded"
+            aria-label="Cancel"
+            onclick={() => chat.cancel()}
           >
             <StopCircleIcon class="size-3.5" />
             Cancel
           </button>
-          <button
-            type="submit"
-            class="gap-1.5 rounded"
-            aria-label="Save edited message"
-            bind:this={submitBtn}
-          >
-            Save
-            <SendIcon class="size-3.5" />
-          </button>
-        </div>
-      {:else if chat.state.type === "idle"}
-        <button
-          type="submit"
-          class="gap-1.5 rounded"
-          aria-label="Send message"
-          bind:this={submitBtn}
-        >
-          Send
-          <SendIcon class="size-3.5" />
-        </button>
-      {:else}
-        <button
-          type="button"
-          class="gap-1.5 rounded"
-          aria-label="Cancel"
-          onclick={() => chat.cancel()}
-        >
-          <StopCircleIcon class="size-3.5" />
-          Cancel
-        </button>
-      {/if}
-    </div>
-
-    <!-- Key Settings Display -->
-    <div
-      class={cn(
-        "flex items-center justify-between mt-2 text-xs text-(--text-muted)",
-        view.position === "right" && "h-6",
-      )}
-    >
-      <div class="flex items-center gap-2">
-        <span>Temperature: {chat.options.temperature}</span>
-        <span>Max Tokens: {chat.options.maxTokens}</span>
-        {#if chat.options.thinkingEnabled}
-          <span>Thinking: {chat.options.thinkingTokensBudget} tokens</span>
         {/if}
+      </div>
+
+      <!-- Key Settings Display -->
+      <div
+        class={cn(
+          "flex items-center justify-between mt-2 text-xs text-(--text-muted)",
+          view.position === "right" && "h-6",
+        )}
+      >
+        <div class="flex items-center gap-2">
+          <span>Temperature: {chat.options.temperature}</span>
+          <span>Max Tokens: {chat.options.maxTokens}</span>
+          {#if chat.options.thinkingEnabled}
+            <span>Thinking: {chat.options.thinkingTokensBudget} tokens</span>
+          {/if}
+        </div>
       </div>
     </div>
   </form>

@@ -1,6 +1,9 @@
 import { MarkdownView, Notice, Plugin, normalizePath } from "obsidian";
 import { createDebug } from "$lib/debug.ts";
+import { createModal } from "$lib/modals/create-modal.ts";
 import { evaluateTestSet, resolveJudgeConfig, validateTestSetTable } from "./evaluation-engine.ts";
+import TestSetEvaluationModal from "./TestSetEvaluationModal.svelte";
+import type { AIAccount, ChatModel } from "../../settings/settings.ts";
 
 const debug = createDebug();
 
@@ -32,12 +35,75 @@ export class TestSetCommand {
         }
 
         // Execute the command
-        await TestSetCommand.runTestSet(plugin, file);
+        await TestSetCommand.showEvaluationModal(plugin, file);
       },
     });
   }
 
-  private static async runTestSet(plugin: Plugin, testSetFile: any) {
+  private static async showEvaluationModal(plugin: Plugin, testSetFile: any) {
+    try {
+      const vault = plugin.app.vault;
+      
+      // Get judge path from frontmatter
+      const metadata = plugin.app.metadataCache.getFileCache(testSetFile);
+      const judgePath = metadata?.frontmatter?.judge;
+      
+      if (!judgePath) {
+        new Notice("Test set file must have 'judge' in frontmatter");
+        return;
+      }
+
+      // Validate test set file format
+      const testSetContent = await vault.read(testSetFile);
+      const validationResult = validateTestSetTable(testSetContent);
+
+      if (validationResult !== true) {
+        new Notice(`Invalid test set format: ${validationResult.message}`);
+        return;
+      }
+
+      // Get judge model ID for pre-filling the modal
+      let judgeModelId: string | null = null;
+      try {
+        const judgeConfig = await resolveJudgeConfig(judgePath, vault);
+        if ("error" in judgeConfig) {
+          // Judge config failed, continue without pre-filling
+        } else {
+          judgeModelId = judgeConfig.model.id;
+        }
+      } catch (error) {
+        // Continue without pre-filling if judge config fails
+        debug("Could not resolve judge config for modal pre-fill:", error);
+      }
+
+      // Show the modal
+      const modal = createModal(TestSetEvaluationModal, {
+        judgeModelId,
+        onSave: async ({ account, model }: { account: AIAccount; model: ChatModel }) => {
+          modal.close();
+          await TestSetCommand.runTestSet(plugin, testSetFile, account, model);
+        },
+        onClose: () => {
+          modal.close();
+        },
+      });
+      
+      modal.open();
+    } catch (error) {
+      debug("Error showing evaluation modal:", error);
+      new Notice(
+        `Failed to show evaluation modal: ${error instanceof Error ? error.message : String(error)}`,
+        5000
+      );
+    }
+  }
+
+  private static async runTestSet(
+    plugin: Plugin, 
+    testSetFile: any, 
+    account: AIAccount, 
+    model: ChatModel
+  ) {
     try {
       const vault = plugin.app.vault;
       
@@ -63,18 +129,26 @@ export class TestSetCommand {
       const progressNotice = new Notice("Running test set evaluation...", 0);
 
       try {
-        // Resolve judge configuration
+        // Resolve judge file for version info
         const judgeConfig = await resolveJudgeConfig(judgePath, vault);
         if ("error" in judgeConfig) {
           new Notice(`Judge configuration error: ${judgeConfig.message}`);
           return;
         }
 
+        // Create custom judge config with user-selected account and model
+        const customJudgeConfig = {
+          account,
+          model,
+          judgeFile: judgeConfig.judgeFile,
+          judgeVersion: judgeConfig.judgeVersion,
+        };
+
         // Run the evaluation
         const result = await evaluateTestSet(
           testSetFile,
           vault,
-          judgeConfig,
+          customJudgeConfig,
           new AbortController().signal
         );
 
