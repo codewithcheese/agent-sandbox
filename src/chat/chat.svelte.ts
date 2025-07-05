@@ -245,32 +245,10 @@ export class Chat {
     invariant(message.role === "user", "Can only edit user messages");
 
     // Revert vault changes to since message
-    const checkpoint = message.metadata.checkpoint;
-    if (checkpoint) {
-      this.vault.revert(checkpoint);
-      // Close merge view since changes are now invalid
-      MergeView.close();
-      // Reload session store after vault revert
-      await this.sessionStore.reload();
-    }
+    await this.revert(message);
 
-    // Sync vault to include changes made since checkpoint and check for external changes
-    // Find the last assistant message before this user message to determine the conversation boundary
-    const lastAssistantMessage = this.messages.findLast(
-      (msg, i) => i < index && msg.role === "assistant",
-    );
-    const syncResult = await this.vault.syncAll(
-      lastAssistantMessage?.metadata.createdAt,
-    );
-
-    // Add system reminder for external changes if any (before the message being edited)
-    if (syncResult.length > 0) {
-      const changesSummary = syncChangesReminder(syncResult);
-      // Increment index if a system reminder was added
-      index += await this.addSystemMeta(changesSummary, index);
-    }
-
-    message.metadata.modified = syncResult.map((r) => r.path);
+    // Sync vault and handle external changes
+    index = await this.syncVault(index);
 
     // remove text and file parts
     message.parts = message.parts.filter(
@@ -313,32 +291,10 @@ export class Chat {
       message.parts.push(...reloadedFileParts);
     }
     // Revert vault changes to since message
-    const checkpoint = message.metadata?.checkpoint;
-    if (checkpoint) {
-      this.vault.revert(checkpoint);
-      // Close merge view since changes are now invalid
-      MergeView.close();
-      // Reload session store after vault revert
-      await this.sessionStore.reload();
-    }
+    await this.revert(message);
 
-    // Sync vault to include changes made since checkpoint and check for external changes
-    // Find the last assistant message before this user message to determine the conversation boundary
-    const lastAssistantMessage = this.messages.findLast(
-      (msg, i) => i < index && msg.role === "assistant",
-    );
-    const syncResult = await this.vault.syncAll(
-      lastAssistantMessage?.metadata.createdAt,
-    );
-
-    // Add system reminder for external changes if any (before the message being regenerated)
-    if (syncResult.length > 0) {
-      const changesSummary = syncChangesReminder(syncResult);
-      // Increment index if a system reminder was added
-      index += await this.addSystemMeta(changesSummary, index);
-    }
-
-    message.metadata.modified = syncResult.map((r) => r.path);
+    // Sync vault and handle external changes
+    index = await this.syncVault(index);
     // Truncate the conversation
     this.messages = this.messages.slice(0, index + 1);
 
@@ -881,5 +837,52 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         return 1;
       }
     }
+  }
+
+  /**
+   * Revert vault changes to the checkpoint stored in the message metadata
+   */
+  private async revert(
+    message: UIMessage<{
+      createdAt: Date;
+    }> &
+      WithUserMetadata,
+  ): Promise<void> {
+    const checkpoint = message.metadata?.checkpoint;
+    if (checkpoint) {
+      this.vault.revert(checkpoint);
+      // Close merge view since changes are now invalid
+      MergeView.close();
+      // Reload session store after vault revert
+      await this.sessionStore.reload();
+    }
+  }
+
+  /**
+   * Sync vault and handle external changes
+   * Returns the new index after potentially adding system reminder messages
+   */
+  private async syncVault(index: number): Promise<number> {
+    // Find the last assistant message before this user message to determine the conversation boundary
+    const lastAssistantMessage = this.messages.findLast(
+      (msg, i) => i < index && msg.role === "assistant",
+    );
+    const syncResult = await this.vault.syncAll(
+      lastAssistantMessage?.metadata.createdAt,
+    );
+
+    // Add system reminder for external changes if any
+    if (syncResult.length > 0) {
+      const changesSummary = syncChangesReminder(syncResult);
+      // Increment index if a system reminder was added
+      index += await this.addSystemMeta(changesSummary, index);
+    }
+
+    // Store sync result on the message
+    const message = this.messages[index] as UIMessage<{ createdAt: Date }> &
+      WithUserMetadata;
+    message.metadata.modified = syncResult.map((r) => r.path);
+
+    return index;
   }
 }
