@@ -6,6 +6,7 @@ import { resolveInternalLink } from "../lib/utils/obsidian";
 import { getListFromFrontmatter } from "../lib/utils/frontmatter";
 import type { Chat } from "../chat/chat.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
+import { MetadataCacheOverlay } from "../chat/metadata-cache-overlay.ts";
 import { readTool } from "./files/read.ts";
 import { writeTool } from "./files/write.ts";
 import { editTool } from "./files/edit.ts";
@@ -207,6 +208,7 @@ export async function loadToolsFromFrontmatter(
       vault: chat.vault,
       config: {},
       sessionStore: chat.sessionStore,
+      metadataCache: new MetadataCacheOverlay(chat.vault, plugin.app.metadataCache),
     });
   }
 
@@ -228,11 +230,15 @@ export async function executeToolCall(toolPart: ToolUIPart, chat: Chat) {
     toolCallId: toolPart.toolCallId,
     messages: [],
     abortSignal: new AbortController().signal,
-    getContext: () => ({
-      vault: chat.vault,
-      config: {},
-      sessionStore: chat.sessionStore,
-    }),
+    getContext: () => {
+      const plugin = usePlugin();
+      return {
+        vault: chat.vault,
+        config: {},
+        sessionStore: chat.sessionStore,
+        metadataCache: new MetadataCacheOverlay(chat.vault, plugin.app.metadataCache),
+      };
+    },
   });
   debug("Tool result:", result, toolPart);
 }
