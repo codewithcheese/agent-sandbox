@@ -119,7 +119,8 @@ async function createPromptToolDefinition(
     inputSchema,
     execute: async (params, options) => {
       try {
-        return await createSystemContent(file, {
+        const { vault, metadataCache } = options.getContext();
+        return await createSystemContent(file, vault, metadataCache, {
           template: {
             autoescape: false,
             throwOnUndefined: false,

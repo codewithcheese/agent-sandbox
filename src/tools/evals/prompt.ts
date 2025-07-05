@@ -48,7 +48,7 @@ async function execute(
   toolExecOptions: ToolCallOptionsWithContext,
 ) {
   const { abortSignal } = toolExecOptions;
-  const { vault } = toolExecOptions.getContext();
+  const { vault, metadataCache } = toolExecOptions.getContext();
 
   if (!vault) {
     return { error: "Vault not available in execution context." };
@@ -67,8 +67,8 @@ async function execute(
       };
     }
 
-    // Get model and account configuration
-    const metadata = plugin.app.metadataCache.getFileCache(promptFile);
+    // Get model and account configuration using overlay-aware metadata cache
+    const metadata = metadataCache.getFileCache(promptFile);
     const frontmatter = metadata?.frontmatter || {};
     
     let modelId = params.model_id || frontmatter.model_id;
@@ -122,8 +122,8 @@ async function execute(
       }
     }
 
-    // Create system content using project standards
-    const systemContent = await createSystemContent(promptFile);
+    // Create system content using overlay-aware vault and metadata cache
+    const systemContent = await createSystemContent(promptFile, vault, metadataCache);
     
     // Create provider and generate output
     const provider = createAIProvider(account);

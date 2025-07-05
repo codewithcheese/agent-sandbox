@@ -118,6 +118,7 @@ Additional notes about this test set...`,
         vault,
         config: {},
         sessionStore: {} as any,
+        metadataCache: plugin.app.metadataCache,
       }),
     };
   });
@@ -357,6 +358,7 @@ Respond with JSON: {"reasoning": "analysis", "result": "PASS" or "FAIL"}`,
         vault: null,
         config: {},
         sessionStore: toolContext.getContext().sessionStore,
+        metadataCache: toolContext.getContext().metadataCache,
       }),
     };
 

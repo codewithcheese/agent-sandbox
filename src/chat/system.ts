@@ -1,5 +1,4 @@
-import { usePlugin } from "$lib/utils";
-import type { CachedMetadata, TFile } from "obsidian";
+import type { CachedMetadata, TFile, Vault, MetadataCache } from "obsidian";
 import { processEmbeds, processLinks } from "$lib/utils/embeds.ts";
 import { processTemplate } from "$lib/utils/templates.ts";
 import { fileTree } from "$lib/utils/file-tree.ts";
@@ -15,18 +14,19 @@ type SystemMessageOptions = {
 
 export async function createSystemContent(
   file: TFile,
+  vault: Vault,
+  metadataCache: MetadataCache,
   options: SystemMessageOptions = {},
 ): Promise<string> {
-  const plugin = usePlugin();
-  const metadata = plugin.app.metadataCache.getFileCache(file);
+  const metadata = metadataCache.getFileCache(file);
   const data = extractDataFromFrontmatter(metadata);
   const schema = extractSchemaFromFrontmatter(metadata);
   validateDataAgainstSchema(data, schema);
-  let system = await plugin.app.vault.read(file);
+  let system = await vault.read(file);
   system = stripFrontmatter(system);
   system = unescapeTags(system);
-  system = await processEmbeds(file, system);
-  // system = await processLinks(file, system);
+  system = await processEmbeds(file, system, vault, metadataCache);
+  // system = await processLinks(file, system, vault, metadataCache);
   system = await processTemplate(
     system,
     { fileTree },

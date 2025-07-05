@@ -141,6 +141,8 @@ Judge with invalid model.`,
       const result = await evaluateExample(
         "The sky is blue.",
         config,
+        vault,
+        plugin.app.metadataCache,
         undefined,
         undefined,
       );
@@ -167,6 +169,8 @@ Judge with invalid model.`,
       const result = await evaluateExample(
         verboseText,
         config,
+        vault,
+        plugin.app.metadataCache,
         undefined,
         undefined,
       );
@@ -188,6 +192,8 @@ Judge with invalid model.`,
       const result = await evaluateExample(
         "The weather is nice today.",
         config,
+        vault,
+        plugin.app.metadataCache,
         "This is for a weather report, so casual language is acceptable.",
         undefined,
       );
@@ -212,6 +218,8 @@ Judge with invalid model.`,
       const result = await evaluateExample(
         "Test text",
         config,
+        vault,
+        plugin.app.metadataCache,
         undefined,
         abortController.signal,
       );
@@ -603,7 +611,7 @@ test_set: "example"
         throw new Error(`Failed to resolve judge config: ${config.message}`);
       }
 
-      const result = await evaluateTestSet(testSetFile, vault, config);
+      const result = await evaluateTestSet(testSetFile, vault, plugin.app.metadataCache, config);
 
       expect(result).not.toHaveProperty("error");
       if (!("error" in result)) {
@@ -631,7 +639,7 @@ test_set: "example"
         throw new Error(`Failed to resolve judge config: ${config.message}`);
       }
 
-      const result = await evaluateTestSet(invalidTestSetFile, vault, config);
+      const result = await evaluateTestSet(invalidTestSetFile, vault, plugin.app.metadataCache, config);
 
       expect(result).toHaveProperty("error");
       if ("error" in result) {
@@ -662,6 +670,7 @@ test_set: "example"
       const result = await evaluateTestSet(
         testSetFile,
         vault,
+        plugin.app.metadataCache,
         config,
         abortController.signal,
       );

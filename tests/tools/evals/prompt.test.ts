@@ -63,6 +63,7 @@ Summarize the following text in 1-2 sentences, focusing on the main points:`,
         vault,
         config: {},
         sessionStore: {} as any,
+        metadataCache: plugin.app.metadataCache,
       }),
     };
   });
@@ -126,6 +127,7 @@ Summarize the following text in 1-2 sentences, focusing on the main points:`,
         vault: null,
         config: {},
         sessionStore: toolContext.getContext().sessionStore,
+        metadataCache: toolContext.getContext().metadataCache,
       }),
     };
 

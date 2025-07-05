@@ -41,7 +41,7 @@
 
     try {
       // Load system content
-      const content = await createSystemContent(agentFile);
+      const content = await createSystemContent(agentFile, plugin.app.vault, plugin.app.metadataCache);
       systemContent = content;
 
       // Calculate token count

@@ -7,6 +7,7 @@ import {
   resolveJudgeConfig,
   validateTestSetTable,
 } from "./evaluation-engine.ts";
+import { metadataCache } from "../../../tests/mocks/obsidian.ts";
 
 const debug = createDebug();
 
@@ -58,7 +59,7 @@ async function execute(
   toolExecOptions: ToolCallOptionsWithContext,
 ) {
   const { abortSignal } = toolExecOptions;
-  const { vault } = toolExecOptions.getContext();
+  const { vault, metadataCache } = toolExecOptions.getContext();
 
   if (!vault) {
     return { error: "Vault not available in execution context." };
@@ -97,6 +98,7 @@ async function execute(
     return await evaluateTestSet(
       testSetFile,
       vault,
+      metadataCache,
       judgeConfig,
       abortSignal,
     );

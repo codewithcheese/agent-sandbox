@@ -33,6 +33,7 @@ import { SessionStore } from "./session-store.svelte.ts";
 import { syncChangesReminder } from "./system-reminders.ts";
 import { getTextFromParts, filterIncompleteToolParts } from "$lib/utils/ai.ts";
 import { MergeView } from "$lib/merge/merge-view.svelte.ts";
+import { MetadataCacheOverlay } from "./metadata-cache-overlay.ts";
 
 const debug = createDebug();
 
@@ -363,7 +364,16 @@ export class Chat {
       systemMeta?.agentPath !== this.options.agentPath ||
       systemMeta?.agentModified !== agentModified
     ) {
-      const system = await createSystemContent(agentFile);
+      const plugin = usePlugin();
+      const metadataCache = new MetadataCacheOverlay(
+        this.vault,
+        plugin.app.metadataCache,
+      );
+      const system = await createSystemContent(
+        agentFile,
+        this.vault,
+        metadataCache,
+      );
       debug("Updating system message", {
         agentPath: this.options.agentPath,
         agentModified,
@@ -414,7 +424,9 @@ export class Chat {
 
       const messages: ModelMessage[] = [
         ...convertToModelMessages(
-          wrapTextAttachments(filterIncompleteToolParts($state.snapshot(this.messages))),
+          wrapTextAttachments(
+            filterIncompleteToolParts($state.snapshot(this.messages)),
+          ),
           // filter out empty messages, empty messages were observed after tool calls in some cases
           // potentially a bug in AI SDK or in this plugin
         ).filter((m) => m.content.length > 0),

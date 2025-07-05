@@ -87,7 +87,8 @@ export class AgentView extends FileView {
     let errors: string[] = [];
 
     try {
-      content = await createSystemContent(this.file, {
+      const plugin = usePlugin();
+      content = await createSystemContent(this.file, plugin.app.vault, plugin.app.metadataCache, {
         template: { throwOnUndefined: true },
       });
     } catch (e) {
