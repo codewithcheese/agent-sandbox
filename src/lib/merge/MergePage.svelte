@@ -3,18 +3,13 @@
   import { EditorView } from "@codemirror/view";
   import { goToNextChunk, goToPreviousChunk } from "@codemirror/merge";
   import MergeControlBar from "./MergeControlBar.svelte";
+  import type { NavigationState } from "$lib/merge/merge-view.svelte.ts";
 
   type Props = {
     editorView: EditorView;
     name: string;
     // Chunk navigation state
-    chunkInfo: {
-      currentChunkIndex: number;
-      totalChunks: number;
-    };
-    // Navigation props
-    allChangedFiles: string[];
-    currentFileIndex: number;
+    navigationState: NavigationState;
     onNavigateFile: (direction: "prev" | "next") => Promise<void>;
     // Bulk operation callbacks
     onAcceptAll: () => Promise<void>;
@@ -23,15 +18,17 @@
   let {
     editorView,
     name,
-    chunkInfo,
-    allChangedFiles,
-    currentFileIndex,
+    navigationState,
     onNavigateFile,
     onAcceptAll,
     onRejectAll,
   }: Props = $props();
-  let currentChunkIndex = $derived(chunkInfo.currentChunkIndex);
-  let totalChunks = $derived(chunkInfo.totalChunks);
+  let currentChunkIndex = $derived(navigationState.currentChunkIndex);
+  let totalChunks = $derived(navigationState.totalChunks);
+  let changedFilePaths = $derived(navigationState.changedFilePaths);
+  let currentFilePathIndex = $derived(navigationState.currentFilePathIndex);
+
+  $inspect("Merge page", navigationState);
 
   // State
   let editorContainer: HTMLElement;
@@ -87,12 +84,12 @@
 </script>
 
 <MergeControlBar
-  currentFileIndex={currentFileIndex + 1}
-  totalFiles={allChangedFiles.length}
-  fileName={allChangedFiles[currentFileIndex]?.split("/").pop() || ""}
+  currentFileIndex={currentFilePathIndex + 1}
+  totalFiles={changedFilePaths.length}
+  fileName={changedFilePaths[currentFilePathIndex]?.split("/").pop() || ""}
   {onNavigateFile}
-  canGoPrevFile={allChangedFiles.length > 1}
-  canGoNextFile={allChangedFiles.length > 1}
+  canGoPrevFile={changedFilePaths.length > 1}
+  canGoNextFile={changedFilePaths.length > 1}
   currentChunkIndex={currentChunkIndex + 1}
   {totalChunks}
   onNavigateChunk={navigateToChunk}
@@ -104,13 +101,13 @@
 
 <div
   class="markdown-source-view cm-s-obsidian mod-cm6 node-insert-event is-readable-line-width is-live-preview is-folding show-properties merge-view-container"
-  class:with-control-bar={allChangedFiles.length > 1}
+  class:with-control-bar={changedFilePaths.length > 1}
 >
   <!-- Existing editor -->
   <div class="cm-editor">
     <div class="cm-scroller">
       <div class="cm-sizer">
-        <div class="inline-title">Review: {name}</div>
+        <div class="inline-title">{name}</div>
         <div bind:this={editorContainer}></div>
       </div>
     </div>

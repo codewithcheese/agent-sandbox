@@ -37,6 +37,13 @@ export interface MergeViewState {
   path: string;
 }
 
+export type NavigationState = {
+  totalChunks: number;
+  currentChunkIndex: number;
+  changedFilePaths: string[];
+  currentFilePathIndex: number;
+};
+
 export class MergeView extends ItemView {
   private component: any = null;
   private state: MergeViewState | undefined;
@@ -45,14 +52,11 @@ export class MergeView extends ItemView {
   // Store content as properties for comparison
   private currentContent: string = "";
   private newContent: string = "";
-
-  // Chunk navigation state
-  private chunkInfo = $state<{
-    totalChunks: number;
-    currentChunkIndex: number;
-  }>({
+  private navigationState = $state<NavigationState>({
     totalChunks: 0,
     currentChunkIndex: 0,
+    changedFilePaths: [],
+    currentFilePathIndex: 0,
   });
 
   navigation = false;
@@ -85,7 +89,7 @@ export class MergeView extends ItemView {
   /**
    * Get list of file paths that have changes (excluding directories)
    */
-  private getAllChangedFilePaths(changes: ProposedChange[]): string[] {
+  private getChangedFilePaths(changes: ProposedChange[]): string[] {
     return changes
       .filter((change) => !change.info.isDirectory) // Only files
       .map((change) => change.path)
@@ -99,7 +103,7 @@ export class MergeView extends ItemView {
   private async navigateToFile(direction: "prev" | "next"): Promise<void> {
     const chat = await Chat.load(this.state.chatPath);
     const allChanges = chat.vault.getFileChanges();
-    const allChangedFiles = this.getAllChangedFilePaths(allChanges);
+    const allChangedFiles = this.getChangedFilePaths(allChanges);
 
     if (allChangedFiles.length === 0) {
       new Notice("No files with changes remaining");
@@ -160,40 +164,40 @@ export class MergeView extends ItemView {
 
     // Get changes once and reuse (more efficient)
     const allChanges = chat.vault.getFileChanges();
-    const allChangedFiles = this.getAllChangedFilePaths(allChanges);
+    const changedFilePaths = this.getChangedFilePaths(allChanges);
 
     // Handle empty file list
-    if (allChangedFiles.length === 0) {
+    if (changedFilePaths.length === 0) {
       new Notice("No files with changes remaining");
       this.leaf.detach();
       return;
     }
 
     // Handle current file no longer in list
-    if (!allChangedFiles.includes(this.state.path)) {
+    if (!changedFilePaths.includes(this.state.path)) {
       // Auto-navigate to first available file
       await this.setState(
         {
           chatPath: this.state.chatPath,
-          path: allChangedFiles[0],
+          path: changedFilePaths[0],
         },
         null,
       );
       return; // Will remount with new file
     }
 
-    // Calculate current index dynamically
-    const currentFileIndex = allChangedFiles.indexOf(this.state.path);
+    this.updateNavigationState(allChanges);
 
     // Get changes for current file
-    const changes = allChanges.filter((c) => c.path === this.state.path);
-    if (!changes.length) {
+    const pathChanges = allChanges.filter((c) => c.path === this.state.path);
+    if (!pathChanges.length) {
       new Notice(`No changes for ${this.state.path}`);
       return;
     }
 
     const currentPath =
-      changes.find((c) => c.type === "rename")?.info.oldPath || this.state.path;
+      pathChanges.find((c) => c.type === "rename")?.info.oldPath ||
+      this.state.path;
 
     // Read and store content as properties
     let currentFile = this.app.vault.getFileByPath(normalizePath(currentPath));
@@ -207,7 +211,7 @@ export class MergeView extends ItemView {
 
     debug(`${currentPath} content on disk`, this.currentContent);
     debug(`${this.state.path} modified content`, this.newContent);
-    debug("Changes", changes);
+    debug("Changes", pathChanges);
 
     // Destroy existing editor if it exists
     if (this.editorView) {
@@ -265,11 +269,7 @@ export class MergeView extends ItemView {
       props: {
         editorView: this.editorView,
         name: getBaseName(this.state.path),
-        // Chunk navigation state
-        chunkInfo: this.chunkInfo,
-        // Navigation props
-        allChangedFiles: allChangedFiles,
-        currentFileIndex: currentFileIndex,
+        navigationState: this.navigationState,
         onNavigateFile: async (direction: "prev" | "next") => {
           await this.navigateToFile(direction);
         },
@@ -306,13 +306,21 @@ export class MergeView extends ItemView {
     if (!this.editorView) return;
 
     const chunkInfo = getChunks(this.editorView.state);
-    this.chunkInfo.totalChunks = chunkInfo?.chunks.length || 0;
+    this.navigationState.totalChunks = chunkInfo?.chunks.length || 0;
 
     // Reset to first chunk when chunks change
-    if (this.chunkInfo.currentChunkIndex >= this.chunkInfo.totalChunks) {
-      this.chunkInfo.currentChunkIndex = 0;
+    if (
+      this.navigationState.currentChunkIndex >= this.navigationState.totalChunks
+    ) {
+      this.navigationState.currentChunkIndex = 0;
     }
-    debug("Chunk info", this.chunkInfo);
+    debug("Navigation state", this.navigationState);
+  }
+
+  private updateNavigationState(changes: ProposedChange[]) {
+    this.navigationState.changedFilePaths = this.getChangedFilePaths(changes);
+    this.navigationState.currentFilePathIndex =
+      this.navigationState.changedFilePaths.indexOf(this.state.path);
   }
 
   async refreshContent(): Promise<void> {
@@ -321,15 +329,17 @@ export class MergeView extends ItemView {
 
       // Get changes for current file to determine paths
       const allChanges = chat.vault.getFileChanges();
-      const changes = allChanges.filter((c) => c.path === this.state.path);
+      this.updateNavigationState(allChanges);
 
-      if (!changes.length) {
+      const pathChanges = allChanges.filter((c) => c.path === this.state.path);
+
+      if (!pathChanges.length) {
         debug("No changes found for current file, skipping refresh");
         return;
       }
 
       const currentPath =
-        changes.find((c) => c.type === "rename")?.info.oldPath ||
+        pathChanges.find((c) => c.type === "rename")?.info.oldPath ||
         this.state.path;
 
       // Read latest content from both sources
@@ -526,7 +536,7 @@ export class MergeView extends ItemView {
 
       // Check if there are other files with changes remaining
       const currentChanges = chat.vault.getFileChanges();
-      const allChangedFiles = this.getAllChangedFilePaths(currentChanges);
+      const allChangedFiles = this.getChangedFilePaths(currentChanges);
       const otherFilesWithChanges = allChangedFiles.filter(
         (filePath) => filePath !== this.state.path,
       );
@@ -585,7 +595,7 @@ export class MergeView extends ItemView {
 
       // Check if there are other files with changes remaining
       const currentChanges = chat.vault.getFileChanges();
-      const allChangedFiles = this.getAllChangedFilePaths(currentChanges);
+      const allChangedFiles = this.getChangedFilePaths(currentChanges);
       const otherFilesWithChanges = allChangedFiles.filter(
         (filePath) => filePath !== this.state.path,
       );
@@ -644,8 +654,7 @@ export class MergeView extends ItemView {
         await existingView.refreshContent();
 
         // Focus the existing view
-        plugin.app.workspace.revealLeaf(existingLeaf);
-        return;
+        return plugin.app.workspace.revealLeaf(existingLeaf);
       }
 
       // Open new merge view with first file that has changes
@@ -661,7 +670,7 @@ export class MergeView extends ItemView {
         },
       });
 
-      plugin.app.workspace.revealLeaf(leaf);
+      return plugin.app.workspace.revealLeaf(leaf);
     } catch (error) {
       console.error("Error opening merge view:", error);
       new Notice(`Error opening merge view: ${(error as Error).message}`);
