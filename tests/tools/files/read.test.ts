@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execute as readToolExecute } from "../../../src/tools/files/read";
-import { helpers, vault as mockVault } from "../../mocks/obsidian";
+import {
+  helpers,
+  vault as mockVault,
+  metadataCache,
+} from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolCallOptionsWithContext } from "../../../src/tools/types.ts";
 import { invariant } from "@epic-web/invariant";
@@ -37,6 +41,7 @@ describe("readToolExecute", () => {
       getContext: () => ({
         vault,
         sessionStore,
+        metadataCache,
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -88,6 +93,7 @@ describe("readToolExecute", () => {
         vault,
         config: { MAX_TEXT_FILE_SIZE: 10 },
         sessionStore,
+        metadataCache,
       }),
     };
     const result = await readToolExecute(params, options);
@@ -144,6 +150,7 @@ describe("readToolExecute", () => {
         vault,
         config: { MAX_LINE_LENGTH },
         sessionStore,
+        metadataCache,
       }),
     };
     const result = await readToolExecute(params, options);
@@ -225,6 +232,7 @@ describe("readToolExecute", () => {
           MAX_TEXT_FILE_SIZE: 80,
         },
         sessionStore,
+        metadataCache,
       }),
     };
     const result = await readToolExecute(params, options);
@@ -267,6 +275,7 @@ describe("readToolExecute", () => {
         vault,
         config: { MAX_IMAGE_SIZE_BYTES },
         sessionStore,
+        metadataCache,
       }),
     };
     const result = await readToolExecute(params, options);

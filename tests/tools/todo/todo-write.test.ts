@@ -13,7 +13,7 @@ import {
   todoStatusSchema,
 } from "../../../src/tools/todo/shared";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
-import { vault as mockVault } from "../../mocks/obsidian.ts";
+import { metadataCache, vault as mockVault } from "../../mocks/obsidian.ts";
 import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
 
 describe("TodoRead tool execute function", () => {
@@ -55,6 +55,7 @@ describe("TodoRead tool execute function", () => {
         sessionStore,
         config: { ...defaultConfig },
         vault,
+        metadataCache,
       }),
       abortSignal: mockAbortController.signal,
     };

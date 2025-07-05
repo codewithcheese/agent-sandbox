@@ -1,7 +1,11 @@
 import { MarkdownView, Notice, Plugin, normalizePath } from "obsidian";
 import { createDebug } from "$lib/debug.ts";
 import { createModal } from "$lib/modals/create-modal.ts";
-import { evaluateTestSet, resolveJudgeConfig, validateTestSetTable } from "./evaluation-engine.ts";
+import {
+  evaluateTestSet,
+  resolveJudgeConfig,
+  validateTestSetTable,
+} from "./evaluation-engine.ts";
 import TestSetEvaluationModal from "./TestSetEvaluationModal.svelte";
 import type { AIAccount, ChatModel } from "../../settings/settings.ts";
 
@@ -13,7 +17,8 @@ export class TestSetCommand {
       id: "run-test-set",
       name: "Run Test Set Evaluation",
       editorCallback: async () => {
-        const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        const activeView =
+          plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (!activeView) {
           new Notice("No active markdown view");
           return;
@@ -28,9 +33,11 @@ export class TestSetCommand {
         // Check if this is a test set file by looking for frontmatter with judge
         const metadata = plugin.app.metadataCache.getFileCache(file);
         const frontmatter = metadata?.frontmatter;
-        
+
         if (!frontmatter?.judge) {
-          new Notice("This file is not a test set. Test set files must have 'judge' in frontmatter.");
+          new Notice(
+            "This file is not a test set. Test set files must have 'judge' in frontmatter.",
+          );
           return;
         }
 
@@ -43,11 +50,11 @@ export class TestSetCommand {
   private static async showEvaluationModal(plugin: Plugin, testSetFile: any) {
     try {
       const vault = plugin.app.vault;
-      
+
       // Get judge path from frontmatter
       const metadata = plugin.app.metadataCache.getFileCache(testSetFile);
       const judgePath = metadata?.frontmatter?.judge;
-      
+
       if (!judgePath) {
         new Notice("Test set file must have 'judge' in frontmatter");
         return;
@@ -79,7 +86,13 @@ export class TestSetCommand {
       // Show the modal
       const modal = createModal(TestSetEvaluationModal, {
         judgeModelId,
-        onSave: async ({ account, model }: { account: AIAccount; model: ChatModel }) => {
+        onSave: async ({
+          account,
+          model,
+        }: {
+          account: AIAccount;
+          model: ChatModel;
+        }) => {
           modal.close();
           await TestSetCommand.runTestSet(plugin, testSetFile, account, model);
         },
@@ -87,30 +100,31 @@ export class TestSetCommand {
           modal.close();
         },
       });
-      
+
       modal.open();
     } catch (error) {
       debug("Error showing evaluation modal:", error);
       new Notice(
         `Failed to show evaluation modal: ${error instanceof Error ? error.message : String(error)}`,
-        5000
+        5000,
       );
     }
   }
 
   private static async runTestSet(
-    plugin: Plugin, 
-    testSetFile: any, 
-    account: AIAccount, 
-    model: ChatModel
+    plugin: Plugin,
+    testSetFile: any,
+    account: AIAccount,
+    model: ChatModel,
   ) {
     try {
       const vault = plugin.app.vault;
-      
+      const metaDataCache = plugin.app.metadataCache;
+
       // Get judge path from frontmatter
       const metadata = plugin.app.metadataCache.getFileCache(testSetFile);
       const judgePath = metadata?.frontmatter?.judge;
-      
+
       if (!judgePath) {
         new Notice("Test set file must have 'judge' in frontmatter");
         return;
@@ -148,8 +162,9 @@ export class TestSetCommand {
         const result = await evaluateTestSet(
           testSetFile,
           vault,
+          metaDataCache,
           customJudgeConfig,
-          new AbortController().signal
+          new AbortController().signal,
         );
 
         if ("error" in result) {
@@ -160,23 +175,21 @@ export class TestSetCommand {
         // Show success message with results
         new Notice(
           `Test set evaluation completed!\n` +
-          `Tests run: ${result.tests_run}\n` +
-          `Accuracy: ${result.accuracy_percentage}% (${result.successes}/${result.tests_run})\n` +
-          `Judge version: ${result.judge_version}`,
-          8000
+            `Tests run: ${result.tests_run}\n` +
+            `Accuracy: ${result.accuracy_percentage}% (${result.successes}/${result.tests_run})\n` +
+            `Judge version: ${result.judge_version}`,
+          8000,
         );
 
         debug("Test set evaluation completed:", result);
-
       } finally {
         progressNotice.hide();
       }
-
     } catch (error) {
       debug("Error running test set:", error);
       new Notice(
         `Failed to run test set: ${error instanceof Error ? error.message : String(error)}`,
-        5000
+        5000,
       );
     }
   }

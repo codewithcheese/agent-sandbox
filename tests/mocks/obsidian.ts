@@ -434,7 +434,7 @@ export const vault: Vault = {
 
 export const metadataCache = {
   getFileCache: (file: MockTFile) => {
-    return fileCache.get(file.path);
+    return fileCache.get(file.path) || null;
   },
 
   // Helper method for tests to set cache data
@@ -442,7 +442,7 @@ export const metadataCache = {
     fileCache.set(file.path, cache);
   },
 
-  getFirstLinkpathDest: (linkpath: string) => {
+  getFirstLinkpathDest: (linkpath: string, sourcePath: string) => {
     // Try exact path first
     const exactFile = vault.getFileByPath(linkpath);
     if (exactFile) {
@@ -459,7 +459,40 @@ export const metadataCache = {
     // Return first match, or null if none found
     return filesByBasename.length > 0 ? filesByBasename[0] : null;
   },
-  on: () => {},
+
+  // Required MetadataCache properties with correct signatures
+  getCache: (path: string) => {
+    return fileCache.get(path) || null;
+  },
+  
+  fileToLinktext: (file: MockTFile, sourcePath: string, omitMdExtension?: boolean) => {
+    return omitMdExtension && file.extension === 'md' ? file.basename : file.name;
+  },
+  
+  resolvedLinks: {},
+  unresolvedLinks: {},
+
+  // Event system methods - unimplemented, throw errors
+  on: (name: string, callback: Function, ctx?: any) => {
+    throw new Error("MetadataCache.on() not implemented in mock");
+  },
+  
+  off: (name: string, callback: Function, ctx?: any) => {
+    throw new Error("MetadataCache.off() not implemented in mock");
+  },
+  
+  offref: (ref: any) => {
+    throw new Error("MetadataCache.offref() not implemented in mock");
+  },
+
+  // Other unimplemented methods
+  trigger: (...args: any[]) => {
+    throw new Error("MetadataCache.trigger() not implemented in mock");
+  },
+  
+  tryTrigger: (...args: any[]) => {
+    throw new Error("MetadataCache.tryTrigger() not implemented in mock");
+  },
 };
 
 export const helpers = {
