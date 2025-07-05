@@ -248,6 +248,8 @@ export class Chat {
     const checkpoint = message.metadata.checkpoint;
     if (checkpoint) {
       this.vault.revert(checkpoint);
+      // Close merge view since changes are now invalid
+      MergeView.close();
       // Reload session store after vault revert
       await this.sessionStore.reload();
     }
@@ -314,6 +316,8 @@ export class Chat {
     const checkpoint = message.metadata?.checkpoint;
     if (checkpoint) {
       this.vault.revert(checkpoint);
+      // Close merge view since changes are now invalid
+      MergeView.close();
       // Reload session store after vault revert
       await this.sessionStore.reload();
     }

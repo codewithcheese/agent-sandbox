@@ -675,4 +675,17 @@ export class MergeView extends ItemView {
       new Notice(`Error opening merge view: ${(error as Error).message}`);
     }
   }
+
+  /**
+   * Static function to close the merge view if it exists
+   */
+  static close(): void {
+    const plugin = usePlugin();
+    const existingLeaf = plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];
+    
+    if (existingLeaf) {
+      debug("Closing merge view");
+      existingLeaf.detach();
+    }
+  }
 }
