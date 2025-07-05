@@ -12,18 +12,20 @@ const debug = createDebug();
 
 const TOOL_NAME = "Prompt";
 const TOOL_DESCRIPTION =
-  "Generate output from a prompt file and input text using a specified model.";
-const TOOL_PROMPT_GUIDANCE = `Generate output from a prompt file and input text using a specified model.
+  "Generate outputs from a prompt file and multiple input texts using a specified model.";
+const TOOL_PROMPT_GUIDANCE = `Generate outputs from a prompt file and multiple input texts using a specified model.
 
-This tool allows you to test prompts by providing an input and getting the generated output, along with model and account information for traceability.
+This tool allows you to test prompts by providing multiple inputs and getting the generated outputs sequentially, along with model and account information for traceability.
 
 Usage:
 - Provide the absolute path to a prompt file (markdown file with prompt instructions)
-- Provide the input text to process with the prompt
+- Provide an array of input texts to process with the prompt (minimum 1 required)
 - Optionally specify model_id and account_name (defaults to plugin settings)
-- The tool returns the generated output along with model and account metadata
+- The tool returns an array of generated outputs corresponding to each input
 
-The prompt file should contain instructions for processing the input text. It can optionally specify a model_id in frontmatter to use a specific model.`;
+The prompt file should contain instructions for processing the input text. It can optionally specify a model_id in frontmatter to use a specific model.
+
+Outputs are generated sequentially to ensure consistent performance and avoid rate limiting issues.`;
 
 // Input Schema
 const inputSchema = z.strictObject({
@@ -32,7 +34,10 @@ const inputSchema = z.strictObject({
     .describe(
       "Absolute path to the prompt file (e.g., '/prompts/summarize.md')",
     ),
-  input: z.string().describe("The input text to process with the prompt"),
+  inputs: z
+    .array(z.string())
+    .min(1, "At least one input is required")
+    .describe("Array of input texts to process with the prompt"),
   model_id: z
     .string()
     .optional()
@@ -125,17 +130,43 @@ async function execute(
     // Create system content using overlay-aware vault and metadata cache
     const systemContent = await createSystemContent(promptFile, vault, metadataCache);
     
-    // Create provider and generate output
+    // Create provider
     const provider = createAIProvider(account);
-    const result = await generateText({
-      model: provider.languageModel(modelId),
-      system: systemContent,
-      prompt: params.input,
-      abortSignal,
-    });
+    
+    // Generate outputs sequentially for each input
+    const outputs: string[] = [];
+    
+    for (let i = 0; i < params.inputs.length; i++) {
+      const input = params.inputs[i];
+      
+      // Check for abort signal before each generation
+      if (abortSignal?.aborted) {
+        return { error: "Operation aborted" };
+      }
+      
+      try {
+        const result = await generateText({
+          model: provider.languageModel(modelId),
+          system: systemContent,
+          prompt: input,
+          abortSignal,
+        });
+        
+        outputs.push(result.text);
+        debug(`Generated output ${i + 1}/${params.inputs.length}`);
+      } catch (error) {
+        // If one generation fails, return error with progress info
+        return {
+          error: "Prompt generation failed",
+          message: `Failed on input ${i + 1}/${params.inputs.length}: ${error instanceof Error ? error.message : String(error)}`,
+          partialResults: outputs,
+        };
+      }
+    }
 
     return {
-      output: result.text,
+      outputs,
+      totalProcessed: outputs.length,
     };
   } catch (error) {
     debug(`Error in Prompt:`, error);
