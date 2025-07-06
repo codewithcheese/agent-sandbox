@@ -528,7 +528,9 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
                 : {}),
             } satisfies AnthropicProviderOptions,
             openai: {
-              reasoningEffort: "medium",
+              reasoningEffort: modelId.includes("deep-research")
+                ? "medium"
+                : "high",
               reasoningSummary: "detailed",
               strictSchemas: false,
             } satisfies OpenAIResponsesProviderOptions,
