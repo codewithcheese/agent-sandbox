@@ -4,6 +4,7 @@ import { migrationV3 } from "./03_gemini_25.ts";
 import { migrationV4 } from "./04_model_pricing.ts";
 import { migrationV5 } from "./05_add_deepseek.ts";
 import { migrationV6 } from "./06_add_xai.ts";
+import { migrationV7 } from "./07_add_cohere.ts";
 
 export * from "./types";
 
@@ -15,4 +16,5 @@ export const SETTINGS_MIGRATIONS = [
   migrationV4,
   migrationV5,
   migrationV6,
+  migrationV7,
 ];

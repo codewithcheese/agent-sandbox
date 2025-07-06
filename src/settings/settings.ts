@@ -5,6 +5,7 @@ import { SettingsV3Schema } from "./migrations/03_gemini_25.ts";
 import { SettingsV4Schema } from "./migrations/04_model_pricing.ts";
 import { SettingsV5Schema } from "./migrations/05_add_deepseek.ts";
 import { SettingsV6Schema } from "./migrations/06_add_xai.ts";
+import { SettingsV7Schema } from "./migrations/07_add_cohere.ts";
 export { SETTINGS_MIGRATIONS, type SettingsMigrator } from "./migrations";
 
 export type AIAccount = {
@@ -40,7 +41,7 @@ export type TranscriptionModel = {
 
 export type AnyModel = ChatModel | EmbeddingModel | TranscriptionModel;
 
-export const CURRENT_SETTINGS_VERSION = 6 as const;
+export const CURRENT_SETTINGS_VERSION = 7 as const;
 
 export const SETTINGS_SCHEMAS = {
   1: SettingsV1Schema,
@@ -49,6 +50,7 @@ export const SETTINGS_SCHEMAS = {
   4: SettingsV4Schema,
   5: SettingsV5Schema,
   6: SettingsV6Schema,
+  7: SettingsV7Schema,
 } as const;
 
 type CurrentSchema = (typeof SETTINGS_SCHEMAS)[typeof CURRENT_SETTINGS_VERSION];

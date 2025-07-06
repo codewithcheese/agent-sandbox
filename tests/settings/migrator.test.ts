@@ -147,6 +147,17 @@ describe("Settings Migrator (Generic)", () => {
           expect(xaiProvider).toBeDefined();
           expect(xaiProvider.name).toBe("xAI");
         },
+        7: (result: any) => {
+          const cohereModels = result.models.filter((m: any) => m.provider === "cohere");
+          expect(cohereModels.length).toBe(8);
+          expect(cohereModels.some((m: any) => m.id === "command-r-plus")).toBe(true);
+          expect(cohereModels.some((m: any) => m.id === "command-r")).toBe(true);
+          expect(cohereModels.some((m: any) => m.id === "command-r7b")).toBe(true);
+          expect(cohereModels.some((m: any) => m.id === "embed-english-v3.0")).toBe(true);
+          const cohereProvider = result.providers.find((p: any) => p.id === "cohere");
+          expect(cohereProvider).toBeDefined();
+          expect(cohereProvider.name).toBe("Cohere");
+        },
       };
 
       Object.entries(features).forEach(([versionStr, testFn]) => {
@@ -216,6 +227,26 @@ function createMinimalSettings(version: number): any {
     case 5:
       return {
         version: 5,
+        ...base,
+        models: [
+          {
+            id: "test-chat",
+            provider: "test",
+            type: "chat",
+            inputTokenLimit: 1000,
+            outputTokenLimit: 500,
+            inputPrice: 1.0,
+            outputPrice: 2.0,
+          },
+        ],
+        recording: {
+          ...base.recording,
+          postProcessing: { enabled: true, prompt: "test" },
+        },
+      };
+    case 6:
+      return {
+        version: 6,
         ...base,
         models: [
           {
