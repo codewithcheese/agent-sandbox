@@ -18,6 +18,7 @@ import { listTool } from "./files/list.ts";
 import { toolDef as todoWrite } from "./todo/write.ts";
 import { toolDef as todoRead } from "./todo/read.ts";
 import { toolDef as webSearch } from "./web-search.ts";
+import { fetchTool } from "./fetch.ts";
 import { evaluateOutputTool } from "./evals/evaluate-output.ts";
 import { evaluateTestSetTool } from "./evals/evaluate-test-set.ts";
 import { promptTool } from "./evals/prompt.ts";
@@ -29,6 +30,7 @@ const debug = createDebug();
 
 export const toolRegistry: Record<string, ToolDefinition> = {
   web_search: webSearch,
+  fetch: fetchTool,
   list: listTool,
   read: readTool,
   write: writeTool,

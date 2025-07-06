@@ -30,3 +30,7 @@ Always include a path reference when mentioning a symbol.
 ## File naming
 
 - Avoid redundant filename parts (e.g., "utils/backlinks.ts" instead of "utils/backlink-utils.ts")
+
+## Typechecking
+
+Run `pnpm run sveltecheck` to check for type errors before announcing a task as completed.

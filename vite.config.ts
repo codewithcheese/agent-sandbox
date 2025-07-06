@@ -47,6 +47,8 @@ export default defineConfig(({ command, mode }) => {
     return [pkg, resolve(__dirname, `src/lib/bridge/${bridgeFile}`)];
   });
 
+  console.log("Vite mode:", mode);
+
   // console.log(aliasEntries, {
   //   $lib: path.resolve("./src/lib"),
   //   // Spread the dynamically generated bridge aliases
