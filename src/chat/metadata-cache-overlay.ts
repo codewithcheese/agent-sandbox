@@ -1,7 +1,7 @@
 import { type MetadataCache, TFile, type CachedMetadata } from "obsidian";
 import { normalizePath } from "obsidian";
 import { basename, dirname } from "path-browserify";
-import matter from "gray-matter";
+import matter from "front-matter";
 import type { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { getText, getStat, isDirectory, isTrashed } from "$lib/utils/loro.ts";
 import { trashPath, overlayTmpPath } from "./tree-fs.ts";
@@ -21,8 +21,8 @@ export class MetadataCacheOverlay implements MetadataCache {
       const proposedText = getText(proposedNode);
       if (proposedText !== undefined) {
         // Text file - parse frontmatter
-        const { data: frontmatter } = matter(proposedText);
-        return { frontmatter };
+        const { attributes } = matter(proposedText);
+        return { frontmatter: attributes };
       } else {
         // Binary file or file without text content - return empty frontmatter
         return { frontmatter: {} };

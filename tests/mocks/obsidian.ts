@@ -1,6 +1,4 @@
-// polyfill for grey-matter
-import { Buffer } from "buffer";
-import matter from "gray-matter";
+import matter from "front-matter";
 import type {
   DataWriteOptions,
   TAbstractFile,
@@ -11,10 +9,6 @@ import type {
 import { fs } from "@zenfs/core";
 import { normalizePath } from "./normalize-path.ts";
 import { migrateToLatest } from "../../src/settings/migrator.ts";
-
-if (typeof window !== "undefined" && typeof window.Buffer === "undefined") {
-  window.Buffer = Buffer;
-}
 
 // Set root as current directory so that paths don't require `/` prefix
 try {
@@ -72,9 +66,9 @@ export const mockRequestUrl = async (params: any) => {
     return {
       ...defaultResponse,
       status: 201,
-      headers: { 
+      headers: {
         "content-type": "application/json",
-        "x-rate-limit": "100" 
+        "x-rate-limit": "100",
       },
       text: '{"id": 123, "name": "test"}',
       json: { id: 123, name: "test" },
@@ -89,8 +83,8 @@ export const mockRequestUrl = async (params: any) => {
  * Parse frontmatter from content and cache it if present
  */
 function parseFrontmatterAndCache(path: string, content: string) {
-  const { data } = matter(content);
-  fileCache.set(path, { frontmatter: data });
+  const { attributes } = matter(content);
+  fileCache.set(path, { frontmatter: attributes });
 }
 
 export class MockTAbstractFile implements TAbstractFile {
@@ -526,11 +520,17 @@ export const metadataCache = {
   getCache: (path: string) => {
     return fileCache.get(path) || null;
   },
-  
-  fileToLinktext: (file: MockTFile, sourcePath: string, omitMdExtension?: boolean) => {
-    return omitMdExtension && file.extension === 'md' ? file.basename : file.name;
+
+  fileToLinktext: (
+    file: MockTFile,
+    sourcePath: string,
+    omitMdExtension?: boolean,
+  ) => {
+    return omitMdExtension && file.extension === "md"
+      ? file.basename
+      : file.name;
   },
-  
+
   resolvedLinks: {},
   unresolvedLinks: {},
 
@@ -538,11 +538,11 @@ export const metadataCache = {
   on: (name: string, callback: Function, ctx?: any) => {
     throw new Error("MetadataCache.on() not implemented in mock");
   },
-  
+
   off: (name: string, callback: Function, ctx?: any) => {
     throw new Error("MetadataCache.off() not implemented in mock");
   },
-  
+
   offref: (ref: any) => {
     throw new Error("MetadataCache.offref() not implemented in mock");
   },
@@ -551,7 +551,7 @@ export const metadataCache = {
   trigger: (...args: any[]) => {
     throw new Error("MetadataCache.trigger() not implemented in mock");
   },
-  
+
   tryTrigger: (...args: any[]) => {
     throw new Error("MetadataCache.tryTrigger() not implemented in mock");
   },

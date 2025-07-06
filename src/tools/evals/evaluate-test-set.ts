@@ -7,7 +7,6 @@ import {
   resolveJudgeConfig,
   validateTestSetTable,
 } from "./evaluation-engine.ts";
-import { metadataCache } from "../../../tests/mocks/obsidian.ts";
 
 const debug = createDebug();
 
