@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createXai } from "@ai-sdk/xai";
 
 import type { AIAccount } from "./settings.ts";
 
@@ -26,6 +27,10 @@ export function createAIProvider(account: AIAccount) {
       });
     case "deepseek":
       return createDeepSeek({
+        ...account.config,
+      });
+    case "xai":
+      return createXai({
         ...account.config,
       });
     // todo: bring back support when they ship v5 compatible provider

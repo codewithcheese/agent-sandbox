@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { SettingsV1Schema } from "./migrations/v1";
-import { SettingsV2Schema } from "./migrations/v2";
-import { SettingsV3Schema } from "./migrations/v3";
-import { SettingsV4Schema } from "./migrations/v4";
-import { SettingsV5Schema } from "./migrations/v5";
+import { SettingsV1Schema } from "./migrations/01_init.ts";
+import { SettingsV2Schema } from "./migrations/02_recording_post_processing.ts";
+import { SettingsV3Schema } from "./migrations/03_gemini_25.ts";
+import { SettingsV4Schema } from "./migrations/04_model_pricing.ts";
+import { SettingsV5Schema } from "./migrations/05_add_deepseek.ts";
+import { SettingsV6Schema } from "./migrations/06_add_xai.ts";
 export { SETTINGS_MIGRATIONS, type SettingsMigrator } from "./migrations";
 
 export type AIAccount = {
@@ -39,7 +40,7 @@ export type TranscriptionModel = {
 
 export type AnyModel = ChatModel | EmbeddingModel | TranscriptionModel;
 
-export const CURRENT_SETTINGS_VERSION = 5 as const;
+export const CURRENT_SETTINGS_VERSION = 6 as const;
 
 export const SETTINGS_SCHEMAS = {
   1: SettingsV1Schema,
@@ -47,6 +48,7 @@ export const SETTINGS_SCHEMAS = {
   3: SettingsV3Schema,
   4: SettingsV4Schema,
   5: SettingsV5Schema,
+  6: SettingsV6Schema,
 } as const;
 
 type CurrentSchema = (typeof SETTINGS_SCHEMAS)[typeof CURRENT_SETTINGS_VERSION];

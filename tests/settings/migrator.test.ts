@@ -137,6 +137,16 @@ describe("Settings Migrator (Generic)", () => {
           expect(deepSeekProvider).toBeDefined();
           expect(deepSeekProvider.name).toBe("DeepSeek");
         },
+        6: (result: any) => {
+          const xaiModels = result.models.filter((m: any) => m.provider === "xai");
+          expect(xaiModels.length).toBe(8);
+          expect(xaiModels.some((m: any) => m.id === "grok-3")).toBe(true);
+          expect(xaiModels.some((m: any) => m.id === "grok-3-mini")).toBe(true);
+          expect(xaiModels.some((m: any) => m.id === "grok-3-fast")).toBe(true);
+          const xaiProvider = result.providers.find((p: any) => p.id === "xai");
+          expect(xaiProvider).toBeDefined();
+          expect(xaiProvider.name).toBe("xAI");
+        },
       };
 
       Object.entries(features).forEach(([versionStr, testFn]) => {
@@ -186,6 +196,26 @@ function createMinimalSettings(version: number): any {
     case 4:
       return {
         version: 4,
+        ...base,
+        models: [
+          {
+            id: "test-chat",
+            provider: "test",
+            type: "chat",
+            inputTokenLimit: 1000,
+            outputTokenLimit: 500,
+            inputPrice: 1.0,
+            outputPrice: 2.0,
+          },
+        ],
+        recording: {
+          ...base.recording,
+          postProcessing: { enabled: true, prompt: "test" },
+        },
+      };
+    case 5:
+      return {
+        version: 5,
         ...base,
         models: [
           {
