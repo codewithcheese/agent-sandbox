@@ -23,6 +23,7 @@
     "@ai-sdk/anthropic": "2.0.0-beta.3",
     "@ai-sdk/google": "2.0.0-beta.3",
     "@ai-sdk/openai": "2.0.0-beta.2",
+    "@ai-sdk/deepseek": "1.0.0-beta.2",
     "@internationalized/date": "^3.8.1",
     "@lucide/svelte": "^0.513.0",
     "@pollyjs/adapter-fetch": "^6.0.7",

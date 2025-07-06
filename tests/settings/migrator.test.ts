@@ -128,6 +128,15 @@ describe("Settings Migrator (Generic)", () => {
           const modelsWithPricing = chatModels.filter((m: any) => m.inputPrice !== undefined);
           expect(modelsWithPricing.length).toBeGreaterThan(0);
         },
+        5: (result: any) => {
+          const deepSeekModels = result.models.filter((m: any) => m.provider === "deepseek");
+          expect(deepSeekModels.length).toBe(2);
+          expect(deepSeekModels.some((m: any) => m.id === "deepseek-chat")).toBe(true);
+          expect(deepSeekModels.some((m: any) => m.id === "deepseek-reasoner")).toBe(true);
+          const deepSeekProvider = result.providers.find((p: any) => p.id === "deepseek");
+          expect(deepSeekProvider).toBeDefined();
+          expect(deepSeekProvider.name).toBe("DeepSeek");
+        },
       };
 
       Object.entries(features).forEach(([versionStr, testFn]) => {
@@ -169,6 +178,26 @@ function createMinimalSettings(version: number): any {
       return {
         version: 3,
         ...base,
+        recording: {
+          ...base.recording,
+          postProcessing: { enabled: true, prompt: "test" },
+        },
+      };
+    case 4:
+      return {
+        version: 4,
+        ...base,
+        models: [
+          {
+            id: "test-chat",
+            provider: "test",
+            type: "chat",
+            inputTokenLimit: 1000,
+            outputTokenLimit: 500,
+            inputPrice: 1.0,
+            outputPrice: 2.0,
+          },
+        ],
         recording: {
           ...base.recording,
           postProcessing: { enabled: true, prompt: "test" },

@@ -177,6 +177,9 @@ importers:
       '@ai-sdk/anthropic':
         specifier: 2.0.0-beta.3
         version: 2.0.0-beta.3(zod@3.25.67)
+      '@ai-sdk/deepseek':
+        specifier: 1.0.0-beta.2
+        version: 1.0.0-beta.2(zod@3.25.67)
       '@ai-sdk/google':
         specifier: 2.0.0-beta.3
         version: 2.0.0-beta.3(zod@3.25.67)
@@ -309,6 +312,12 @@ packages:
     peerDependencies:
       zod: ^3.25.49
 
+  '@ai-sdk/deepseek@1.0.0-beta.2':
+    resolution: {integrity: sha512-9bNW4PTmM2YSDnrq0sK7Ul4O9mLSRHIaKsh2OFbcLOpN35eqbauZtPXZUJS06AcUmauEf6dS3hkKhcI4u2rLrg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.49
+
   '@ai-sdk/gateway@1.0.0-beta.3':
     resolution: {integrity: sha512-g49gMSkXy94lYvl5LRh438OR/0JCG6ol0jV+iLot7cy5HLltZlGocEuauETBu4b10mDXOd7XIjTEZoQpYFMYLQ==}
     engines: {node: '>=18'}
@@ -317,6 +326,12 @@ packages:
 
   '@ai-sdk/google@2.0.0-beta.3':
     resolution: {integrity: sha512-9Fef7joSMPmnctjYWlwCuqBxF415DH6HN4/KMki6446d9SUBBeCNUwRiwPSsOzLjpZWdAxr7piWnKrhsxOCJiA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.49
+
+  '@ai-sdk/openai-compatible@1.0.0-beta.2':
+    resolution: {integrity: sha512-dAPGHxqPw1pLrR+MrhVmdgktkGYspBFZoRrtqQzPolFzQt90W2GBAUARk8ZS/UuxEEoJSMVPOXlhhgb8QV59+g==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.49
@@ -3808,6 +3823,13 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.0-beta.2(zod@3.25.67)
       zod: 3.25.67
 
+  '@ai-sdk/deepseek@1.0.0-beta.2(zod@3.25.67)':
+    dependencies:
+      '@ai-sdk/openai-compatible': 1.0.0-beta.2(zod@3.25.67)
+      '@ai-sdk/provider': 2.0.0-beta.1
+      '@ai-sdk/provider-utils': 3.0.0-beta.2(zod@3.25.67)
+      zod: 3.25.67
+
   '@ai-sdk/gateway@1.0.0-beta.3(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 2.0.0-beta.1
@@ -3815,6 +3837,12 @@ snapshots:
       zod: 3.25.67
 
   '@ai-sdk/google@2.0.0-beta.3(zod@3.25.67)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0-beta.1
+      '@ai-sdk/provider-utils': 3.0.0-beta.2(zod@3.25.67)
+      zod: 3.25.67
+
+  '@ai-sdk/openai-compatible@1.0.0-beta.2(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 2.0.0-beta.1
       '@ai-sdk/provider-utils': 3.0.0-beta.2(zod@3.25.67)

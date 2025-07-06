@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createDeepSeek } from "@ai-sdk/deepseek";
 
 import type { AIAccount } from "./settings.ts";
 
@@ -21,6 +22,10 @@ export function createAIProvider(account: AIAccount) {
       });
     case "gemini":
       return createGoogleGenerativeAI({
+        ...account.config,
+      });
+    case "deepseek":
+      return createDeepSeek({
         ...account.config,
       });
     // todo: bring back support when they ship v5 compatible provider
