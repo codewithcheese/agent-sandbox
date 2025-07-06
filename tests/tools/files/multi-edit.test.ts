@@ -3,6 +3,7 @@ import { execute as multiEditToolExecute } from "../../../src/tools/files/multi-
 import {
   vault as mockVault,
   helpers as mockVaultHelpers,
+  metadataCache,
 } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolCallOptionsWithContext } from "../../../src/tools/types.ts";
@@ -33,6 +34,7 @@ describe("MultiEdit tool execute function", () => {
       getContext: () => ({
         vault,
         sessionStore,
+        metadataCache,
       }),
       abortSignal: mockAbortController.signal,
     };

@@ -15,6 +15,7 @@ import {
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import {
   helpers as mockVaultHelpers,
+  metadataCache,
   vault as mockVault,
 } from "../../mocks/obsidian.ts";
 import { SessionStore } from "../../../src/chat/session-store.svelte.ts";
@@ -60,6 +61,7 @@ describe("TodoWrite tool execute function", () => {
         config: {}, // Use tool's default config
         vault: null,
         sessionStore,
+        metadataCache,
       }),
       abortSignal: mockAbortController.signal,
     };

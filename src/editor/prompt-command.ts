@@ -7,13 +7,15 @@ import { createDebug } from "$lib/debug.ts";
 import { loadFileParts } from "../chat/attachments.ts";
 import type { WithUserMetadata } from "../chat/chat.svelte.ts";
 import type { UIMessage } from "ai";
+import { usePlugin } from "$lib/utils";
 
 const debug = createDebug();
 
 export async function loadPromptMessage(
   file: TFile,
 ): Promise<UIMessage<{ createdAt: Date }> & WithUserMetadata> {
-  const content = await createSystemContent(file);
+  const plugin = usePlugin();
+  const content = await createSystemContent(file, plugin.app.vault, plugin.app.metadataCache);
   const links = extractLinks(file, content);
   debug("Prompt links", links);
   return {

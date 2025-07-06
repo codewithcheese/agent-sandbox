@@ -642,7 +642,7 @@ export class VaultOverlay implements Vault {
     return folder;
   }
 
-  private createTFile(path: string, stat: FileStats): TFile {
+  createTFile(path: string, stat: FileStats): TFile {
     path = normalizePath(path);
     const abstractFile = this.createAbstractFile(path, false);
 

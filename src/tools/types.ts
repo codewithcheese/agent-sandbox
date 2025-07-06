@@ -1,4 +1,4 @@
-import type { Vault } from "obsidian";
+import type { Vault, MetadataCache } from "obsidian";
 import { type Tool, tool, type ToolCallOptions } from "ai";
 import { z, ZodAny, ZodObject } from "zod";
 import type { SessionStore } from "../chat/session-store.svelte.ts";
@@ -7,6 +7,7 @@ export type ToolExecuteContext = {
   vault: Vault;
   config?: Record<string, any>;
   sessionStore: SessionStore;
+  metadataCache: MetadataCache;
 };
 
 export type ToolCallOptionsWithContext = ToolCallOptions & {

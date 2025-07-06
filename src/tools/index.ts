@@ -6,6 +6,7 @@ import { resolveInternalLink } from "../lib/utils/obsidian";
 import { getListFromFrontmatter } from "../lib/utils/frontmatter";
 import type { Chat } from "../chat/chat.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
+import { MetadataCacheOverlay } from "../chat/metadata-cache-overlay.ts";
 import { readTool } from "./files/read.ts";
 import { writeTool } from "./files/write.ts";
 import { editTool } from "./files/edit.ts";
@@ -17,6 +18,7 @@ import { listTool } from "./files/list.ts";
 import { toolDef as todoWrite } from "./todo/write.ts";
 import { toolDef as todoRead } from "./todo/read.ts";
 import { toolDef as webSearch } from "./web-search.ts";
+import { fetchTool } from "./fetch.ts";
 import { evaluateOutputTool } from "./evals/evaluate-output.ts";
 import { evaluateTestSetTool } from "./evals/evaluate-test-set.ts";
 import { promptTool } from "./evals/prompt.ts";
@@ -28,6 +30,7 @@ const debug = createDebug();
 
 export const toolRegistry: Record<string, ToolDefinition> = {
   web_search: webSearch,
+  fetch: fetchTool,
   list: listTool,
   read: readTool,
   write: writeTool,
@@ -118,7 +121,8 @@ async function createPromptToolDefinition(
     inputSchema,
     execute: async (params, options) => {
       try {
-        return await createSystemContent(file, {
+        const { vault, metadataCache } = options.getContext();
+        return await createSystemContent(file, vault, metadataCache, {
           template: {
             autoescape: false,
             throwOnUndefined: false,
@@ -207,6 +211,7 @@ export async function loadToolsFromFrontmatter(
       vault: chat.vault,
       config: {},
       sessionStore: chat.sessionStore,
+      metadataCache: new MetadataCacheOverlay(chat.vault, plugin.app.metadataCache),
     });
   }
 
@@ -228,11 +233,15 @@ export async function executeToolCall(toolPart: ToolUIPart, chat: Chat) {
     toolCallId: toolPart.toolCallId,
     messages: [],
     abortSignal: new AbortController().signal,
-    getContext: () => ({
-      vault: chat.vault,
-      config: {},
-      sessionStore: chat.sessionStore,
-    }),
+    getContext: () => {
+      const plugin = usePlugin();
+      return {
+        vault: chat.vault,
+        config: {},
+        sessionStore: chat.sessionStore,
+        metadataCache: new MetadataCacheOverlay(chat.vault, plugin.app.metadataCache),
+      };
+    },
   });
   debug("Tool result:", result, toolPart);
 }

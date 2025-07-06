@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseToolDefinition } from "../../src/tools";
-import { helpers, vault as mockVault } from "../mocks/obsidian";
+import { helpers, vault as mockVault, plugin } from "../mocks/obsidian";
 import { invariant } from "@epic-web/invariant";
 
 describe("Prompt Tools", () => {
@@ -176,6 +176,7 @@ This is a test of prompt execution.`;
             vault: mockVault,
             config: {},
             sessionStore: {} as any,
+            metadataCache: plugin.app.metadataCache,
           }),
         },
       );
@@ -232,6 +233,7 @@ Standard checklist applies.
             vault: mockVault,
             config: {},
             sessionStore: {} as any,
+            metadataCache: plugin.app.metadataCache,
           }),
         },
       );
@@ -289,6 +291,7 @@ General review.
             vault: mockVault,
             config: {},
             sessionStore: {} as any,
+            metadataCache: plugin.app.metadataCache,
           }),
         },
       );

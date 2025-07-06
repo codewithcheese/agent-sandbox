@@ -26,7 +26,7 @@ export type NodeData = {
 };
 
 export class TreeFS {
-  private pathCache = new Map<string, TreeID>();
+  public pathCache = new Map<string, TreeID>();
   private deletedFromIndex = new Set<string>();
   private cacheValid = false;
   private tree: LoroTree;
@@ -319,5 +319,13 @@ export class TreeFS {
       cur = cur.parent();
     }
     return normalizePath(parts.join("/"));
+  }
+
+  // Safely access path cache with validation
+  getValidatedPathCache(): Map<string, TreeID> {
+    if (!this.cacheValid) {
+      this.rebuildCache();
+    }
+    return this.pathCache;
   }
 }

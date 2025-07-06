@@ -1,12 +1,13 @@
-import { TFile } from "obsidian";
+import { TFile, type Vault, type MetadataCache } from "obsidian";
 import { usePlugin } from "./index";
 import { stripFrontmatter } from "../../chat/system.ts";
 
 export async function processEmbeds(
   sourceFile: TFile,
   content: string,
+  vault: Vault,
+  metadataCache: MetadataCache,
 ): Promise<string> {
-  const plugin = usePlugin();
   const embedRegex = /!\[\[([^\]]+)\]\]/g;
   let match;
   let processedContent = content;
@@ -14,8 +15,8 @@ export async function processEmbeds(
   while ((match = embedRegex.exec(content)) !== null) {
     const [fullMatch, path] = match;
     try {
-      // Use Obsidian's getLinkpath to resolve the path relative to the source file
-      const targetPath = plugin.app.metadataCache.getFirstLinkpathDest(
+      // Use overlay-aware metadata cache to resolve the path relative to the source file
+      const targetPath = metadataCache.getFirstLinkpathDest(
         path,
         sourceFile.path,
       );
@@ -23,8 +24,8 @@ export async function processEmbeds(
         console.warn(`File not found: ${path} (resolved to ${targetPath})`);
         continue;
       }
-      // Read the file content
-      const fileContent = await plugin.app.vault.read(targetPath);
+      // Read the file content using overlay-aware vault
+      const fileContent = await vault.read(targetPath);
       // Replace the embed with the file content
       processedContent = processedContent.replace(
         fullMatch,

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execute as globToolExecute } from "../../../src/tools/files/glob";
 import {
   helpers as mockVaultHelpers,
+  metadataCache,
   vault as mockVault,
 } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
@@ -29,6 +30,7 @@ describe("Glob tool execute function", () => {
       getContext: () => ({
         vault,
         sessionStore,
+        metadataCache,
       }),
       abortSignal: mockAbortController.signal,
     };
@@ -231,6 +233,7 @@ describe("Glob tool execute function", () => {
       vault,
       config: { RESULT_LIMIT: 2 },
       sessionStore,
+      metadataCache,
     });
 
     const params = { pattern: "**/*.*", path: "/" };
@@ -267,6 +270,7 @@ describe("Glob tool execute function", () => {
         DEFAULT_IGNORE_PATTERNS: [],
       },
       sessionStore,
+      metadataCache,
     });
 
     const params = { pattern: ".obsidian/*", path: "/" };
@@ -299,6 +303,7 @@ describe("Glob tool efficiency tests", () => {
       getContext: () => ({
         vault,
         sessionStore,
+        metadataCache,
       }),
       abortSignal: mockAbortController.signal,
     };

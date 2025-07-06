@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { normalizePath, Notice, type TFile, type Vault } from "obsidian";
+import { normalizePath, Notice, type TFile, type Vault, type MetadataCache } from "obsidian";
 import { createDebug } from "$lib/debug";
 import { usePlugin } from "$lib/utils";
 import { createSystemContent } from "../../chat/system.ts";
@@ -206,6 +206,8 @@ export function parseEvaluationResult(evaluationText: string): "PASS" | "FAIL" {
 export async function evaluateExample(
   text: string,
   judgeConfig: JudgeConfig,
+  vault: Vault,
+  metadataCache: MetadataCache,
   criteriaContext?: string,
   abortSignal?: AbortSignal,
 ): Promise<EvaluationResult | EvaluationError> {
@@ -213,6 +215,8 @@ export async function evaluateExample(
     // Create cacheable judge system content (without specific text)
     const judgeSystemContent = await createSystemContent(
       judgeConfig.judgeFile,
+      vault,
+      metadataCache,
       {
         additionalData: {
           criteria_context: criteriaContext || "",
@@ -584,6 +588,7 @@ export async function updateTestSetFile(
 export async function evaluateTestSet(
   testSetFile: TFile,
   vault: Vault,
+  metadataCache: MetadataCache,
   judgeConfig: JudgeConfig,
   abortSignal?: AbortSignal,
 ): Promise<TestSetEvaluationResult | EvaluationError> {
@@ -612,6 +617,8 @@ export async function evaluateTestSet(
       const result = await evaluateExample(
         example.output,
         judgeConfig,
+        vault,
+        metadataCache,
         undefined, // No criteria context for test sets
         abortSignal,
       );

@@ -90,7 +90,7 @@ export class AgentBannerComponent extends Component {
   private async updateBanner() {
     try {
       this.props.errors = [];
-      await createSystemContent(this.getFile(), {
+      await createSystemContent(this.getFile(), this.plugin.app.vault, this.plugin.app.metadataCache, {
         template: { throwOnUndefined: true },
       });
     } catch (e) {

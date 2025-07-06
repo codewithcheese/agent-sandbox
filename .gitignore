@@ -69,3 +69,4 @@ debug/
 
 # Claude Code
 .claude/settings.local.json
+.docs

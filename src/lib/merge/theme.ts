@@ -160,10 +160,10 @@ export const obsidianTheme = EditorView.theme({
   },
 
   // Horizontal Rule
-  ".hr": {
-    borderTop: "var(--hr-thickness) solid var(--hr-color)",
-    color: "transparent", // Hide the '---' text
-  },
+  // ".hr": {
+  //   borderTop: "var(--hr-thickness) solid var(--hr-color)",
+  //   color: "transparent", // Hide the '---' text
+  // },
 
   // Lists
   ".bl, .ol": {

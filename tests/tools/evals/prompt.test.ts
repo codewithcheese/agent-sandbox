@@ -26,7 +26,7 @@ model_id: claude-3-5-sonnet-20241022
 
 You are a helpful assistant that creates concise summaries.
 
-Summarize the following text in 1-2 sentences, focusing on the main points:`,
+Summarize the users text in 3-5 words.`,
     );
 
     // Set up test account and model
@@ -63,31 +63,39 @@ Summarize the following text in 1-2 sentences, focusing on the main points:`,
         vault,
         config: {},
         sessionStore: {} as any,
+        metadataCache: plugin.app.metadataCache,
       }),
     };
   });
 
-  it("should generate output from prompt and input", async () => {
+  it("should generate outputs from prompt and inputs", async () => {
     const result = await (promptTool as any).execute(
       {
         prompt_path: promptFile.path,
-        input:
+        inputs: [
           "Artificial intelligence is transforming many industries by automating tasks, improving efficiency, and enabling new capabilities. Companies are adopting AI for customer service, data analysis, and decision-making processes.",
+          "Machine learning algorithms can process vast amounts of data to identify patterns and make predictions. This technology is being used in healthcare, finance, and many other sectors.",
+        ],
       },
       toolContext,
     );
 
     expect(result).not.toHaveProperty("error");
-    expect(result).toHaveProperty("output");
-    expect(typeof result.output).toBe("string");
-    expect(result.output.length).toBeGreaterThan(0);
+    expect(result).toHaveProperty("outputs");
+    expect(Array.isArray(result.outputs)).toBe(true);
+    expect(result.outputs).toHaveLength(2);
+    expect(typeof result.outputs[0]).toBe("string");
+    expect(typeof result.outputs[1]).toBe("string");
+    expect(result.outputs[0].length).toBeGreaterThan(0);
+    expect(result.outputs[1].length).toBeGreaterThan(0);
+    expect(result.totalProcessed).toBe(2);
   });
 
   it("should return error for invalid model", async () => {
     const result = await (promptTool as any).execute(
       {
         prompt_path: promptFile.path,
-        input: "Test input",
+        inputs: ["Test input"],
         model_id: "non-existent-model",
       },
       toolContext,
@@ -110,7 +118,7 @@ Summarize the following text in 1-2 sentences, focusing on the main points:`,
     const result = await (promptTool as any).execute(
       {
         prompt_path: promptFile.path,
-        input: "Test input",
+        inputs: ["Test input"],
       },
       abortedContext,
     );
@@ -126,13 +134,14 @@ Summarize the following text in 1-2 sentences, focusing on the main points:`,
         vault: null,
         config: {},
         sessionStore: toolContext.getContext().sessionStore,
+        metadataCache: toolContext.getContext().metadataCache,
       }),
     };
 
     const result = await (promptTool as any).execute(
       {
         prompt_path: promptFile.path,
-        input: "Test input",
+        inputs: ["Test input"],
       },
       noVaultContext as any,
     );

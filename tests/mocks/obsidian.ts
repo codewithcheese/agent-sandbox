@@ -23,6 +23,68 @@ try {
 
 export const fileCache = new Map<string, any>();
 
+// Simple requestUrl mock with hardcoded responses
+export const mockRequestUrl = async (params: any) => {
+  // Default successful response
+  const defaultResponse = {
+    status: 200,
+    headers: { "content-type": "application/json" },
+    text: '{"success": true, "data": "test"}',
+    json: { success: true, data: "test" },
+    arrayBuffer: new ArrayBuffer(0),
+  };
+
+  // Handle different URLs/scenarios
+  if (params.url?.includes("localhost") || params.url?.includes("127.0.0.1")) {
+    throw new Error("Network error - blocked domain");
+  }
+
+  if (params.url?.includes("error")) {
+    throw new Error("Network error");
+  }
+
+  if (params.url?.includes("large")) {
+    return {
+      ...defaultResponse,
+      text: "x".repeat(11 * 1024 * 1024), // 11MB response
+    };
+  }
+
+  if (params.url?.includes("404")) {
+    return {
+      ...defaultResponse,
+      status: 404,
+      text: '{"error": "Resource not found"}',
+      json: { error: "Resource not found" },
+    };
+  }
+
+  // Return different content types based on headers or URL
+  if (params.url?.includes("text")) {
+    return {
+      ...defaultResponse,
+      headers: { "content-type": "text/plain" },
+      text: "Hello World",
+    };
+  }
+
+  if (params.url?.includes("users")) {
+    return {
+      ...defaultResponse,
+      status: 201,
+      headers: { 
+        "content-type": "application/json",
+        "x-rate-limit": "100" 
+      },
+      text: '{"id": 123, "name": "test"}',
+      json: { id: 123, name: "test" },
+    };
+  }
+
+  // Return the default response
+  return defaultResponse;
+};
+
 /**
  * Parse frontmatter from content and cache it if present
  */
@@ -434,7 +496,7 @@ export const vault: Vault = {
 
 export const metadataCache = {
   getFileCache: (file: MockTFile) => {
-    return fileCache.get(file.path);
+    return fileCache.get(file.path) || null;
   },
 
   // Helper method for tests to set cache data
@@ -442,7 +504,7 @@ export const metadataCache = {
     fileCache.set(file.path, cache);
   },
 
-  getFirstLinkpathDest: (linkpath: string) => {
+  getFirstLinkpathDest: (linkpath: string, sourcePath: string) => {
     // Try exact path first
     const exactFile = vault.getFileByPath(linkpath);
     if (exactFile) {
@@ -459,7 +521,40 @@ export const metadataCache = {
     // Return first match, or null if none found
     return filesByBasename.length > 0 ? filesByBasename[0] : null;
   },
-  on: () => {},
+
+  // Required MetadataCache properties with correct signatures
+  getCache: (path: string) => {
+    return fileCache.get(path) || null;
+  },
+  
+  fileToLinktext: (file: MockTFile, sourcePath: string, omitMdExtension?: boolean) => {
+    return omitMdExtension && file.extension === 'md' ? file.basename : file.name;
+  },
+  
+  resolvedLinks: {},
+  unresolvedLinks: {},
+
+  // Event system methods - unimplemented, throw errors
+  on: (name: string, callback: Function, ctx?: any) => {
+    throw new Error("MetadataCache.on() not implemented in mock");
+  },
+  
+  off: (name: string, callback: Function, ctx?: any) => {
+    throw new Error("MetadataCache.off() not implemented in mock");
+  },
+  
+  offref: (ref: any) => {
+    throw new Error("MetadataCache.offref() not implemented in mock");
+  },
+
+  // Other unimplemented methods
+  trigger: (...args: any[]) => {
+    throw new Error("MetadataCache.trigger() not implemented in mock");
+  },
+  
+  tryTrigger: (...args: any[]) => {
+    throw new Error("MetadataCache.tryTrigger() not implemented in mock");
+  },
 };
 
 export const helpers = {
@@ -553,6 +648,7 @@ window.Env = {
 
 export default {
   normalizePath: (path: string) => path,
+  requestUrl: mockRequestUrl,
 
   Plugin: class {
     app = app;

@@ -3,6 +3,7 @@ import { execute as writeToolExecute } from "../../../src/tools/files/write.ts";
 import {
   vault as mockVault,
   helpers as mockVaultHelpers,
+  metadataCache,
 } from "../../mocks/obsidian";
 import { VaultOverlay } from "../../../src/chat/vault-overlay.svelte.ts";
 import type { ToolCallOptionsWithContext } from "../../../src/tools/types.ts";
@@ -35,6 +36,7 @@ describe("Write tool", () => {
         vault,
         config: {},
         sessionStore,
+        metadataCache,
       }),
       abortSignal: mockAbortController.signal,
     };

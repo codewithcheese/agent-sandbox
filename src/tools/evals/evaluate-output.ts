@@ -53,7 +53,7 @@ async function execute(
   toolExecOptions: ToolCallOptionsWithContext,
 ) {
   const { abortSignal } = toolExecOptions;
-  const { vault } = toolExecOptions.getContext();
+  const { vault, metadataCache } = toolExecOptions.getContext();
 
   if (!vault) {
     return { error: "Vault not available in execution context." };
@@ -92,7 +92,7 @@ async function execute(
           message: `Could not find file at path: ${params.path}`,
         };
       }
-      textToEvaluate = await createSystemContent(file);
+      textToEvaluate = await createSystemContent(file, vault, metadataCache);
     } else {
       // This should never happen due to validation above
       throw new Error("Invalid state: neither text nor path provided");
@@ -111,6 +111,8 @@ async function execute(
     return await evaluateExample(
       textToEvaluate,
       judgeConfig,
+      vault,
+      metadataCache,
       params.criteria_context,
       abortSignal,
     );

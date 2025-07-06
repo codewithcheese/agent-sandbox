@@ -74,6 +74,7 @@ Analyze the text against these criteria. Respond with valid JSON containing:
         vault,
         config: {},
         sessionStore: {} as any,
+        metadataCache: plugin.app.metadataCache,
       }),
     };
   });
@@ -204,6 +205,7 @@ Respond with JSON: {"reasoning": "your analysis", "result": "PASS" or "FAIL"}`,
         vault: null,
         config: {},
         sessionStore: toolContext.getContext().sessionStore,
+        metadataCache: toolContext.getContext().metadataCache,
       }),
     };
 

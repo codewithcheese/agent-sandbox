@@ -128,6 +128,36 @@ describe("Settings Migrator (Generic)", () => {
           const modelsWithPricing = chatModels.filter((m: any) => m.inputPrice !== undefined);
           expect(modelsWithPricing.length).toBeGreaterThan(0);
         },
+        5: (result: any) => {
+          const deepSeekModels = result.models.filter((m: any) => m.provider === "deepseek");
+          expect(deepSeekModels.length).toBe(2);
+          expect(deepSeekModels.some((m: any) => m.id === "deepseek-chat")).toBe(true);
+          expect(deepSeekModels.some((m: any) => m.id === "deepseek-reasoner")).toBe(true);
+          const deepSeekProvider = result.providers.find((p: any) => p.id === "deepseek");
+          expect(deepSeekProvider).toBeDefined();
+          expect(deepSeekProvider.name).toBe("DeepSeek");
+        },
+        6: (result: any) => {
+          const xaiModels = result.models.filter((m: any) => m.provider === "xai");
+          expect(xaiModels.length).toBe(8);
+          expect(xaiModels.some((m: any) => m.id === "grok-3")).toBe(true);
+          expect(xaiModels.some((m: any) => m.id === "grok-3-mini")).toBe(true);
+          expect(xaiModels.some((m: any) => m.id === "grok-3-fast")).toBe(true);
+          const xaiProvider = result.providers.find((p: any) => p.id === "xai");
+          expect(xaiProvider).toBeDefined();
+          expect(xaiProvider.name).toBe("xAI");
+        },
+        7: (result: any) => {
+          const cohereModels = result.models.filter((m: any) => m.provider === "cohere");
+          expect(cohereModels.length).toBe(8);
+          expect(cohereModels.some((m: any) => m.id === "command-r-plus")).toBe(true);
+          expect(cohereModels.some((m: any) => m.id === "command-r")).toBe(true);
+          expect(cohereModels.some((m: any) => m.id === "command-r7b")).toBe(true);
+          expect(cohereModels.some((m: any) => m.id === "embed-english-v3.0")).toBe(true);
+          const cohereProvider = result.providers.find((p: any) => p.id === "cohere");
+          expect(cohereProvider).toBeDefined();
+          expect(cohereProvider.name).toBe("Cohere");
+        },
       };
 
       Object.entries(features).forEach(([versionStr, testFn]) => {
@@ -169,6 +199,66 @@ function createMinimalSettings(version: number): any {
       return {
         version: 3,
         ...base,
+        recording: {
+          ...base.recording,
+          postProcessing: { enabled: true, prompt: "test" },
+        },
+      };
+    case 4:
+      return {
+        version: 4,
+        ...base,
+        models: [
+          {
+            id: "test-chat",
+            provider: "test",
+            type: "chat",
+            inputTokenLimit: 1000,
+            outputTokenLimit: 500,
+            inputPrice: 1.0,
+            outputPrice: 2.0,
+          },
+        ],
+        recording: {
+          ...base.recording,
+          postProcessing: { enabled: true, prompt: "test" },
+        },
+      };
+    case 5:
+      return {
+        version: 5,
+        ...base,
+        models: [
+          {
+            id: "test-chat",
+            provider: "test",
+            type: "chat",
+            inputTokenLimit: 1000,
+            outputTokenLimit: 500,
+            inputPrice: 1.0,
+            outputPrice: 2.0,
+          },
+        ],
+        recording: {
+          ...base.recording,
+          postProcessing: { enabled: true, prompt: "test" },
+        },
+      };
+    case 6:
+      return {
+        version: 6,
+        ...base,
+        models: [
+          {
+            id: "test-chat",
+            provider: "test",
+            type: "chat",
+            inputTokenLimit: 1000,
+            outputTokenLimit: 500,
+            inputPrice: 1.0,
+            outputPrice: 2.0,
+          },
+        ],
         recording: {
           ...base.recording,
           postProcessing: { enabled: true, prompt: "test" },

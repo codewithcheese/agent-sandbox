@@ -21,6 +21,7 @@
   "license": "ISC",
   "devDependencies": {
     "@ai-sdk/anthropic": "2.0.0-beta.3",
+    "@ai-sdk/deepseek": "1.0.0-beta.2",
     "@ai-sdk/google": "2.0.0-beta.3",
     "@ai-sdk/openai": "2.0.0-beta.2",
     "@internationalized/date": "^3.8.1",
@@ -64,6 +65,8 @@
     "vitest": "^3.0.9"
   },
   "dependencies": {
+    "@ai-sdk/cohere": "2.0.0-beta.2",
+    "@ai-sdk/xai": "2.0.0-beta.2",
     "@codemirror/autocomplete": "^6.18.6",
     "@codemirror/collab": "^6.1.1",
     "@codemirror/commands": "^6.8.1",

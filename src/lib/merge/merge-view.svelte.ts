@@ -645,10 +645,9 @@ export class MergeView extends ItemView {
       // Check if merge view is already open
       const existingLeaf =
         plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];
+      const existingView = existingLeaf?.view as MergeView;
 
-      if (existingLeaf) {
-        const existingView = existingLeaf.view as MergeView;
-
+      if (existingView) {
         // Always refresh - let refreshContent() do the content comparison
         debug(`Refreshing merge view content`);
         await existingView.refreshContent();
@@ -674,6 +673,19 @@ export class MergeView extends ItemView {
     } catch (error) {
       console.error("Error opening merge view:", error);
       new Notice(`Error opening merge view: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Static function to close the merge view if it exists
+   */
+  static close(): void {
+    const plugin = usePlugin();
+    const existingLeaf = plugin.app.workspace.getLeavesOfType(MERGE_VIEW_TYPE)[0];
+    
+    if (existingLeaf) {
+      debug("Closing merge view");
+      existingLeaf.detach();
     }
   }
 }
