@@ -22,6 +22,7 @@ Usage:
 - Provide an array of input texts to process with the prompt (minimum 1 required)
 - Optionally specify model_id and account_name (defaults to plugin settings)
 - The tool returns an array of generated outputs corresponding to each input
+- Use temperature to control randomness
 
 The prompt file should contain instructions for processing the input text. It can optionally specify a model_id in frontmatter to use a specific model.
 
@@ -38,6 +39,11 @@ const inputSchema = z.strictObject({
     .array(z.string())
     .min(1, "At least one input is required")
     .describe("Array of input texts to process with the prompt"),
+  temperature: z
+    .number()
+    .optional()
+    .default(0.7)
+    .describe("Optional temperature to use (defaults to 0.7)"),
   model_id: z
     .string()
     .optional()
@@ -61,7 +67,7 @@ async function execute(
 
   try {
     const plugin = usePlugin();
-    
+
     // Get the prompt file
     debug(`Looking for prompt file at path: ${params.prompt_path}`);
     const promptFile = vault.getFileByPath(params.prompt_path);
@@ -75,10 +81,10 @@ async function execute(
     // Get model and account configuration using overlay-aware metadata cache
     const metadata = metadataCache.getFileCache(promptFile);
     const frontmatter = metadata?.frontmatter || {};
-    
+
     let modelId = params.model_id || frontmatter.model_id;
     let account, model;
-    
+
     if (modelId) {
       try {
         model = getChatModel(modelId);
@@ -107,14 +113,14 @@ async function execute(
           message: "Please configure a default account in plugin settings",
         };
       }
-      
+
       if (!plugin.settings.defaults.modelId) {
         return {
           error: "Default model not configured",
           message: "Please configure a default model in plugin settings",
         };
       }
-      
+
       try {
         account = getAccount(plugin.settings.defaults.accountId);
         model = getChatModel(plugin.settings.defaults.modelId);
@@ -122,36 +128,42 @@ async function execute(
       } catch (error) {
         return {
           error: "Default model/account not configured",
-          message: "Please configure default model and account in plugin settings",
+          message:
+            "Please configure default model and account in plugin settings",
         };
       }
     }
 
     // Create system content using overlay-aware vault and metadata cache
-    const systemContent = await createSystemContent(promptFile, vault, metadataCache);
-    
+    const systemContent = await createSystemContent(
+      promptFile,
+      vault,
+      metadataCache,
+    );
+
     // Create provider
     const provider = createAIProvider(account);
-    
+
     // Generate outputs sequentially for each input
     const outputs: string[] = [];
-    
+
     for (let i = 0; i < params.inputs.length; i++) {
       const input = params.inputs[i];
-      
+
       // Check for abort signal before each generation
       if (abortSignal?.aborted) {
         return { error: "Operation aborted" };
       }
-      
+
       try {
         const result = await generateText({
           model: provider.languageModel(modelId),
           system: systemContent,
           prompt: input,
+          temperature: params.temperature,
           abortSignal,
         });
-        
+
         outputs.push(result.text);
         debug(`Generated output ${i + 1}/${params.inputs.length}`);
       } catch (error) {
