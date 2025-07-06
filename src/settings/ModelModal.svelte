@@ -169,7 +169,7 @@
             required
             type="number"
             min="0"
-            step="0.01"
+            step="0.000001"
             bind:value={model.inputPrice}
           />
         </div>
@@ -187,7 +187,7 @@
             required
             type="number"
             min="0"
-            step="0.01"
+            step="0.000001"
             bind:value={model.outputPrice}
           />
         </div>
@@ -217,7 +217,7 @@
             required
             type="number"
             min="0"
-            step="0.01"
+            step="0.000001"
             bind:value={model.pricePerHour}
           />
         </div>
