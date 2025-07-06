@@ -96,7 +96,7 @@
           <div class="setting-item-info">
             <div class="setting-item-name">Defaults</div>
             <div class="setting-item-description">
-              Default account and model used by tools when not specified
+              Default account and model for new chats and tools when not set
             </div>
           </div>
         </div>
@@ -412,7 +412,6 @@
           </div>
         {/each}
       </Tabs.Content>
-
 
       <Tabs.Content value="recording" class="tab-content">
         <!-- Recording settings -->

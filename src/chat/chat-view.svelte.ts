@@ -14,7 +14,7 @@ import ChatPage from "./ChatPage.svelte";
 import { Chat, type ChatOptions } from "./chat.svelte.ts";
 import { Agents } from "./agents.svelte.ts";
 import superjson from "superjson";
-import { ChatSerializer } from "./chat-serializer.ts";
+import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatHistoryView } from "./chat-history-view.svelte.ts";
 import { DeleteChatModal } from "$lib/modals/delete-chat-modal.ts";
@@ -241,9 +241,15 @@ export class ChatView extends FileView {
     }
 
     const filePath = `${chatsPath}/${fileName}.chat`;
+
+    // Create initial data with user defaults applied
+    const initialData: CurrentChatFile = { ...ChatSerializer.INITIAL_DATA };
+    initialData.payload.options.modelId = plugin.settings.defaults.modelId;
+    initialData.payload.options.accountId = plugin.settings.defaults.accountId;
+
     const file = await plugin.app.vault.create(
       filePath,
-      superjson.stringify(ChatSerializer.INITIAL_DATA),
+      superjson.stringify(initialData),
     );
 
     if (!leaf) {
