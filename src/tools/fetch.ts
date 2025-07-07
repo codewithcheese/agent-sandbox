@@ -73,7 +73,7 @@ const responseTypeSchema = z.enum(["auto", "json", "text", "binary"]);
 const inputSchema = z.strictObject({
   url: z
     .string()
-    .url("Must be a valid URL")
+    // .url("Must be a valid URL") // creates invalid `type: url` schema for Google Generative API
     .describe("The URL to fetch (must be HTTP/HTTPS)"),
   method: z
     .string()
@@ -235,7 +235,7 @@ export async function execute(
   const config = { ...defaultConfig, ...contextConfig };
 
   const startTime = Date.now();
-  
+
   // Get resolved method value (with default applied)
   const method = params.method || "GET";
 
@@ -297,9 +297,7 @@ export async function execute(
       params.response_type || "auto",
     );
 
-    debug(
-      `Request completed: ${response.status} (${duration}ms)`,
-    );
+    debug(`Request completed: ${response.status} (${duration}ms)`);
 
     return {
       success: true,
