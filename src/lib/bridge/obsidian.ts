@@ -64,3 +64,4 @@ export const resolveSubpath = obsidian.resolveSubpath;
 export const normalizePath = obsidian.normalizePath;
 export const requestUrl = obsidian.requestUrl;
 export const MarkdownRenderChild = obsidian.MarkdownRenderChild;
+export const AbstractInputSuggest = obsidian.AbstractInputSuggest;

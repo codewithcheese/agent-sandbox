@@ -15,6 +15,7 @@
   } from "./settings.ts";
   import ModelModal from "./ModelModal.svelte";
   import AccountModal from "./AccountModal.svelte";
+  import { folderSuggest } from "./folder-suggest.ts";
 
   const plugin = usePlugin();
   let settings = $state(plugin.settings);
@@ -103,11 +104,11 @@
             <input
               type="text"
               value={settings.vault.chatsPath}
-              onchange={(e) => {
+              oninput={(e) => {
                 plugin.settings.vault.chatsPath = e.currentTarget.value;
-                plugin.saveSettings($state.snapshot(plugin.settings));
-                settings = plugin.settings;
+                save();
               }}
+              {@attach folderSuggest(plugin.app)}
             />
           </div>
         </div>
@@ -658,6 +659,7 @@
                   e.currentTarget.value || undefined;
                 save();
               }}
+              {@attach folderSuggest(plugin.app)}
             />
           </div>
         </div>
