@@ -53,7 +53,7 @@
   <div class="banner-title">Agent</div>
   <div class="ml-4">
     {#each errors as error}
-      <div class="text-(--text-error)">Error: {error}</div>
+      <div class="text-(--text-error) select-text">Error: {error}</div>
     {/each}
   </div>
   <div class="flex-1"></div>

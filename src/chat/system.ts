@@ -45,7 +45,10 @@ export async function createSystemContent(
         hour12: true,
       }),
     },
-    options.template,
+    {
+      ...options.template,
+      templateName: file.path,
+    },
   );
   return system;
 }

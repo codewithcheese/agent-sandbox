@@ -1,5 +1,6 @@
 import nunjucks from "nunjucks";
 import { usePlugin } from "$lib/utils/index.ts";
+import { enhanceNunjucksError } from "./nunjucks.ts";
 
 /**
  * A filter receives the piped value as its first argument, followed by any
@@ -26,12 +27,19 @@ export async function processTemplate(
   content: string,
   filters: Filters,
   context: Record<string, any> = {},
-  options: TemplateOptions = {},
+  options: TemplateOptions & { templateName?: string } = {},
 ): Promise<string> {
   const env = new nunjucks.Environment(null, {
     autoescape: options.autoescape ?? false,
     throwOnUndefined: options.throwOnUndefined ?? false,
+    dev: true, // Enable dev mode for better error messages
   });
+
+  // Fix the dev flag bug mentioned in nunjucks issue #516
+  // The dev flag gets stored in env.opts.dev but prettifyError looks for env.dev
+  if ((env as any).opts && "dev" in (env as any).opts) {
+    (env as any).dev = (env as any).opts.dev;
+  }
 
   // Register each filter as an async-aware Nunjucks filter.
   Object.entries(filters).forEach(([name, filterFn]) => {
@@ -96,8 +104,22 @@ export async function processTemplate(
   });
 
   return new Promise<string>((resolve, reject) => {
-    env.renderString(content, context, (err, res) => {
-      if (err) return reject(err);
+    const template = nunjucks.compile(content, env);
+    template.render(context, (err, res) => {
+      if (err) {
+        // If we have a template name, replace "(unknown path)" with the template name
+        if (
+          options.templateName &&
+          err.message &&
+          err.message.includes("(unknown path)")
+        ) {
+          err.message = err.message.replace(
+            "(unknown path)",
+            `(${options.templateName})`,
+          );
+        }
+        return reject(enhanceNunjucksError(err, content));
+      }
       resolve(res as string);
     });
   });
