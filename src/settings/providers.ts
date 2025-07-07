@@ -4,6 +4,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createXai } from "@ai-sdk/xai";
 import { createCohere } from "@ai-sdk/cohere";
+import { createFireworks } from "@ai-sdk/fireworks";
 
 import type { AIAccount } from "./settings.ts";
 
@@ -36,6 +37,10 @@ export function createAIProvider(account: AIAccount) {
       });
     case "cohere":
       return createCohere({
+        ...account.config,
+      });
+    case "fireworks":
+      return createFireworks({
         ...account.config,
       });
     // todo: bring back support when they ship v5 compatible provider

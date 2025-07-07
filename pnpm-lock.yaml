@@ -11,6 +11,9 @@ importers:
       '@ai-sdk/cohere':
         specifier: 2.0.0-beta.2
         version: 2.0.0-beta.2(zod@3.25.67)
+      '@ai-sdk/fireworks':
+        specifier: 1.0.0-beta.2
+        version: 1.0.0-beta.2(zod@3.25.67)
       '@ai-sdk/xai':
         specifier: 2.0.0-beta.2
         version: 2.0.0-beta.2(zod@3.25.67)
@@ -326,6 +329,12 @@ packages:
 
   '@ai-sdk/deepseek@1.0.0-beta.2':
     resolution: {integrity: sha512-9bNW4PTmM2YSDnrq0sK7Ul4O9mLSRHIaKsh2OFbcLOpN35eqbauZtPXZUJS06AcUmauEf6dS3hkKhcI4u2rLrg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.49
+
+  '@ai-sdk/fireworks@1.0.0-beta.2':
+    resolution: {integrity: sha512-7sJ7NRNcBecOvfA43rB7Pdk5Y+W8BSG9/1yDfC+kY1FWGhleeeBAdQ3jPHT3EUSdRuukACjPi/1UBKutB7w6hw==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.49
@@ -3827,6 +3836,13 @@ snapshots:
       zod: 3.25.67
 
   '@ai-sdk/deepseek@1.0.0-beta.2(zod@3.25.67)':
+    dependencies:
+      '@ai-sdk/openai-compatible': 1.0.0-beta.2(zod@3.25.67)
+      '@ai-sdk/provider': 2.0.0-beta.1
+      '@ai-sdk/provider-utils': 3.0.0-beta.2(zod@3.25.67)
+      zod: 3.25.67
+
+  '@ai-sdk/fireworks@1.0.0-beta.2(zod@3.25.67)':
     dependencies:
       '@ai-sdk/openai-compatible': 1.0.0-beta.2(zod@3.25.67)
       '@ai-sdk/provider': 2.0.0-beta.1

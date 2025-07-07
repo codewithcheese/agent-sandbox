@@ -158,6 +158,17 @@ describe("Settings Migrator (Generic)", () => {
           expect(cohereProvider).toBeDefined();
           expect(cohereProvider.name).toBe("Cohere");
         },
+        8: (result: any) => {
+          const fireworksModels = result.models.filter((m: any) => m.provider === "fireworks");
+          expect(fireworksModels.length).toBe(14);
+          expect(fireworksModels.some((m: any) => m.id === "accounts/fireworks/models/mixtral-8x7b-instruct")).toBe(true);
+          expect(fireworksModels.some((m: any) => m.id === "accounts/fireworks/models/deepseek-r1-0528")).toBe(true);
+          expect(fireworksModels.some((m: any) => m.id === "accounts/fireworks/models/llama4-maverick-instruct-basic")).toBe(true);
+          expect(fireworksModels.some((m: any) => m.id === "accounts/fireworks/models/qwen3-235b-a22b")).toBe(true);
+          const fireworksProvider = result.providers.find((p: any) => p.id === "fireworks");
+          expect(fireworksProvider).toBeDefined();
+          expect(fireworksProvider.name).toBe("Fireworks AI");
+        },
       };
 
       Object.entries(features).forEach(([versionStr, testFn]) => {
@@ -247,6 +258,26 @@ function createMinimalSettings(version: number): any {
     case 6:
       return {
         version: 6,
+        ...base,
+        models: [
+          {
+            id: "test-chat",
+            provider: "test",
+            type: "chat",
+            inputTokenLimit: 1000,
+            outputTokenLimit: 500,
+            inputPrice: 1.0,
+            outputPrice: 2.0,
+          },
+        ],
+        recording: {
+          ...base.recording,
+          postProcessing: { enabled: true, prompt: "test" },
+        },
+      };
+    case 7:
+      return {
+        version: 7,
         ...base,
         models: [
           {

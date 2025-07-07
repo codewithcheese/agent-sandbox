@@ -5,7 +5,34 @@ import {
   SETTINGS_SCHEMAS,
 } from "./settings.ts";
 
+export type MigrationResult = {
+  settings: CurrentSettings;
+  migrationsApplied: boolean;
+  sourceVersion: number;
+  targetVersion: number;
+};
+
+export function needsMigration(data: unknown): boolean {
+  let sourceVersion = 0;
+  
+  if (
+    !data ||
+    (typeof data === "object" && Object.keys(data as object).length === 0)
+  ) {
+    sourceVersion = 0;
+  } else if (typeof data === "object" && "version" in data) {
+    sourceVersion = (data as { version: unknown }).version as number;
+  }
+  
+  return sourceVersion < CURRENT_SETTINGS_VERSION;
+}
+
 export function migrateToLatest(data: unknown): CurrentSettings {
+  const result = migrateToLatestWithMetadata(data);
+  return result.settings;
+}
+
+export function migrateToLatestWithMetadata(data: unknown): MigrationResult {
   try {
     // Extract version from data
     let currentData = data;
@@ -29,6 +56,8 @@ export function migrateToLatest(data: unknown): CurrentSettings {
       );
     }
 
+    const migrationsApplied = sourceVersion < CURRENT_SETTINGS_VERSION;
+
     // Apply each migration in sequence starting from sourceVersion + 1
     for (let v = sourceVersion + 1; v <= CURRENT_SETTINGS_VERSION; v++) {
       const migration = SETTINGS_MIGRATIONS.find((m) => m.version === v);
@@ -46,7 +75,12 @@ export function migrateToLatest(data: unknown): CurrentSettings {
       );
     }
 
-    return validationResult.data as CurrentSettings;
+    return {
+      settings: validationResult.data as CurrentSettings,
+      migrationsApplied,
+      sourceVersion,
+      targetVersion: CURRENT_SETTINGS_VERSION,
+    };
   } catch (error) {
     console.error("Settings migration failed:", error);
     throw new Error(

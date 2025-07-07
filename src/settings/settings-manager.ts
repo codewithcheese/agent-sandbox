@@ -3,7 +3,11 @@ import type AgentSandboxPlugin from "../plugin";
 import { type CurrentSettings, SETTINGS_SCHEMAS } from "./settings";
 import { createDebug } from "$lib/debug.ts";
 import { SettingsTab } from "./settings-tab";
-import { migrateToLatest } from "./migrator.ts";
+import {
+  migrateToLatest,
+  migrateToLatestWithMetadata,
+  needsMigration,
+} from "./migrator.ts";
 import { usePlugin } from "$lib/utils";
 
 const debug = createDebug();
@@ -25,31 +29,56 @@ export class SettingsManager {
   async loadSettings(): Promise<void> {
     try {
       const data = (await this.plugin.loadData()) || {};
-      this.settings = migrateToLatest(data);
-      await this.saveSettings();
+
+      // Check if migrations are needed and create proactive backup
+      if (needsMigration(data)) {
+        await this.backupBeforeMigration(data);
+      }
+
+      const migrationResult = migrateToLatestWithMetadata(data);
+      this.settings = migrationResult.settings;
+
+      if (migrationResult.migrationsApplied) {
+        debug(
+          `Settings migrated from V${migrationResult.sourceVersion} to V${migrationResult.targetVersion}`,
+        );
+        await this.saveSettings();
+      }
     } catch (error) {
       console.error("Settings migration failed, using defaults.", error);
       new Notice(
         "Settings migration failed. Please downgrade the plugin to the previous version and file an issue on GitHub.",
       );
-      // Create a backup of old settings before resuming with defaults
-      await this.backup();
+      // Use defaults since backup was already created before migration attempt
       this.settings = migrateToLatest({});
     }
   }
 
-  private async backup(): Promise<void> {
+  private async backupBeforeMigration(data: unknown): Promise<void> {
     const { app } = usePlugin();
     const dataFilePath = `${this.plugin.manifest.dir}/data.json`;
+
+    // Get current version for backup filename
+    let currentVersion = 0;
+    if (data && typeof data === "object" && "version" in data) {
+      currentVersion = (data as { version: unknown }).version as number;
+    }
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const backupFilePath = `${this.plugin.manifest.dir}/data.json.${timestamp}.bak`;
-    // Read the current data.json
-    const currentData = await app.vault.read(dataFilePath);
-    // Write it to a backup file
-    await app.vault.write(backupFilePath, currentData);
-    new Notice(
-      `Settings backup created in plugin directory: data.json.${timestamp}.bak`,
-    );
+    const backupFilePath = `${this.plugin.manifest.dir}/data.json.v${currentVersion}.${timestamp}.bak`;
+
+    try {
+      // Read the current data.json
+      const currentData = await app.vault.read(dataFilePath);
+      // Write it to a backup file
+      await app.vault.write(backupFilePath, currentData);
+      debug(
+        `Settings backup created before migration: data.json.v${currentVersion}.${timestamp}.bak`,
+      );
+      new Notice(`Settings backed up before migration from V${currentVersion}`);
+    } catch (error) {
+      console.warn("Failed to create backup before migration:", error);
+    }
   }
 
   async saveSettings(): Promise<void> {
