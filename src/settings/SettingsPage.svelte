@@ -23,6 +23,27 @@
   // Start with chat tab as default
   let activeTab = $state("chat");
 
+  // Provider filter for models tab
+  let selectedProviderFilter = $state("all");
+
+  // Compute unique providers from models
+  let uniqueProviders = $derived(() => {
+    const providers = [
+      ...new Set(settings.models.map((m) => m.provider)),
+    ] as string[];
+    return providers.sort();
+  });
+
+  // Filter models based on selected provider, returning both model and original index
+  let filteredModels = $derived(() => {
+    if (selectedProviderFilter === "all") {
+      return settings.models.map((model, index) => ({ model, index }));
+    }
+    return settings.models
+      .map((model, index) => ({ model, index }))
+      .filter(({ model }) => model.provider === selectedProviderFilter);
+  });
+
   function getProviderInfo(providerId: string) {
     return (
       settings.providers.find((p) => p.id === providerId) || {
@@ -325,7 +346,53 @@
       </Tabs.Content>
 
       <Tabs.Content value="models" class="tab-content">
-        <!-- Models section -->
+        <!-- Provider filter -->
+        <div class="setting-item">
+          <div class="setting-item-info">
+            <div class="setting-item-name">Filter by provider</div>
+            <div class="setting-item-description">
+              Show models from a specific provider
+            </div>
+          </div>
+          <div class="setting-item-control px-2">
+            <select
+              value={selectedProviderFilter}
+              onchange={(e) => {
+                selectedProviderFilter = e.currentTarget.value;
+              }}
+            >
+              <option value="all">All providers</option>
+              {#each uniqueProviders() as providerId}
+                <option value={providerId}>
+                  {getProviderInfo(providerId).name}
+                </option>
+              {/each}
+            </select>
+          </div>
+        </div>
+        {#if settings.models.length === 0}
+          <div class="setting-item">
+            <div class="setting-item-info">
+              <div class="setting-item-name">No models configured</div>
+              <div class="setting-item-description">
+                Add models to use with your agents.
+              </div>
+            </div>
+            <div class="setting-item-control"></div>
+          </div>
+        {:else if filteredModels().length === 0}
+          <div class="setting-item">
+            <div class="setting-item-info">
+              <div class="setting-item-name">
+                No models for selected provider
+              </div>
+              <div class="setting-item-description">
+                No models found for the selected provider filter.
+              </div>
+            </div>
+            <div class="setting-item-control"></div>
+          </div>
+        {/if}
         <div class="setting-item setting-item-heading">
           <div class="setting-item-info">
             <div class="setting-item-name">Models</div>
@@ -349,18 +416,7 @@
             />
           </div>
         </div>
-        {#if settings.models.length === 0}
-          <div class="setting-item">
-            <div class="setting-item-info">
-              <div class="setting-item-name">No models configured</div>
-              <div class="setting-item-description">
-                Add models to use with your agents.
-              </div>
-            </div>
-            <div class="setting-item-control"></div>
-          </div>
-        {/if}
-        {#each settings.models as model, index}
+        {#each filteredModels() as { model, index }}
           <div class="setting-item">
             <div class="setting-item-info">
               <div class="setting-item-name">{model.id}</div>
