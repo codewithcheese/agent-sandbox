@@ -117,7 +117,7 @@
           <AgentMessage agent={selectedAgent} modelId={chat.options.modelId} />
         {/if}
         <!-- messages -->
-        <div class="flex flex-col w-full flex-1 gap-1">
+        <div class="flex flex-col w-full flex-1 gap-2">
           {#each chat.messages as message, index}
             {#if message.role === "system"}
               <!-- do not render system message -->

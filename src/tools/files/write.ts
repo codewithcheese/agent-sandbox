@@ -3,6 +3,29 @@ import { normalizePath, TFile, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
 import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
+import { type ToolUIPart } from "ai";
+
+// Define the UI tool type for the write tool
+type WriteUITool = {
+  input: {
+    file_path: string;
+    content: string;
+  };
+  output:
+    | {
+        type: "update" | "create";
+        filePath: string;
+        message: string;
+        contentSnippet?: string;
+      }
+    | {
+        error: string;
+        message?: string;
+        meta?: any;
+      };
+};
+
+type WriteToolUIPart = ToolUIPart<{ Write: WriteUITool }>;
 
 /**
  * Features:
@@ -196,4 +219,52 @@ export const writeTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: writeInputSchema,
   execute,
+  generateDataPart: (toolPart: WriteToolUIPart, streamingInfo) => {
+    const { state, input } = toolPart;
+
+    // Helper function to get content size info
+    const getContentSize = (content: string) => {
+      const lines = content.split('\n').length;
+      const chars = content.length;
+      
+      // If it's a small file, show line count
+      if (lines <= 1000) {
+        return `${lines} lines`;
+      }
+      // For larger files, show KB size
+      const kb = (chars / 1024).toFixed(1);
+      return `${kb} KB`;
+    };
+
+    // Show path and content size as soon as we have input
+    if (state === "input-available" || state === "input-streaming") {
+      if (!input?.file_path) return null;
+      
+      return {
+        path: input.file_path,
+        lines: input.content ? getContentSize(input.content) : undefined,
+        tokenCount: streamingInfo?.tokenCount,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      if (!output || 'error' in output) return null;
+
+      return {
+        path: input.file_path,
+        lines: input.content ? getContentSize(input.content) : undefined,
+        context: output.type === "create" ? "(created)" : "(updated)",
+      };
+    }
+
+    if (state === "output-error") {
+      return {
+        path: input?.file_path,
+        context: "(error)",
+      };
+    }
+
+    return null;
+  },
 };

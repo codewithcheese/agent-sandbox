@@ -59,7 +59,7 @@ function updateToolDataPart(
 
   try {
     const toolDef = getToolDefinition(toolCall.toolName);
-    if (toolDef?.type === "local" && toolDef.generateDataPart) {
+    if (toolDef?.generateDataPart) {
       const uiData = toolDef.generateDataPart(toolPart, streamingInfo);
       if (uiData) {
         const dataPart = {

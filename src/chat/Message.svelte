@@ -202,7 +202,7 @@
               prose,
               message.role === "user"
                 ? "bg-(--background-primary-alt) border border-(--background-modifier-border) rounded p-4"
-                : "py-2",
+                : "",
             )}
           >
             <Markdown md={part.text} renderObsidian={true} />

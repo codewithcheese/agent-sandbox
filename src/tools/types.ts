@@ -15,41 +15,12 @@ export type ToolCallOptionsWithContext = ToolCallOptions & {
 };
 
 export type ToolUIData = {
-  title?: string;
-  description?: string;
-  status?: 'loading' | 'success' | 'error' | 'streaming';
-  
-  // Streaming info
-  streamingInfo?: {
-    tokenCount: number;
-    isStreaming: boolean;
-  };
-  
-  // Generic key-value pairs for any tool info
-  infoItems?: {
-    icon: string; // Lucide icon name
-    label: string;
-    value: string;
-    color?: 'normal' | 'muted' | 'faint' | 'accent' | 'success' | 'warning' | 'error';
-  }[];
-  
-  // Generic preview content
-  preview?: {
-    type: 'text' | 'image' | 'json' | 'list';
-    content: string;
-    truncated?: boolean;
-    maxHeight?: string;
-  };
-  
-  // Generic actions
-  actions?: {
-    icon: string;
-    label: string;
-    onClick: () => void;
-  }[];
-  
-  // Additional metadata (fallback)
-  metadata?: Record<string, any>;
+  title?: string;        // Override tool name: "Text File" vs "Read"
+  path?: string;         // File path - clickable to open in Obsidian
+  context?: string;      // Brief context: "(error)" etc.
+  contextStyle?: "normal" | "mono"; // Style for context display
+  lines?: string;        // Line information: "1-100/500" or "45 lines" etc.
+  tokenCount?: number;   // Token count for streaming display
 };
 
 export type ToolDefinition = LocalToolDefinition | ProviderToolDefinition;
@@ -81,4 +52,8 @@ export type ProviderToolDefinition = {
   prompt?: string;
   providers: string[];
   createTool: (providerId: string, options: any) => Tool;
+  generateDataPart?: (
+    toolPart: ToolUIPart,
+    streamingInfo?: { tokenCount: number }
+  ) => ToolUIData | null;
 };
