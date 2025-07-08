@@ -12,6 +12,7 @@
   import { cn, usePlugin } from "$lib/utils";
   import type { Chat, UIMessageWithMetadata } from "./chat.svelte.ts";
   import { openToolPartModal } from "$lib/modals/open-tool-part-model.ts";
+  import { openUsageInfoModal } from "$lib/modals/open-usage-info-modal.ts";
   import { openPath } from "$lib/utils/obsidian.ts";
   import { setContext } from "svelte";
   import { getBaseName } from "$lib/utils/path.ts";
@@ -180,6 +181,15 @@
             <RefreshCwIcon class="size-4" />
           </button>
         {/if}
+      {:else if message.role === "assistant" && message.metadata?.usage}
+        <!-- Assistant message usage info button -->
+        <button
+          class="clickable-icon"
+          aria-label="View usage information"
+          onclick={() => openUsageInfoModal(message)}
+        >
+          <InfoIcon class="size-4" />
+        </button>
       {/if}
     </div>
     <!-- Render all parts in their original order -->

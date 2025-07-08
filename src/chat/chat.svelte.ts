@@ -34,6 +34,7 @@ import { syncChangesReminder } from "./system-reminders.ts";
 import { getTextFromParts, filterIncompleteToolParts } from "$lib/utils/ai.ts";
 import { MergeView } from "$lib/merge/merge-view.svelte.ts";
 import { MetadataCacheOverlay } from "./metadata-cache-overlay.ts";
+import type { LanguageModelV2Usage } from "@ai-sdk/provider";
 
 const debug = createDebug();
 
@@ -69,7 +70,14 @@ export type WithUserMetadata = {
 
 export type WithAssistantMetadata = {
   role: "assistant";
-  metadata?: {};
+  metadata?: {
+    usage?: LanguageModelV2Usage;
+    finishReason?: string;
+    accountId?: string;
+    accountName?: string;
+    provider?: string;
+    modelId?: string;
+  };
 };
 
 export type UIMessageWithMetadata = UIMessage<{ createdAt: Date }> &
@@ -86,7 +94,7 @@ export function registerChatRenameHandler() {
   // Update cache and instance on rename
   const plugin = usePlugin();
   plugin.registerEvent(
-    plugin.app.vault.on("rename", async (file, oldPath) => {
+    plugin.app.vault.on("rename", async (file: TFile, oldPath: string) => {
       // if in cache
       const chatRef = chatCache.get(oldPath);
       if (!chatRef) return;
@@ -550,7 +558,29 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
             });
           },
           onFinish: async (result) => {
-            debug("Finished", result, $state.snapshot(this.messages));
+            // Find the last assistant message that was created during streaming
+            const lastAssistantMessage = this.messages.findLast(
+              (m) => m.role === "assistant",
+            );
+
+            if (lastAssistantMessage && result.usage) {
+              // Attach usage information to the assistant message
+              lastAssistantMessage.metadata = {
+                ...lastAssistantMessage.metadata,
+                usage: result.usage,
+                finishReason: result.finishReason,
+                accountId: account.id,
+                accountName: account.name,
+                provider: account.provider,
+                modelId: modelId,
+              };
+            }
+
+            debug(
+              "Finished with usage",
+              result.usage,
+              $state.snapshot(this.messages),
+            );
           },
         });
 
@@ -563,6 +593,8 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         for await (const chunk of stream.fullStream) {
           applyStreamPartToMessages(this.messages, chunk, streamingState);
         }
+
+        debug("Finished streaming", $state.snapshot(this.messages));
 
         this.vault.computeChanges();
         if (this.vault.changes.length > 0) {

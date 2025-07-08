@@ -95,7 +95,7 @@
 
         <div class="setting-item">
           <div class="setting-item-info">
-            <div class="setting-item-name">Chats path</div>
+            <div class="setting-item-name">Save path</div>
             <div class="setting-item-description">
               Where to save your chat files
             </div>
