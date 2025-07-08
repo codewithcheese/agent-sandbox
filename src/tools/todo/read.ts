@@ -3,8 +3,24 @@ import { createDebug } from "$lib/debug";
 import type { ToolCallOptionsWithContext, LocalToolDefinition } from "../types";
 import { invariant } from "@epic-web/invariant";
 import { TODOS_STORE_KEY, type TodoItem } from "./shared.ts"; // Import from TodoWrite
+import { type ToolUIPart } from "ai";
 
 const debug = createDebug();
+
+// Define the UI tool type for the todo read tool
+type TodoReadUITool = {
+  input: {};
+  output: {
+    todos: TodoItem[];
+    count: number;
+    llmConfirmation: string;
+  } | {
+    error: string;
+    message?: string;
+  };
+};
+
+type TodoReadToolUIPart = ToolUIPart<{ TodoRead: TodoReadUITool }>;
 
 export const defaultConfig = {} as const;
 
@@ -113,4 +129,46 @@ export const toolDef: LocalToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: TodoReadToolUIPart) => {
+    const { state, input } = toolPart;
+
+    // Show reading todos during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      return {
+        title: "TodoRead",
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        return {
+          title: "TodoRead",
+          context: "(error)",
+        };
+      }
+      
+      // Handle success output
+      if (output && 'count' in output) {
+        const { count } = output;
+        const todoText = count === 1 ? "todo" : "todos";
+        
+        return {
+          title: "TodoRead",
+          lines: `${count} ${todoText}`,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        title: "TodoRead",
+        context: "(error)",
+      };
+    }
+
+    return null;
+  },
 };

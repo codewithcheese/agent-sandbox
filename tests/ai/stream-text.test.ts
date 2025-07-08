@@ -54,7 +54,7 @@ describe.skipIf(process.env.CI)("generateText", () => {
     const messages = [];
 
     const streamingState: StreamingState = {
-      partialToolCalls: {},
+      toolCalls: {},
       activeTextParts: {},
       activeReasoningParts: {},
     };

@@ -4,8 +4,33 @@ import { createDebug } from "$lib/debug";
 import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { usePlugin } from "$lib/utils";
+import { type ToolUIPart } from "ai";
 
 const debug = createDebug();
+
+// Define the UI tool type for the search tool
+type SearchUITool = {
+  input: {
+    query: string;
+  };
+  output: {
+    query: string;
+    results: Array<{
+      filePath: string;
+      score?: number;
+      matchSnippets?: string[];
+    }>;
+    numResults: number;
+    totalMatchesInVault?: number;
+    truncated: boolean;
+  } | {
+    error: string;
+    message?: string;
+    meta?: any;
+  };
+};
+
+type SearchToolUIPart = ToolUIPart<{ ObsidianSearch: SearchUITool }>;
 
 /**
  * Features:
@@ -322,4 +347,60 @@ export const searchTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: searchInputSchema,
   execute,
+  generateDataPart: (toolPart: SearchToolUIPart) => {
+    const { state, input } = toolPart;
+
+    // Show search query during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      if (!input?.query) return null;
+      
+      return {
+        title: "ObsidianSearch",
+        context: `"${input.query}"`,
+        contextStyle: "mono",
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        return {
+          title: "ObsidianSearch",
+          context: input?.query ? `"${input.query}" (error)` : "(error)",
+          contextStyle: "mono",
+        };
+      }
+      
+      // Handle success output
+      if (output && 'results' in output) {
+        const { numResults, totalMatchesInVault, truncated } = output;
+        
+        let resultsText = numResults === 1 ? "1 result" : `${numResults} results`;
+        
+        // Show truncation if applicable
+        if (truncated && totalMatchesInVault && totalMatchesInVault > numResults) {
+          resultsText = `${numResults}/${totalMatchesInVault}+ results`;
+        }
+        
+        return {
+          title: "ObsidianSearch",
+          context: input?.query ? `"${input.query}"` : undefined,
+          contextStyle: "mono",
+          lines: resultsText,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        title: "ObsidianSearch",
+        context: input?.query ? `"${input.query}" (error)` : "(error)",
+        contextStyle: "mono",
+      };
+    }
+
+    return null;
+  },
 };

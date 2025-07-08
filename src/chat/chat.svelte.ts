@@ -23,7 +23,7 @@ import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
 import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
-import type { AIAccount, ChatModel } from "../settings/settings.ts";
+import type { AIAccount } from "../settings/settings.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { loadFileParts } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
@@ -510,7 +510,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     messages: ModelMessage[],
     modelId: string,
     account: AIAccount,
-    activeTools: Record<string, any>,
+    activeTools: Record<string, Tool>,
     abortSignal: AbortSignal,
   ) {
     const provider = createAIProvider(account);
@@ -610,12 +610,12 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
 
         // As we receive partial tokens, we apply them to `this.messages`
         const streamingState: StreamingState = {
-          partialToolCalls: {},
+          toolCalls: {},
           activeTextParts: {},
           activeReasoningParts: {},
         };
-        for await (const chunk of stream.fullStream) {
-          applyStreamPartToMessages(this.messages, chunk, streamingState);
+        for await (const part of stream.fullStream) {
+          applyStreamPartToMessages(this.messages, part, streamingState);
         }
 
         debug("Finished streaming", $state.snapshot(this.messages));

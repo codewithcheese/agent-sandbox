@@ -11,14 +11,26 @@ import { encodeBase64 } from "$lib/utils/base64.ts";
 import { invariant } from "@epic-web/invariant";
 import type { UIMessageWithMetadata } from "../../chat/chat.svelte.ts";
 import { removeUndefinedFields } from "../../tools/files/shared.ts";
+import { getToolDefinition } from "../../tools";
 
 const debug = createDebug();
 
 // Streaming state tracks part indices for efficient updates
 export type StreamingState = {
-  partialToolCalls: Record<
+  toolCalls: Record<
     string,
-    { text: string; toolName: string; partIndex: number }
+    {
+      text: string;
+      toolName: string;
+      toolPartIndex: number;
+      dataPartIndex?: number;
+      tokenCount: number;
+      state:
+        | "input-streaming"
+        | "input-available"
+        | "output-available"
+        | "output-error";
+    }
   >;
   activeTextParts: Record<string, { partIndex: number }>;
   activeReasoningParts: Record<string, { partIndex: number }>;
@@ -30,6 +42,45 @@ function parsePartialJson(text: string): { value: unknown } {
   } catch {
     // Return the raw text if JSON parsing fails
     return { value: text };
+  }
+}
+
+/**
+ * Generate and update data part for a tool call
+ */
+function updateToolDataPart(
+  messages: UIMessageWithMetadata[],
+  toolCall: StreamingState["toolCalls"][string],
+  toolPart: ToolUIPart,
+) {
+  const message = messages[messages.length - 1];
+  if (!message) return;
+
+  try {
+    const toolDef = getToolDefinition(toolCall.toolName);
+    if (toolDef?.generateDataPart) {
+      const uiData = toolDef.generateDataPart(toolPart);
+      if (uiData) {
+        const dataPart = {
+          type: "data-tool-ui" as const,
+          id: toolPart.toolCallId,
+          data: uiData,
+        };
+
+        if (toolCall.dataPartIndex !== undefined) {
+          // Update existing data part
+          message.parts[toolCall.dataPartIndex] = dataPart;
+        } else {
+          // Add new data part and track its index
+          const dataPartIndex = message.parts.length;
+          message.parts.push(dataPart);
+          toolCall.dataPartIndex = dataPartIndex;
+        }
+      }
+    }
+  } catch (error) {
+    debug("Error generating tool UI data:", error);
+    // Continue without data part
   }
 }
 
@@ -160,108 +211,149 @@ export function applyStreamPartToMessages(
       const toolPartIndex = message.parts.length;
 
       // Track in streaming state with part index
-      streamingState.partialToolCalls[part.id] = {
+      streamingState.toolCalls[part.id] = {
         text: "",
         toolName: part.toolName,
-        partIndex: toolPartIndex,
+        toolPartIndex: toolPartIndex,
+        tokenCount: 0,
+        state: "input-streaming",
       };
 
-      message.parts.push({
+      const toolPart = {
         type: `tool-${part.toolName}`,
         state: "input-streaming",
         input: undefined,
         toolCallId: part.id,
         providerExecuted: part.providerExecuted,
-      } as ToolUIPart);
+      } as ToolUIPart;
+
+      message.parts.push(toolPart);
+
+      // Generate initial data part
+      updateToolDataPart(
+        messages,
+        streamingState.toolCalls[part.id],
+        toolPart,
+      );
       break;
     }
 
     case "tool-input-delta": {
-      const partialToolCall = streamingState.partialToolCalls[part.id];
-      invariant(partialToolCall, "Partial tool call not found");
+      const toolCall = streamingState.toolCalls[part.id];
+      invariant(toolCall, "Tool call not found");
 
       // Accumulate text in streaming state
-      partialToolCall.text += part.delta;
+      toolCall.text += part.delta;
+      toolCall.tokenCount += part.delta.length;
 
       // Parse partial JSON from accumulated text
-      const { value: partialArgs } = parsePartialJson(partialToolCall.text);
+      const { value: partialArgs } = parsePartialJson(toolCall.text);
 
       // Update the tool part using stored index
-      const toolPart = message.parts[partialToolCall.partIndex] as ToolUIPart;
-      message.parts[partialToolCall.partIndex] = {
-        ...toolPart,
-        state: "input-streaming",
+      const updatedToolPart = {
+        ...(message.parts[toolCall.toolPartIndex] as ToolUIPart),
+        state: "input-streaming" as const,
         input: partialArgs,
       };
+      message.parts[toolCall.toolPartIndex] = updatedToolPart;
+
+      // Update data part with streaming info
+      updateToolDataPart(messages, toolCall, updatedToolPart);
       break;
     }
 
     case "tool-input-end": {
-      const partialToolCall = streamingState.partialToolCalls[part.id];
-      invariant(partialToolCall, "Partial tool call not found");
+      const toolCall = streamingState.toolCalls[part.id];
+      invariant(toolCall, "Tool call not found");
 
       // Update the tool part using stored index
-      const toolPart = message.parts[partialToolCall.partIndex] as ToolUIPart;
-      message.parts[partialToolCall.partIndex] = {
-        ...toolPart,
-        state: "input-available",
+      const updatedToolPart = {
+        ...(message.parts[toolCall.toolPartIndex] as ToolUIPart),
+        state: "input-available" as const,
       };
+      message.parts[toolCall.toolPartIndex] = updatedToolPart;
+
+      toolCall.state = "input-available";
+
+      // Update data part for input-available state
+      updateToolDataPart(messages, toolCall, updatedToolPart);
       break;
     }
 
     case "tool-call": {
-      const partialToolCall = streamingState.partialToolCalls[part.toolCallId];
-      if (partialToolCall) {
-        message.parts[partialToolCall.partIndex] = {
+      const toolCall = streamingState.toolCalls[part.toolCallId];
+      if (toolCall) {
+        const updatedToolPart = {
           type: `tool-${part.toolName}`,
-          state: "input-available",
+          state: "input-available" as const,
           toolCallId: part.toolCallId,
           input: part.input,
           providerExecuted: part.providerExecuted,
-        };
+        } as ToolUIPart;
+
+        message.parts[toolCall.toolPartIndex] = updatedToolPart;
+        toolCall.state = "input-available";
+
+        // Update data part
+        updateToolDataPart(messages, toolCall, updatedToolPart);
       } else {
-        message.parts.push({
+        const toolPartIndex = message.parts.length;
+        const newToolPart = {
           type: `tool-${part.toolName}`,
-          state: "input-available",
+          state: "input-available" as const,
           toolCallId: part.toolCallId,
           input: part.input,
           providerExecuted: part.providerExecuted,
-        });
+        } as ToolUIPart;
+
+        message.parts.push(newToolPart);
+
+        // Track new tool call
+        const newToolCall = {
+          text: JSON.stringify(part.input),
+          toolName: part.toolName,
+          toolPartIndex: toolPartIndex,
+          tokenCount: JSON.stringify(part.input).length,
+          state: "input-available" as const,
+        };
+        streamingState.toolCalls[part.toolCallId] = newToolCall;
+
+        // Generate data part for new tool call
+        updateToolDataPart(messages, newToolCall, newToolPart);
       }
       break;
     }
 
     case "tool-result": {
-      const partIndex = message.parts.findIndex(
-        (p) =>
-          p.type === `tool-${part.toolName}` &&
-          // @ts-expect-error narrow doesn't work
-          p.toolCallId === part.toolCallId,
-      );
-      invariant(partIndex > -1, "Tool part not found");
+      const toolCall = streamingState.toolCalls[part.toolCallId];
+      invariant(toolCall, "Tool call not found");
 
-      message.parts[partIndex] = {
+      const updatedToolPart = {
         type: `tool-${part.toolName}`,
-        state: "output-available",
+        state: "output-available" as const,
         toolCallId: part.toolCallId,
         input: part.input,
         // tool message schema json value doesn't allow undefined
         // https://github.com/vercel/ai/blame/main/packages/ai/core/types/json-value.ts
         output: removeUndefinedFields(part.output),
         providerExecuted: part.providerExecuted,
-      };
+      } as ToolUIPart;
+
+      message.parts[toolCall.toolPartIndex] = updatedToolPart;
+      toolCall.state = "output-available";
+
+      // Update data part with final results
+      updateToolDataPart(messages, toolCall, updatedToolPart);
       break;
     }
 
     case "tool-error": {
-      const partIndex = message.parts
-        .filter((part): part is ToolUIPart => part.type.startsWith("tool-"))
-        .findIndex((p) => p.toolCallId === part.toolCallId);
-      invariant(partIndex > -1, "Tool part not found");
+      const toolCall = streamingState.toolCalls[part.toolCallId];
+      invariant(toolCall, "Tool call not found");
 
-      message.parts[partIndex] = {
+      const updatedToolPart = {
         type: `tool-${part.toolName}`,
-        state: "output-error",
+        state: "output-error" as const,
         toolCallId: part.toolCallId,
         input: part.input,
         errorText:
@@ -271,7 +363,13 @@ export function applyStreamPartToMessages(
               ? part.error
               : "Undefined tool error",
         providerExecuted: part.providerExecuted,
-      };
+      } as ToolUIPart;
+
+      message.parts[toolCall.toolPartIndex] = updatedToolPart;
+      toolCall.state = "output-error";
+
+      // Update data part with error state
+      updateToolDataPart(messages, toolCall, updatedToolPart);
       break;
     }
 
@@ -303,7 +401,7 @@ export function applyStreamPartToMessages(
       // Clear streaming state
       streamingState.activeTextParts = {};
       streamingState.activeReasoningParts = {};
-      streamingState.partialToolCalls = {};
+      streamingState.toolCalls = {};
       break;
 
     case "finish-step":

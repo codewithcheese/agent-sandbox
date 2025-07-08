@@ -15,6 +15,7 @@ import {
   ignoreMatchOptions,
   patternMatchOptions,
 } from "./shared.ts";
+import { type ToolUIPart } from "ai";
 
 /**
  * Features:
@@ -44,6 +45,29 @@ import {
  */
 
 const debug = createDebug();
+
+// Define the UI tool type for the glob tool
+type GlobUITool = {
+  input: {
+    pattern: string;
+    path?: string;
+    ignore?: string[];
+  };
+  output:
+    | {
+        filenames: string[];
+        numFiles: number;
+        totalMatchesBeforeLimit: number;
+        truncated: boolean;
+      }
+    | {
+        error: string;
+        message?: string;
+        meta?: any;
+      };
+};
+
+type GlobToolUIPart = ToolUIPart<{ Glob: GlobUITool }>;
 
 export const defaultConfig = {
   RESULT_LIMIT: 100, // Max number of files to return
@@ -222,4 +246,76 @@ export const globTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: globInputSchema,
   execute,
+  generateDataPart: (toolPart: GlobToolUIPart) => {
+    const { state, input } = toolPart;
+
+    // Helper function to format context with pattern and optional path
+    const formatContext = (
+      pattern: string,
+      path?: string,
+      hasError = false,
+    ) => {
+      const quotedPattern = `${pattern}`;
+      const pathInfo = path && path !== "/" ? ` in ${path}` : "";
+      const errorSuffix = hasError ? " (error)" : "";
+      return `${quotedPattern}${pathInfo}${errorSuffix}`;
+    };
+
+    // Show pattern (and path) during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      return {
+        title: "Glob",
+        context: input?.pattern
+          ? formatContext(input.pattern, input.path)
+          : undefined,
+        contextStyle: "mono",
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+
+      // Handle error output
+      if (output && "error" in output) {
+        return {
+          title: "Glob",
+          context: input?.pattern
+            ? formatContext(input.pattern, input.path, true)
+            : "(error)",
+          contextStyle: "mono",
+        };
+      }
+
+      // Handle success output
+      if (output && "filenames" in output) {
+        const { numFiles, totalMatchesBeforeLimit, truncated } = output;
+
+        let filesText = `${numFiles} files`;
+        if (truncated && totalMatchesBeforeLimit > numFiles) {
+          filesText = `${numFiles}/${totalMatchesBeforeLimit}+ files`;
+        }
+
+        return {
+          title: "Glob",
+          context: input?.pattern
+            ? formatContext(input.pattern, input.path)
+            : undefined,
+          contextStyle: "mono",
+          lines: filesText,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        title: "Glob",
+        context: input?.pattern
+          ? formatContext(input.pattern, input.path, true)
+          : "(error)",
+        contextStyle: "mono",
+      };
+    }
+
+    return null;
+  },
 };

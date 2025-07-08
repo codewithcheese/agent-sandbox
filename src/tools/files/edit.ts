@@ -6,6 +6,7 @@ import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
 import type { ReadState } from "../../chat/read-state.ts";
+import { type ToolUIPart } from "ai";
 
 /**
  * Features:
@@ -26,6 +27,28 @@ import type { ReadState } from "../../chat/read-state.ts";
  */
 
 const debug = createDebug();
+
+// Define the UI tool type for the edit tool
+type EditUITool = {
+  input: {
+    file_path: string;
+    old_string: string;
+    new_string: string;
+    expected_replacements?: number;
+  };
+  output: {
+    type: "update";
+    filePath: string;
+    message: string;
+    replacementsMade: number;
+  } | {
+    error: string;
+    message?: string;
+    meta?: any;
+  };
+};
+
+type EditToolUIPart = ToolUIPart<{ Edit: EditUITool }>;
 
 export const defaultConfig = {};
 
@@ -269,4 +292,51 @@ export const editTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: editInputSchema,
   execute,
+  generateDataPart: (toolPart: EditToolUIPart) => {
+    const { state, input } = toolPart;
+
+    // Show file path and expected replacements during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      if (!input?.file_path) return null;
+      
+      const expectedReplacements = input.expected_replacements ?? 1;
+      const replacementText = expectedReplacements === 1 ? "replacement" : "replacements";
+      
+      return {
+        path: input.file_path,
+        context: `${expectedReplacements} ${replacementText}`,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        return {
+          path: input?.file_path,
+          context: "(error)",
+        };
+      }
+      
+      // Handle success output
+      if (output && 'replacementsMade' in output) {
+        const replacementText = output.replacementsMade === 1 ? "replacement" : "replacements";
+        
+        return {
+          path: input.file_path,
+          lines: `${output.replacementsMade} ${replacementText}`,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        path: input?.file_path,
+        context: "(error)",
+      };
+    }
+
+    return null;
+  },
 };

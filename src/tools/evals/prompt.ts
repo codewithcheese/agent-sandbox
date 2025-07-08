@@ -7,8 +7,30 @@ import { createAIProvider } from "../../settings/providers.ts";
 import { createSystemContent } from "../../chat/system.ts";
 import { usePlugin } from "$lib/utils";
 import type { TFile } from "obsidian";
+import { type ToolUIPart } from "ai";
 
 const debug = createDebug();
+
+// Define the UI tool type for the prompt tool
+type PromptUITool = {
+  input: {
+    prompt_path: string;
+    inputs: string[];
+    temperature?: number;
+    model_id?: string;
+    account_name?: string;
+  };
+  output: {
+    outputs: string[];
+    totalProcessed: number;
+  } | {
+    error: string;
+    message?: string;
+    partialResults?: string[];
+  };
+};
+
+type PromptToolUIPart = ToolUIPart<{ Prompt: PromptUITool }>;
 
 const TOOL_NAME = "Prompt";
 const TOOL_DESCRIPTION =
@@ -201,4 +223,70 @@ export const promptTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: PromptToolUIPart) => {
+    const { state, input } = toolPart;
+
+    // Helper function to get prompt name from path
+    const getPromptName = (promptPath: string) => {
+      const parts = promptPath.split('/');
+      const filename = parts[parts.length - 1];
+      return filename?.replace(/\.(md|txt)$/, '') || 'prompt';
+    };
+
+    // Show prompt name, model, and input count during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      const promptName = input?.prompt_path ? getPromptName(input.prompt_path) : "prompt";
+      const inputCount = input?.inputs?.length || 0;
+      const modelId = input?.model_id || "default";
+      
+      return {
+        title: "Prompt",
+        path: input?.prompt_path,
+        context: `${promptName} • ${modelId} • ${inputCount} inputs`,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        const promptName = input?.prompt_path ? getPromptName(input.prompt_path) : "prompt";
+        const modelId = input?.model_id || "default";
+        
+        return {
+          title: "Prompt",
+          path: input?.prompt_path,
+          context: `${promptName} • ${modelId} (error)`,
+        };
+      }
+      
+      // Handle success output
+      if (output && 'totalProcessed' in output) {
+        const promptName = input?.prompt_path ? getPromptName(input.prompt_path) : "prompt";
+        const modelId = input?.model_id || "default";
+        const { totalProcessed } = output;
+        
+        return {
+          title: "Prompt",
+          path: input?.prompt_path,
+          context: `${promptName} • ${modelId}`,
+          lines: `${totalProcessed} outputs generated`,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      const promptName = input?.prompt_path ? getPromptName(input.prompt_path) : "prompt";
+      const modelId = input?.model_id || "default";
+      
+      return {
+        title: "Prompt",
+        path: input?.prompt_path,
+        context: `${promptName} • ${modelId} (error)`,
+      };
+    }
+
+    return null;
+  },
 };

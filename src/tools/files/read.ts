@@ -1,8 +1,30 @@
 import { z } from "zod";
-import { tool } from "ai";
+import { tool, type ToolUIPart } from "ai";
 import { normalizePath, TFile, TFolder, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
 import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
+
+// Define the UI tool type for the read tool
+type ReadUITool = {
+  input: {
+    file_path: string;
+    offset?: number;
+    limit?: number;
+  };
+  output:
+    | {
+        type: "image";
+        file: {
+          base64: string;
+          type: string;
+          originalSize: number;
+          file_path: string;
+        };
+      }
+    | string;
+};
+
+type ReadToolUIPart = ToolUIPart<{ Read: ReadUITool }>;
 
 /**
  * Features:
@@ -365,4 +387,39 @@ export const readTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: ReadToolUIPart) => {
+    const { state, input } = toolPart;
+
+    // Show path as soon as we have input
+    if (state === "input-available" || state === "input-streaming") {
+      return {
+        path: input?.file_path,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      if (output && typeof output === "object" && output.type === "image") {
+        return {
+          path: input.file_path,
+          lines: `${(output.file.originalSize / 1024).toFixed(1)} KB`,
+        };
+      } else if (typeof output === "string") {
+        const linesMatch = output.split("\n")[1]?.match(/^Lines (\d+)-(\d+) of (\d+):$/);
+        return {
+          path: input.file_path,
+          lines: linesMatch ? `${linesMatch[1]}-${linesMatch[2]} of ${linesMatch[3]}` : "",
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        path: input?.file_path,
+        context: "(error)",
+      };
+    }
+
+    return null;
+  },
 };

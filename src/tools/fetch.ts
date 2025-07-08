@@ -3,6 +3,7 @@ import { requestUrl } from "obsidian";
 import { createDebug } from "$lib/debug";
 import type { ToolDefinition, ToolCallOptionsWithContext } from "./types.ts";
 import { invariant } from "@epic-web/invariant";
+import { type ToolUIPart } from "ai";
 
 /**
  * Features:
@@ -32,6 +33,39 @@ import { invariant } from "@epic-web/invariant";
  */
 
 const debug = createDebug();
+
+// Define the UI tool type for the fetch tool
+type FetchUITool = {
+  input: {
+    url: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    content_type?: string;
+    response_type?: string;
+    throw_on_error?: boolean;
+  };
+  output: {
+    success: true;
+    status: number;
+    headers: Record<string, string>;
+    response_type: string;
+    body: any;
+    size: number;
+    url: string;
+    method: string;
+    duration: number;
+  } | {
+    error: string;
+    message?: string;
+    status?: number;
+    url?: string;
+    method?: string;
+    duration?: number;
+  };
+};
+
+type FetchToolUIPart = ToolUIPart<{ Fetch: FetchUITool }>;
 
 export const defaultConfig = {
   MAX_RESPONSE_SIZE: 10 * 1024 * 1024, // 10MB
@@ -350,4 +384,78 @@ export const fetchTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: FetchToolUIPart) => {
+    const { state, input } = toolPart;
+
+    // Helper function to format URL and method
+    const formatContext = (url: string, method: string = "GET", hasError = false) => {
+      try {
+        const urlObj = new URL(url);
+        const host = urlObj.hostname;
+        const path = urlObj.pathname;
+        const displayUrl = path === "/" ? host : `${host}${path}`;
+        const errorSuffix = hasError ? " (error)" : "";
+        return `${method.toUpperCase()} ${displayUrl}${errorSuffix}`;
+      } catch {
+        const errorSuffix = hasError ? " (error)" : "";
+        return `${method.toUpperCase()} ${url}${errorSuffix}`;
+      }
+    };
+
+    // Show method and URL during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      if (!input?.url) return null;
+      
+      const method = input.method || "GET";
+      
+      return {
+        title: "Fetch",
+        context: formatContext(input.url, method),
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        const method = output.method || input?.method || "GET";
+        const url = output.url || input?.url || "";
+        
+        return {
+          title: "Fetch",
+          context: formatContext(url, method, true),
+        };
+      }
+      
+      // Handle success output
+      if (output && 'success' in output) {
+        const { status, size, duration } = output;
+        
+        // Format size
+        const sizeText = size < 1024 ? `${size}B` : `${(size / 1024).toFixed(1)}KB`;
+        
+        // Format duration
+        const durationText = duration < 1000 ? `${duration}ms` : `${(duration / 1000).toFixed(1)}s`;
+        
+        return {
+          title: "Fetch",
+          context: formatContext(output.url, output.method),
+          lines: `${status} • ${sizeText} • ${durationText}`,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      const method = input?.method || "GET";
+      const url = input?.url || "";
+      
+      return {
+        title: "Fetch",
+        context: formatContext(url, method, true),
+      };
+    }
+
+    return null;
+  },
 };

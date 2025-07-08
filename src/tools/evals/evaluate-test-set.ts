@@ -7,8 +7,30 @@ import {
   resolveJudgeConfig,
   validateTestSetTable,
 } from "./evaluation-engine.ts";
+import { type ToolUIPart } from "ai";
 
 const debug = createDebug();
+
+// Define the UI tool type for the evaluate test set tool
+type EvaluateTestSetUITool = {
+  input: {
+    test_set_path: string;
+    judge_agent_path: string;
+  };
+  output: {
+    passed: number;
+    failed: number;
+    total: number;
+    accuracy: number;
+    test_set_path: string;
+    judge_agent_path: string;
+  } | {
+    error: string;
+    message?: string;
+  };
+};
+
+type EvaluateTestSetToolUIPart = ToolUIPart<{ EvaluateTestSet: EvaluateTestSetUITool }>;
 
 const TOOL_NAME = "EvaluateTestSet";
 const TOOL_DESCRIPTION =
@@ -118,4 +140,59 @@ export const evaluateTestSetTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: EvaluateTestSetToolUIPart) => {
+    const { state, input } = toolPart;
+
+    // Helper function to get test set name from path
+    const getTestSetName = (testSetPath: string) => {
+      const parts = testSetPath.split('/');
+      const filename = parts[parts.length - 1];
+      return filename?.replace(/\.(md|txt)$/, '') || 'test-set';
+    };
+
+    // Show test set name during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      const testSetName = input?.test_set_path ? getTestSetName(input.test_set_path) : "test-set";
+      
+      return {
+        title: "EvaluateTestSet",
+        path: input?.test_set_path,
+        context: testSetName,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        return {
+          title: "EvaluateTestSet",
+          path: input?.test_set_path,
+          context: "(error)",
+        };
+      }
+      
+      // Handle success output
+      if (output && 'total' in output) {
+        const { passed, total } = output;
+        
+        return {
+          title: "EvaluateTestSet",
+          path: input?.test_set_path,
+          lines: `${passed}/${total} passed`,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        title: "EvaluateTestSet",
+        path: input?.test_set_path,
+        context: "(error)",
+      };
+    }
+
+    return null;
+  },
 };

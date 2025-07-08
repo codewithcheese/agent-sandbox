@@ -211,11 +211,31 @@ export async function loadToolsFromFrontmatter(
       vault: chat.vault,
       config: {},
       sessionStore: chat.sessionStore,
-      metadataCache: new MetadataCacheOverlay(chat.vault, plugin.app.metadataCache),
+      metadataCache: new MetadataCacheOverlay(
+        chat.vault,
+        plugin.app.metadataCache,
+      ),
     });
   }
 
   return tools;
+}
+
+/**
+ * Get tool definition by name from the registry
+ * Maps tool names to registry keys since they may differ
+ */
+export function getToolDefinition(toolName: string): ToolDefinition | null {
+  // First try direct lookup
+  if (toolRegistry[toolName]) {
+    return toolRegistry[toolName];
+  }
+
+  // Then try to find by tool definition name
+  const toolDef = Object.values(toolRegistry).find(
+    (def) => def.name === toolName,
+  );
+  return toolDef || null;
 }
 
 export async function executeToolCall(toolPart: ToolUIPart, chat: Chat) {
@@ -239,7 +259,10 @@ export async function executeToolCall(toolPart: ToolUIPart, chat: Chat) {
         vault: chat.vault,
         config: {},
         sessionStore: chat.sessionStore,
-        metadataCache: new MetadataCacheOverlay(chat.vault, plugin.app.metadataCache),
+        metadataCache: new MetadataCacheOverlay(
+          chat.vault,
+          plugin.app.metadataCache,
+        ),
       };
     },
   });
