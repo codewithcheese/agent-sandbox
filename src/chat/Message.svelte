@@ -20,6 +20,7 @@
   import type { ChatInputState } from "./chat-input-state.svelte.ts";
   import { getTextFromParts } from "$lib/utils/ai.ts";
   import { getToolName, isToolUIPart } from "ai";
+  import ToolUI from "./ToolUI.svelte";
 
   type Props = {
     chat: Chat;
@@ -226,23 +227,7 @@
             </button>
           </div>
         {:else if isToolUIPart(part)}
-          <div class="rounded border border-(--background-modifier-border)">
-            <div class="flex flex-row gap-1 text-xs p-1 items-center">
-              <span>
-                {#if part.state === "output-available"}🟢{:else if part.state === "output-error"}🔴{:else}🟡{/if}
-              </span>
-              <div class="flex-1">{getToolName(part)}</div>
-              <button
-                type="button"
-                class="clickable-icon"
-                aria-label="Open tool invocation info"
-                onclick={() => openToolPartModal(chat, part)}
-              >
-                <InfoIcon class="size-3" />
-              </button>
-              <!-- fixme: display tool call metadata-->
-            </div>
-          </div>
+          <ToolUI {chat} toolPart={part} {message} />
         {/if}
       {/each}
     </div>

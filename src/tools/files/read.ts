@@ -1,8 +1,30 @@
 import { z } from "zod";
-import { tool } from "ai";
+import { tool, type ToolUIPart } from "ai";
 import { normalizePath, TFile, TFolder, type Vault } from "obsidian";
 import { createDebug } from "$lib/debug";
 import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
+
+// Define the UI tool type for the read tool
+type ReadUITool = {
+  input: {
+    file_path: string;
+    offset?: number;
+    limit?: number;
+  };
+  output:
+    | {
+        type: "image";
+        file: {
+          base64: string;
+          type: string;
+          originalSize: number;
+          file_path: string;
+        };
+      }
+    | string;
+};
+
+type ReadToolUIPart = ToolUIPart<{ Read: ReadUITool }>;
 
 /**
  * Features:
@@ -365,4 +387,167 @@ export const readTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: ReadToolUIPart, streamingInfo) => {
+    const { state, input } = toolPart;
+    debugger;
+
+    // Streaming state
+    if (state === "input-streaming") {
+      return {
+        title: "Read File",
+        description: "Preparing to read file...",
+        status: "streaming",
+        streamingInfo: {
+          tokenCount: streamingInfo?.tokenCount || 0,
+          isStreaming: true,
+        },
+        infoItems: [
+          {
+            icon: "clock",
+            label: "Status",
+            value: "Streaming",
+            color: "accent",
+          },
+          {
+            icon: "hash",
+            label: "Tokens",
+            value: String(streamingInfo?.tokenCount || 0),
+            color: "muted",
+          },
+        ],
+      };
+    }
+
+    // Input available - show what file will be read
+    if (state === "input-available") {
+      return {
+        title: "Read File",
+        description: "Reading file...",
+        status: "loading",
+        infoItems: [
+          {
+            icon: "file",
+            label: "File",
+            value: input?.file_path || "Unknown",
+            color: "normal",
+          },
+          {
+            icon: "hash",
+            label: "Lines",
+            value: input?.limit ? String(input.limit) : "All",
+            color: "muted",
+          },
+          {
+            icon: "clock",
+            label: "Status",
+            value: "Processing",
+            color: "accent",
+          },
+        ],
+      };
+    }
+
+    // Success - show file content
+    if (state === "output-available") {
+      const { output } = toolPart;
+      if (output && typeof output === "object" && output.type === "image") {
+        return {
+          title: "Image File",
+          description: "Image loaded successfully",
+          status: "success",
+          infoItems: [
+            {
+              icon: "file",
+              label: "Path",
+              value: input.file_path,
+              color: "normal",
+            },
+            {
+              icon: "ruler",
+              label: "Size",
+              value: `${(output.file.originalSize / 1024).toFixed(1)} KB`,
+              color: "muted",
+            },
+            {
+              icon: "image",
+              label: "Type",
+              value: output.file.type,
+              color: "success",
+            },
+          ],
+          preview: {
+            type: "image",
+            content: output.file.base64,
+            maxHeight: "12rem",
+          },
+        };
+      } else if (typeof output === "string") {
+        // Extract file info from formatted output
+        const lines = output.split("\n");
+        const filePathMatch = lines[0]?.match(/^File: (.+)$/);
+        const linesMatch = lines[1]?.match(/^Lines (\d+)-(\d+) of (\d+):$/);
+
+        return {
+          title: "Text File",
+          description: "File read successfully",
+          status: "success",
+          infoItems: [
+            {
+              icon: "file",
+              label: "Path",
+              value: filePathMatch?.[1] || input.file_path,
+              color: "normal",
+            },
+            {
+              icon: "hash",
+              label: "Lines Read",
+              value: linesMatch
+                ? `${linesMatch[1]}-${linesMatch[2]}`
+                : "Unknown",
+              color: "muted",
+            },
+            {
+              icon: "type",
+              label: "Total Lines",
+              value: linesMatch?.[3] || "Unknown",
+              color: "muted",
+            },
+            {
+              icon: "check",
+              label: "Status",
+              value: "Completed",
+              color: "success",
+            },
+          ],
+          preview: {
+            type: "text",
+            content:
+              output.length > 800 ? output.substring(0, 800) + "..." : output,
+            truncated: output.length > 800,
+            maxHeight: "8rem",
+          },
+        };
+      }
+    }
+
+    // Error state
+    if (state === "output-error") {
+      return {
+        title: "Read File",
+        description: "Failed to read file",
+        status: "error",
+        infoItems: [
+          {
+            icon: "file",
+            label: "Path",
+            value: input.file_path,
+            color: "normal",
+          },
+          { icon: "x", label: "Status", value: "Error", color: "error" },
+        ],
+      };
+    }
+
+    return null;
+  },
 };

@@ -4,6 +4,7 @@ import type {
   TextUIPart,
   UIMessage,
   UIMessagePart,
+  DataUIPart,
 } from "ai";
 import { extractDataFromDataUrl } from "$lib/utils/data-url.ts";
 import { createDebug } from "$lib/debug.ts";

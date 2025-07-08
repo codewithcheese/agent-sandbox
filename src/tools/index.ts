@@ -218,6 +218,21 @@ export async function loadToolsFromFrontmatter(
   return tools;
 }
 
+/**
+ * Get tool definition by name from the registry
+ * Maps tool names to registry keys since they may differ
+ */
+export function getToolDefinition(toolName: string): ToolDefinition | null {
+  // First try direct lookup
+  if (toolRegistry[toolName]) {
+    return toolRegistry[toolName];
+  }
+  
+  // Then try to find by tool definition name
+  const toolDef = Object.values(toolRegistry).find(def => def.name === toolName);
+  return toolDef || null;
+}
+
 export async function executeToolCall(toolPart: ToolUIPart, chat: Chat) {
   const tool = Object.values(toolRegistry).find(
     (toolDef) => toolDef.name === getToolName(toolPart),
