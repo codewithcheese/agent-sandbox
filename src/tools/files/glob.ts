@@ -246,7 +246,7 @@ export const globTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: globInputSchema,
   execute,
-  generateDataPart: (toolPart: GlobToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: GlobToolUIPart) => {
     const { state, input } = toolPart;
 
     // Helper function to format context with pattern and optional path
@@ -269,7 +269,6 @@ export const globTool: ToolDefinition = {
           ? formatContext(input.pattern, input.path)
           : undefined,
         contextStyle: "mono",
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

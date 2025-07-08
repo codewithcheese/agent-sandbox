@@ -140,7 +140,7 @@ export const evaluateTestSetTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
-  generateDataPart: (toolPart: EvaluateTestSetToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: EvaluateTestSetToolUIPart) => {
     const { state, input } = toolPart;
 
     // Helper function to get test set name from path
@@ -158,7 +158,6 @@ export const evaluateTestSetTool: ToolDefinition = {
         title: "EvaluateTestSet",
         path: input?.test_set_path,
         context: testSetName,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

@@ -384,7 +384,7 @@ export const fetchTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
-  generateDataPart: (toolPart: FetchToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: FetchToolUIPart) => {
     const { state, input } = toolPart;
 
     // Helper function to format URL and method
@@ -411,7 +411,6 @@ export const fetchTool: ToolDefinition = {
       return {
         title: "Fetch",
         context: formatContext(input.url, method),
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

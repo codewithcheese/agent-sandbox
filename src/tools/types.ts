@@ -20,7 +20,6 @@ export type ToolUIData = {
   context?: string;      // Brief context: "(error)" etc.
   contextStyle?: "normal" | "mono"; // Style for context display
   lines?: string;        // Line information: "1-100/500" or "45 lines" etc.
-  tokenCount?: number;   // Token count for streaming display
 };
 
 export type ToolDefinition = LocalToolDefinition | ProviderToolDefinition;
@@ -39,8 +38,7 @@ export type LocalToolDefinition<
     options: ToolCallOptionsWithContext,
   ) => Promise<any>;
   generateDataPart?: (
-    toolPart: ToolUIPart,
-    streamingInfo?: { tokenCount: number }
+    toolPart: ToolUIPart
   ) => ToolUIData | null;
 };
 
@@ -53,7 +51,6 @@ export type ProviderToolDefinition = {
   providers: string[];
   createTool: (providerId: string, options: any) => Tool;
   generateDataPart?: (
-    toolPart: ToolUIPart,
-    streamingInfo?: { tokenCount: number }
+    toolPart: ToolUIPart
   ) => ToolUIData | null;
 };

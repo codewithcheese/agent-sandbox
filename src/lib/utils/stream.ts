@@ -52,7 +52,6 @@ function updateToolDataPart(
   messages: UIMessageWithMetadata[],
   toolCall: StreamingState["toolCalls"][string],
   toolPart: ToolUIPart,
-  streamingInfo?: { tokenCount: number },
 ) {
   const message = messages[messages.length - 1];
   if (!message) return;
@@ -60,7 +59,7 @@ function updateToolDataPart(
   try {
     const toolDef = getToolDefinition(toolCall.toolName);
     if (toolDef?.generateDataPart) {
-      const uiData = toolDef.generateDataPart(toolPart, streamingInfo);
+      const uiData = toolDef.generateDataPart(toolPart);
       if (uiData) {
         const dataPart = {
           type: "data-tool-ui" as const,
@@ -235,7 +234,6 @@ export function applyStreamPartToMessages(
         messages,
         streamingState.toolCalls[part.id],
         toolPart,
-        { tokenCount: 0 },
       );
       break;
     }
@@ -260,9 +258,7 @@ export function applyStreamPartToMessages(
       message.parts[toolCall.toolPartIndex] = updatedToolPart;
 
       // Update data part with streaming info
-      updateToolDataPart(messages, toolCall, updatedToolPart, {
-        tokenCount: toolCall.tokenCount,
-      });
+      updateToolDataPart(messages, toolCall, updatedToolPart);
       break;
     }
 
@@ -280,9 +276,7 @@ export function applyStreamPartToMessages(
       toolCall.state = "input-available";
 
       // Update data part for input-available state
-      updateToolDataPart(messages, toolCall, updatedToolPart, {
-        tokenCount: toolCall.tokenCount,
-      });
+      updateToolDataPart(messages, toolCall, updatedToolPart);
       break;
     }
 
@@ -301,9 +295,7 @@ export function applyStreamPartToMessages(
         toolCall.state = "input-available";
 
         // Update data part
-        updateToolDataPart(messages, toolCall, updatedToolPart, {
-          tokenCount: toolCall.tokenCount,
-        });
+        updateToolDataPart(messages, toolCall, updatedToolPart);
       } else {
         const toolPartIndex = message.parts.length;
         const newToolPart = {
@@ -327,9 +319,7 @@ export function applyStreamPartToMessages(
         streamingState.toolCalls[part.toolCallId] = newToolCall;
 
         // Generate data part for new tool call
-        updateToolDataPart(messages, newToolCall, newToolPart, {
-          tokenCount: newToolCall.tokenCount,
-        });
+        updateToolDataPart(messages, newToolCall, newToolPart);
       }
       break;
     }
@@ -353,9 +343,7 @@ export function applyStreamPartToMessages(
       toolCall.state = "output-available";
 
       // Update data part with final results
-      updateToolDataPart(messages, toolCall, updatedToolPart, {
-        tokenCount: toolCall.tokenCount,
-      });
+      updateToolDataPart(messages, toolCall, updatedToolPart);
       break;
     }
 
@@ -381,9 +369,7 @@ export function applyStreamPartToMessages(
       toolCall.state = "output-error";
 
       // Update data part with error state
-      updateToolDataPart(messages, toolCall, updatedToolPart, {
-        tokenCount: toolCall.tokenCount,
-      });
+      updateToolDataPart(messages, toolCall, updatedToolPart);
       break;
     }
 

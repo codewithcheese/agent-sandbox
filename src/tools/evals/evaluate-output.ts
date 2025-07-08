@@ -155,7 +155,7 @@ export const evaluateOutputTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
-  generateDataPart: (toolPart: EvaluateOutputToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: EvaluateOutputToolUIPart) => {
     const { state, input } = toolPart;
 
     // Helper function to get judge name from path
@@ -172,7 +172,6 @@ export const evaluateOutputTool: ToolDefinition = {
       return {
         title: "EvaluateOutput",
         context: judgeName,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

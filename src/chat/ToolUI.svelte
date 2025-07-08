@@ -29,6 +29,8 @@
     ),
   );
 
+  $inspect("ToolUI", toolPart, dataPart);
+
   // Helper function to format file path like Obsidian
   function formatPath(path: string) {
     const ext = path.split(".").pop();
@@ -50,9 +52,9 @@
         class="size-3 text-(--color-blue) animate-pulse flex-shrink-0"
       />
       <!-- Token count for streaming - comes from data part -->
-      {#if dataPart?.data.tokenCount}
+      {#if typeof toolPart.input === "string"}
         <span class="text-(--text-muted) text-xs">
-          {dataPart.data.tokenCount}
+          {Math.abs(Math.ceil(toolPart.input.length / 4))}
         </span>
       {/if}
     </div>
@@ -87,10 +89,18 @@
       </a>
       <span class="text-(--text-muted)">{normalizePath(dirPath)}</span>
       {#if dataPart?.data.context}
-        <span class="text-(--text-muted)" class:font-mono={dataPart.data.contextStyle === "mono"}>{dataPart.data.context}</span>
+        <span
+          class="text-(--text-muted)"
+          class:font-mono={dataPart.data.contextStyle === "mono"}
+          >{dataPart.data.context}</span
+        >
       {/if}
     {:else if dataPart?.data.context}
-      <span class="text-(--text-muted) ml-1" class:font-mono={dataPart.data.contextStyle === "mono"}>{dataPart.data.context}</span>
+      <span
+        class="text-(--text-muted) ml-1"
+        class:font-mono={dataPart.data.contextStyle === "mono"}
+        >{dataPart.data.context}</span
+      >
     {/if}
   </div>
 

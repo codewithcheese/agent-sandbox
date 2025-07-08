@@ -347,7 +347,7 @@ export const searchTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: searchInputSchema,
   execute,
-  generateDataPart: (toolPart: SearchToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: SearchToolUIPart) => {
     const { state, input } = toolPart;
 
     // Show search query during streaming and processing
@@ -358,7 +358,6 @@ export const searchTool: ToolDefinition = {
         title: "ObsidianSearch",
         context: `"${input.query}"`,
         contextStyle: "mono",
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

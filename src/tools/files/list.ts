@@ -310,7 +310,7 @@ export const listTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
-  generateDataPart: (toolPart: ListToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: ListToolUIPart) => {
     const { state, input } = toolPart;
 
     // Show directory path during streaming and processing
@@ -320,7 +320,6 @@ export const listTool: ToolDefinition = {
       return {
         title: "List",
         context: input.path,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

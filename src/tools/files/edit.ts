@@ -292,7 +292,7 @@ export const editTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: editInputSchema,
   execute,
-  generateDataPart: (toolPart: EditToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: EditToolUIPart) => {
     const { state, input } = toolPart;
 
     // Show file path and expected replacements during streaming and processing
@@ -305,7 +305,6 @@ export const editTool: ToolDefinition = {
       return {
         path: input.file_path,
         context: `${expectedReplacements} ${replacementText}`,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

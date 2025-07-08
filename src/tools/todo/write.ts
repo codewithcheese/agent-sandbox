@@ -193,7 +193,7 @@ export const toolDef: LocalToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
-  generateDataPart: (toolPart: TodoWriteToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: TodoWriteToolUIPart) => {
     const { state, input } = toolPart;
 
     // Show todo count during streaming and processing
@@ -204,7 +204,6 @@ export const toolDef: LocalToolDefinition = {
       return {
         title: "TodoWrite",
         context: `${todoCount} ${todoText}`,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

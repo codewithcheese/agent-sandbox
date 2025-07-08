@@ -223,7 +223,7 @@ export const promptTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
-  generateDataPart: (toolPart: PromptToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: PromptToolUIPart) => {
     const { state, input } = toolPart;
 
     // Helper function to get prompt name from path
@@ -243,7 +243,6 @@ export const promptTool: ToolDefinition = {
         title: "Prompt",
         path: input?.prompt_path,
         context: `${promptName} • ${modelId} • ${inputCount} inputs`,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

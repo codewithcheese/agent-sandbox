@@ -129,14 +129,13 @@ export const toolDef: LocalToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
-  generateDataPart: (toolPart: TodoReadToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: TodoReadToolUIPart) => {
     const { state, input } = toolPart;
 
     // Show reading todos during streaming and processing
     if (state === "input-available" || state === "input-streaming") {
       return {
         title: "TodoRead",
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

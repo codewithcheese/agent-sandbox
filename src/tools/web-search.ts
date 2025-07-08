@@ -37,7 +37,7 @@ export const toolDef: ProviderToolDefinition = {
         throw new Error(`Unsupported provider: ${providerId}`);
     }
   },
-  generateDataPart: (toolPart: WebSearchToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: WebSearchToolUIPart) => {
     const { state, input } = toolPart;
 
     // Show query during streaming and processing
@@ -45,7 +45,6 @@ export const toolDef: ProviderToolDefinition = {
       return {
         title: "Web Search",
         context: input?.query ? `"${input.query}"` : undefined,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

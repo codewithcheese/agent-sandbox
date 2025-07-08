@@ -387,14 +387,13 @@ export const readTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
-  generateDataPart: (toolPart: ReadToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: ReadToolUIPart) => {
     const { state, input } = toolPart;
 
-    // Show path as soon as we have input - token count for streaming
+    // Show path as soon as we have input
     if (state === "input-available" || state === "input-streaming") {
       return {
         path: input?.file_path,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 

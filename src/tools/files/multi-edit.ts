@@ -345,7 +345,7 @@ export const multiEditTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: multiEditInputSchema,
   execute,
-  generateDataPart: (toolPart: MultiEditToolUIPart, streamingInfo) => {
+  generateDataPart: (toolPart: MultiEditToolUIPart) => {
     const { state, input } = toolPart;
 
     // Show file path and number of edits during streaming and processing
@@ -358,7 +358,6 @@ export const multiEditTool: ToolDefinition = {
       return {
         path: input.file_path,
         context: `${editCount} ${editText}`,
-        tokenCount: streamingInfo?.tokenCount,
       };
     }
 
