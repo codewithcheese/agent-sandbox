@@ -68,6 +68,12 @@ export type WithUserMetadata = {
   };
 };
 
+export type StepMeta = {
+  usage: LanguageModelV2Usage;
+  finishReason: string;
+  stepIndex: number;
+};
+
 export type WithAssistantMetadata = {
   role: "assistant";
   metadata?: {
@@ -77,6 +83,7 @@ export type WithAssistantMetadata = {
     accountName?: string;
     provider?: string;
     modelId?: string;
+    steps?: StepMeta[];
   };
 };
 
@@ -550,6 +557,25 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
               await MergeView.openForChanges(this.path);
             }
             debug("Step finish", step);
+
+            // Find the last assistant message to add step metadata
+            const lastAssistantMessage = this.messages.findLast(
+              (m) => m.role === "assistant",
+            );
+
+            if (lastAssistantMessage) {
+              // Initialize steps array if it doesn't exist
+              if (!lastAssistantMessage.metadata.steps) {
+                lastAssistantMessage.metadata.steps = [];
+              }
+
+              // Add step metadata to the array
+              lastAssistantMessage.metadata.steps.push({
+                usage: step.usage,
+                finishReason: step.finishReason,
+                stepIndex: lastAssistantMessage.metadata.steps.length,
+              });
+            }
             step.toolCalls.forEach((toolCall) => {
               debug("Tool call", toolCall);
             });

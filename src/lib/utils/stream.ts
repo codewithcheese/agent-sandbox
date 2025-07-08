@@ -42,6 +42,9 @@ export function applyStreamPartToMessages(
 
   switch (part.type) {
     case "start-step":
+      break;
+
+    case "start":
       messages.push({
         id: nanoid(),
         role: "assistant",
@@ -50,10 +53,6 @@ export function applyStreamPartToMessages(
           createdAt: new Date(),
         },
       });
-      break;
-
-    case "start":
-      // Stream start - no action needed
       break;
 
     case "text-start":

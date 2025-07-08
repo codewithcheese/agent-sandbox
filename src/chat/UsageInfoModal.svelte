@@ -27,13 +27,19 @@
   const providerInfo = $derived(
     message.role === "assistant" ? message.metadata?.provider : undefined,
   );
+  
+  // Extract step information
+  const steps = $derived(
+    message.role === "assistant" ? message.metadata?.steps : undefined,
+  );
 </script>
 
 <div class="flex flex-col gap-4 p-2">
   <div class="font-semibold text-lg">Request Info</div>
 
   {#if usage}
-    <div class="grid grid-cols-2 gap-2 text-sm">
+    <!-- Account/Model Information -->
+    <div class="grid grid-cols-2 gap-2 text-sm mb-4">
       {#if accountInfo}
         <div class="font-medium">Account:</div>
         <div>{accountInfo}</div>
@@ -49,31 +55,79 @@
         <div>{providerInfo}</div>
       {/if}
 
-      <!-- Usage Information -->
-      <div class="font-medium">Input Tokens:</div>
-      <div>{usage.inputTokens ?? 0}</div>
-
-      <div class="font-medium">Output Tokens:</div>
-      <div>{usage.outputTokens ?? 0}</div>
-
-      {#if usage.cachedInputTokens !== undefined && usage.cachedInputTokens > 0}
-        <div class="font-medium">Cached Input Tokens:</div>
-        <div class="text-green-600">{usage.cachedInputTokens}</div>
-      {/if}
-
-      {#if usage.reasoningTokens !== undefined && usage.reasoningTokens > 0}
-        <div class="font-medium">Reasoning Tokens:</div>
-        <div>{usage.reasoningTokens}</div>
-      {/if}
-
-      <!--      <div class="font-medium">Total Tokens:</div>-->
-      <!--      <div class="">{usage.totalTokens ?? 0}</div>-->
-
       {#if finishReason}
         <div class="font-medium">Finish Reason:</div>
         <div class="capitalize">{finishReason}</div>
       {/if}
     </div>
+
+    <!-- Token Usage -->
+    <div class="border border-(--background-modifier-border) rounded-md overflow-hidden">
+      <div class="bg-(--background-secondary) px-3 py-2 font-medium text-sm border-b border-(--background-modifier-border)">
+        Token Usage
+      </div>
+      <div class="bg-(--background-primary) p-3">
+        <div class="grid grid-cols-2 gap-4 text-sm">
+          <div class="text-center">
+            <div class="font-medium text-xs text-(--text-muted) mb-1">Input</div>
+            <div class="text-lg font-semibold">{usage.inputTokens ?? 0}</div>
+          </div>
+          <div class="text-center">
+            <div class="font-medium text-xs text-(--text-muted) mb-1">Output</div>
+            <div class="text-lg font-semibold">{usage.outputTokens ?? 0}</div>
+          </div>
+          {#if usage.cachedInputTokens !== undefined && usage.cachedInputTokens > 0}
+            <div class="text-center">
+              <div class="font-medium text-xs text-(--text-muted) mb-1">Cached Input</div>
+              <div class="text-lg font-semibold text-green-600">{usage.cachedInputTokens}</div>
+            </div>
+          {/if}
+          {#if usage.reasoningTokens !== undefined && usage.reasoningTokens > 0}
+            <div class="text-center">
+              <div class="font-medium text-xs text-(--text-muted) mb-1">Reasoning</div>
+              <div class="text-lg font-semibold">{usage.reasoningTokens}</div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+
+    <!-- Steps Table -->
+    {#if steps && steps.length > 0}
+      <div class="border border-(--background-modifier-border) rounded-md overflow-hidden">
+        <div class="bg-(--background-secondary) px-3 py-2 font-medium text-sm border-b border-(--background-modifier-border)">
+          Steps ({steps.length})
+        </div>
+        <div class="bg-(--background-primary)">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-(--background-modifier-border)">
+                <th class="px-3 py-2 text-left font-medium">Step</th>
+                <th class="px-3 py-2 text-right font-medium">Input</th>
+                <th class="px-3 py-2 text-right font-medium">Output</th>
+                <th class="px-3 py-2 text-right font-medium">Cached</th>
+                <th class="px-3 py-2 text-right font-medium">Reasoning</th>
+                <th class="px-3 py-2 text-center font-medium">Finish</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each steps as step}
+                <tr class="border-b border-(--background-modifier-border) last:border-b-0">
+                  <td class="px-3 py-2">{step.stepIndex + 1}</td>
+                  <td class="px-3 py-2 text-right">{step.usage.inputTokens ?? 0}</td>
+                  <td class="px-3 py-2 text-right">{step.usage.outputTokens ?? 0}</td>
+                  <td class="px-3 py-2 text-right {step.usage.cachedInputTokens ? 'text-green-600' : 'text-(--text-muted)'}">
+                    {step.usage.cachedInputTokens ?? 0}
+                  </td>
+                  <td class="px-3 py-2 text-right">{step.usage.reasoningTokens ?? 0}</td>
+                  <td class="px-3 py-2 text-center text-xs capitalize">{step.finishReason}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {/if}
   {:else}
     <div class="text-sm text-(--text-muted)">
       No usage information available
