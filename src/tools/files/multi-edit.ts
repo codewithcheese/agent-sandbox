@@ -4,8 +4,34 @@ import { createDebug } from "$lib/debug";
 import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { invariant } from "@epic-web/invariant";
 import { escapeRegExp } from "$lib/utils/regexp.ts";
+import { type ToolUIPart } from "ai";
 
 const debug = createDebug();
+
+// Define the UI tool type for the multi-edit tool
+type MultiEditUITool = {
+  input: {
+    file_path: string;
+    edits: Array<{
+      old_string: string;
+      new_string: string;
+      expected_replacements?: number;
+    }>;
+  };
+  output: {
+    type: "update";
+    filePath: string;
+    message: string;
+    editsAppliedCount: number;
+    totalReplacementsMade: number;
+  } | {
+    error: string;
+    message?: string;
+    meta?: any;
+  };
+};
+
+type MultiEditToolUIPart = ToolUIPart<{ MultiEdit: MultiEditUITool }>;
 
 /**
  * Features:
@@ -319,4 +345,53 @@ export const multiEditTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema: multiEditInputSchema,
   execute,
+  generateDataPart: (toolPart: MultiEditToolUIPart, streamingInfo) => {
+    const { state, input } = toolPart;
+
+    // Show file path and number of edits during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      if (!input?.file_path) return null;
+      
+      const editCount = input.edits?.length || 0;
+      const editText = editCount === 1 ? "edit" : "edits";
+      
+      return {
+        path: input.file_path,
+        context: `${editCount} ${editText}`,
+        tokenCount: streamingInfo?.tokenCount,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        return {
+          path: input?.file_path,
+          context: "(error)",
+        };
+      }
+      
+      // Handle success output
+      if (output && 'editsAppliedCount' in output) {
+        const editText = output.editsAppliedCount === 1 ? "edit" : "edits";
+        const replacementText = output.totalReplacementsMade === 1 ? "replacement" : "replacements";
+        
+        return {
+          path: input.file_path,
+          lines: `${output.editsAppliedCount} ${editText} • ${output.totalReplacementsMade} ${replacementText}`,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        path: input?.file_path,
+        context: "(error)",
+      };
+    }
+
+    return null;
+  },
 };

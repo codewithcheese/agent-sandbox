@@ -6,6 +6,7 @@ import { type Vault, type TAbstractFile, normalizePath } from "obsidian";
 import { TFolder, TFile } from "obsidian";
 import type { ToolDefinition, ToolCallOptionsWithContext } from "../types.ts";
 import { COMMON_IGNORE_PATTERNS, ignoreMatchOptions } from "./shared.ts";
+import { type ToolUIPart } from "ai";
 
 /**
  * Features:
@@ -31,6 +32,20 @@ export interface FileSystemNode {
 }
 
 const debug = createDebug();
+
+// Define the UI tool type for the list tool
+type ListUITool = {
+  input: {
+    path: string;
+    ignore?: string[];
+  };
+  output: string | {
+    error: string;
+    message?: string;
+  };
+};
+
+type ListToolUIPart = ToolUIPart<{ List: ListUITool }>;
 
 export const TOOL_NAME = "List";
 export const TOOL_DESCRIPTION =
@@ -295,4 +310,52 @@ export const listTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: ListToolUIPart, streamingInfo) => {
+    const { state, input } = toolPart;
+
+    // Show directory path during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      if (!input?.path) return null;
+      
+      return {
+        title: "List",
+        context: input.path,
+        tokenCount: streamingInfo?.tokenCount,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && typeof output === "object" && 'error' in output) {
+        return {
+          title: "List",
+          context: input?.path ? `${input.path} (error)` : "(error)",
+        };
+      }
+      
+      // Handle success output (string result)
+      if (typeof output === "string") {
+        // Count items in the directory listing
+        const lines = output.split('\n').filter(line => line.trim() && line.includes('- '));
+        const itemCount = lines.length;
+        
+        return {
+          title: "List",
+          context: input?.path || "",
+          lines: itemCount === 1 ? "1 item" : `${itemCount} items`,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        title: "List",
+        context: input?.path ? `${input.path} (error)` : "(error)",
+      };
+    }
+
+    return null;
+  },
 };

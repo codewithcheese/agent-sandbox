@@ -3,8 +3,27 @@ import { createDebug } from "$lib/debug";
 import type { LocalToolDefinition, ToolCallOptionsWithContext } from "../types";
 import { invariant } from "@epic-web/invariant";
 import { type TodoItem, todoItemSchema, TODOS_STORE_KEY } from "./shared.ts";
+import { type ToolUIPart } from "ai";
 
 const debug = createDebug();
+
+// Define the UI tool type for the todo write tool
+type TodoWriteUITool = {
+  input: {
+    todos: TodoItem[];
+  };
+  output: {
+    message: string;
+    oldTodosCount: number;
+    newTodosCount: number;
+    llmConfirmation: string;
+  } | {
+    error: string;
+    message?: string;
+  };
+};
+
+type TodoWriteToolUIPart = ToolUIPart<{ TodoWrite: TodoWriteUITool }>;
 
 export const defaultConfig = {
   MAX_TODOS: 100, // Safety limit for the number of todos
@@ -174,4 +193,51 @@ export const toolDef: LocalToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: TodoWriteToolUIPart, streamingInfo) => {
+    const { state, input } = toolPart;
+
+    // Show todo count during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      const todoCount = input?.todos?.length || 0;
+      const todoText = todoCount === 1 ? "todo" : "todos";
+      
+      return {
+        title: "TodoWrite",
+        context: `${todoCount} ${todoText}`,
+        tokenCount: streamingInfo?.tokenCount,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        return {
+          title: "TodoWrite",
+          context: "(error)",
+        };
+      }
+      
+      // Handle success output
+      if (output && 'newTodosCount' in output) {
+        const { newTodosCount } = output;
+        const todoText = newTodosCount === 1 ? "todo" : "todos";
+        
+        return {
+          title: "TodoWrite",
+          lines: `${newTodosCount} ${todoText}`,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      return {
+        title: "TodoWrite",
+        context: "(error)",
+      };
+    }
+
+    return null;
+  },
 };

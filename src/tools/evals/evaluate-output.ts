@@ -3,8 +3,30 @@ import { createDebug } from "$lib/debug";
 import type { ToolCallOptionsWithContext, ToolDefinition } from "../types.ts";
 import { evaluateExample, resolveJudgeConfig } from "./evaluation-engine.ts";
 import { createSystemContent } from "../../chat/system.ts";
+import { type ToolUIPart } from "ai";
 
 const debug = createDebug();
+
+// Define the UI tool type for the evaluate output tool
+type EvaluateOutputUITool = {
+  input: {
+    text?: string;
+    path?: string;
+    judge_agent_path: string;
+    criteria_context?: string;
+  };
+  output: {
+    result: "PASS" | "FAIL";
+    reasoning: string;
+    judge_agent_path: string;
+    criteria_context?: string;
+  } | {
+    error: string;
+    message?: string;
+  };
+};
+
+type EvaluateOutputToolUIPart = ToolUIPart<{ EvaluateOutput: EvaluateOutputUITool }>;
 
 const TOOL_NAME = "EvaluateOutput";
 const TOOL_DESCRIPTION =
@@ -133,4 +155,59 @@ export const evaluateOutputTool: ToolDefinition = {
   prompt: TOOL_PROMPT_GUIDANCE,
   inputSchema,
   execute,
+  generateDataPart: (toolPart: EvaluateOutputToolUIPart, streamingInfo) => {
+    const { state, input } = toolPart;
+
+    // Helper function to get judge name from path
+    const getJudgeName = (judgePath: string) => {
+      const parts = judgePath.split('/');
+      const filename = parts[parts.length - 1];
+      return filename?.replace(/\.(md|txt)$/, '') || 'judge';
+    };
+
+    // Show judge name during streaming and processing
+    if (state === "input-available" || state === "input-streaming") {
+      const judgeName = input?.judge_agent_path ? getJudgeName(input.judge_agent_path) : "judge";
+      
+      return {
+        title: "EvaluateOutput",
+        context: judgeName,
+        tokenCount: streamingInfo?.tokenCount,
+      };
+    }
+
+    if (state === "output-available") {
+      const { output } = toolPart;
+      
+      // Handle error output
+      if (output && 'error' in output) {
+        const judgeName = input?.judge_agent_path ? getJudgeName(input.judge_agent_path) : "judge";
+        return {
+          title: "EvaluateOutput",
+          context: `${judgeName} (error)`,
+        };
+      }
+      
+      // Handle success output
+      if (output && 'result' in output) {
+        const judgeName = input?.judge_agent_path ? getJudgeName(input.judge_agent_path) : "judge";
+        
+        return {
+          title: "EvaluateOutput",
+          context: judgeName,
+          lines: output.result,
+        };
+      }
+    }
+
+    if (state === "output-error") {
+      const judgeName = input?.judge_agent_path ? getJudgeName(input.judge_agent_path) : "judge";
+      return {
+        title: "EvaluateOutput",
+        context: `${judgeName} (error)`,
+      };
+    }
+
+    return null;
+  },
 };
