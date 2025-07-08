@@ -67,7 +67,7 @@
 
   <!-- File Navigation (Multi-file mode) -->
   {#if isMultiFile}
-    <div class="flex items-center gap-2 ml-4">
+    <div class="flex items-center ml-4">
       <button
         class="clickable-icon"
         disabled={!canGoPrevFile}
@@ -77,7 +77,7 @@
         <ChevronLeftIcon class="size-4" />
       </button>
 
-      <div class="text-sm text-(--text-muted)">
+      <div class="text-sm text-(--text-muted) min-w-14 text-center">
         {currentFileIndex} of {totalFiles}
       </div>
 
@@ -96,7 +96,7 @@
   <div class="flex-1"></div>
 
   <!-- Controls Section -->
-  <div class="flex items-center gap-2">
+  <div class="flex items-center gap-1">
     <!-- Bulk Operations -->
     {#if hasChunks}
       <button
@@ -123,27 +123,29 @@
 
     <!-- Chunk Navigation -->
     {#if hasChunks}
-      <button
-        class="clickable-icon"
-        disabled={!canGoPrevChunk}
-        onclick={() => onNavigateChunk?.("prev")}
-        aria-label="Previous change"
-      >
-        <ChevronUpIcon class="size-4" />
-      </button>
+      <div class="flex items-center">
+        <button
+          class="clickable-icon"
+          disabled={!canGoPrevChunk}
+          onclick={() => onNavigateChunk?.("prev")}
+          aria-label="Previous change"
+        >
+          <ChevronUpIcon class="size-4" />
+        </button>
 
-      <div class="text-sm text-(--text-muted) min-w-20 text-center">
-        {currentChunkIndex} of {totalChunks}
+        <div class="text-sm text-(--text-muted) min-w-12 text-center">
+          {currentChunkIndex} of {totalChunks}
+        </div>
+
+        <button
+          class="clickable-icon"
+          disabled={!canGoNextChunk}
+          onclick={() => onNavigateChunk?.("next")}
+          aria-label="Next change"
+        >
+          <ChevronDownIcon class="size-4" />
+        </button>
       </div>
-
-      <button
-        class="clickable-icon"
-        disabled={!canGoNextChunk}
-        onclick={() => onNavigateChunk?.("next")}
-        aria-label="Next change"
-      >
-        <ChevronDownIcon class="size-4" />
-      </button>
     {/if}
   </div>
 </div>

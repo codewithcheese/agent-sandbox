@@ -181,7 +181,7 @@
             <RefreshCwIcon class="size-4" />
           </button>
         {/if}
-      {:else if message.role === "assistant" && message.metadata?.usage}
+      {:else if message.role === "assistant" && message.metadata?.steps}
         <!-- Assistant message usage info button -->
         <button
           class="clickable-icon"

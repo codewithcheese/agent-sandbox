@@ -7,10 +7,7 @@
   };
   let { message, close }: Props = $props();
 
-  // Extract usage data from assistant message metadata
-  const usage = $derived(
-    message.role === "assistant" ? message.metadata?.usage : undefined,
-  );
+  // Extract finish reason from assistant message metadata
   const finishReason = $derived(
     message.role === "assistant" ? message.metadata?.finishReason : undefined,
   );
@@ -32,12 +29,29 @@
   const steps = $derived(
     message.role === "assistant" ? message.metadata?.steps : undefined,
   );
+  
+  // Calculate totals from steps
+  const totalUsage = $derived(
+    !steps || steps.length === 0 ? null : steps.reduce((total, step) => ({
+      inputTokens: total.inputTokens + (step.usage.inputTokens ?? 0),
+      outputTokens: total.outputTokens + (step.usage.outputTokens ?? 0),
+      cachedInputTokens: total.cachedInputTokens + (step.usage.cachedInputTokens ?? 0),
+      reasoningTokens: total.reasoningTokens + (step.usage.reasoningTokens ?? 0),
+      totalTokens: total.totalTokens + (step.usage.totalTokens ?? 0),
+    }), {
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedInputTokens: 0,
+      reasoningTokens: 0,
+      totalTokens: 0,
+    })
+  );
 </script>
 
 <div class="flex flex-col gap-4 p-2">
   <div class="font-semibold text-lg">Request Info</div>
 
-  {#if usage}
+  {#if totalUsage}
     <!-- Account/Model Information -->
     <div class="grid grid-cols-2 gap-2 text-sm mb-4">
       {#if accountInfo}
@@ -70,22 +84,22 @@
         <div class="grid grid-cols-2 gap-4 text-sm">
           <div class="text-center">
             <div class="font-medium text-xs text-(--text-muted) mb-1">Input</div>
-            <div class="text-lg font-semibold">{usage.inputTokens ?? 0}</div>
+            <div class="text-lg font-semibold">{totalUsage.inputTokens}</div>
           </div>
           <div class="text-center">
             <div class="font-medium text-xs text-(--text-muted) mb-1">Output</div>
-            <div class="text-lg font-semibold">{usage.outputTokens ?? 0}</div>
+            <div class="text-lg font-semibold">{totalUsage.outputTokens}</div>
           </div>
-          {#if usage.cachedInputTokens !== undefined && usage.cachedInputTokens > 0}
+          {#if totalUsage.cachedInputTokens > 0}
             <div class="text-center">
               <div class="font-medium text-xs text-(--text-muted) mb-1">Cached Input</div>
-              <div class="text-lg font-semibold text-green-600">{usage.cachedInputTokens}</div>
+              <div class="text-lg font-semibold text-green-600">{totalUsage.cachedInputTokens}</div>
             </div>
           {/if}
-          {#if usage.reasoningTokens !== undefined && usage.reasoningTokens > 0}
+          {#if totalUsage.reasoningTokens > 0}
             <div class="text-center">
               <div class="font-medium text-xs text-(--text-muted) mb-1">Reasoning</div>
-              <div class="text-lg font-semibold">{usage.reasoningTokens}</div>
+              <div class="text-lg font-semibold">{totalUsage.reasoningTokens}</div>
             </div>
           {/if}
         </div>
@@ -130,7 +144,7 @@
     {/if}
   {:else}
     <div class="text-sm text-(--text-muted)">
-      No usage information available
+      No step usage information available
     </div>
   {/if}
 

@@ -42,6 +42,7 @@ export function applyStreamPartToMessages(
 
   switch (part.type) {
     case "start-step":
+      message.parts.push({ type: "step-start" });
       break;
 
     case "start":
@@ -54,7 +55,6 @@ export function applyStreamPartToMessages(
         },
       });
       break;
-
     case "text-start":
       const textPartIndex = message.parts.length;
       message.parts.push({

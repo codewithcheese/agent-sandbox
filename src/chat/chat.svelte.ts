@@ -77,7 +77,6 @@ export type StepMeta = {
 export type WithAssistantMetadata = {
   role: "assistant";
   metadata?: {
-    usage?: LanguageModelV2Usage;
     finishReason?: string;
     accountId?: string;
     accountName?: string;
@@ -589,11 +588,10 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
               (m) => m.role === "assistant",
             );
 
-            if (lastAssistantMessage && result.usage) {
-              // Attach usage information to the assistant message
+            if (lastAssistantMessage) {
+              // Attach account and model information to the assistant message
               lastAssistantMessage.metadata = {
                 ...lastAssistantMessage.metadata,
-                usage: result.usage,
                 finishReason: result.finishReason,
                 accountId: account.id,
                 accountName: account.name,
@@ -603,8 +601,8 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
             }
 
             debug(
-              "Finished with usage",
-              result.usage,
+              "Finished",
+              result.finishReason,
               $state.snapshot(this.messages),
             );
           },
