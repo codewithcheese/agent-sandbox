@@ -7,6 +7,8 @@ import {
   type UIMessage,
   type UIMessagePart,
   stepCountIs,
+  wrapLanguageModel,
+  extractReasoningMiddleware,
 } from "ai";
 import { createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
@@ -524,7 +526,13 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       try {
         this.state = { type: "loading" };
         const stream = streamText({
-          model: provider.languageModel(modelId),
+          model:
+            account.provider === "fireworks"
+              ? wrapLanguageModel({
+                  model: provider.languageModel(modelId),
+                  middleware: extractReasoningMiddleware({ tagName: "think" }),
+                })
+              : provider.languageModel(modelId),
           messages,
           tools: Object.keys(activeTools).length > 0 ? activeTools : undefined,
           maxRetries: 0,
