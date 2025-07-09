@@ -4,7 +4,7 @@ import { createDebug } from "$lib/debug.ts";
 const debug = createDebug();
 
 export const BRACKET_LINK_REGEX =
-  /\[\[([a-zA-ZÀ-ÿ0-9-'?%.():&,+/€! ]+)#?([a-zA-ZÀ-ÿ0-9-'?%.():&,+/€! ]+)?\|?([a-zA-ZÀ-ÿ0-9-'?%.():&,+/€! ]+)?]]/g;
+  /\[\[([a-zA-ZÀ-ÿ0-9-'?%.():&,+/€! _]+)#?([a-zA-ZÀ-ÿ0-9-'?%.():&,+/€! _^]+)?\|?([a-zA-ZÀ-ÿ0-9-'?%.():&,+/€! _^]+)?]]/g;
 
 export const EMBED_LINK_REGEX = /!\[\[([a-zA-ZÀ-ÿ0-9-'?%.():&,+/€! ]+)]]/g;
 
