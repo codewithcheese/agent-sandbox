@@ -186,10 +186,13 @@ export const evaluateTestSetTool: ToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "EvaluateTestSet",
         path: input?.test_set_path,
-        context: "(error)",
+        lines: errorText,
       };
     }
 

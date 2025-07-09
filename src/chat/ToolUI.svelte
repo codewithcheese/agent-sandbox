@@ -7,6 +7,7 @@
     XCircleIcon,
     LoaderIcon,
     ArrowDownIcon,
+    AlertTriangleIcon,
   } from "lucide-svelte";
   import { openToolPartModal } from "$lib/modals/open-tool-part-model.ts";
   import { openPath } from "$lib/utils/obsidian.ts";
@@ -40,10 +41,14 @@
   }
 </script>
 
-<div class="flex items-center gap-2 text-xs p-2 rounded">
+<div class="flex items-center gap-2 p-2 rounded">
   <!-- Status Icon -->
   {#if toolPart.state === "output-available"}
-    <CheckCircleIcon class="size-3 text-(--color-green) flex-shrink-0" />
+    {#if dataPart?.data.error}
+      <AlertTriangleIcon class="size-3 text-(--color-orange) flex-shrink-0" />
+    {:else}
+      <CheckCircleIcon class="size-3 text-(--color-green) flex-shrink-0" />
+    {/if}
   {:else if toolPart.state === "output-error"}
     <XCircleIcon class="size-3 text-(--color-red) flex-shrink-0" />
   {:else if toolPart.state === "input-streaming"}
@@ -65,7 +70,7 @@
   {/if}
 
   <!-- Tool Info (single line) -->
-  <div class="flex flex-1 truncate items-center gap-2">
+  <div class="flex flex-1 truncate items-center gap-2 select-text">
     <span class="font-medium text-(--text-normal)">
       {dataPart?.data.title || getToolName(toolPart)}
     </span>
@@ -73,7 +78,7 @@
     {#if dataPart?.data.path}
       {@const { fileName, dirPath } = formatPath(dataPart.data.path)}
       <a
-        class="text-xs text-(--text-accent) hover:text-(--text-accent-hover) cursor-pointer"
+        class=" text-(--text-accent) hover:text-(--text-accent-hover) cursor-pointer"
         onclick={() => openPath(dataPart.data.path)}
         role="button"
         tabindex="0"
@@ -87,17 +92,17 @@
       >
         {fileName}
       </a>
-      <span class="text-(--text-muted)">{normalizePath(dirPath)}</span>
+      <span class="text-(--text-muted) text-xs">{normalizePath(dirPath)}</span>
       {#if dataPart?.data.context}
         <span
-          class="text-(--text-muted)"
+          class="text-(--text-muted) text-xs"
           class:font-mono={dataPart.data.contextStyle === "mono"}
           >{dataPart.data.context}</span
         >
       {/if}
     {:else if dataPart?.data.context}
       <span
-        class="text-(--text-muted) ml-1"
+        class="text-(--text-muted) ml-1 text-xs"
         class:font-mono={dataPart.data.contextStyle === "mono"}
         >{dataPart.data.context}</span
       >
@@ -107,7 +112,7 @@
   <!-- Right-side line information -->
   {#if dataPart?.data.lines}
     <div
-      class="flex-shrink-0 text-xs bg-(--background-secondary-alt) border border-(--background-modifier-border) rounded px-2 py-1"
+      class="flex-shrink-0 text-xs bg-(--background-secondary-alt) border border-(--background-modifier-border) rounded px-2 py-1 select-text"
     >
       <span class="font-mono text-(--text-normal) font-medium">
         {dataPart.data.lines}

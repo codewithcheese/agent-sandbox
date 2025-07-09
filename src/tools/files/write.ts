@@ -11,18 +11,17 @@ type WriteUITool = {
     file_path: string;
     content: string;
   };
-  output:
-    | {
-        type: "update" | "create";
-        filePath: string;
-        message: string;
-        contentSnippet?: string;
-      }
-    | {
-        error: string;
-        message?: string;
-        meta?: any;
-      };
+  output: {
+    type: "update" | "create";
+    filePath: string;
+    message: string;
+    contentSnippet?: string;
+  } | {
+    error: string;
+    message?: string;
+    humanMessage?: string;
+    meta?: any;
+  };
 };
 
 type WriteToolUIPart = ToolUIPart<{ Write: WriteUITool }>;
@@ -69,25 +68,24 @@ const writeInputSchema = z.strictObject({
   content: z.string().describe("The content to write to the file"),
 });
 
-type WriteToolOutput =
-  | {
-      type: "update" | "create";
-      filePath: string;
-      message: string;
-      contentSnippet?: string;
-    }
-  | {
-      error: string;
-      message?: string;
-      meta?: any;
-    };
+type WriteToolOutput = {
+  type: "update" | "create";
+  filePath: string;
+  message: string;
+  contentSnippet?: string;
+} | {
+  error: string;
+  message?: string;
+  humanMessage?: string;
+  meta?: any;
+};
 
 async function validateWriteInput(
   params: z.infer<typeof writeInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
   readState: any, // ReadState accessed through sessionStore
-): Promise<{ result: boolean; message?: string; meta?: any }> {
+): Promise<{ result: boolean; message?: string; humanMessage?: string; meta?: any }> {
   const path = normalizePath(params.file_path);
 
   // Check if any part of the path starts with a dot
@@ -97,6 +95,7 @@ async function validateWriteInput(
       result: false,
       message:
         "Writing to hidden files/folders (starting with '.') is not allowed.",
+      humanMessage: "Hidden path not allowed",
     };
   }
 
@@ -104,6 +103,7 @@ async function validateWriteInput(
     return {
       result: false,
       message: "Path is a directory, cannot write file content to a directory.",
+      humanMessage: "Path is a directory",
     };
   }
 
@@ -150,7 +150,9 @@ export async function execute(
 
   const config = { ...defaultConfig, ...contextConfig };
 
-  invariant(vault, "Vault not available in execution context.");
+  if (!vault) {
+    throw new Error("Vault not available in execution context");
+  }
 
   const validation = await validateWriteInput(
     params,
@@ -162,6 +164,7 @@ export async function execute(
     return {
       error: "Input Validation Failed",
       message: validation.message,
+      humanMessage: validation.humanMessage,
       meta: validation.meta,
     };
   }
@@ -171,11 +174,9 @@ export async function execute(
   const fileExists = !!abstractFile;
 
   try {
-    if (abortSignal.aborted)
-      return {
-        error: "Operation aborted",
-        message: "Write operation aborted by user.",
-      };
+    if (abortSignal.aborted) {
+      throw new Error("Operation aborted");
+    }
 
     const newContent = params.content.replace(/\r\n/g, "\n");
 
@@ -208,6 +209,7 @@ export async function execute(
     return {
       error: "Tool execution failed",
       message: e.message || String(e),
+      humanMessage: "Write failed",
     };
   }
 }
@@ -248,7 +250,16 @@ export const writeTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      if (!output || "error" in output) return null;
+      if (!output) return null;
+      
+      // Handle recoverable error output
+      if ("error" in output) {
+        return {
+          path: input?.file_path,
+          context: output.humanMessage || output.message || output.error,
+          error: true,
+        };
+      }
 
       return {
         path: input.file_path,
@@ -257,9 +268,12 @@ export const writeTool: ToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         path: input?.file_path,
-        context: "(error)",
+        lines: errorText,
       };
     }
 

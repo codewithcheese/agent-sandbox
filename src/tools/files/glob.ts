@@ -53,18 +53,17 @@ type GlobUITool = {
     path?: string;
     ignore?: string[];
   };
-  output:
-    | {
-        filenames: string[];
-        numFiles: number;
-        totalMatchesBeforeLimit: number;
-        truncated: boolean;
-      }
-    | {
-        error: string;
-        message?: string;
-        meta?: any;
-      };
+  output: {
+    filenames: string[];
+    numFiles: number;
+    totalMatchesBeforeLimit: number;
+    truncated: boolean;
+  } | {
+    error: string;
+    message?: string;
+    humanMessage?: string;
+    meta?: any;
+  };
 };
 
 type GlobToolUIPart = ToolUIPart<{ Glob: GlobUITool }>;
@@ -109,24 +108,23 @@ const globInputSchema = z.strictObject({
     ),
 });
 
-type GlobToolOutput =
-  | {
-      filenames: string[];
-      numFiles: number;
-      totalMatchesBeforeLimit: number;
-      truncated: boolean;
-    }
-  | {
-      error: string;
-      message?: string;
-      meta?: any;
-    };
+type GlobToolOutput = {
+  filenames: string[];
+  numFiles: number;
+  totalMatchesBeforeLimit: number;
+  truncated: boolean;
+} | {
+  error: string;
+  message?: string;
+  humanMessage?: string;
+  meta?: any;
+};
 
 async function validateInput(
   params: z.infer<typeof globInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
-): Promise<{ result: boolean; message?: string; meta?: any }> {
+): Promise<{ result: boolean; message?: string; humanMessage?: string; meta?: any }> {
   const rootPath = normalizePath(params.path || "/");
   const rootEntry = vault.getAbstractFileByPath(rootPath);
 
@@ -134,12 +132,14 @@ async function validateInput(
     return {
       result: false,
       message: `Specified search path does not exist: ${rootPath}`,
+      humanMessage: "Path not found",
     };
   }
   if (!(rootEntry instanceof TFolder)) {
     return {
       result: false,
       message: `Specified search path is not a directory: ${rootPath}`,
+      humanMessage: "Path is not a directory",
     };
   }
 
@@ -157,13 +157,16 @@ export async function execute(
 
   const config = { ...defaultConfig, ...contextConfig };
 
-  invariant(vault, "Vault not available in execution context.");
+  if (!vault) {
+    throw new Error("Vault not available in execution context");
+  }
 
   const validation = await validateInput(params, vault, config);
   if (!validation.result) {
     return {
       error: "Input Validation Failed",
       message: validation.message,
+      humanMessage: validation.humanMessage,
       meta: validation.meta,
     };
   }
@@ -210,11 +213,9 @@ export async function execute(
     }
 
     await traverse(rootEntry);
-    if (abortSignal.aborted)
-      return {
-        error: "Operation aborted",
-        message: "Glob operation aborted by user.",
-      };
+    if (abortSignal.aborted) {
+      throw new Error("Operation aborted");
+    }
 
     matchedFiles.sort((a, b) => b.stat.mtime - a.stat.mtime); // Newest first
 
@@ -235,6 +236,7 @@ export async function execute(
     return {
       error: "Tool execution failed",
       message: e.message || String(e),
+      humanMessage: "Search failed",
     };
   }
 }
@@ -256,7 +258,7 @@ export const globTool: ToolDefinition = {
       hasError = false,
     ) => {
       const quotedPattern = `${pattern}`;
-      const pathInfo = path && path !== "/" ? ` in ${path}` : "";
+      const pathInfo = path && path !== "/" ? ` in ${normalizePath(path)}` : "";
       const errorSuffix = hasError ? " (error)" : "";
       return `${quotedPattern}${pathInfo}${errorSuffix}`;
     };
@@ -275,14 +277,13 @@ export const globTool: ToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
 
-      // Handle error output
+      // Handle recoverable error output
       if (output && "error" in output) {
         return {
           title: "Glob",
-          context: input?.pattern
-            ? formatContext(input.pattern, input.path, true)
-            : "(error)",
+          context: output.humanMessage || output.message || output.error || "Search failed",
           contextStyle: "mono",
+          error: true,
         };
       }
 
@@ -307,12 +308,16 @@ export const globTool: ToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "Glob",
         context: input?.pattern
-          ? formatContext(input.pattern, input.path, true)
-          : "(error)",
+          ? formatContext(input.pattern, input.path, false)
+          : undefined,
         contextStyle: "mono",
+        lines: errorText,
       };
     }
 

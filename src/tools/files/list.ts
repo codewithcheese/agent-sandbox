@@ -42,6 +42,7 @@ type ListUITool = {
   output: string | {
     error: string;
     message?: string;
+    humanMessage?: string;
   };
 };
 
@@ -279,7 +280,7 @@ export async function execute(
     );
 
     if (abortSignal.aborted) {
-      return JSON.stringify({ error: "Operation aborted by user." });
+      throw new Error("Operation aborted");
     }
 
     const fileNodes = buildFileTree(listedFilesArray);
@@ -299,6 +300,7 @@ export async function execute(
     return {
       error: "Tool execution failed",
       message: e instanceof Error ? e.message : String(e),
+      humanMessage: "List failed",
     };
   }
 }
@@ -326,11 +328,12 @@ export const listTool: ToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
       
-      // Handle error output
+      // Handle recoverable error output
       if (output && typeof output === "object" && 'error' in output) {
         return {
           title: "List",
-          context: input?.path ? `${input.path} (error)` : "(error)",
+          context: output.humanMessage || output.message || output.error,
+          error: true,
         };
       }
       
@@ -349,9 +352,13 @@ export const listTool: ToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "List",
-        context: input?.path ? `${input.path} (error)` : "(error)",
+        context: input?.path,
+        lines: errorText,
       };
     }
 

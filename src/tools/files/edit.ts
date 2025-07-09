@@ -44,6 +44,7 @@ type EditUITool = {
   } | {
     error: string;
     message?: string;
+    humanMessage?: string;
     meta?: any;
   };
 };
@@ -88,29 +89,29 @@ const editInputSchema = z.strictObject({
     ),
 });
 
-type EditToolOutput =
-  | {
-      type: "update";
-      filePath: string;
-      message: string;
-      replacementsMade: number;
-    }
-  | {
-      error: string;
-      message?: string;
-      meta?: any;
-    };
+type EditToolOutput = {
+  type: "update";
+  filePath: string;
+  message: string;
+  replacementsMade: number;
+} | {
+  error: string;
+  message?: string;
+  humanMessage?: string;
+  meta?: any;
+};
 
 async function validateInput(
   params: z.infer<typeof editInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
   readState: ReadState,
-): Promise<{ result: boolean; message?: string; meta?: any }> {
+): Promise<{ result: boolean; message?: string; humanMessage?: string; meta?: any }> {
   if (params.old_string === "") {
     return {
       result: false,
       message: "old_string cannot be empty for an edit operation.",
+      humanMessage: "Empty old_string",
     };
   }
 
@@ -119,6 +120,7 @@ async function validateInput(
       result: false,
       message:
         "No changes to make: old_string and new_string are exactly the same.",
+      humanMessage: "No changes to make",
     };
   }
 
@@ -131,6 +133,7 @@ async function validateInput(
       result: false,
       message:
         "Editing hidden files/folders (starting with '.') is not allowed.",
+      humanMessage: "Hidden path not allowed",
     };
   }
 
@@ -138,6 +141,7 @@ async function validateInput(
     return {
       result: false,
       message: "Path is a directory, not a file. Cannot edit a directory.",
+      humanMessage: "Path is a directory",
     };
   }
 
@@ -147,6 +151,7 @@ async function validateInput(
     return {
       result: false,
       message: `File does not exist: ${params.file_path}`,
+      humanMessage: "File not found",
     };
   }
 
@@ -180,6 +185,7 @@ async function validateInput(
     return {
       result: false,
       message: `Failed to read file: ${params.file_path}. Error: ${error}`,
+      humanMessage: "Read failed",
     };
   }
 
@@ -191,6 +197,7 @@ async function validateInput(
     return {
       result: false,
       message: `The 'old_string' was not found in the file: ${params.file_path}. Please ensure it matches exactly, including whitespace and line breaks.`,
+      humanMessage: "Text not found",
     };
   }
 
@@ -198,6 +205,7 @@ async function validateInput(
     return {
       result: false,
       message: `Found ${occurrences} occurrences of 'old_string', but expected ${params.expected_replacements}. Please verify 'old_string' and 'expected_replacements', or use MultiEdit for more complex scenarios.`,
+      humanMessage: "Occurrence count mismatch",
     };
   }
 
@@ -216,7 +224,9 @@ export async function execute(
   } = toolExecOptions.getContext();
   const config = { ...defaultConfig, ...contextConfig };
 
-  invariant(vault, "Vault not available in execution context.");
+  if (!vault) {
+    throw new Error("Vault not available in execution context");
+  }
 
   const validation = await validateInput(
     params,
@@ -228,6 +238,7 @@ export async function execute(
     return {
       error: "Input Validation Failed",
       message: validation.message,
+      humanMessage: validation.humanMessage,
       meta: validation.meta,
     };
   }
@@ -237,11 +248,9 @@ export async function execute(
 
   try {
     const originalFileContent = (await vault.read(file)).replace(/\r\n/g, "\n");
-    if (abortSignal.aborted)
-      return {
-        error: "Operation aborted",
-        message: "Edit operation aborted by user.",
-      };
+    if (abortSignal.aborted) {
+      throw new Error("Operation aborted");
+    }
 
     const oldString = params.old_string;
     const newString = params.new_string;
@@ -255,10 +264,7 @@ export async function execute(
 
     await vault.modify(file, updatedFileContent);
     if (abortSignal.aborted) {
-      return {
-        error: "Operation aborted",
-        message: "Edit operation aborted by user.",
-      };
+      throw new Error("Operation aborted");
     }
 
     // Update read state after successful edit
@@ -281,6 +287,7 @@ export async function execute(
     return {
       error: "Tool execution failed",
       message: e.message || String(e),
+      humanMessage: "Edit failed",
     };
   }
 }
@@ -311,11 +318,12 @@ export const editTool: ToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
       
-      // Handle error output
+      // Handle recoverable error output
       if (output && 'error' in output) {
         return {
           path: input?.file_path,
-          context: "(error)",
+          context: output.humanMessage || output.message || output.error,
+          error: true,
         };
       }
       
@@ -331,9 +339,12 @@ export const editTool: ToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         path: input?.file_path,
-        context: "(error)",
+        lines: errorText,
       };
     }
 

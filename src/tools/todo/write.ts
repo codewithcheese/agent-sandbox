@@ -20,6 +20,7 @@ type TodoWriteUITool = {
   } | {
     error: string;
     message?: string;
+    humanMessage?: string;
   };
 };
 
@@ -99,6 +100,7 @@ type TodoWriteToolOutput =
   | {
       error: string;
       message?: string;
+      humanMessage?: string;
     };
 
 function validateTodoSemantics(
@@ -150,6 +152,7 @@ export async function execute(
     return {
       error: "Invalid Todo List Semantics",
       message: semanticValidation.message,
+      humanMessage: "Invalid todo list",
     };
   }
 
@@ -157,6 +160,7 @@ export async function execute(
     return {
       error: "Operation aborted",
       message: "TodoWrite operation aborted by user.",
+      humanMessage: "Operation cancelled",
     };
   }
 
@@ -210,11 +214,12 @@ export const toolDef: LocalToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
       
-      // Handle error output
+      // Handle recoverable error output
       if (output && 'error' in output) {
         return {
           title: "TodoWrite",
-          context: "(error)",
+          context: output.humanMessage || output.message || output.error,
+          error: true,
         };
       }
       
@@ -231,9 +236,12 @@ export const toolDef: LocalToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "TodoWrite",
-        context: "(error)",
+        lines: errorText,
       };
     }
 

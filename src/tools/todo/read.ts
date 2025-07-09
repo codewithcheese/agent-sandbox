@@ -14,9 +14,6 @@ type TodoReadUITool = {
     todos: TodoItem[];
     count: number;
     llmConfirmation: string;
-  } | {
-    error: string;
-    message?: string;
   };
 };
 
@@ -49,17 +46,12 @@ Usage:
 - Use this information to track progress and plan next steps.
 - If no todos exist yet, an empty list will be returned.`;
 
-type TodoReadToolOutput =
-  | {
-      todos: TodoItem[];
-      count: number;
-      // For LLM, a concise confirmation + stringified list is often best
-      llmConfirmation: string;
-    }
-  | {
-      error: string;
-      message?: string;
-    };
+type TodoReadToolOutput = {
+  todos: TodoItem[];
+  count: number;
+  // For LLM, a concise confirmation + stringified list is often best
+  llmConfirmation: string;
+};
 
 export async function execute(
   _params: z.infer<typeof inputSchema>,
@@ -70,16 +62,12 @@ export async function execute(
 
   const config = { ...defaultConfig, ...contextConfig };
 
-  invariant(
-    sessionStore,
-    "Session store not available in execution context for TodoRead tool.",
-  );
+  if (!sessionStore) {
+    throw new Error("Session store not available in execution context for TodoRead tool");
+  }
 
   if (abortSignal.aborted) {
-    return {
-      error: "Operation aborted",
-      message: "TodoRead operation aborted by user.",
-    };
+    throw new Error("Operation aborted");
   }
 
   const currentTodos: TodoItem[] =
@@ -142,11 +130,12 @@ export const toolDef: LocalToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
       
-      // Handle error output
+      // Handle recoverable error output (TodoRead doesn't return error objects, but keeping for consistency)
       if (output && 'error' in output) {
         return {
           title: "TodoRead",
-          context: "(error)",
+          context: (("message" in output ? output.message : undefined) || ("error" in output ? output.error : undefined)) as string,
+          error: true,
         };
       }
       
@@ -163,9 +152,12 @@ export const toolDef: LocalToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "TodoRead",
-        context: "(error)",
+        lines: errorText,
       };
     }
 

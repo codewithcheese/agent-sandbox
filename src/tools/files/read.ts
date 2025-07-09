@@ -21,7 +21,13 @@ type ReadUITool = {
           file_path: string;
         };
       }
-    | string;
+    | string
+    | {
+        error: string;
+        message?: string;
+        humanMessage?: string;
+        meta?: any;
+      };
 };
 
 type ReadToolUIPart = ToolUIPart<{ Read: ReadUITool }>;
@@ -182,6 +188,7 @@ async function validateReadInput(
 ): Promise<{
   result: boolean;
   message?: string;
+  humanMessage?: string;
   meta?: any;
 }> {
   const path = normalizePath(params.file_path);
@@ -190,7 +197,7 @@ async function validateReadInput(
 
   if (!abstractFile) {
     let message = "File does not exist.";
-    return { result: false, message };
+    return { result: false, message, humanMessage: "File not found" };
   }
 
   const folder = vault.getFolderByPath(path);
@@ -199,6 +206,7 @@ async function validateReadInput(
       result: false,
       message:
         "Path is a directory, not a file. Use LS tool to list directory contents.",
+      humanMessage: "Path is a directory",
     };
   }
 
@@ -210,6 +218,7 @@ async function validateReadInput(
     return {
       result: false,
       message: `This tool cannot read binary files of type .${fileExt}. Please use appropriate tools for binary file analysis.`,
+      humanMessage: "Unsupported file type",
     };
   }
 
@@ -217,6 +226,7 @@ async function validateReadInput(
     return {
       result: false,
       message: "Empty image files cannot be processed.",
+      humanMessage: "Empty image file",
     };
   }
 
@@ -230,6 +240,7 @@ async function validateReadInput(
       return {
         result: false,
         message: errorMsg,
+        humanMessage: "File too large",
         meta: { fileSize },
       };
     }
@@ -286,7 +297,7 @@ export async function execute(
   const config = { ...defaultConfig, ...contextConfig };
 
   if (!vault) {
-    return { error: "Vault not available in execution context." };
+    throw new Error("Vault not available in execution context");
   }
 
   const validation = await validateReadInput(params, vault, config);
@@ -294,6 +305,7 @@ export async function execute(
     return {
       error: "Input Validation Failed",
       message: validation.message,
+      humanMessage: validation.humanMessage,
       meta: validation.meta,
     };
   }
@@ -310,15 +322,13 @@ export async function execute(
           error: "Image too large",
           file_path: params.file_path,
           message: `Image is too large (${(file.stat.size / 1024 / 1024).toFixed(2)}MB). Max size is ${(config.MAX_IMAGE_SIZE_BYTES / 1024 / 1024).toFixed(2)}MB.`,
+          humanMessage: "Image too large",
         };
       }
       const binaryContents = await vault.readBinary(file);
-      if (abortSignal.aborted)
-        return {
-          error: "Operation aborted",
-          message: "Read operation aborted by user",
-          file_path: params.file_path,
-        };
+      if (abortSignal.aborted) {
+        throw new Error("Operation aborted");
+      }
       const base64 = Buffer.from(binaryContents).toString("base64");
 
       // Update read state for image files
@@ -340,12 +350,9 @@ export async function execute(
 
     // Text file handling
     const fileContentString = await vault.read(file);
-    if (abortSignal.aborted)
-      return {
-        error: "Operation aborted",
-        message: "Read operation aborted by user",
-        file_path: params.file_path,
-      };
+    if (abortSignal.aborted) {
+      throw new Error("Operation aborted");
+    }
 
     const lines = fileContentString.split("\n");
     const offset = params.offset ?? config.DEFAULT_LINE_OFFSET;
@@ -376,6 +383,7 @@ export async function execute(
     return {
       error: "Tool execution failed",
       message: e instanceof Error ? e.message : String(e),
+      humanMessage: "Read failed",
     };
   }
 }
@@ -399,7 +407,17 @@ export const readTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      if (output && typeof output === "object" && output.type === "image") {
+      
+      // Handle recoverable error output
+      if (output && typeof output === "object" && "error" in output) {
+        return {
+          path: input?.file_path,
+          context: output.humanMessage || output.message || output.error,
+          error: true,
+        };
+      }
+      
+      if (output && typeof output === "object" && "type" in output && output.type === "image") {
         return {
           path: input.file_path,
           lines: `${(output.file.originalSize / 1024).toFixed(1)} KB`,
@@ -414,9 +432,12 @@ export const readTool: ToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         path: input?.file_path,
-        context: "(error)",
+        lines: errorText,
       };
     }
 

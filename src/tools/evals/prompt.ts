@@ -23,10 +23,8 @@ type PromptUITool = {
   output: {
     outputs: string[];
     totalProcessed: number;
-  } | {
-    error: string;
-    message?: string;
-    partialResults?: string[];
+    modelId: string;
+    accountName: string;
   };
 };
 
@@ -84,20 +82,16 @@ async function execute(
   const { vault, metadataCache } = toolExecOptions.getContext();
 
   if (!vault) {
-    return { error: "Vault not available in execution context." };
+    throw new Error("Vault not available in execution context.");
   }
 
-  try {
-    const plugin = usePlugin();
+  const plugin = usePlugin();
 
     // Get the prompt file
     debug(`Looking for prompt file at path: ${params.prompt_path}`);
     const promptFile = vault.getFileByPath(params.prompt_path);
     if (!promptFile) {
-      return {
-        error: "Prompt file not found",
-        message: `Could not find prompt file at path: ${params.prompt_path}`,
-      };
+      throw new Error(`Could not find prompt file at path: ${params.prompt_path}`);
     }
 
     // Get model and account configuration using overlay-aware metadata cache
@@ -115,32 +109,20 @@ async function execute(
           (a) => a.provider === model.provider,
         );
         if (!foundAccount) {
-          return {
-            error: "No account found for model",
-            message: `Model '${modelId}' (provider: ${model.provider}) requires an account for this provider`,
-          };
+          throw new Error(`Model '${modelId}' (provider: ${model.provider}) requires an account for this provider`);
         }
         account = foundAccount;
       } catch (error) {
-        return {
-          error: "Invalid model",
-          message: `Model '${modelId}' is not configured`,
-        };
+        throw new Error(`Model '${modelId}' not configured`);
       }
     } else {
       // Use plugin defaults - check they exist first
       if (!plugin.settings.defaults.accountId) {
-        return {
-          error: "Default account not configured",
-          message: "Please configure a default account in plugin settings",
-        };
+        throw new Error("Please configure a default account in plugin settings");
       }
 
       if (!plugin.settings.defaults.modelId) {
-        return {
-          error: "Default model not configured",
-          message: "Please configure a default model in plugin settings",
-        };
+        throw new Error("Please configure a default model in plugin settings");
       }
 
       try {
@@ -148,11 +130,7 @@ async function execute(
         model = getChatModel(plugin.settings.defaults.modelId);
         modelId = model.id;
       } catch (error) {
-        return {
-          error: "Default model/account not configured",
-          message:
-            "Please configure default model and account in plugin settings",
-        };
+        throw new Error("Configure default model and account in settings");
       }
     }
 
@@ -174,7 +152,7 @@ async function execute(
 
       // Check for abort signal before each generation
       if (abortSignal?.aborted) {
-        return { error: "Operation aborted" };
+        throw new Error("Operation aborted");
       }
 
       try {
@@ -189,31 +167,17 @@ async function execute(
         outputs.push(result.text);
         debug(`Generated output ${i + 1}/${params.inputs.length}`);
       } catch (error) {
-        // If one generation fails, return error with progress info
-        return {
-          error: "Prompt generation failed",
-          message: `Failed on input ${i + 1}/${params.inputs.length}: ${error instanceof Error ? error.message : String(error)}`,
-          partialResults: outputs,
-        };
+        // If one generation fails, throw the underlying error directly
+        throw error;
       }
     }
 
-    return {
-      outputs,
-      totalProcessed: outputs.length,
-    };
-  } catch (error) {
-    debug(`Error in Prompt:`, error);
-
-    if (error?.name === "AbortError") {
-      return { error: "Operation aborted" };
-    }
-
-    return {
-      error: "Prompt generation failed",
-      message: error instanceof Error ? error.message : String(error),
-    };
-  }
+  return {
+    outputs,
+    totalProcessed: outputs.length,
+    modelId: modelId!,
+    accountName: account.name,
+  };
 }
 
 export const promptTool: ToolDefinition = {
@@ -226,64 +190,62 @@ export const promptTool: ToolDefinition = {
   generateDataPart: (toolPart: PromptToolUIPart) => {
     const { state, input } = toolPart;
 
-    // Helper function to get prompt name from path
-    const getPromptName = (promptPath: string) => {
-      const parts = promptPath.split('/');
-      const filename = parts[parts.length - 1];
-      return filename?.replace(/\.(md|txt)$/, '') || 'prompt';
-    };
-
-    // Show prompt name, model, and input count during streaming and processing
+    // Show model and input count during streaming and processing
     if (state === "input-available" || state === "input-streaming") {
-      const promptName = input?.prompt_path ? getPromptName(input.prompt_path) : "prompt";
       const inputCount = input?.inputs?.length || 0;
       const modelId = input?.model_id || "default";
       
       return {
         title: "Prompt",
         path: input?.prompt_path,
-        context: `${promptName} • ${modelId} • ${inputCount} inputs`,
+        context: `${modelId} • ${inputCount} inputs`,
       };
     }
 
     if (state === "output-available") {
       const { output } = toolPart;
       
-      // Handle error output
-      if (output && 'error' in output) {
-        const promptName = input?.prompt_path ? getPromptName(input.prompt_path) : "prompt";
-        const modelId = input?.model_id || "default";
-        
-        return {
-          title: "Prompt",
-          path: input?.prompt_path,
-          context: `${promptName} • ${modelId} (error)`,
-        };
-      }
-      
-      // Handle success output
+      // Handle success output (errors now go to output-error state)
       if (output && 'totalProcessed' in output) {
-        const promptName = input?.prompt_path ? getPromptName(input.prompt_path) : "prompt";
-        const modelId = input?.model_id || "default";
-        const { totalProcessed } = output;
+        const { totalProcessed, modelId, accountName } = output;
         
         return {
           title: "Prompt",
           path: input?.prompt_path,
-          context: `${promptName} • ${modelId}`,
+          context: `${modelId} • ${accountName}`,
           lines: `${totalProcessed} outputs generated`,
         };
       }
     }
 
     if (state === "output-error") {
-      const promptName = input?.prompt_path ? getPromptName(input.prompt_path) : "prompt";
-      const modelId = input?.model_id || "default";
+      // For errors, we only have input model_id since output isn't available
+      // But we can show what was attempted vs "default"
+      const modelId = input?.model_id || "(using defaults)";
+      
+      // Extract and simplify error message
+      let errorText = toolPart.errorText || "Unknown error";
+      
+      // Handle specific error types more concisely
+      if (errorText === "Operation aborted") {
+        errorText = "Cancelled";
+      } else if (errorText.includes("AbortError") || errorText.includes("cancelled")) {
+        errorText = "Cancelled";
+      } else if (errorText.includes("Failed on input") && errorText.includes("cancelled")) {
+        errorText = "Cancelled";
+      } else if (errorText.startsWith("Failed on input")) {
+        // Extract just the underlying error
+        const match = errorText.match(/Failed on input \d+\/\d+:\s*(.+)$/);
+        if (match) {
+          errorText = match[1];
+        }
+      }
       
       return {
         title: "Prompt",
         path: input?.prompt_path,
-        context: `${promptName} • ${modelId} (error)`,
+        context: modelId,
+        lines: errorText,
       };
     }
 

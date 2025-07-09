@@ -23,10 +23,6 @@ type SearchUITool = {
     numResults: number;
     totalMatchesInVault?: number;
     truncated: boolean;
-  } | {
-    error: string;
-    message?: string;
-    meta?: any;
   };
 };
 
@@ -101,19 +97,13 @@ interface FormattedSearchResultItem {
   matchSnippets?: string[];
 }
 
-type SearchToolOutput =
-  | {
-      query: string;
-      results: FormattedSearchResultItem[];
-      numResults: number;
-      totalMatchesInVault?: number; // Might be hard to get accurately from internal API
-      truncated: boolean; // If results were limited by RESULT_LIMIT
-    }
-  | {
-      error: string;
-      message?: string;
-      meta?: any;
-    };
+type SearchToolOutput = {
+  query: string;
+  results: FormattedSearchResultItem[];
+  numResults: number;
+  totalMatchesInVault?: number; // Might be hard to get accurately from internal API
+  truncated: boolean; // If results were limited by RESULT_LIMIT
+};
 
 // --- Helper: Version-safety wrapper (from your research) ---
 function safeCoreSearchInstance(app: App): any {
@@ -146,7 +136,9 @@ export async function execute(
 
   const config = { ...searchToolDefaultConfig, ...contextConfig };
 
-  invariant(vault, "Vault not available in execution context.");
+  if (!vault) {
+    throw new Error("Vault not available in execution context");
+  }
 
   let searchEngineInstance: any;
   try {
@@ -164,19 +156,14 @@ export async function execute(
     searchEngineInstance = safeCoreSearchInstance(app);
   } catch (e: any) {
     debug("Error accessing Obsidian search engine:", e);
-    return {
-      error: "Search Engine Error",
-      message: `Could not access Obsidian's search engine: ${e.message}`,
-    };
+    throw new Error(`Could not access Obsidian's search engine: ${e.message}`);
   }
 
   try {
     const queryObj = searchEngineInstance.prepareQuery(params.query);
-    if (abortSignal.aborted)
-      return {
-        error: "Operation aborted",
-        message: "Search operation aborted by user.",
-      };
+    if (abortSignal.aborted) {
+      throw new Error("Operation aborted");
+    }
 
     // To control context lines for snippets (0 means off, just the match itself)
     // const originalContextSetting = searchEngineInstance.settings.context;
@@ -269,10 +256,7 @@ export async function execute(
 
     if (abortSignal.aborted && !searchIsDone) {
       // Check again if abort happened during promise resolution
-      return {
-        error: "Operation aborted",
-        message: "Search operation aborted by user.",
-      };
+      throw new Error("Operation aborted");
     }
 
     const formattedResults = searchResultsCollector.map((item) => {
@@ -333,10 +317,7 @@ export async function execute(
     };
   } catch (e: any) {
     debug(`Error during Obsidian search for query '${params.query}':`, e);
-    return {
-      error: "Tool execution failed",
-      message: e.message || String(e),
-    };
+    throw e;
   }
 }
 
@@ -364,14 +345,8 @@ export const searchTool: ToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
       
-      // Handle error output
-      if (output && 'error' in output) {
-        return {
-          title: "ObsidianSearch",
-          context: input?.query ? `"${input.query}" (error)` : "(error)",
-          contextStyle: "mono",
-        };
-      }
+      // Search tool throws errors instead of returning error objects
+      // so this error handling is not needed
       
       // Handle success output
       if (output && 'results' in output) {
@@ -394,10 +369,14 @@ export const searchTool: ToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "ObsidianSearch",
-        context: input?.query ? `"${input.query}" (error)` : "(error)",
+        context: input?.query ? `"${input.query}"` : undefined,
         contextStyle: "mono",
+        lines: errorText,
       };
     }
 

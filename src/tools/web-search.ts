@@ -62,9 +62,13 @@ export const toolDef: ProviderToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "Web Search",
-        context: input?.query ? `"${input.query}" (error)` : "(error)",
+        context: input?.query ? `"${input.query}"` : undefined,
+        lines: errorText,
       };
     }
 

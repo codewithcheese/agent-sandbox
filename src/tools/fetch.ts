@@ -58,6 +58,7 @@ type FetchUITool = {
   } | {
     error: string;
     message?: string;
+    humanMessage?: string;
     status?: number;
     url?: string;
     method?: string;
@@ -141,26 +142,25 @@ const inputSchema = z.strictObject({
     .describe("Whether to treat HTTP error status codes (400+) as failures"),
 });
 
-type FetchToolOutput =
-  | {
-      success: true;
-      status: number;
-      headers: Record<string, string>;
-      response_type: string;
-      body: any;
-      size: number;
-      url: string;
-      method: string;
-      duration: number;
-    }
-  | {
-      error: string;
-      message?: string;
-      status?: number;
-      url?: string;
-      method?: string;
-      duration?: number;
-    };
+type FetchToolOutput = {
+  success: true;
+  status: number;
+  headers: Record<string, string>;
+  response_type: string;
+  body: any;
+  size: number;
+  url: string;
+  method: string;
+  duration: number;
+} | {
+  error: string;
+  message?: string;
+  humanMessage?: string;
+  status?: number;
+  url?: string;
+  method?: string;
+  duration?: number;
+};
 
 /**
  * Validates URL for security concerns
@@ -279,6 +279,7 @@ export async function execute(
     return {
       error: "URL Validation Failed",
       message: urlValidation.message,
+      humanMessage: "Invalid URL",
       url: params.url,
       method,
     };
@@ -302,13 +303,7 @@ export async function execute(
     const duration = Date.now() - startTime;
 
     if (abortSignal?.aborted) {
-      return {
-        error: "Request Aborted",
-        message: "Request was aborted by user",
-        url: params.url,
-        method,
-        duration,
-      };
+      throw new Error("Operation aborted");
     }
 
     // Check response size
@@ -317,6 +312,7 @@ export async function execute(
       return {
         error: "Response Too Large",
         message: `Response size (${Math.round(responseSize / 1024)}KB) exceeds maximum allowed size (${Math.round(config.MAX_RESPONSE_SIZE / 1024)}KB)`,
+        humanMessage: "Response too large",
         status: response.status,
         url: params.url,
         method,
@@ -350,13 +346,7 @@ export async function execute(
     debug(`Request failed for ${params.url}:`, error);
 
     if (abortSignal?.aborted) {
-      return {
-        error: "Request Aborted",
-        message: "Request was aborted by user",
-        url: params.url,
-        method,
-        duration,
-      };
+      throw new Error("Operation aborted");
     }
 
     // Handle different types of errors
@@ -370,6 +360,7 @@ export async function execute(
     return {
       error: "Request Failed",
       message: errorMessage,
+      humanMessage: "Request failed",
       url: params.url,
       method,
       duration,
@@ -417,14 +408,15 @@ export const fetchTool: ToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
       
-      // Handle error output
+      // Handle recoverable error output
       if (output && 'error' in output) {
         const method = output.method || input?.method || "GET";
         const url = output.url || input?.url || "";
         
         return {
           title: "Fetch",
-          context: formatContext(url, method, true),
+          context: output.humanMessage || output.message || output.error || "Request failed",
+          error: true,
         };
       }
       
@@ -450,9 +442,13 @@ export const fetchTool: ToolDefinition = {
       const method = input?.method || "GET";
       const url = input?.url || "";
       
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "Fetch",
-        context: formatContext(url, method, true),
+        context: formatContext(url, method, false),
+        lines: errorText,
       };
     }
 

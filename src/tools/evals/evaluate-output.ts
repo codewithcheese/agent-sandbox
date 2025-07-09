@@ -201,9 +201,13 @@ export const evaluateOutputTool: ToolDefinition = {
 
     if (state === "output-error") {
       const judgeName = input?.judge_agent_path ? getJudgeName(input.judge_agent_path) : "judge";
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         title: "EvaluateOutput",
-        context: `${judgeName} (error)`,
+        context: judgeName,
+        lines: errorText,
       };
     }
 

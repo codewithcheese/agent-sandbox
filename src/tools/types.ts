@@ -20,6 +20,7 @@ export type ToolUIData = {
   context?: string;      // Brief context: "(error)" etc.
   contextStyle?: "normal" | "mono"; // Style for context display
   lines?: string;        // Line information: "1-100/500" or "45 lines" etc.
+  error?: boolean;       // True when tool returned a recoverable error (agent can retry)
 };
 
 export type ToolDefinition = LocalToolDefinition | ProviderToolDefinition;

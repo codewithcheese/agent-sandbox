@@ -27,6 +27,7 @@ type MultiEditUITool = {
   } | {
     error: string;
     message?: string;
+    humanMessage?: string;
     meta?: any;
   };
 };
@@ -142,6 +143,7 @@ type MultiEditToolOutput =
   | {
       error: string;
       message?: string;
+      humanMessage?: string;
       meta?: any; // For additional error context, like which edit failed
     };
 
@@ -150,7 +152,7 @@ async function validateMultiEditFilePath(
   vault: Vault,
   config: typeof defaultConfig,
   readState: any, // ReadState accessed through sessionStore
-): Promise<{ result: boolean; message?: string; meta?: any }> {
+): Promise<{ result: boolean; message?: string; humanMessage?: string; meta?: any }> {
   const path = normalizePath(filePath);
 
   const pathParts = path.split("/");
@@ -159,18 +161,20 @@ async function validateMultiEditFilePath(
       result: false,
       message:
         "Editing hidden files/folders (starting with '.') is not allowed.",
+      humanMessage: "Hidden path not allowed",
     };
   }
 
   const abstractFile = vault.getAbstractFileByPath(path);
   if (!abstractFile) {
-    return { result: false, message: `File does not exist: ${filePath}` };
+    return { result: false, message: `File does not exist: ${filePath}`, humanMessage: "File not found" };
   }
 
   if (vault.getFolderByPath(path)) {
     return {
       result: false,
       message: "Path is a directory, not a file. Cannot edit a directory.",
+      humanMessage: "Path is a directory",
     };
   }
 
@@ -215,7 +219,9 @@ export async function execute(
 
   const config = { ...defaultConfig, ...contextConfig };
 
-  invariant(vault, "Vault not available in execution context.");
+  if (!vault) {
+    throw new Error("Vault not available in execution context");
+  }
 
   const validation = await validateMultiEditFilePath(
     params.file_path,
@@ -227,6 +233,7 @@ export async function execute(
     return {
       error: "Input Validation Failed",
       message: validation.message,
+      humanMessage: validation.humanMessage,
       meta: validation.meta,
     };
   }
@@ -234,32 +241,30 @@ export async function execute(
 
   try {
     const originalFileContent = (await vault.read(file)).replace(/\r\n/g, "\n");
-    if (abortSignal.aborted)
-      return {
-        error: "Operation aborted",
-        message: "MultiEdit operation aborted by user.",
-      };
+    if (abortSignal.aborted) {
+      throw new Error("Operation aborted");
+    }
 
     let currentContentInMemory = originalFileContent;
     let totalReplacementsMadeThisCall = 0;
 
     for (const [i, editOp] of params.edits.entries()) {
-      if (abortSignal.aborted)
-        return {
-          error: "Operation aborted",
-          message: "MultiEdit operation aborted by user.",
-        };
+      if (abortSignal.aborted) {
+        throw new Error("Operation aborted");
+      }
 
       if (editOp.old_string === "") {
         return {
           error: "Invalid Edit",
           message: `Edit #${i + 1}: old_string cannot be empty for MultiEdit operations.`,
+          humanMessage: "Empty old_string",
         };
       }
       if (editOp.old_string === editOp.new_string) {
         return {
           error: "Invalid Edit",
           message: `Edit #${i + 1}: old_string and new_string are identical.`,
+          humanMessage: "No changes to make",
         };
       }
 
@@ -275,6 +280,7 @@ export async function execute(
         return {
           error: "String Not Found During MultiEdit",
           message: `Edit #${i + 1} (1-indexed): old_string "${editOp.old_string.substring(0, 50)}..." not found in the current (in-memory) state of the file content. Previous edits might have altered the target string.`,
+          humanMessage: "Text not found",
           meta: { failedEditIndex: i, originalOldString: editOp.old_string },
         };
       }
@@ -282,6 +288,7 @@ export async function execute(
         return {
           error: "Replacement Count Mismatch During MultiEdit",
           message: `Edit #${i + 1} (1-indexed): Found ${occurrences} occurrences of old_string "${editOp.old_string.substring(0, 50)}...", but expected ${expectedReplacements}.`,
+          humanMessage: "Occurrence count mismatch",
           meta: {
             failedEditIndex: i,
             originalOldString: editOp.old_string,
@@ -303,15 +310,14 @@ export async function execute(
         error: "No Effective Change",
         message:
           "The series of edits resulted in no net change to the file content.",
+        humanMessage: "No changes to make",
       };
     }
 
     await vault.modify(file, currentContentInMemory);
-    if (abortSignal.aborted)
-      return {
-        error: "Operation aborted",
-        message: "MultiEdit operation aborted by user.",
-      };
+    if (abortSignal.aborted) {
+      throw new Error("Operation aborted");
+    }
 
     // Update read state after successful multi-edit
     // const updatedFile = vault.getFileByPath(normalizePath(params.file_path));
@@ -334,6 +340,7 @@ export async function execute(
     return {
       error: "Tool execution failed",
       message: e.message || String(e),
+      humanMessage: "MultiEdit failed",
     };
   }
 }
@@ -364,11 +371,12 @@ export const multiEditTool: ToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
       
-      // Handle error output
+      // Handle recoverable error output
       if (output && 'error' in output) {
         return {
           path: input?.file_path,
-          context: "(error)",
+          context: output.humanMessage || output.message || output.error,
+          error: true,
         };
       }
       
@@ -385,9 +393,12 @@ export const multiEditTool: ToolDefinition = {
     }
 
     if (state === "output-error") {
+      // Show actual error message instead of generic "(error)"
+      const errorText = toolPart.errorText || "Unknown error";
+      
       return {
         path: input?.file_path,
-        context: "(error)",
+        lines: errorText,
       };
     }
 
