@@ -16,6 +16,7 @@
   import ModelModal from "./ModelModal.svelte";
   import AccountModal from "./AccountModal.svelte";
   import { folderSuggest } from "./folder-suggest.ts";
+  import debug from "debug";
 
   const plugin = usePlugin();
   let settings = $state(plugin.settings);
@@ -105,7 +106,7 @@
               type="text"
               value={settings.vault.chatsPath}
               oninput={(e) => {
-                plugin.settings.vault.chatsPath = e.currentTarget.value;
+                settings.vault.chatsPath = e.currentTarget.value;
                 save();
               }}
               {@attach folderSuggest(plugin.app)}
@@ -118,7 +119,7 @@
           <div class="setting-item-info">
             <div class="setting-item-name">Defaults</div>
             <div class="setting-item-description">
-              Default account and model for new chats and tools when not set
+              Default AI account and model for new chats and tools
             </div>
           </div>
         </div>
@@ -127,7 +128,7 @@
           <div class="setting-item-info">
             <div class="setting-item-name">Account</div>
             <div class="setting-item-description">
-              Select a default account for AI operations
+              Select a default account
             </div>
           </div>
           <div class="setting-item-control">
@@ -154,7 +155,7 @@
             <div class="setting-item-info">
               <div class="setting-item-name">Model</div>
               <div class="setting-item-description">
-                Select a default model for AI operations
+                Select a default model
               </div>
             </div>
             <div class="setting-item-control">
