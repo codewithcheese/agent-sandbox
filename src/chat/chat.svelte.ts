@@ -37,6 +37,7 @@ import { getTextFromParts, filterIncompleteToolParts } from "$lib/utils/ai.ts";
 import { MergeView } from "$lib/merge/merge-view.svelte.ts";
 import { MetadataCacheOverlay } from "./metadata-cache-overlay.ts";
 import type { LanguageModelV2Usage } from "@ai-sdk/provider";
+import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
 
 const debug = createDebug();
 
@@ -556,6 +557,11 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
               reasoningSummary: "detailed",
               strictSchemas: false,
             } satisfies OpenAIResponsesProviderOptions,
+            google: {
+              thinkingConfig: {
+                includeThoughts: true,
+              },
+            } satisfies GoogleGenerativeAIProviderOptions,
           },
           abortSignal,
           onStepFinish: async (step) => {
