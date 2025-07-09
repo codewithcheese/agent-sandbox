@@ -15,6 +15,7 @@ import { globTool } from "./files/glob.ts";
 import { searchTool } from "./files/search.ts";
 import type { ToolDefinition, ToolExecuteContext } from "./types.ts";
 import { listTool } from "./files/list.ts";
+import { outlineTool } from "./files/outline.ts";
 import { toolDef as todoWrite } from "./todo/write.ts";
 import { toolDef as todoRead } from "./todo/read.ts";
 import { toolDef as webSearch } from "./web-search.ts";
@@ -32,6 +33,7 @@ export const toolRegistry: Record<string, ToolDefinition> = {
   web_search: webSearch,
   fetch: fetchTool,
   list: listTool,
+  outline: outlineTool,
   read: readTool,
   write: writeTool,
   edit: editTool,
