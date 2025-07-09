@@ -36,17 +36,19 @@ type EditUITool = {
     new_string: string;
     expected_replacements?: number;
   };
-  output: {
-    type: "update";
-    filePath: string;
-    message: string;
-    replacementsMade: number;
-  } | {
-    error: string;
-    message?: string;
-    humanMessage?: string;
-    meta?: any;
-  };
+  output:
+    | {
+        type: "update";
+        filePath: string;
+        message: string;
+        replacementsMade: number;
+      }
+    | {
+        error: string;
+        message?: string;
+        humanMessage?: string;
+        meta?: any;
+      };
 };
 
 type EditToolUIPart = ToolUIPart<{ Edit: EditUITool }>;
@@ -89,24 +91,31 @@ const editInputSchema = z.strictObject({
     ),
 });
 
-type EditToolOutput = {
-  type: "update";
-  filePath: string;
-  message: string;
-  replacementsMade: number;
-} | {
-  error: string;
-  message?: string;
-  humanMessage?: string;
-  meta?: any;
-};
+type EditToolOutput =
+  | {
+      type: "update";
+      filePath: string;
+      message: string;
+      replacementsMade: number;
+    }
+  | {
+      error: string;
+      message?: string;
+      humanMessage?: string;
+      meta?: any;
+    };
 
 async function validateInput(
   params: z.infer<typeof editInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
   readState: ReadState,
-): Promise<{ result: boolean; message?: string; humanMessage?: string; meta?: any }> {
+): Promise<{
+  result: boolean;
+  message?: string;
+  humanMessage?: string;
+  meta?: any;
+}> {
   if (params.old_string === "") {
     return {
       result: false,
@@ -248,9 +257,7 @@ export async function execute(
 
   try {
     const originalFileContent = (await vault.read(file)).replace(/\r\n/g, "\n");
-    if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     const oldString = params.old_string;
     const newString = params.new_string;
@@ -263,9 +270,7 @@ export async function execute(
     const actualReplacements = params.expected_replacements ?? 1; // Already validated this count matches
 
     await vault.modify(file, updatedFileContent);
-    if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     // Update read state after successful edit
     // const updatedFile = vault.getFileByPath(normalizedFilePath);
@@ -284,6 +289,10 @@ export async function execute(
     };
   } catch (e: any) {
     debug(`Error editing file '${params.file_path}':`, e);
+    if (typeof e === "object" && "name" in e && e.name === "AbortError") {
+      // Rethrow AbortError so that tool is marked a error not warning
+      throw e;
+    }
     return {
       error: "Tool execution failed",
       message: e.message || String(e),
@@ -305,10 +314,11 @@ export const editTool: ToolDefinition = {
     // Show file path and expected replacements during streaming and processing
     if (state === "input-available" || state === "input-streaming") {
       if (!input?.file_path) return null;
-      
+
       const expectedReplacements = input.expected_replacements ?? 1;
-      const replacementText = expectedReplacements === 1 ? "replacement" : "replacements";
-      
+      const replacementText =
+        expectedReplacements === 1 ? "replacement" : "replacements";
+
       return {
         path: input.file_path,
         context: `${expectedReplacements} ${replacementText}`,
@@ -317,20 +327,21 @@ export const editTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      
+
       // Handle recoverable error output
-      if (output && 'error' in output) {
+      if (output && "error" in output) {
         return {
           path: input?.file_path,
           context: output.humanMessage || output.message || output.error,
           error: true,
         };
       }
-      
+
       // Handle success output
-      if (output && 'replacementsMade' in output) {
-        const replacementText = output.replacementsMade === 1 ? "replacement" : "replacements";
-        
+      if (output && "replacementsMade" in output) {
+        const replacementText =
+          output.replacementsMade === 1 ? "replacement" : "replacements";
+
         return {
           path: input.file_path,
           lines: `${output.replacementsMade} ${replacementText}`,
@@ -341,7 +352,7 @@ export const editTool: ToolDefinition = {
     if (state === "output-error") {
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         path: input?.file_path,
         lines: errorText,

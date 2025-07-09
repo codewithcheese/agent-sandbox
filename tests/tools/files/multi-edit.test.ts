@@ -313,6 +313,24 @@ describe("MultiEdit tool execute function", () => {
     expect(content).toBe(INITIAL_CONTENT); // File should not be modified
   });
 
+  // --- Vault Operation Failures ---
+  it("should return error if vault.modify throws during final write", async () => {
+    vi.spyOn(vault, "modify").mockImplementation(async (...args) => {
+      throw new Error("Vault modify failed");
+    });
+    const params = {
+      file_path: MOCK_FILE_PATH,
+      edits: [{ old_string: "one", new_string: "1", expected_replacements: 1 }],
+    };
+    const result = await multiEditToolExecute(params, toolExecOptions);
+    invariant(
+      typeof result !== "string" && "error" in result,
+      "Expected error object",
+    );
+    expect(result.error).toBe("Tool execution failed");
+    expect(result.message).toBe("Vault modify failed");
+  });
+
   // --- Abort Signal Test ---
   it('should return "Operation aborted" if signal is aborted during the edit loop', async () => {
     const params = {
@@ -334,35 +352,13 @@ describe("MultiEdit tool execute function", () => {
       return originalStringReplace.apply(this, [searchValue, replaceValue]);
     };
 
-    const result = await multiEditToolExecute(params, toolExecOptions);
-    String.prototype.replace = originalStringReplace; // Restore original method
-
-    invariant(
-      typeof result !== "string" && "error" in result,
-      "Expected error object",
-    );
-    expect(result.error).toBe("Operation aborted");
+    await expect(() =>
+      multiEditToolExecute(params, toolExecOptions),
+    ).rejects.toThrow("The operation was aborted.");
+    // String.prototype.replace = originalStringReplace; // Restore original method
     const content = await vault.read(
       vault.getFileByPath(MOCK_FILE_PATH) as TFile,
     );
     expect(content).toBe(INITIAL_CONTENT); // File should not be modified
-  });
-
-  // --- Vault Operation Failures ---
-  it("should return error if vault.modify throws during final write", async () => {
-    vi.spyOn(vault, "modify").mockImplementation(async (...args) => {
-      throw new Error("Vault modify failed");
-    });
-    const params = {
-      file_path: MOCK_FILE_PATH,
-      edits: [{ old_string: "one", new_string: "1", expected_replacements: 1 }],
-    };
-    const result = await multiEditToolExecute(params, toolExecOptions);
-    invariant(
-      typeof result !== "string" && "error" in result,
-      "Expected error object",
-    );
-    expect(result.error).toBe("Tool execution failed");
-    expect(result.message).toBe("Vault modify failed");
   });
 });

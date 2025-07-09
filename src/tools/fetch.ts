@@ -45,25 +45,27 @@ type FetchUITool = {
     response_type?: string;
     throw_on_error?: boolean;
   };
-  output: {
-    success: true;
-    status: number;
-    headers: Record<string, string>;
-    response_type: string;
-    body: any;
-    size: number;
-    url: string;
-    method: string;
-    duration: number;
-  } | {
-    error: string;
-    message?: string;
-    humanMessage?: string;
-    status?: number;
-    url?: string;
-    method?: string;
-    duration?: number;
-  };
+  output:
+    | {
+        success: true;
+        status: number;
+        headers: Record<string, string>;
+        response_type: string;
+        body: any;
+        size: number;
+        url: string;
+        method: string;
+        duration: number;
+      }
+    | {
+        error: string;
+        message?: string;
+        humanMessage?: string;
+        status?: number;
+        url?: string;
+        method?: string;
+        duration?: number;
+      };
 };
 
 type FetchToolUIPart = ToolUIPart<{ Fetch: FetchUITool }>;
@@ -142,25 +144,27 @@ const inputSchema = z.strictObject({
     .describe("Whether to treat HTTP error status codes (400+) as failures"),
 });
 
-type FetchToolOutput = {
-  success: true;
-  status: number;
-  headers: Record<string, string>;
-  response_type: string;
-  body: any;
-  size: number;
-  url: string;
-  method: string;
-  duration: number;
-} | {
-  error: string;
-  message?: string;
-  humanMessage?: string;
-  status?: number;
-  url?: string;
-  method?: string;
-  duration?: number;
-};
+type FetchToolOutput =
+  | {
+      success: true;
+      status: number;
+      headers: Record<string, string>;
+      response_type: string;
+      body: any;
+      size: number;
+      url: string;
+      method: string;
+      duration: number;
+    }
+  | {
+      error: string;
+      message?: string;
+      humanMessage?: string;
+      status?: number;
+      url?: string;
+      method?: string;
+      duration?: number;
+    };
 
 /**
  * Validates URL for security concerns
@@ -340,21 +344,22 @@ export async function execute(
       method,
       duration,
     };
-  } catch (error) {
+  } catch (e) {
     const duration = Date.now() - startTime;
 
-    debug(`Request failed for ${params.url}:`, error);
+    debug(`Request failed for ${params.url}:`, e);
 
-    if (abortSignal?.aborted) {
-      throw new Error("Operation aborted");
+    if (typeof e === "object" && "name" in e && e.name === "AbortError") {
+      // Rethrow AbortError so that tool is marked a error not warning
+      throw e;
     }
 
     // Handle different types of errors
     let errorMessage = "Request failed";
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else if (typeof error === "string") {
-      errorMessage = error;
+    if (e instanceof Error) {
+      errorMessage = e.message;
+    } else if (typeof e === "string") {
+      errorMessage = e;
     }
 
     return {
@@ -379,7 +384,11 @@ export const fetchTool: ToolDefinition = {
     const { state, input } = toolPart;
 
     // Helper function to format URL and method
-    const formatContext = (url: string, method: string = "GET", hasError = false) => {
+    const formatContext = (
+      url: string,
+      method: string = "GET",
+      hasError = false,
+    ) => {
       try {
         const urlObj = new URL(url);
         const host = urlObj.hostname;
@@ -396,9 +405,9 @@ export const fetchTool: ToolDefinition = {
     // Show method and URL during streaming and processing
     if (state === "input-available" || state === "input-streaming") {
       if (!input?.url) return null;
-      
+
       const method = input.method || "GET";
-      
+
       return {
         title: "Fetch",
         context: formatContext(input.url, method),
@@ -407,29 +416,37 @@ export const fetchTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      
+
       // Handle recoverable error output
-      if (output && 'error' in output) {
+      if (output && "error" in output) {
         const method = output.method || input?.method || "GET";
         const url = output.url || input?.url || "";
-        
+
         return {
           title: "Fetch",
-          context: output.humanMessage || output.message || output.error || "Request failed",
+          context:
+            output.humanMessage ||
+            output.message ||
+            output.error ||
+            "Request failed",
           error: true,
         };
       }
-      
+
       // Handle success output
-      if (output && 'success' in output) {
+      if (output && "success" in output) {
         const { status, size, duration } = output;
-        
+
         // Format size
-        const sizeText = size < 1024 ? `${size}B` : `${(size / 1024).toFixed(1)}KB`;
-        
+        const sizeText =
+          size < 1024 ? `${size}B` : `${(size / 1024).toFixed(1)}KB`;
+
         // Format duration
-        const durationText = duration < 1000 ? `${duration}ms` : `${(duration / 1000).toFixed(1)}s`;
-        
+        const durationText =
+          duration < 1000
+            ? `${duration}ms`
+            : `${(duration / 1000).toFixed(1)}s`;
+
         return {
           title: "Fetch",
           context: formatContext(output.url, output.method),
@@ -441,10 +458,10 @@ export const fetchTool: ToolDefinition = {
     if (state === "output-error") {
       const method = input?.method || "GET";
       const url = input?.url || "";
-      
+
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         title: "Fetch",
         context: formatContext(url, method, false),

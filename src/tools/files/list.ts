@@ -39,11 +39,13 @@ type ListUITool = {
     path: string;
     ignore?: string[];
   };
-  output: string | {
-    error: string;
-    message?: string;
-    humanMessage?: string;
-  };
+  output:
+    | string
+    | {
+        error: string;
+        message?: string;
+        humanMessage?: string;
+      };
 };
 
 type ListToolUIPart = ToolUIPart<{ List: ListUITool }>;
@@ -279,9 +281,7 @@ export async function execute(
       ignorePatterns,
     );
 
-    if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     const fileNodes = buildFileTree(listedFilesArray);
     const formattedTreeString = formatFileTree(targetPath, fileNodes);
@@ -297,6 +297,10 @@ export async function execute(
     return resultData.trimEnd();
   } catch (e) {
     console.error(`Error executing LS tool for path '${params.path}':`, e);
+    if (typeof e === "object" && "name" in e && e.name === "AbortError") {
+      // Rethrow AbortError so that tool is marked a error not warning
+      throw e;
+    }
     return {
       error: "Tool execution failed",
       message: e instanceof Error ? e.message : String(e),
@@ -318,7 +322,7 @@ export const listTool: ToolDefinition = {
     // Show directory path during streaming and processing
     if (state === "input-available" || state === "input-streaming") {
       if (!input?.path) return null;
-      
+
       return {
         title: "List",
         context: input.path,
@@ -327,22 +331,24 @@ export const listTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      
+
       // Handle recoverable error output
-      if (output && typeof output === "object" && 'error' in output) {
+      if (output && typeof output === "object" && "error" in output) {
         return {
           title: "List",
           context: output.humanMessage || output.message || output.error,
           error: true,
         };
       }
-      
+
       // Handle success output (string result)
       if (typeof output === "string") {
         // Count items in the directory listing
-        const lines = output.split('\n').filter(line => line.trim() && line.includes('- '));
+        const lines = output
+          .split("\n")
+          .filter((line) => line.trim() && line.includes("- "));
         const itemCount = lines.length;
-        
+
         return {
           title: "List",
           context: input?.path || "",
@@ -354,7 +360,7 @@ export const listTool: ToolDefinition = {
     if (state === "output-error") {
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         title: "List",
         context: input?.path,

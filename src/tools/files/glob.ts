@@ -53,17 +53,19 @@ type GlobUITool = {
     path?: string;
     ignore?: string[];
   };
-  output: {
-    filenames: string[];
-    numFiles: number;
-    totalMatchesBeforeLimit: number;
-    truncated: boolean;
-  } | {
-    error: string;
-    message?: string;
-    humanMessage?: string;
-    meta?: any;
-  };
+  output:
+    | {
+        filenames: string[];
+        numFiles: number;
+        totalMatchesBeforeLimit: number;
+        truncated: boolean;
+      }
+    | {
+        error: string;
+        message?: string;
+        humanMessage?: string;
+        meta?: any;
+      };
 };
 
 type GlobToolUIPart = ToolUIPart<{ Glob: GlobUITool }>;
@@ -108,23 +110,30 @@ const globInputSchema = z.strictObject({
     ),
 });
 
-type GlobToolOutput = {
-  filenames: string[];
-  numFiles: number;
-  totalMatchesBeforeLimit: number;
-  truncated: boolean;
-} | {
-  error: string;
-  message?: string;
-  humanMessage?: string;
-  meta?: any;
-};
+type GlobToolOutput =
+  | {
+      filenames: string[];
+      numFiles: number;
+      totalMatchesBeforeLimit: number;
+      truncated: boolean;
+    }
+  | {
+      error: string;
+      message?: string;
+      humanMessage?: string;
+      meta?: any;
+    };
 
 async function validateInput(
   params: z.infer<typeof globInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
-): Promise<{ result: boolean; message?: string; humanMessage?: string; meta?: any }> {
+): Promise<{
+  result: boolean;
+  message?: string;
+  humanMessage?: string;
+  meta?: any;
+}> {
   const rootPath = normalizePath(params.path || "/");
   const rootEntry = vault.getAbstractFileByPath(rootPath);
 
@@ -213,9 +222,7 @@ export async function execute(
     }
 
     await traverse(rootEntry);
-    if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     matchedFiles.sort((a, b) => b.stat.mtime - a.stat.mtime); // Newest first
 
@@ -233,6 +240,10 @@ export async function execute(
     };
   } catch (e: any) {
     debug(`Error during glob execution for pattern '${params.pattern}':`, e);
+    if (typeof e === "object" && "name" in e && e.name === "AbortError") {
+      // Rethrow AbortError so that tool is marked a error not warning
+      throw e;
+    }
     return {
       error: "Tool execution failed",
       message: e.message || String(e),
@@ -281,7 +292,11 @@ export const globTool: ToolDefinition = {
       if (output && "error" in output) {
         return {
           title: "Glob",
-          context: output.humanMessage || output.message || output.error || "Search failed",
+          context:
+            output.humanMessage ||
+            output.message ||
+            output.error ||
+            "Search failed",
           contextStyle: "mono",
           error: true,
         };
@@ -310,7 +325,7 @@ export const globTool: ToolDefinition = {
     if (state === "output-error") {
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         title: "Glob",
         context: input?.pattern

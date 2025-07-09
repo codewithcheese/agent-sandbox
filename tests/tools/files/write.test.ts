@@ -193,11 +193,8 @@ describe("Write tool", () => {
   it('should return "Operation aborted" if signal is aborted before write', async () => {
     mockAbortController.abort();
     const params = { file_path: MOCK_FILE_PATH, content: MOCK_FILE_CONTENT };
-    const result = await writeToolExecute(params, toolExecOptions);
-    invariant(
-      typeof result !== "string" && "error" in result,
-      "Expected error object",
-    );
-    expect(result.error).toBe("Operation aborted");
+    await expect(() =>
+      writeToolExecute(params, toolExecOptions),
+    ).rejects.toThrow("The operation was aborted.");
   });
 });

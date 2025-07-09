@@ -326,9 +326,7 @@ export async function execute(
         };
       }
       const binaryContents = await vault.readBinary(file);
-      if (abortSignal.aborted) {
-        throw new Error("Operation aborted");
-      }
+      abortSignal.throwIfAborted();
       const base64 = Buffer.from(binaryContents).toString("base64");
 
       // Update read state for image files
@@ -350,9 +348,7 @@ export async function execute(
 
     // Text file handling
     const fileContentString = await vault.read(file);
-    if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     const lines = fileContentString.split("\n");
     const offset = params.offset ?? config.DEFAULT_LINE_OFFSET;
@@ -380,6 +376,10 @@ export async function execute(
     );
   } catch (e) {
     debug(`Error reading file '${params.file_path}':`, e);
+    if (typeof e === "object" && "name" in e && e.name === "AbortError") {
+      // Rethrow AbortError so that tool is marked a error not warning
+      throw e;
+    }
     return {
       error: "Tool execution failed",
       message: e instanceof Error ? e.message : String(e),
@@ -407,7 +407,7 @@ export const readTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      
+
       // Handle recoverable error output
       if (output && typeof output === "object" && "error" in output) {
         return {
@@ -416,17 +416,26 @@ export const readTool: ToolDefinition = {
           error: true,
         };
       }
-      
-      if (output && typeof output === "object" && "type" in output && output.type === "image") {
+
+      if (
+        output &&
+        typeof output === "object" &&
+        "type" in output &&
+        output.type === "image"
+      ) {
         return {
           path: input.file_path,
           lines: `${(output.file.originalSize / 1024).toFixed(1)} KB`,
         };
       } else if (typeof output === "string") {
-        const linesMatch = output.split("\n")[1]?.match(/^Lines (\d+)-(\d+) of (\d+):$/);
+        const linesMatch = output
+          .split("\n")[1]
+          ?.match(/^Lines (\d+)-(\d+) of (\d+):$/);
         return {
           path: input.file_path,
-          lines: linesMatch ? `${linesMatch[1]}-${linesMatch[2]} of ${linesMatch[3]}` : "",
+          lines: linesMatch
+            ? `${linesMatch[1]}-${linesMatch[2]} of ${linesMatch[3]}`
+            : "",
         };
       }
     }
@@ -434,7 +443,7 @@ export const readTool: ToolDefinition = {
     if (state === "output-error") {
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         path: input?.file_path,
         lines: errorText,

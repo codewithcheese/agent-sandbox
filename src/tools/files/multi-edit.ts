@@ -18,18 +18,20 @@ type MultiEditUITool = {
       expected_replacements?: number;
     }>;
   };
-  output: {
-    type: "update";
-    filePath: string;
-    message: string;
-    editsAppliedCount: number;
-    totalReplacementsMade: number;
-  } | {
-    error: string;
-    message?: string;
-    humanMessage?: string;
-    meta?: any;
-  };
+  output:
+    | {
+        type: "update";
+        filePath: string;
+        message: string;
+        editsAppliedCount: number;
+        totalReplacementsMade: number;
+      }
+    | {
+        error: string;
+        message?: string;
+        humanMessage?: string;
+        meta?: any;
+      };
 };
 
 type MultiEditToolUIPart = ToolUIPart<{ MultiEdit: MultiEditUITool }>;
@@ -152,7 +154,12 @@ async function validateMultiEditFilePath(
   vault: Vault,
   config: typeof defaultConfig,
   readState: any, // ReadState accessed through sessionStore
-): Promise<{ result: boolean; message?: string; humanMessage?: string; meta?: any }> {
+): Promise<{
+  result: boolean;
+  message?: string;
+  humanMessage?: string;
+  meta?: any;
+}> {
   const path = normalizePath(filePath);
 
   const pathParts = path.split("/");
@@ -167,7 +174,11 @@ async function validateMultiEditFilePath(
 
   const abstractFile = vault.getAbstractFileByPath(path);
   if (!abstractFile) {
-    return { result: false, message: `File does not exist: ${filePath}`, humanMessage: "File not found" };
+    return {
+      result: false,
+      message: `File does not exist: ${filePath}`,
+      humanMessage: "File not found",
+    };
   }
 
   if (vault.getFolderByPath(path)) {
@@ -241,8 +252,9 @@ export async function execute(
 
   try {
     const originalFileContent = (await vault.read(file)).replace(/\r\n/g, "\n");
+
     if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
+      abortSignal.throwIfAborted();
     }
 
     let currentContentInMemory = originalFileContent;
@@ -315,9 +327,7 @@ export async function execute(
     }
 
     await vault.modify(file, currentContentInMemory);
-    if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     // Update read state after successful multi-edit
     // const updatedFile = vault.getFileByPath(normalizePath(params.file_path));
@@ -337,10 +347,14 @@ export async function execute(
     };
   } catch (e: any) {
     debug(`Error during multi-edit for file '${params.file_path}':`, e);
+    if (typeof e === "object" && "name" in e && e.name === "AbortError") {
+      // Rethrow AbortError so that tool is marked a error not warning
+      throw e;
+    }
     return {
       error: "Tool execution failed",
       message: e.message || String(e),
-      humanMessage: "MultiEdit failed",
+      humanMessage: "Unexpected error",
     };
   }
 }
@@ -358,10 +372,10 @@ export const multiEditTool: ToolDefinition = {
     // Show file path and number of edits during streaming and processing
     if (state === "input-available" || state === "input-streaming") {
       if (!input?.file_path) return null;
-      
+
       const editCount = input.edits?.length || 0;
       const editText = editCount === 1 ? "edit" : "edits";
-      
+
       return {
         path: input.file_path,
         context: `${editCount} ${editText}`,
@@ -370,21 +384,22 @@ export const multiEditTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      
+
       // Handle recoverable error output
-      if (output && 'error' in output) {
+      if (output && "error" in output) {
         return {
           path: input?.file_path,
           context: output.humanMessage || output.message || output.error,
           error: true,
         };
       }
-      
+
       // Handle success output
-      if (output && 'editsAppliedCount' in output) {
+      if (output && "editsAppliedCount" in output) {
         const editText = output.editsAppliedCount === 1 ? "edit" : "edits";
-        const replacementText = output.totalReplacementsMade === 1 ? "replacement" : "replacements";
-        
+        const replacementText =
+          output.totalReplacementsMade === 1 ? "replacement" : "replacements";
+
         return {
           path: input.file_path,
           lines: `${output.editsAppliedCount} ${editText} • ${output.totalReplacementsMade} ${replacementText}`,
@@ -395,7 +410,7 @@ export const multiEditTool: ToolDefinition = {
     if (state === "output-error") {
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         path: input?.file_path,
         lines: errorText,

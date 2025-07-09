@@ -11,17 +11,19 @@ type WriteUITool = {
     file_path: string;
     content: string;
   };
-  output: {
-    type: "update" | "create";
-    filePath: string;
-    message: string;
-    contentSnippet?: string;
-  } | {
-    error: string;
-    message?: string;
-    humanMessage?: string;
-    meta?: any;
-  };
+  output:
+    | {
+        type: "update" | "create";
+        filePath: string;
+        message: string;
+        contentSnippet?: string;
+      }
+    | {
+        error: string;
+        message?: string;
+        humanMessage?: string;
+        meta?: any;
+      };
 };
 
 type WriteToolUIPart = ToolUIPart<{ Write: WriteUITool }>;
@@ -68,24 +70,31 @@ const writeInputSchema = z.strictObject({
   content: z.string().describe("The content to write to the file"),
 });
 
-type WriteToolOutput = {
-  type: "update" | "create";
-  filePath: string;
-  message: string;
-  contentSnippet?: string;
-} | {
-  error: string;
-  message?: string;
-  humanMessage?: string;
-  meta?: any;
-};
+type WriteToolOutput =
+  | {
+      type: "update" | "create";
+      filePath: string;
+      message: string;
+      contentSnippet?: string;
+    }
+  | {
+      error: string;
+      message?: string;
+      humanMessage?: string;
+      meta?: any;
+    };
 
 async function validateWriteInput(
   params: z.infer<typeof writeInputSchema>,
   vault: Vault,
   config: typeof defaultConfig,
   readState: any, // ReadState accessed through sessionStore
-): Promise<{ result: boolean; message?: string; humanMessage?: string; meta?: any }> {
+): Promise<{
+  result: boolean;
+  message?: string;
+  humanMessage?: string;
+  meta?: any;
+}> {
   const path = normalizePath(params.file_path);
 
   // Check if any part of the path starts with a dot
@@ -174,9 +183,7 @@ export async function execute(
   const fileExists = !!abstractFile;
 
   try {
-    if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     const newContent = params.content.replace(/\r\n/g, "\n");
 
@@ -206,6 +213,10 @@ export async function execute(
     };
   } catch (e: any) {
     debug(`Error writing file '${params.file_path}':`, e);
+    if (typeof e === "object" && "name" in e && e.name === "AbortError") {
+      // Rethrow AbortError so that tool is marked a error not warning
+      throw e;
+    }
     return {
       error: "Tool execution failed",
       message: e.message || String(e),
@@ -251,7 +262,7 @@ export const writeTool: ToolDefinition = {
     if (state === "output-available") {
       const { output } = toolPart;
       if (!output) return null;
-      
+
       // Handle recoverable error output
       if ("error" in output) {
         return {
@@ -270,7 +281,7 @@ export const writeTool: ToolDefinition = {
     if (state === "output-error") {
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         path: input?.file_path,
         lines: errorText,

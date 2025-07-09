@@ -87,90 +87,92 @@ async function execute(
 
   const plugin = usePlugin();
 
-    // Get the prompt file
-    debug(`Looking for prompt file at path: ${params.prompt_path}`);
-    const promptFile = vault.getFileByPath(params.prompt_path);
-    if (!promptFile) {
-      throw new Error(`Could not find prompt file at path: ${params.prompt_path}`);
-    }
-
-    // Get model and account configuration using overlay-aware metadata cache
-    const metadata = metadataCache.getFileCache(promptFile);
-    const frontmatter = metadata?.frontmatter || {};
-
-    let modelId = params.model_id || frontmatter.model_id;
-    let account, model;
-
-    if (modelId) {
-      try {
-        model = getChatModel(modelId);
-        // Find an account that supports this model's provider
-        const foundAccount = plugin.settings.accounts.find(
-          (a) => a.provider === model.provider,
-        );
-        if (!foundAccount) {
-          throw new Error(`Model '${modelId}' (provider: ${model.provider}) requires an account for this provider`);
-        }
-        account = foundAccount;
-      } catch (error) {
-        throw new Error(`Model '${modelId}' not configured`);
-      }
-    } else {
-      // Use plugin defaults - check they exist first
-      if (!plugin.settings.defaults.accountId) {
-        throw new Error("Please configure a default account in plugin settings");
-      }
-
-      if (!plugin.settings.defaults.modelId) {
-        throw new Error("Please configure a default model in plugin settings");
-      }
-
-      try {
-        account = getAccount(plugin.settings.defaults.accountId);
-        model = getChatModel(plugin.settings.defaults.modelId);
-        modelId = model.id;
-      } catch (error) {
-        throw new Error("Configure default model and account in settings");
-      }
-    }
-
-    // Create system content using overlay-aware vault and metadata cache
-    const systemContent = await createSystemContent(
-      promptFile,
-      vault,
-      metadataCache,
+  // Get the prompt file
+  debug(`Looking for prompt file at path: ${params.prompt_path}`);
+  const promptFile = vault.getFileByPath(params.prompt_path);
+  if (!promptFile) {
+    throw new Error(
+      `Could not find prompt file at path: ${params.prompt_path}`,
     );
+  }
 
-    // Create provider
-    const provider = createAIProvider(account);
+  // Get model and account configuration using overlay-aware metadata cache
+  const metadata = metadataCache.getFileCache(promptFile);
+  const frontmatter = metadata?.frontmatter || {};
 
-    // Generate outputs sequentially for each input
-    const outputs: string[] = [];
+  let modelId = params.model_id || frontmatter.model_id;
+  let account, model;
 
-    for (let i = 0; i < params.inputs.length; i++) {
-      const input = params.inputs[i];
-
-      // Check for abort signal before each generation
-      if (abortSignal?.aborted) {
-        throw new Error("Operation aborted");
+  if (modelId) {
+    try {
+      model = getChatModel(modelId);
+      // Find an account that supports this model's provider
+      const foundAccount = plugin.settings.accounts.find(
+        (a) => a.provider === model.provider,
+      );
+      if (!foundAccount) {
+        throw new Error(
+          `Model '${modelId}' (provider: ${model.provider}) requires an account for this provider`,
+        );
       }
-
-      try {
-        const result = await generateText({
-          model: provider.languageModel(modelId),
-          system: systemContent,
-          prompt: input,
-          temperature: params.temperature,
-          abortSignal,
-        });
-
-        outputs.push(result.text);
-        debug(`Generated output ${i + 1}/${params.inputs.length}`);
-      } catch (error) {
-        // If one generation fails, throw the underlying error directly
-        throw error;
-      }
+      account = foundAccount;
+    } catch (error) {
+      throw new Error(`Model '${modelId}' not configured`);
     }
+  } else {
+    // Use plugin defaults - check they exist first
+    if (!plugin.settings.defaults.accountId) {
+      throw new Error("Please configure a default account in plugin settings");
+    }
+
+    if (!plugin.settings.defaults.modelId) {
+      throw new Error("Please configure a default model in plugin settings");
+    }
+
+    try {
+      account = getAccount(plugin.settings.defaults.accountId);
+      model = getChatModel(plugin.settings.defaults.modelId);
+      modelId = model.id;
+    } catch (error) {
+      throw new Error("Configure default model and account in settings");
+    }
+  }
+
+  // Create system content using overlay-aware vault and metadata cache
+  const systemContent = await createSystemContent(
+    promptFile,
+    vault,
+    metadataCache,
+  );
+
+  // Create provider
+  const provider = createAIProvider(account);
+
+  // Generate outputs sequentially for each input
+  const outputs: string[] = [];
+
+  for (let i = 0; i < params.inputs.length; i++) {
+    const input = params.inputs[i];
+
+    // Check for abort signal before each generation
+    abortSignal.throwIfAborted();
+
+    try {
+      const result = await generateText({
+        model: provider.languageModel(modelId),
+        system: systemContent,
+        prompt: input,
+        temperature: params.temperature,
+        abortSignal,
+      });
+
+      outputs.push(result.text);
+      debug(`Generated output ${i + 1}/${params.inputs.length}`);
+    } catch (error) {
+      // If one generation fails, throw the underlying error directly
+      throw error;
+    }
+  }
 
   return {
     outputs,
@@ -194,7 +196,7 @@ export const promptTool: ToolDefinition = {
     if (state === "input-available" || state === "input-streaming") {
       const inputCount = input?.inputs?.length || 0;
       const modelId = input?.model_id || "default";
-      
+
       return {
         title: "Prompt",
         path: input?.prompt_path,
@@ -204,11 +206,11 @@ export const promptTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      
+
       // Handle success output (errors now go to output-error state)
-      if (output && 'totalProcessed' in output) {
+      if (output && "totalProcessed" in output) {
         const { totalProcessed, modelId, accountName } = output;
-        
+
         return {
           title: "Prompt",
           path: input?.prompt_path,
@@ -222,16 +224,22 @@ export const promptTool: ToolDefinition = {
       // For errors, we only have input model_id since output isn't available
       // But we can show what was attempted vs "default"
       const modelId = input?.model_id || "(using defaults)";
-      
+
       // Extract and simplify error message
       let errorText = toolPart.errorText || "Unknown error";
-      
+
       // Handle specific error types more concisely
       if (errorText === "Operation aborted") {
         errorText = "Cancelled";
-      } else if (errorText.includes("AbortError") || errorText.includes("cancelled")) {
+      } else if (
+        errorText.includes("AbortError") ||
+        errorText.includes("cancelled")
+      ) {
         errorText = "Cancelled";
-      } else if (errorText.includes("Failed on input") && errorText.includes("cancelled")) {
+      } else if (
+        errorText.includes("Failed on input") &&
+        errorText.includes("cancelled")
+      ) {
         errorText = "Cancelled";
       } else if (errorText.startsWith("Failed on input")) {
         // Extract just the underlying error
@@ -240,7 +248,7 @@ export const promptTool: ToolDefinition = {
           errorText = match[1];
         }
       }
-      
+
       return {
         title: "Prompt",
         path: input?.prompt_path,

@@ -327,50 +327,6 @@ describe("Edit tool execute function", () => {
     );
   });
 
-  // --- Abort Signal Test ---
-  it('should return "Operation aborted" if signal is aborted before vault.read', async () => {
-    mockAbortController.abort();
-    const params = {
-      file_path: MOCK_FILE_PATH,
-      old_string: "OLD_STRING to replace.\nThis is the third line.",
-      new_string: NEW_STRING,
-    };
-    const result = await editToolExecute(params, toolExecOptions);
-    invariant(
-      typeof result !== "string" && "error" in result,
-      "Expected error object",
-    );
-    expect(result.error).toBe("Operation aborted");
-  });
-
-  it('should return "Operation aborted" if signal is aborted before vault.modify', async () => {
-    const originalRead = vault.read;
-    vi.spyOn(vault, "read").mockImplementation(async (...args) => {
-      const res = await originalRead.apply(vault, args);
-      mockAbortController.abort(); // Abort after read but before modify
-      return res;
-    });
-
-    const params = {
-      file_path: MOCK_FILE_PATH,
-      old_string: OLD_STRING,
-      new_string: NEW_STRING,
-      expected_replacements: 2,
-    };
-    const result = await editToolExecute(params, toolExecOptions);
-    invariant(
-      typeof result !== "string" && "error" in result,
-      "Expected error object",
-    );
-    expect(result.error).toBe("Operation aborted");
-
-    // Content should not have changed
-    const contentAfter = await originalRead.apply(vault, [
-      vault.getFileByPath(MOCK_FILE_PATH) as TFile,
-    ]);
-    expect(contentAfter).toBe(INITIAL_CONTENT);
-  });
-
   // --- Vault Operation Failures ---
   it("should return error if vault.read throws", async () => {
     vi.spyOn(vault, "read").mockImplementation(async (...args) => {
@@ -409,5 +365,42 @@ describe("Edit tool execute function", () => {
     );
     expect(result.error).toBe("Tool execution failed");
     expect(result.message).toBe("Vault modify failed");
+  });
+
+  // --- Abort Signal Test ---
+  it('should return "Operation aborted" if signal is aborted before vault.read', async () => {
+    mockAbortController.abort();
+    const params = {
+      file_path: MOCK_FILE_PATH,
+      old_string: "OLD_STRING to replace.\nThis is the third line.",
+      new_string: NEW_STRING,
+    };
+    await expect(() =>
+      editToolExecute(params, toolExecOptions),
+    ).rejects.toThrow("The operation was aborted.");
+  });
+
+  it('should return "Operation aborted" if signal is aborted before vault.modify', async () => {
+    const originalRead = vault.read;
+    vi.spyOn(vault, "read").mockImplementation(async (...args) => {
+      const res = await originalRead.apply(vault, args);
+      mockAbortController.abort(); // Abort after read but before modify
+      return res;
+    });
+
+    const params = {
+      file_path: MOCK_FILE_PATH,
+      old_string: OLD_STRING,
+      new_string: NEW_STRING,
+      expected_replacements: 2,
+    };
+    await expect(() =>
+      editToolExecute(params, toolExecOptions),
+    ).rejects.toThrow("The operation was aborted.");
+    // Content should not have changed
+    const contentAfter = await originalRead.apply(vault, [
+      vault.getFileByPath(MOCK_FILE_PATH) as TFile,
+    ]);
+    expect(contentAfter).toBe(INITIAL_CONTENT);
   });
 });

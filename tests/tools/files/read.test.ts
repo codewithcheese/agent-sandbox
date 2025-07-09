@@ -294,24 +294,18 @@ describe("readToolExecute", () => {
     await vault.create("/test/abort_target.txt", "L1\nL2\nL3\nL4\nL5");
     mockAbortController.abort();
     const params = { file_path: "/test/abort_target.txt" };
-    const result = await readToolExecute(params, toolExecOptions);
-    invariant(
-      typeof result !== "string",
-      "Expected error object. Got: " + result,
-    );
-    expect(result.error).toBe("Operation aborted");
+    await expect(() =>
+      readToolExecute(params, toolExecOptions),
+    ).rejects.toThrow("The operation was aborted.");
   });
 
   it("should handle aborted operation during image file read", async () => {
     mockAbortController.abort();
     await vault.createBinary("/test/abort_image.png", new ArrayBuffer(100));
     const params = { file_path: "/test/abort_image.png" };
-    const result = await readToolExecute(params, toolExecOptions);
-    invariant(
-      typeof result !== "string",
-      "Expected error object. Got: " + result,
-    );
-    expect(result.error).toBe("Operation aborted");
+    await expect(() =>
+      readToolExecute(params, toolExecOptions),
+    ).rejects.toThrow("The operation was aborted.");
   });
 
   // --- Edge Cases ---

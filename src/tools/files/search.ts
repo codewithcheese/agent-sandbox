@@ -161,9 +161,7 @@ export async function execute(
 
   try {
     const queryObj = searchEngineInstance.prepareQuery(params.query);
-    if (abortSignal.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     // To control context lines for snippets (0 means off, just the match itself)
     // const originalContextSetting = searchEngineInstance.settings.context;
@@ -334,7 +332,7 @@ export const searchTool: ToolDefinition = {
     // Show search query during streaming and processing
     if (state === "input-available" || state === "input-streaming") {
       if (!input?.query) return null;
-      
+
       return {
         title: "ObsidianSearch",
         context: `"${input.query}"`,
@@ -344,21 +342,26 @@ export const searchTool: ToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      
+
       // Search tool throws errors instead of returning error objects
       // so this error handling is not needed
-      
+
       // Handle success output
-      if (output && 'results' in output) {
+      if (output && "results" in output) {
         const { numResults, totalMatchesInVault, truncated } = output;
-        
-        let resultsText = numResults === 1 ? "1 result" : `${numResults} results`;
-        
+
+        let resultsText =
+          numResults === 1 ? "1 result" : `${numResults} results`;
+
         // Show truncation if applicable
-        if (truncated && totalMatchesInVault && totalMatchesInVault > numResults) {
+        if (
+          truncated &&
+          totalMatchesInVault &&
+          totalMatchesInVault > numResults
+        ) {
           resultsText = `${numResults}/${totalMatchesInVault}+ results`;
         }
-        
+
         return {
           title: "ObsidianSearch",
           context: input?.query ? `"${input.query}"` : undefined,
@@ -371,7 +374,7 @@ export const searchTool: ToolDefinition = {
     if (state === "output-error") {
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         title: "ObsidianSearch",
         context: input?.query ? `"${input.query}"` : undefined,

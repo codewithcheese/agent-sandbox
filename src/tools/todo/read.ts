@@ -63,7 +63,9 @@ export async function execute(
   const config = { ...defaultConfig, ...contextConfig };
 
   if (!sessionStore) {
-    throw new Error("Session store not available in execution context for TodoRead tool");
+    throw new Error(
+      "Session store not available in execution context for TodoRead tool",
+    );
   }
 
   if (abortSignal.aborted) {
@@ -129,21 +131,22 @@ export const toolDef: LocalToolDefinition = {
 
     if (state === "output-available") {
       const { output } = toolPart;
-      
+
       // Handle recoverable error output (TodoRead doesn't return error objects, but keeping for consistency)
-      if (output && 'error' in output) {
+      if (output && "error" in output) {
         return {
           title: "TodoRead",
-          context: (("message" in output ? output.message : undefined) || ("error" in output ? output.error : undefined)) as string,
+          context: (("message" in output ? output.message : undefined) ||
+            ("error" in output ? output.error : undefined)) as string,
           error: true,
         };
       }
-      
+
       // Handle success output
-      if (output && 'count' in output) {
+      if (output && "count" in output) {
         const { count } = output;
         const todoText = count === 1 ? "todo" : "todos";
-        
+
         return {
           title: "TodoRead",
           lines: `${count} ${todoText}`,
@@ -154,7 +157,7 @@ export const toolDef: LocalToolDefinition = {
     if (state === "output-error") {
       // Show actual error message instead of generic "(error)"
       const errorText = toolPart.errorText || "Unknown error";
-      
+
       return {
         title: "TodoRead",
         lines: errorText,
