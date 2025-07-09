@@ -41,32 +41,34 @@
   }
 </script>
 
-<div class="flex items-center gap-2 p-2 rounded">
+<div class="flex items-center gap-1 p-1 rounded">
   <!-- Status Icon -->
-  {#if toolPart.state === "output-available"}
-    {#if dataPart?.data.error}
-      <AlertTriangleIcon class="size-3 text-(--color-orange) flex-shrink-0" />
-    {:else}
-      <CheckCircleIcon class="size-3 text-(--color-green) flex-shrink-0" />
-    {/if}
-  {:else if toolPart.state === "output-error"}
-    <XCircleIcon class="size-3 text-(--color-red) flex-shrink-0" />
-  {:else if toolPart.state === "input-streaming"}
-    <div class="flex items-center gap-1">
-      <ArrowDownIcon
-        class="size-3 text-(--color-blue) animate-pulse flex-shrink-0"
-      />
-      <!-- Token count for streaming - comes from data part -->
-      {#if typeof toolPart.input === "string"}
-        <span class="text-(--text-muted) text-xs">
-          {Math.abs(Math.ceil(toolPart.input.length / 4))}
-        </span>
+  <button
+    type="button"
+    class="clickable-icon flex-shrink-0"
+    aria-label="Open tool details"
+    onclick={() => openToolPartModal(chat, toolPart)}
+  >
+    {#if toolPart.state === "output-available"}
+      {#if dataPart?.data.error}
+        <AlertTriangleIcon class="size-3 text-(--color-orange)" />
+      {:else}
+        <CheckCircleIcon class="size-3 text-(--color-green)" />
       {/if}
-    </div>
-  {:else}
-    <LoaderIcon
-      class="size-3 text-(--color-yellow) animate-spin flex-shrink-0"
-    />
+    {:else if toolPart.state === "output-error"}
+      <XCircleIcon class="size-3 text-(--color-red)" />
+    {:else if toolPart.state === "input-streaming"}
+      <ArrowDownIcon class="size-3 text-(--color-blue) animate-pulse" />
+    {:else}
+      <LoaderIcon class="size-3 text-(--color-yellow) animate-spin" />
+    {/if}
+  </button>
+
+  <!-- Token count for streaming - comes from data part -->
+  {#if toolPart.state === "input-streaming" && typeof toolPart.input === "string"}
+    <span class="text-(--text-muted) text-xs">
+      {Math.abs(Math.ceil(toolPart.input.length / 4))}
+    </span>
   {/if}
 
   <!-- Tool Info (single line) -->
@@ -119,14 +121,4 @@
       </span>
     </div>
   {/if}
-
-  <!-- Info Button -->
-  <button
-    type="button"
-    class="clickable-icon flex-shrink-0"
-    aria-label="Open tool details"
-    onclick={() => openToolPartModal(chat, toolPart)}
-  >
-    <InfoIcon class="size-3" />
-  </button>
 </div>
