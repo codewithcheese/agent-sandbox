@@ -172,11 +172,8 @@ describe("TodoRead tool execute function", () => {
   it("should return 'Operation aborted' if signal is aborted", async () => {
     mockAbortController.abort();
     const params = {};
-    const result = await todoReadExecute(params, toolExecOptions);
-    invariant(
-      typeof result !== "string" && "error" in result,
-      "Expected error object",
-    );
-    expect(result.error).toBe("Operation aborted");
+    await expect(() =>
+      todoReadExecute(params, toolExecOptions),
+    ).rejects.toThrow();
   });
 });

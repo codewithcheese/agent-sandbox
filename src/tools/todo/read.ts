@@ -68,9 +68,7 @@ export async function execute(
     );
   }
 
-  if (abortSignal.aborted) {
-    throw new Error("Operation aborted");
-  }
+  abortSignal.throwIfAborted();
 
   const currentTodos: TodoItem[] =
     (await sessionStore.get<TodoItem[]>(TODOS_STORE_KEY)) || [];

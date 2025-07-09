@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { execute as fetchToolExecute } from "../../src/tools/fetch";
-import {
-  helpers,
-  vault as mockVault,
-  metadataCache,
-} from "../mocks/obsidian";
+import { helpers, vault as mockVault, metadataCache } from "../mocks/obsidian";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import type { ToolCallOptionsWithContext } from "../../src/tools/types.ts";
 import { SessionStore } from "../../src/chat/session-store.svelte.ts";
@@ -304,15 +300,12 @@ describe("fetchToolExecute", () => {
     it("should handle abort signal during request", async () => {
       mockAbortController.abort();
 
-      const result = await fetchToolExecute(
-        { url: "https://api.example.com/data" },
-        toolExecOptions,
-      );
-
-      expect(result).toMatchObject({
-        error: "Request Aborted",
-        message: "Request was aborted by user",
-      });
+      await expect(() =>
+        fetchToolExecute(
+          { url: "https://api.example.com/data" },
+          toolExecOptions,
+        ),
+      ).rejects.toThrow();
     });
   });
 

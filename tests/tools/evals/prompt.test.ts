@@ -92,17 +92,16 @@ Summarize the users text in 3-5 words.`,
   });
 
   it("should return error for invalid model", async () => {
-    const result = await (promptTool as any).execute(
-      {
-        prompt_path: promptFile.path,
-        inputs: ["Test input"],
-        model_id: "non-existent-model",
-      },
-      toolContext,
-    );
-
-    expect(result).toHaveProperty("error");
-    expect(result.error).toBe("Invalid model");
+    await expect(() =>
+      (promptTool as any).execute(
+        {
+          prompt_path: promptFile.path,
+          inputs: ["Test input"],
+          model_id: "non-existent-model",
+        },
+        toolContext,
+      ),
+    ).rejects.toThrow("Model 'non-existent-model' not configured");
   });
 
   it("should handle abort signal", async () => {
@@ -115,16 +114,15 @@ Summarize the users text in 3-5 words.`,
     // Abort immediately
     abortController.abort();
 
-    const result = await (promptTool as any).execute(
-      {
-        prompt_path: promptFile.path,
-        inputs: ["Test input"],
-      },
-      abortedContext,
-    );
-
-    expect(result).toHaveProperty("error");
-    expect(result.error).toBe("Operation aborted");
+    await expect(() =>
+      (promptTool as any).execute(
+        {
+          prompt_path: promptFile.path,
+          inputs: ["Test input"],
+        },
+        abortedContext,
+      ),
+    ).rejects.toThrow("The operation was aborted.");
   });
 
   it("should return error when vault is not available", async () => {
@@ -138,15 +136,14 @@ Summarize the users text in 3-5 words.`,
       }),
     };
 
-    const result = await (promptTool as any).execute(
-      {
-        prompt_path: promptFile.path,
-        inputs: ["Test input"],
-      },
-      noVaultContext as any,
-    );
-
-    expect(result).toHaveProperty("error");
-    expect(result.error).toBe("Vault not available in execution context.");
+    await expect(() =>
+      (promptTool as any).execute(
+        {
+          prompt_path: promptFile.path,
+          inputs: ["Test input"],
+        },
+        noVaultContext as any,
+      ),
+    ).rejects.toThrow("Vault not available in execution context.");
   });
 });

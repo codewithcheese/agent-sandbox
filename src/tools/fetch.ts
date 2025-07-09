@@ -306,9 +306,7 @@ export async function execute(
 
     const duration = Date.now() - startTime;
 
-    if (abortSignal?.aborted) {
-      throw new Error("Operation aborted");
-    }
+    abortSignal.throwIfAborted();
 
     // Check response size
     const responseSize = response.text.length;
