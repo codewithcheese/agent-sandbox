@@ -274,6 +274,15 @@ export async function execute(
     const targetPath = normalizePath(params.path);
     const ignorePatterns = params.ignore || [];
 
+    const folder = vault.getFolderByPath(targetPath);
+    if (!folder) {
+      return {
+        error: true,
+        message: `The folder "${targetPath}" does not exist.`,
+        humanMessage: "Not found",
+      };
+    }
+
     const listedFilesArray = listDirectoryContentsRecursive(
       targetPath,
       abortSignal,
