@@ -447,8 +447,11 @@ export class Chat {
         this.#abortController?.signal,
       );
     } catch (error: any) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return;
+      if (
+        error === "cancelled" ||
+        (error instanceof DOMException && error.name === "AbortError")
+      ) {
+        return new Notice("Cancelled", 3000);
       }
 
       if (error instanceof Error) {
