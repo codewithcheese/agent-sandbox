@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    CopyIcon,
     FileSymlinkIcon,
     FileTextIcon,
     InfoIcon,
@@ -53,6 +54,16 @@
       (message.metadata as any).prompt.path,
     );
     chat.messages[i] = await loadPromptMessage(file);
+  }
+
+  async function copyMessage(message: UIMessageWithMetadata) {
+    try {
+      const textContent = getTextFromParts(message.parts);
+      await navigator.clipboard.writeText(textContent);
+      new Notice("Copied");
+    } catch (err) {
+      new Notice("Copy failed");
+    }
   }
 </script>
 
@@ -121,6 +132,13 @@
     <div
       class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-(--background-primary) rounded"
     >
+      <button
+        class="clickable-icon"
+        aria-label="Copy message"
+        onclick={() => copyMessage(message)}
+      >
+        <CopyIcon class="size-4" />
+      </button>
       {#if message.role === "user"}
         {#if "metadata" in message && typeof message.metadata === "object" && "prompt" in message.metadata}
           <!-- prompt buttons -->
