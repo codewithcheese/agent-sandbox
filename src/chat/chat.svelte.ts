@@ -21,8 +21,9 @@ import { syncChangesReminder } from "./system-reminders.ts";
 import { getTextFromParts } from "$lib/utils/ai.ts";
 import { MergeView } from "$lib/merge/merge-view.svelte.ts";
 import type { LanguageModelV2Usage } from "@ai-sdk/provider";
-import { Agent } from "./Agent.ts";
-import { AgentRunner } from "./AgentRunner.svelte.ts";
+import { Agent } from "../agent/agent.ts";
+import { AgentRunner } from "../agent/agent-runner.ts";
+import { ClaudeCodeRunner } from "../agent/claude-code-runner.ts";
 
 const debug = createDebug();
 
@@ -373,6 +374,9 @@ export class Chat {
       const plugin = usePlugin();
       await plugin.loadSettings();
 
+      // Check if using Claude Code
+      const isClaudeCode = this.options.modelId === "claude-code" && this.options.accountId === "claude-code";
+
       // Check agent file exists first (same error handling)
       const agentFile = plugin.app.vault.getFileByPath(this.options.agentPath);
       if (!agentFile) {
@@ -384,41 +388,83 @@ export class Chat {
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
 
-      const account = this.getAccount();
+      if (isClaudeCode) {
+        // Use Claude Code Runner
+        const claudeCodeAccount = {
+          id: "claude-code",
+          name: "Claude Code",
+          provider: "anthropic" as const,
+          config: {},
+        };
 
-      // Create agent context
-      const agentContext = {
-        account,
-        vault: this.vault,
-        sessionStore: this.sessionStore,
-        chatPath: this.path,
-        options: this.options,
-      };
+        const agentContext = {
+          account: claudeCodeAccount,
+          vault: this.vault,
+          sessionStore: this.sessionStore,
+          chatPath: this.path,
+          options: this.options,
+        };
 
-      // Load agent and create runner
-      const agent = await Agent.fromFile(this.options.agentPath, agentContext);
-      const runner = new AgentRunner(this.messages, agentContext);
+        const agent = await Agent.fromFile(this.options.agentPath, agentContext);
+        const runner = new ClaudeCodeRunner(this.messages, agentContext);
 
-      // Run the conversation
-      await runner.run(agent, {
-        signal: this.#abortController?.signal,
-        callbacks: {
-          onStepFinish: async (step) => {
-            this.vault.computeChanges();
-            if (this.vault.changes.length > 0) {
-              await MergeView.openForChanges(this.path);
+        await runner.run(agent, {
+          signal: this.#abortController?.signal,
+          callbacks: {
+            onStepFinish: async (step) => {
+              this.vault.computeChanges();
+              if (this.vault.changes.length > 0) {
+                await MergeView.openForChanges(this.path);
+              }
+            },
+            onRetry: (attempt, maxAttempts, delay) => {
+              this.state = {
+                type: "retrying",
+                attempt,
+                maxAttempts,
+                delay,
+              };
             }
-          },
-          onRetry: (attempt, maxAttempts, delay) => {
-            this.state = {
-              type: "retrying",
-              attempt,
-              maxAttempts,
-              delay,
-            };
           }
-        }
-      });
+        });
+      } else {
+        // Use regular Agent Runner
+        const account = this.getAccount();
+
+        // Create agent context
+        const agentContext = {
+          account,
+          vault: this.vault,
+          sessionStore: this.sessionStore,
+          chatPath: this.path,
+          options: this.options,
+        };
+
+        // Load agent and create runner
+        const agent = await Agent.fromFile(this.options.agentPath, agentContext);
+        const runner = new AgentRunner(this.messages, agentContext);
+
+        // Run the conversation
+        await runner.run(agent, {
+          signal: this.#abortController?.signal,
+          callbacks: {
+            onStepFinish: async (step) => {
+              this.vault.computeChanges();
+              if (this.vault.changes.length > 0) {
+                await MergeView.openForChanges(this.path);
+              }
+            },
+            onRetry: (attempt, maxAttempts, delay) => {
+              this.state = {
+                type: "retrying",
+                attempt,
+                maxAttempts,
+                delay,
+              };
+            }
+          }
+        });
+      }
     } catch (error: any) {
       if (
         error === "cancelled" ||

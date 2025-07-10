@@ -8,8 +8,8 @@ import {
   type StepResult,
   type Tool,
 } from "ai";
-import type { UIMessageWithMetadata } from "./chat.svelte.ts";
-import type { AgentContext, Agent } from "./Agent.ts";
+import type { UIMessageWithMetadata } from "../chat/chat.svelte.ts";
+import type { AgentContext, Agent } from "./agent.ts";
 import { createAIProvider } from "../settings/providers.ts";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { filterIncompleteToolParts } from "$lib/utils/ai.ts";
@@ -21,23 +21,9 @@ import { createDebug } from "$lib/debug.ts";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import type { RunOptions, RunCallbacks } from "./types.ts";
 
 const debug = createDebug();
-
-export interface RunOptions {
-  signal?: AbortSignal;
-  callbacks?: RunCallbacks;
-  retryConfig?: {
-    maxAttempts?: number;
-    retryDelay?: number;
-  };
-  excludeTools?: string[];
-}
-
-export interface RunCallbacks {
-  onStepFinish?: (step:  StepResult<Record<string, Tool>>) => Promise<void>;
-  onRetry?: (attempt: number, maxAttempts: number, delay: number) => void;
-}
 
 export class AgentRunner {
   constructor(

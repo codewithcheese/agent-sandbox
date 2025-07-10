@@ -103,7 +103,11 @@
 
   function handleSubmit(e: Event) {
     e.preventDefault();
-    if (!chat.options.modelId || !chat.options.accountId) {
+    
+    // Allow Claude Code without normal model/account validation
+    const isClaudeCode = chat.options.modelId === "claude-code" && chat.options.accountId === "claude-code";
+    
+    if (!isClaudeCode && (!chat.options.modelId || !chat.options.accountId)) {
       new Notice("Please select a model before submitting", 3000);
       return;
     }

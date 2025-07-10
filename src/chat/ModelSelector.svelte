@@ -75,6 +75,11 @@
       return "Select model";
     }
 
+    // Handle Claude Code special case
+    if (selectedModelId === "claude-code" && selectedAccountId === "claude-code") {
+      return "Claude Code";
+    }
+
     const account = plugin.settings.accounts.find(
       (a) => a.id === selectedAccountId,
     );
@@ -263,6 +268,18 @@
           </DropdownMenu.SubContent>
         </DropdownMenu.Sub>
       {/each}
+
+      <!-- Separator before Claude Code -->
+      <Separator class="my-1 h-px bg-[var(--background-modifier-border)]" />
+      
+      <!-- Claude Code Option -->
+      <DropdownMenu.Item
+        onclick={() => handleModelSelect("claude-code", "claude-code")}
+        class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm text-[var(--text-normal)] hover:bg-[var(--background-modifier-hover)] focus:bg-[var(--background-modifier-hover)] focus:outline-none"
+      >
+        <span class="flex-1">Claude Code</span>
+        <span class="ml-1.5 text-xs text-[var(--text-muted)]">(Built-in)</span>
+      </DropdownMenu.Item>
     </DropdownMenu.Content>
   </DropdownMenu.Portal>
 </DropdownMenu.Root>

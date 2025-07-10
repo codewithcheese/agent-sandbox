@@ -2,11 +2,11 @@
 import { helpers, plugin, vault } from "../mocks/obsidian.ts";
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { Agent } from "../../src/chat/Agent.ts";
+import { Agent } from "../../src/agent/agent.ts";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { SessionStore } from "../../src/chat/session-store.svelte.ts";
 import type { AIAccount } from "../../src/settings/settings.ts";
-import type { AgentContext } from "../../src/chat/Agent.ts";
+import type { AgentContext } from "../../src/agent/agent.ts";
 import { MetadataCacheOverlay } from "../../src/chat/metadata-cache-overlay.ts";
 import type { MetadataCache } from "obsidian";
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ToolDefinition, ToolCallOptionsWithContext, LocalToolDefinition } from "./types.ts";
-import { Agent } from "../chat/Agent.ts";
-import { AgentRunner } from "../chat/AgentRunner.svelte.ts";
+import { Agent } from "../agent/agent.ts";
+import { AgentRunner } from "../agent/agent-runner.ts";
 import type { UIMessageWithMetadata } from "../chat/chat.svelte.ts";
 import { nanoid } from "nanoid";
 import { usePlugin } from "$lib/utils";
@@ -105,7 +105,7 @@ async function execute(
     }
     if (!modelId) {
       return {
-        error: "Configuration error", 
+        error: "Configuration error",
         message: "No model specified and no default model configured. Please specify a model_id or configure a default model in settings.",
       };
     }

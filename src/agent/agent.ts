@@ -1,12 +1,12 @@
 import type { Tool } from "ai";
-import type { VaultOverlay } from "./vault-overlay.svelte.ts";
-import type { SessionStore } from "./session-store.svelte.ts";
+import type { VaultOverlay } from "../chat/vault-overlay.svelte.ts";
+import type { SessionStore } from "../chat/session-store.svelte.ts";
 import type { AIAccount } from "../settings/settings.ts";
-import type { ChatOptions } from "./chat.svelte.ts";
+import type { ChatOptions } from "../chat/chat.svelte.ts";
 import { usePlugin } from "$lib/utils";
 import { loadToolsFromFrontmatter } from "../tools";
-import { createSystemContent } from "./system.ts";
-import { MetadataCacheOverlay } from "./metadata-cache-overlay.ts";
+import { createSystemContent } from "../chat/system.ts";
+import { MetadataCacheOverlay } from "../chat/metadata-cache-overlay.ts";
 
 export interface AgentConfig {
   name: string;
