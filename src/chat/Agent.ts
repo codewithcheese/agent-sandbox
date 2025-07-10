@@ -87,4 +87,8 @@ export class Agent {
   get tools(): Record<string, Tool> {
     return this.config.tools || {};
   }
+
+  get name(): string {
+    return this.config.name;
+  }
 }

@@ -23,6 +23,7 @@ import { fetchTool } from "./fetch.ts";
 import { evaluateOutputTool } from "./evals/evaluate-output.ts";
 import { evaluateTestSetTool } from "./evals/evaluate-test-set.ts";
 import { promptTool } from "./evals/prompt.ts";
+import { agentTool } from "./agent.ts";
 import { extractCodeBlockContent } from "../lib/utils/codeblocks.ts";
 import { createSystemContent } from "../chat/system.ts";
 import { z } from "zod";
@@ -47,6 +48,7 @@ export const toolRegistry: Record<string, ToolDefinition> = {
   evaluate_output: evaluateOutputTool,
   evaluate_test_set: evaluateTestSetTool,
   prompt: promptTool,
+  agent: agentTool,
 };
 
 /**
@@ -197,6 +199,7 @@ export async function createTool(
   }
 }
 
+// fixme: use agent context as parameters
 export async function loadToolsFromFrontmatter(
   metadata: CachedMetadata,
   vault: VaultOverlay,

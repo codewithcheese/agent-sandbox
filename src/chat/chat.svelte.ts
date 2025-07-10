@@ -1,43 +1,28 @@
 import {
-  convertToModelMessages,
   type ModelMessage,
   generateText,
-  streamText,
-  type Tool,
   type UIMessage,
   type UIMessagePart,
-  stepCountIs,
-  wrapLanguageModel,
-  extractReasoningMiddleware,
 } from "ai";
 import { createAIProvider } from "../settings/providers.ts";
 import { nanoid } from "nanoid";
 import { type CachedMetadata, normalizePath, Notice, TFile } from "obsidian";
-import { wrapTextAttachments } from "$lib/utils/messages.ts";
-import { loadToolsFromFrontmatter } from "../tools";
-import {
-  applyStreamPartToMessages,
-  type StreamingState,
-} from "$lib/utils/stream.ts";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
-import { createSystemContent } from "./system.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
 import { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { AIAccount } from "../settings/settings.ts";
-import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { loadFileParts } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
 import type { Frontiers } from "loro-crdt/base64";
-import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { SessionStore } from "./session-store.svelte.ts";
 import { syncChangesReminder } from "./system-reminders.ts";
-import { getTextFromParts, filterIncompleteToolParts } from "$lib/utils/ai.ts";
+import { getTextFromParts } from "$lib/utils/ai.ts";
 import { MergeView } from "$lib/merge/merge-view.svelte.ts";
-import { MetadataCacheOverlay } from "./metadata-cache-overlay.ts";
 import type { LanguageModelV2Usage } from "@ai-sdk/provider";
-import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import { Agent } from "./Agent.ts";
+import { AgentRunner } from "./AgentRunner.svelte.ts";
 
 const debug = createDebug();
 
@@ -341,16 +326,20 @@ export class Chat {
       systemMeta?.agentPath !== this.options.agentPath ||
       systemMeta?.agentModified !== agentModified
     ) {
-      const plugin = usePlugin();
-      const metadataCache = new MetadataCacheOverlay(
-        this.vault,
-        plugin.app.metadataCache,
-      );
-      const system = await createSystemContent(
-        agentFile,
-        this.vault,
-        metadataCache,
-      );
+      // Create agent context
+      const account = this.getAccount();
+      const agentContext = {
+        account,
+        vault: this.vault,
+        sessionStore: this.sessionStore,
+        chatPath: this.path,
+        options: this.options,
+      };
+
+      // Load agent and get system prompt
+      const agent = await Agent.fromFile(this.options.agentPath, agentContext);
+      const system = await agent.getAgentPrompt(agentContext);
+
       debug("Updating system message", {
         agentPath: this.options.agentPath,
         agentModified,
@@ -384,6 +373,7 @@ export class Chat {
       const plugin = usePlugin();
       await plugin.loadSettings();
 
+      // Check agent file exists first (same error handling)
       const agentFile = plugin.app.vault.getFileByPath(this.options.agentPath);
       if (!agentFile) {
         throw Error(`Agent at ${this.options.agentPath} not found`);
@@ -391,62 +381,44 @@ export class Chat {
 
       await this.applySystemMessage();
 
-      let metadata: CachedMetadata | null =
-        plugin.app.metadataCache.getFileCache(agentFile);
-
       this.state = { type: "loading" };
       this.#abortController = new AbortController();
 
-      debug("Submitting messages", $state.snapshot(this.messages));
-
-      const messages: ModelMessage[] = [
-        ...convertToModelMessages(
-          wrapTextAttachments(
-            filterIncompleteToolParts($state.snapshot(this.messages)),
-          ),
-          // filter out empty messages, empty messages were observed after tool calls in some cases
-          // potentially a bug in AI SDK or in this plugin
-        ).filter((m) => m.content.length > 0),
-      ];
-
-      const systemMessage = messages.find((m) => m.role === "system");
-      if (systemMessage) {
-        systemMessage.providerOptions = {
-          anthropic: {
-            cacheControl: { type: "ephemeral" },
-          },
-        };
-      }
-
-      const lastAssistantMessage = messages.findLast(
-        (m) => m.role === "assistant",
-      );
-      if (lastAssistantMessage) {
-        lastAssistantMessage.providerOptions = {
-          anthropic: {
-            cacheControl: { type: "ephemeral" },
-          },
-        };
-      }
-
-      debug("Core messages", messages);
-
       const account = this.getAccount();
-      const activeTools = await loadToolsFromFrontmatter(
-        metadata!,
-        this.vault,
-        this.sessionStore,
-        account.provider,
-      );
-      debug("Active tools", activeTools);
 
-      await this.callModel(
-        messages,
-        this.options.modelId!,
+      // Create agent context
+      const agentContext = {
         account,
-        activeTools,
-        this.#abortController?.signal,
-      );
+        vault: this.vault,
+        sessionStore: this.sessionStore,
+        chatPath: this.path,
+        options: this.options,
+      };
+
+      // Load agent and create runner
+      const agent = await Agent.fromFile(this.options.agentPath, agentContext);
+      const runner = new AgentRunner(this.messages, agentContext);
+
+      // Run the conversation
+      await runner.run(agent, {
+        signal: this.#abortController?.signal,
+        callbacks: {
+          onStepFinish: async (step) => {
+            this.vault.computeChanges();
+            if (this.vault.changes.length > 0) {
+              await MergeView.openForChanges(this.path);
+            }
+          },
+          onRetry: (attempt, maxAttempts, delay) => {
+            this.state = {
+              type: "retrying",
+              attempt,
+              maxAttempts,
+              delay,
+            };
+          }
+        }
+      });
     } catch (error: any) {
       if (
         error === "cancelled" ||
@@ -513,159 +485,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     }
   }
 
-  async callModel(
-    messages: ModelMessage[],
-    modelId: string,
-    account: AIAccount,
-    activeTools: Record<string, Tool>,
-    abortSignal: AbortSignal,
-  ) {
-    const provider = createAIProvider(account);
-
-    // Retry loop config
-    const MAX_RETRY_ATTEMPTS = 3;
-    const DEFAULT_RETRY_DELAY = 1000;
-    let attempt = 0;
-
-    while (true) {
-      try {
-        this.state = { type: "loading" };
-        const stream = streamText({
-          model:
-            account.provider === "fireworks"
-              ? wrapLanguageModel({
-                  model: provider.languageModel(modelId),
-                  middleware: extractReasoningMiddleware({ tagName: "think" }),
-                })
-              : provider.languageModel(modelId),
-          messages,
-          tools: Object.keys(activeTools).length > 0 ? activeTools : undefined,
-          maxRetries: 0,
-          stopWhen: stepCountIs(this.options.maxSteps),
-          temperature: this.options.temperature,
-          providerOptions: {
-            anthropic: {
-              ...(this.options.thinkingEnabled
-                ? {
-                    thinking: {
-                      type: "enabled",
-                      budgetTokens: this.options.thinkingTokensBudget,
-                    },
-                  }
-                : {}),
-            } satisfies AnthropicProviderOptions,
-            openai: {
-              reasoningEffort: modelId.includes("deep-research")
-                ? "medium"
-                : "high",
-              reasoningSummary: "detailed",
-              strictSchemas: false,
-            } satisfies OpenAIResponsesProviderOptions,
-            google: {
-              thinkingConfig: {
-                includeThoughts: true,
-              },
-            } satisfies GoogleGenerativeAIProviderOptions,
-          },
-          abortSignal,
-          onStepFinish: async (step) => {
-            this.vault.computeChanges();
-            if (this.vault.changes.length > 0) {
-              await MergeView.openForChanges(this.path);
-            }
-            debug("Step finish", step);
-
-            // Find the last assistant message to add step metadata
-            const lastAssistantMessage = this.messages.findLast(
-              (m) => m.role === "assistant",
-            );
-
-            if (lastAssistantMessage) {
-              // Initialize steps array if it doesn't exist
-              if (!lastAssistantMessage.metadata.steps) {
-                lastAssistantMessage.metadata.steps = [];
-              }
-
-              // Add step metadata to the array
-              lastAssistantMessage.metadata.steps.push({
-                usage: step.usage,
-                finishReason: step.finishReason,
-                stepIndex: lastAssistantMessage.metadata.steps.length,
-              });
-            }
-            step.toolCalls.forEach((toolCall) => {
-              debug("Tool call", toolCall);
-            });
-            step.toolResults.forEach((toolResult) => {
-              debug("Tool result", toolResult);
-            });
-          },
-          onFinish: async (result) => {
-            // Find the last assistant message that was created during streaming
-            const lastAssistantMessage = this.messages.findLast(
-              (m) => m.role === "assistant",
-            );
-
-            if (lastAssistantMessage) {
-              // Attach account and model information to the assistant message
-              lastAssistantMessage.metadata = {
-                ...lastAssistantMessage.metadata,
-                finishReason: result.finishReason,
-                accountId: account.id,
-                accountName: account.name,
-                provider: account.provider,
-                modelId: modelId,
-              };
-            }
-
-            debug(
-              "Finished",
-              result.finishReason,
-              $state.snapshot(this.messages),
-            );
-          },
-        });
-
-        // As we receive partial tokens, we apply them to `this.messages`
-        const streamingState: StreamingState = {
-          toolCalls: {},
-          activeTextParts: {},
-          activeReasoningParts: {},
-        };
-        for await (const part of stream.fullStream) {
-          applyStreamPartToMessages(this.messages, part, streamingState);
-        }
-
-        debug("Finished streaming", $state.snapshot(this.messages));
-
-        this.vault.computeChanges();
-        if (this.vault.changes.length > 0) {
-          await MergeView.openForChanges(this.path);
-        }
-
-        return;
-      } catch (error: any) {
-        // Handle user abort
-        if (error instanceof DOMException && error.name === "AbortError") {
-          debug("Request aborted by user");
-          throw error;
-        }
-        // Check for rate limit
-        if (error.statusCode === 429) {
-          attempt++;
-          await this.handleRateLimit(
-            attempt,
-            MAX_RETRY_ATTEMPTS,
-            DEFAULT_RETRY_DELAY,
-            error,
-          );
-          continue; // retry
-        }
-        // Not a rate limit => rethrow
-        throw error;
-      }
-    }
-  }
 
   cancel() {
     if (this.#abortController) {
@@ -831,35 +650,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     }
   }
 
-  async handleRateLimit(
-    attempt: number,
-    maxAttempts: number,
-    defaultDelay: number,
-    error: any,
-  ): Promise<void> {
-    if (attempt > maxAttempts) {
-      throw error;
-    }
-
-    let retryDelay = defaultDelay;
-    if (error.responseHeaders?.["retry-after"]) {
-      // "retry-after" is in seconds, convert to ms
-      retryDelay = parseInt(error.responseHeaders["retry-after"]) * 1000;
-    }
-
-    this.state = {
-      type: "retrying",
-      attempt,
-      maxAttempts,
-      delay: retryDelay,
-    };
-
-    debug(
-      `Rate limited (429). Retrying in ${retryDelay / 1000} seconds... (Attempt ${attempt} of ${maxAttempts})`,
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, retryDelay));
-  }
 
   getAccount() {
     const plugin = usePlugin();
