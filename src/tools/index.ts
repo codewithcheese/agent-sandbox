@@ -1,6 +1,6 @@
 import type { Tool, ToolUIPart } from "ai";
 import { getToolName, jsonSchema, tool } from "ai";
-import { type CachedMetadata, Notice, type TFile } from "obsidian";
+import { type CachedMetadata, Notice, type TFile, Vault } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { resolveInternalLink } from "../lib/utils/obsidian";
 import { getListFromFrontmatter } from "../lib/utils/frontmatter";
@@ -26,6 +26,8 @@ import { promptTool } from "./evals/prompt.ts";
 import { extractCodeBlockContent } from "../lib/utils/codeblocks.ts";
 import { createSystemContent } from "../chat/system.ts";
 import { z } from "zod";
+import type { SessionStore } from "../chat/session-store.svelte.ts";
+import type { VaultOverlay } from "../chat/vault-overlay.svelte.ts";
 
 const debug = createDebug();
 
@@ -197,7 +199,8 @@ export async function createTool(
 
 export async function loadToolsFromFrontmatter(
   metadata: CachedMetadata,
-  chat: Chat,
+  vault: VaultOverlay,
+  sessionStore: SessionStore,
   provider: string,
 ) {
   const plugin = usePlugin();
@@ -210,11 +213,11 @@ export async function loadToolsFromFrontmatter(
     }
     const toolDef = await parseToolDefinition(toolFile);
     tools[toolDef.name] = await createTool(toolDef, provider, {
-      vault: chat.vault,
+      vault: vault,
       config: {},
-      sessionStore: chat.sessionStore,
+      sessionStore: sessionStore,
       metadataCache: new MetadataCacheOverlay(
-        chat.vault,
+        vault,
         plugin.app.metadataCache,
       ),
     });

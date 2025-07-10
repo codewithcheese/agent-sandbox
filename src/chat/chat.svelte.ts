@@ -434,7 +434,8 @@ export class Chat {
       const account = this.getAccount();
       const activeTools = await loadToolsFromFrontmatter(
         metadata!,
-        this,
+        this.vault,
+        this.sessionStore,
         account.provider,
       );
       debug("Active tools", activeTools);
