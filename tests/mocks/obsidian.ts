@@ -631,6 +631,11 @@ export const helpers = {
 export const app = {
   vault,
   metadataCache,
+  workspace: {
+    getLeavesOfType: (type: string) => {
+      return [];
+    },
+  }
 };
 
 const settings = migrateToLatest({});
@@ -640,6 +645,7 @@ export const plugin = {
   manifest: { dir: "test-dir" },
   settings: settings,
   loadSettings: () => settings,
+
 };
 
 window.Env = {
