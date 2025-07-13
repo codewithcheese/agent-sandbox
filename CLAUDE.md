@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Tools
+
+- Do not use Task unless asked to do so.
+
 ## Docs
 
 ### Dev docs

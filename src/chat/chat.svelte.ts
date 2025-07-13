@@ -49,7 +49,8 @@ export type WithUserMetadata = {
   metadata?: {
     checkpoint?: Frontiers;
     modified?: string[];
-    prompt?: {
+    command?: {
+      text: string;
       path: string;
     };
     isSystemMeta?: true;

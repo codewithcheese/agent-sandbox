@@ -31,7 +31,8 @@ const processTextNode = (textNode: any): any[] => {
     debug("Found link", link, heading, text);
 
     const href = link + (heading ? `#${heading}` : "");
-    const title = text ?? href;
+    // If custom display text is provided, use it. Otherwise, show just the basename
+    const title = text ?? (link.split('/').pop() || link);
 
     chunks.push({
       type: "link",

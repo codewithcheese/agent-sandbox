@@ -13,6 +13,11 @@
   }
 </script>
 
-<a tabindex="0" onkeydown={handleClick} onclick={handleClick}>
+<a
+  aria-label={props.title}
+  tabindex="0"
+  onkeydown={handleClick}
+  onclick={handleClick}
+>
   {@render props.children()}
 </a>
