@@ -62,7 +62,7 @@ describe.skipIf(process.env.CI)("generateText", () => {
       applyStreamPartToMessages(messages, part, streamingState);
     }
 
-    expect(messages).toHaveLength(2);
-    expect(messages[1].parts[0].text).toContain("42");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].parts[3].text).toContain("42");
   });
 });
