@@ -22,7 +22,7 @@ import { getTextFromParts } from "$lib/utils/ai.ts";
 import { MergeView } from "$lib/merge/merge-view.svelte.ts";
 import type { LanguageModelV2Usage } from "@ai-sdk/provider";
 import { Agent } from "../agent/agent.ts";
-import { AgentRunner } from "../agent/agent-runner.ts";
+import { AgentRunner } from "../agent/agent-runner.svelte.ts";
 
 const debug = createDebug();
 

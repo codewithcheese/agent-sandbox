@@ -5,7 +5,7 @@ import type {
   LocalToolDefinition,
 } from "./types.ts";
 import { Agent } from "../agent/agent.ts";
-import { AgentRunner } from "../agent/agent-runner.ts";
+import { AgentRunner } from "../agent/agent-runner.svelte.ts";
 import type { UIMessageWithMetadata } from "../chat/chat.svelte.ts";
 import { nanoid } from "nanoid";
 import { usePlugin } from "$lib/utils";
