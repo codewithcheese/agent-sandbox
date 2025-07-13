@@ -1,7 +1,11 @@
 import { z } from "zod";
-import type { ToolDefinition, ToolCallOptionsWithContext, LocalToolDefinition } from "./types.ts";
-import { Agent } from "../chat/Agent.ts";
-import { AgentRunner } from "../chat/AgentRunner.svelte.ts";
+import type {
+  ToolDefinition,
+  ToolCallOptionsWithContext,
+  LocalToolDefinition,
+} from "./types.ts";
+import { Agent } from "../agent/agent.ts";
+import { AgentRunner } from "../agent/agent-runner.ts";
 import type { UIMessageWithMetadata } from "../chat/chat.svelte.ts";
 import { nanoid } from "nanoid";
 import { usePlugin } from "$lib/utils";
@@ -63,7 +67,7 @@ const inputSchema = z.strictObject({
     .boolean()
     .default(true)
     .describe(
-      "Start with fresh context (true) or inherit current conversation"
+      "Start with fresh context (true) or inherit current conversation",
     ),
   account_id: z
     .string()
@@ -77,7 +81,7 @@ const inputSchema = z.strictObject({
 
 async function execute(
   params: z.infer<typeof inputSchema>,
-  options: ToolCallOptionsWithContext
+  options: ToolCallOptionsWithContext,
 ) {
   const { abortSignal } = options;
   const { vault, sessionStore } = options.getContext();
@@ -100,13 +104,15 @@ async function execute(
     if (!accountId) {
       return {
         error: "Configuration error",
-        message: "No account specified and no default account configured. Please specify an account_id or configure a default account in settings.",
+        message:
+          "No account specified and no default account configured. Please specify an account_id or configure a default account in settings.",
       };
     }
     if (!modelId) {
       return {
-        error: "Configuration error", 
-        message: "No model specified and no default model configured. Please specify a model_id or configure a default model in settings.",
+        error: "Configuration error",
+        message:
+          "No model specified and no default model configured. Please specify a model_id or configure a default model in settings.",
       };
     }
   }
@@ -116,7 +122,7 @@ async function execute(
   if (!account) {
     return {
       error: "Account not found",
-      message: `Account "${accountId}" not found. Available accounts: ${plugin.settings.accounts.map(a => a.id).join(", ") || "none"}`,
+      message: `Account "${accountId}" not found. Available accounts: ${plugin.settings.accounts.map((a) => a.id).join(", ") || "none"}`,
     };
   }
 
@@ -142,17 +148,19 @@ async function execute(
   try {
     agent = await Agent.fromFile(params.agent_path, agentContext);
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Agent file not found")) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("Agent file not found")
+    ) {
       return {
         error: "Agent file not found",
         message: `Agent file "${params.agent_path}" not found`,
-      }
+      };
     }
     throw new Error(
-      `Failed to load agent from ${params.agent_path}: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to load agent from ${params.agent_path}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-
 
   // Create messages array
   const messages: UIMessageWithMetadata[] = [];

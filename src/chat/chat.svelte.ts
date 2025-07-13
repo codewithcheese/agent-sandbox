@@ -21,8 +21,8 @@ import { syncChangesReminder } from "./system-reminders.ts";
 import { getTextFromParts } from "$lib/utils/ai.ts";
 import { MergeView } from "$lib/merge/merge-view.svelte.ts";
 import type { LanguageModelV2Usage } from "@ai-sdk/provider";
-import { Agent } from "./Agent.ts";
-import { AgentRunner } from "./AgentRunner.svelte.ts";
+import { Agent } from "../agent/agent.ts";
+import { AgentRunner } from "../agent/agent-runner.ts";
 
 const debug = createDebug();
 
@@ -416,8 +416,8 @@ export class Chat {
               maxAttempts,
               delay,
             };
-          }
-        }
+          },
+        },
       });
     } catch (error: any) {
       if (
@@ -484,7 +484,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       await this.generateTitle();
     }
   }
-
 
   cancel() {
     if (this.#abortController) {
@@ -649,7 +648,6 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       new Notice(`Chat title generation failed. Error: ${error}.`, 5000);
     }
   }
-
 
   getAccount() {
     const plugin = usePlugin();

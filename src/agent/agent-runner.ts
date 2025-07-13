@@ -8,8 +8,8 @@ import {
   type StepResult,
   type Tool,
 } from "ai";
-import type { UIMessageWithMetadata } from "./chat.svelte.ts";
-import type { AgentContext, Agent } from "./Agent.ts";
+import type { UIMessageWithMetadata } from "../chat/chat.svelte.ts";
+import type { AgentContext, Agent } from "./agent.ts";
 import { createAIProvider } from "../settings/providers.ts";
 import { wrapTextAttachments } from "$lib/utils/messages.ts";
 import { filterIncompleteToolParts } from "$lib/utils/ai.ts";
@@ -35,14 +35,14 @@ export interface RunOptions {
 }
 
 export interface RunCallbacks {
-  onStepFinish?: (step:  StepResult<Record<string, Tool>>) => Promise<void>;
+  onStepFinish?: (step: StepResult<Record<string, Tool>>) => Promise<void>;
   onRetry?: (attempt: number, maxAttempts: number, delay: number) => void;
 }
 
 export class AgentRunner {
   constructor(
     private messages: UIMessageWithMetadata[],
-    private context: AgentContext
+    private context: AgentContext,
   ) {}
 
   async run(agent: Agent, options: RunOptions = {}): Promise<void> {
@@ -50,7 +50,7 @@ export class AgentRunner {
       signal,
       callbacks,
       retryConfig = { maxAttempts: 3, retryDelay: 1000 },
-      excludeTools = []
+      excludeTools = [],
     } = options;
 
     const provider = createAIProvider(this.context.account);
@@ -94,7 +94,9 @@ export class AgentRunner {
 
         // Filter tools if needed
         const activeTools = Object.fromEntries(
-          Object.entries(agent.tools).filter(([name]) => !excludeTools.includes(name))
+          Object.entries(agent.tools).filter(
+            ([name]) => !excludeTools.includes(name),
+          ),
         );
 
         debug("Core messages", messages);
@@ -209,7 +211,6 @@ export class AgentRunner {
 
         debug("Finished streaming", $state.snapshot(this.messages));
         return;
-
       } catch (error: any) {
         // Handle abort
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -233,7 +234,7 @@ export class AgentRunner {
           );
 
           callbacks?.onRetry?.(attempt, retryConfig.maxAttempts!, delay);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
 

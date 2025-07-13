@@ -2,11 +2,11 @@
 import { helpers, plugin, vault } from "../mocks/obsidian.ts";
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { Agent } from "../../src/chat/Agent.ts";
+import { Agent } from "../../src/agent/agent.ts";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { SessionStore } from "../../src/chat/session-store.svelte.ts";
 import type { AIAccount } from "../../src/settings/settings.ts";
-import type { AgentContext } from "../../src/chat/Agent.ts";
+import type { AgentContext } from "../../src/agent/agent.ts";
 import { MetadataCacheOverlay } from "../../src/chat/metadata-cache-overlay.ts";
 import type { MetadataCache } from "obsidian";
 
@@ -28,7 +28,10 @@ describe("Agent", () => {
     const overlay = new VaultOverlay(vault);
     const sessionStore = new SessionStore(overlay);
 
-    plugin.app.metadataCache = new MetadataCacheOverlay(overlay, plugin.app.metadataCache);
+    plugin.app.metadataCache = new MetadataCacheOverlay(
+      overlay,
+      plugin.app.metadataCache,
+    );
 
     context = {
       account,
@@ -48,7 +51,6 @@ describe("Agent", () => {
   });
 
   it("should load agent from file with frontmatter configuration", async () => {
-
     const toolContent = `---
 import: read
 ---
@@ -87,7 +89,7 @@ Your job is to help users with their tasks.`;
 
   it("should throw error when agent file not found", async () => {
     await expect(
-      Agent.fromFile("non-existent-agent.agent", context)
+      Agent.fromFile("non-existent-agent.agent", context),
     ).rejects.toThrow("Agent file not found: non-existent-agent.agent");
   });
 
