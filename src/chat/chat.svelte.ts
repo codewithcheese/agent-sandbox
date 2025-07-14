@@ -520,7 +520,12 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     }
 
     const file = plugin.app.vault.getAbstractFileByPath(this.path);
-    return file.basename.startsWith("New chat");
+
+    if (this.path.endsWith(".chat.md")) {
+      return file.basename.startsWith("New chat.chat");
+    } else {
+      return file.basename.startsWith("New chat");
+    }
   }
 
   async generateTitle(): Promise<void> {
@@ -624,8 +629,10 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
       }
 
       const file = plugin.app.vault.getFileByPath(this.path);
-      let newBasename = extractedTitle;
+      let subExt = this.path.endsWith(".chat.md") ? ".chat" : "";
+      let newBasename = extractedTitle + subExt;
       let counter = 1;
+
       let newPath = file.path.replace(file.basename, newBasename);
 
       // Ensure the new path is unique by checking if a file with the same path already exists
@@ -634,7 +641,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
         plugin.app.vault.getAbstractFileByPath(newPath) &&
         newPath !== file.path
       ) {
-        newBasename = `${extractedTitle} ${counter}`;
+        newBasename = `${extractedTitle} ${counter}` + subExt;
         newPath = file.path.replace(file.basename, newBasename);
         counter++;
       }

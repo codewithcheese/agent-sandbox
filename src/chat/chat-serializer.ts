@@ -4,6 +4,7 @@ import superjson from "superjson";
 import { nanoid } from "nanoid";
 import type { SuperJSONObject } from "$lib/utils/superjson";
 import { ChatMarkdownFormatter } from "./chat-markdown-formatter.ts";
+import { encodeBase64 } from "$lib/utils/base64.ts";
 
 export type ChatFileV1 = {
   version: 1;
@@ -70,7 +71,7 @@ export class ChatSerializer {
     },
   ];
 
-  static stringify(chat: Chat): string {
+  static stringify(chat: Chat, format?: "markdown" | "json"): string {
     const chatData = {
       version: this.CURRENT_VERSION,
       payload: {
@@ -83,26 +84,13 @@ export class ChatSerializer {
       },
     } satisfies CurrentChatFile;
 
-    // Check file extension to determine format
-    const isMarkdownFormat = chat.path.endsWith(".chat.md");
+    // Determine format: use provided format or auto-detect from file extension
+    const isMarkdownFormat =
+      format === "markdown" ||
+      (format !== "json" && chat.path.endsWith(".chat.md"));
 
     if (isMarkdownFormat) {
-      // Generate human-readable markdown format for .chat.md files
-      const markdown = ChatMarkdownFormatter.formatChat(chat.messages);
-
-      // Encode the JSON data as base64
-      const jsonString = superjson.stringify(chatData);
-      const encodedData = btoa(jsonString);
-
-      // Combine markdown with embedded JSON data (similar to Excalidraw format)
-      return `${markdown}
-
-%%
-# Chat Data
-\`\`\`chatdata
-${encodedData}
-\`\`\`
-%%`;
+      return this.chatFileToMarkdown(chatData);
     } else {
       // Use raw JSON format for .chat files (backward compatibility)
       return superjson.stringify(chatData);
@@ -174,5 +162,47 @@ ${encodedData}
     }
 
     return currentData as CurrentChatFile;
+  }
+
+  /**
+   * Converts a chat file to markdown format with embedded JSON data
+   */
+  private static chatFileToMarkdown(chatData: CurrentChatFile): string {
+    // Generate human-readable markdown format
+    const markdown = ChatMarkdownFormatter.formatChat(
+      chatData.payload.messages,
+    );
+
+    // Encode the JSON data as base64
+    const jsonString = superjson.stringify(chatData);
+    const encodedData = encodeBase64(jsonString);
+
+    // Combine markdown with embedded JSON data (similar to Excalidraw format)
+    return `${markdown}
+
+%%
+# Chat Data
+\`\`\`chatdata
+${encodedData}
+\`\`\`
+%%`;
+  }
+
+  /**
+   * Creates initial chat content in markdown format for new .chat.md files
+   */
+  static createInitialMarkdown(options?: {
+    modelId?: string;
+    accountId?: string;
+  }): string {
+    const initialData: CurrentChatFile = { ...this.INITIAL_DATA };
+    if (options?.modelId) {
+      initialData.payload.options.modelId = options.modelId;
+    }
+    if (options?.accountId) {
+      initialData.payload.options.accountId = options.accountId;
+    }
+
+    return this.chatFileToMarkdown(initialData);
   }
 }

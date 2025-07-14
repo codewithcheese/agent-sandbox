@@ -8,6 +8,7 @@ import {
   normalizePath,
   Notice,
 } from "obsidian";
+import { around } from "monkey-around";
 import { mount, unmount } from "svelte";
 import type { ViewContext } from "$lib/obsidian/view.ts";
 import ChatPage from "./ChatPage.svelte";
@@ -19,6 +20,7 @@ import { usePlugin } from "$lib/utils";
 import { ChatHistoryView } from "./chat-history-view.svelte.ts";
 import { DeleteChatModal } from "$lib/modals/delete-chat-modal.ts";
 import { ChatInputState } from "./chat-input-state.svelte.ts";
+import { fileShouldDefaultAsChat } from "./chat-file-utils.ts";
 
 export const CHAT_VIEW_TYPE = "sandbox-chat-view";
 
@@ -194,12 +196,12 @@ export class ChatView extends FileView {
   }
 
   canAcceptExtension(extension: string): boolean {
-    return extension === "chat" || extension === "chat.md";
+    return extension === "chat";
   }
 
   static register(plugin: Plugin) {
     plugin.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
-    plugin.registerExtensions(["chat", "chat.md"], CHAT_VIEW_TYPE);
+    plugin.registerExtensions(["chat"], CHAT_VIEW_TYPE);
     plugin.addRibbonIcon(
       "message-square",
       "Open Agent Sandbox Chat",
@@ -207,6 +209,9 @@ export class ChatView extends FileView {
         await ChatView.newChat();
       },
     );
+    
+    // Setup monkey patching for .chat.md files
+    this.setupMonkeyPatching(plugin);
   }
 
   static async newChat(
@@ -242,15 +247,13 @@ export class ChatView extends FileView {
 
     const filePath = `${chatsPath}/${fileName}.chat.md`;
 
-    // Create initial data with user defaults applied
-    const initialData: CurrentChatFile = { ...ChatSerializer.INITIAL_DATA };
-    initialData.payload.options.modelId = plugin.settings.defaults.modelId;
-    initialData.payload.options.accountId = plugin.settings.defaults.accountId;
+    // Create initial markdown content for new .chat.md file
+    const content = ChatSerializer.createInitialMarkdown({
+      modelId: plugin.settings.defaults.modelId,
+      accountId: plugin.settings.defaults.accountId,
+    });
 
-    const file = await plugin.app.vault.create(
-      filePath,
-      superjson.stringify(initialData),
-    );
+    const file = await plugin.app.vault.create(filePath, content);
 
     if (!leaf) {
       if (!Platform.isMobile) {
@@ -294,5 +297,44 @@ export class ChatView extends FileView {
     }
 
     return null;
+  }
+
+  /**
+   * Sets up monkey patching to intercept markdown file loading for .chat.md files.
+   * This allows .chat.md files to open in ChatView while maintaining markdown compatibility.
+   */
+  private static setupMonkeyPatching(plugin: Plugin) {
+    // Monkey patch WorkspaceLeaf.setViewState to intercept markdown view loading
+    plugin.register(
+      around(WorkspaceLeaf.prototype, {
+        setViewState(next) {
+          return function (state: any, ...rest: any[]) {
+            // Check if we're loading a markdown file
+            const markdownViewLoaded = 
+              state.type === "markdown" && 
+              state.state?.file;
+              
+            if (markdownViewLoaded) {
+              const filepath: string = state.state.file as string;
+              
+              // Check if this .chat.md file should open as ChatView
+              if (fileShouldDefaultAsChat(filepath, this.app)) {
+                // Override the view type from "markdown" to "chat"
+                const newState = {
+                  ...state,
+                  type: CHAT_VIEW_TYPE,
+                };
+                
+                // Call the original setViewState with our modified state
+                return next.apply(this, [newState, ...rest]);
+              }
+            }
+            
+            // If not a chat file, proceed normally
+            return next.apply(this, [state, ...rest]);
+          };
+        },
+      }),
+    );
   }
 }

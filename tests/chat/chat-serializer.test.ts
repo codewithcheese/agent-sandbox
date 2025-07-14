@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { ChatSerializer, type CurrentChatFile } from "../../src/chat/chat-serializer.ts";
+import {
+  ChatSerializer,
+  type CurrentChatFile,
+} from "../../src/chat/chat-serializer.ts";
 import { Chat } from "../../src/chat/chat.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 import { nanoid } from "nanoid";
@@ -23,7 +26,7 @@ describe("ChatSerializer", () => {
         chatFile.path,
         ChatSerializer.parse(await vault.read(chatFile)),
       );
-      
+
       // Add some messages
       chat.messages.push({
         id: nanoid(),
@@ -69,7 +72,7 @@ describe("ChatSerializer", () => {
         chatFile.path,
         ChatSerializer.parse(await vault.read(chatFile)),
       );
-      
+
       // Add some messages
       chat.messages.push({
         id: nanoid(),
@@ -94,7 +97,10 @@ describe("ChatSerializer", () => {
       const parsed = superjson.parse(result) as CurrentChatFile;
       expect(parsed.version).toBe(ChatSerializer.CURRENT_VERSION);
       expect(parsed.payload.messages).toHaveLength(1);
-      invariant(parsed.payload.messages[0].parts[0].type === "text", "Expected text part");
+      invariant(
+        parsed.payload.messages[0].parts[0].type === "text",
+        "Expected text part",
+      );
       expect(parsed.payload.messages[0].parts[0].text).toBe("Hello, world!");
     });
 
@@ -115,7 +121,7 @@ describe("ChatSerializer", () => {
       // Extract the base64 content
       const chatDataMatch = result.match(/```chatdata\n([\s\S]*?)\n```/);
       expect(chatDataMatch).toBeTruthy();
-      
+
       const base64Content = chatDataMatch![1].trim();
       expect(base64Content).toBeTruthy();
 
@@ -149,30 +155,32 @@ Hi there!
 %%
 # Chat Data
 \`\`\`chatdata
-${btoa(superjson.stringify({
-  version: 1,
-  payload: {
-    id: "test-id",
-    messages: [
-      {
-        id: "msg-1",
-        role: "user",
-        parts: [{ type: "text", text: "Hello, world!" }],
-        metadata: { createdAt: new Date("2024-01-01T10:30:00Z") },
+${btoa(
+  superjson.stringify({
+    version: 1,
+    payload: {
+      id: "test-id",
+      messages: [
+        {
+          id: "msg-1",
+          role: "user",
+          parts: [{ type: "text", text: "Hello, world!" }],
+          metadata: { createdAt: new Date("2024-01-01T10:30:00Z") },
+        },
+      ],
+      vault: undefined,
+      options: {
+        maxSteps: 100,
+        temperature: 0.7,
+        thinkingEnabled: false,
+        maxTokens: 4000,
+        thinkingTokensBudget: 1200,
       },
-    ],
-    vault: undefined,
-    options: {
-      maxSteps: 100,
-      temperature: 0.7,
-      thinkingEnabled: false,
-      maxTokens: 4000,
-      thinkingTokensBudget: 1200,
+      createdAt: new Date("2024-01-01T10:00:00Z"),
+      updatedAt: new Date("2024-01-01T10:30:00Z"),
     },
-    createdAt: new Date("2024-01-01T10:00:00Z"),
-    updatedAt: new Date("2024-01-01T10:30:00Z"),
-  },
-}))}
+  }),
+)}
 \`\`\`
 %%`;
 
@@ -182,7 +190,10 @@ ${btoa(superjson.stringify({
       expect(result.payload.id).toBe("test-id");
       expect(result.payload.messages).toHaveLength(1);
       expect(result.payload.messages[0].role).toBe("user");
-      invariant(result.payload.messages[0].parts[0].type === "text", "Expected text part");
+      invariant(
+        result.payload.messages[0].parts[0].type === "text",
+        "Expected text part",
+      );
       expect(result.payload.messages[0].parts[0].text).toBe("Hello, world!");
     });
 
@@ -278,7 +289,12 @@ Hello, world!
         role: "user",
         parts: [
           { type: "text", text: "Please check this file" },
-          { type: "file", filename: "/src/example.ts", mediaType: "text/plain", url: "" },
+          {
+            type: "file",
+            filename: "/src/example.ts",
+            mediaType: "text/plain",
+            url: "",
+          },
         ],
         metadata: {
           createdAt: new Date("2024-01-01T10:30:00Z"),
@@ -330,27 +346,96 @@ Hello, world!
       const parsed = ChatSerializer.parse(serialized);
 
       // Verify data integrity
-      expect(parsed.version).toBe(originalChat.id ? ChatSerializer.CURRENT_VERSION : ChatSerializer.CURRENT_VERSION);
+      expect(parsed.version).toBe(
+        originalChat.id
+          ? ChatSerializer.CURRENT_VERSION
+          : ChatSerializer.CURRENT_VERSION,
+      );
       expect(parsed.payload.id).toBe(originalChat.id);
-      expect(parsed.payload.messages).toHaveLength(originalChat.messages.length);
+      expect(parsed.payload.messages).toHaveLength(
+        originalChat.messages.length,
+      );
       expect(parsed.payload.options).toEqual(originalChat.options);
 
       // Verify message content
       expect(parsed.payload.messages[0].role).toBe("user");
-      invariant(parsed.payload.messages[0].parts[0].type === "text", "Expected text part");
-      expect(parsed.payload.messages[0].parts[0].text).toBe("Please check this file");
-      invariant(parsed.payload.messages[0].parts[1].type === "file", "Expected file part");
-      expect(parsed.payload.messages[0].parts[1].filename).toBe("/src/example.ts");
-      invariant(parsed.payload.messages[0].role === "user", "Expected user message");
-      expect(parsed.payload.messages[0].metadata.modified).toEqual(["/src/file1.ts", "/src/file2.ts"]);
-      expect(parsed.payload.messages[0].metadata.command?.text).toBe("check files");
+      invariant(
+        parsed.payload.messages[0].parts[0].type === "text",
+        "Expected text part",
+      );
+      expect(parsed.payload.messages[0].parts[0].text).toBe(
+        "Please check this file",
+      );
+      invariant(
+        parsed.payload.messages[0].parts[1].type === "file",
+        "Expected file part",
+      );
+      expect(parsed.payload.messages[0].parts[1].filename).toBe(
+        "/src/example.ts",
+      );
+      invariant(
+        parsed.payload.messages[0].role === "user",
+        "Expected user message",
+      );
+      expect(parsed.payload.messages[0].metadata.modified).toEqual([
+        "/src/file1.ts",
+        "/src/file2.ts",
+      ]);
+      expect(parsed.payload.messages[0].metadata.command?.text).toBe(
+        "check files",
+      );
 
       expect(parsed.payload.messages[1].role).toBe("assistant");
-      invariant(parsed.payload.messages[1].parts[0].type === "text", "Expected text part");
-      expect(parsed.payload.messages[1].parts[0].text).toBe("I'll check the file for you.");
+      invariant(
+        parsed.payload.messages[1].parts[0].type === "text",
+        "Expected text part",
+      );
+      expect(parsed.payload.messages[1].parts[0].text).toBe(
+        "I'll check the file for you.",
+      );
       expect(parsed.payload.messages[1].parts[1].type).toBe("tool-Read");
-      invariant(parsed.payload.messages[1].role === "assistant", "Expected assistant message");
+      invariant(
+        parsed.payload.messages[1].role === "assistant",
+        "Expected assistant message",
+      );
       expect(parsed.payload.messages[1].metadata.steps).toHaveLength(1);
+    });
+  });
+
+  describe("createInitialMarkdown", () => {
+    it("should create initial markdown with default options", () => {
+      const result = ChatSerializer.createInitialMarkdown();
+
+      expect(result).toContain("%%");
+      expect(result).toContain("# Chat Data");
+      expect(result).toContain("```chatdata");
+      expect(result).toContain("```");
+
+      // Should contain valid base64 encoded data
+      const base64Match = result.match(/```chatdata\n([\s\S]*?)\n```/);
+      expect(base64Match).toBeTruthy();
+
+      const decodedData = superjson.parse(
+        atob(base64Match![1].trim()),
+      ) as CurrentChatFile;
+      expect(decodedData.version).toBe(1);
+      expect(decodedData.payload.messages).toEqual([]);
+      expect(decodedData.payload.options.maxSteps).toBe(100);
+    });
+
+    it("should create initial markdown with custom options", () => {
+      const result = ChatSerializer.createInitialMarkdown({
+        modelId: "custom-model",
+        accountId: "custom-account",
+      });
+
+      const base64Match = result.match(/```chatdata\n([\s\S]*?)\n```/);
+      const decodedData = superjson.parse(
+        atob(base64Match![1].trim()),
+      ) as CurrentChatFile;
+
+      expect(decodedData.payload.options.modelId).toBe("custom-model");
+      expect(decodedData.payload.options.accountId).toBe("custom-account");
     });
   });
 
