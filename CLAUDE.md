@@ -35,6 +35,10 @@ Always include a path reference when mentioning a symbol.
 
 - Avoid redundant filename parts (e.g., "utils/backlinks.ts" instead of "utils/backlink-utils.ts")
 
+## Typescript
+
+- Do not use `any` type. If unsure the type then look up the type definitions in codebase or ask for help.
+
 ## Typechecking
 
 Run `pnpm run sveltecheck` to check for type errors before announcing a task as completed.

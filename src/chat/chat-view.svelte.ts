@@ -194,12 +194,12 @@ export class ChatView extends FileView {
   }
 
   canAcceptExtension(extension: string): boolean {
-    return extension === "chat";
+    return extension === "chat" || extension === "chat.md";
   }
 
   static register(plugin: Plugin) {
     plugin.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf));
-    plugin.registerExtensions(["chat"], CHAT_VIEW_TYPE);
+    plugin.registerExtensions(["chat", "chat.md"], CHAT_VIEW_TYPE);
     plugin.addRibbonIcon(
       "message-square",
       "Open Agent Sandbox Chat",
@@ -234,13 +234,13 @@ export class ChatView extends FileView {
 
     // Create a unique filename
     while (
-      plugin.app.vault.getAbstractFileByPath(`${chatsPath}/${fileName}.chat`)
+      plugin.app.vault.getAbstractFileByPath(`${chatsPath}/${fileName}.chat.md`)
     ) {
       fileName = `${baseName} ${counter}`;
       counter++;
     }
 
-    const filePath = `${chatsPath}/${fileName}.chat`;
+    const filePath = `${chatsPath}/${fileName}.chat.md`;
 
     // Create initial data with user defaults applied
     const initialData: CurrentChatFile = { ...ChatSerializer.INITIAL_DATA };
