@@ -350,7 +350,16 @@ export async function execute(
     const fileContentString = await vault.read(file);
     abortSignal.throwIfAborted();
 
-    const lines = fileContentString.split("\n");
+    let lines = fileContentString.split("\n");
+    
+    // For .chat.md files, truncate at the chat data section to exclude encoded data
+    if (normalizedFilePath.endsWith('.chat.md')) {
+      const chatDataIndex = lines.findIndex(line => line.trim() === '%%');
+      if (chatDataIndex !== -1) {
+        lines = lines.slice(0, chatDataIndex);
+      }
+    }
+    
     const offset = params.offset ?? config.DEFAULT_LINE_OFFSET;
     const limit = params.limit ?? config.DEFAULT_LINE_LIMIT;
 
