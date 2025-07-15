@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
     CopyIcon,
-    FileSymlinkIcon,
     FileTextIcon,
     InfoIcon,
     PencilIcon,
@@ -9,7 +8,6 @@
   } from "lucide-svelte";
   import Markdown from "./Markdown.svelte";
   import { Notice } from "obsidian";
-  import { loadPromptMessage } from "../editor/prompt-command.ts";
   import { cn, usePlugin } from "$lib/utils";
   import type { Chat, UIMessageWithMetadata } from "./chat.svelte.ts";
   import { openToolPartModal } from "$lib/modals/open-tool-part-model.ts";
@@ -42,19 +40,8 @@
 
   // $inspect("inputState", inputState);
 
-  // Link `source` context for prompt messages Markdown links
-  setContext("linkSource", (message as any)?.metadata?.prompt?.path ?? "");
-
-  async function updatePrompt(i: number) {
-    const message = chat.messages[i];
-    if (!("metadata" in message && (message.metadata as any).prompt.path)) {
-      return new Notice("Message not associated with a prompt");
-    }
-    const file = plugin.app.vault.getAbstractFileByPath(
-      (message.metadata as any).prompt.path,
-    );
-    chat.messages[i] = await loadPromptMessage(file);
-  }
+  // Link `source` context for command messages Markdown links  
+  setContext("linkSource", (message as any)?.metadata?.command?.path ?? "");
 
   async function copyMessage(message: UIMessageWithMetadata) {
     try {
@@ -64,6 +51,18 @@
     } catch (err) {
       new Notice("Copy failed");
     }
+  }
+
+  function handleEditMessage() {
+    const commandText = message.role === "user" && message.metadata && "command" in message.metadata ? message.metadata.command?.text : undefined;
+    const textToEdit = commandText || getTextFromParts(message.parts).trim();
+    inputState.startEditing(
+      index,
+      textToEdit,
+      message.parts
+        .filter((p) => p.type === "file")
+        .map((p) => p.filename),
+    );
   }
 </script>
 
@@ -85,7 +84,11 @@
           <PencilIcon class="size-4" />
           <span>Editing...</span>
         </div>
-        <Markdown md={getTextFromParts(message.parts)} renderObsidian={true} />
+        {#if message.role === "user" && message.metadata && "command" in message.metadata && message.metadata.command?.text}
+          <Markdown md={message.metadata.command.text} renderObsidian={true} />
+        {:else}
+          <Markdown md={getTextFromParts(message.parts)} renderObsidian={true} />
+        {/if}
       </div>
     {/if}
   </div>
@@ -119,12 +122,12 @@
   {/if}
   <!-- Normal message display -->
   <div class="group relative">
-    <!-- prompt badge -->
-    {#if message.role === "user" && message?.metadata?.prompt?.path}
+    <!-- command badge -->
+    {#if message.role === "user" && message.metadata && "command" in message.metadata && message.metadata.command?.path}
       <div class="absolute top-0 left-0 text-xs text-(--text-accent)">
         <button
           class="clickable-icon"
-          onclick={() => openPath(message.metadata.prompt.path)}>Prompt</button
+          onclick={() => openPath(message.metadata.command.path)}>Command</button
         >
       </div>
     {/if}
@@ -140,66 +143,23 @@
         <CopyIcon class="size-4" />
       </button>
       {#if message.role === "user"}
-        {#if "metadata" in message && typeof message.metadata === "object" && "prompt" in message.metadata}
-          <!-- prompt buttons -->
-          <button
-            class="clickable-icon"
-            aria-label="Sync from note"
-            onclick={() => updatePrompt(index)}
-          >
-            <FileSymlinkIcon class="size-4" />
-          </button>
-          <button
-            class="clickable-icon"
-            aria-label="Edit message"
-            onclick={() => {
-              inputState.startEditing(
-                index,
-                getTextFromParts(message.parts).trim(),
-                message.parts
-                  .filter((p) => p.type === "file")
-                  .map((p) => p.filename),
-              );
-            }}
-          >
-            <PencilIcon class="size-4" />
-          </button>
-          <button
-            class="clickable-icon"
-            aria-label={message.role === "user"
-              ? "Regenerate assistant response"
-              : "Regenerate this response"}
-            onclick={() => chat.regenerate(index)}
-          >
-            <RefreshCwIcon class="size-4" />
-          </button>
-        {:else}
-          <!-- user message buttons -->
-          <button
-            class="clickable-icon"
-            aria-label="Edit message"
-            onclick={() => {
-              inputState.startEditing(
-                index,
-                getTextFromParts(message.parts).trim(),
-                message.parts
-                  .filter((p) => p.type === "file")
-                  .map((p) => p.filename),
-              );
-            }}
-          >
-            <PencilIcon class="size-4" />
-          </button>
-          <button
-            class="clickable-icon"
-            aria-label={message.role === "user"
-              ? "Regenerate assistant response"
-              : "Regenerate this response"}
-            onclick={() => chat.regenerate(index)}
-          >
-            <RefreshCwIcon class="size-4" />
-          </button>
-        {/if}
+        <!-- user message buttons -->
+        <button
+          class="clickable-icon"
+          aria-label="Edit message"
+          onclick={handleEditMessage}
+        >
+          <PencilIcon class="size-4" />
+        </button>
+        <button
+          class="clickable-icon"
+          aria-label={message.role === "user"
+            ? "Regenerate assistant response"
+            : "Regenerate this response"}
+          onclick={() => chat.regenerate(index)}
+        >
+          <RefreshCwIcon class="size-4" />
+        </button>
       {:else if message.role === "assistant" && message.metadata?.steps}
         <!-- Assistant message usage info button -->
         <button
@@ -223,7 +183,11 @@
                 : "",
             )}
           >
-            <Markdown md={part.text} renderObsidian={true} />
+            {#if message.role === "user" && message.metadata && "command" in message.metadata && message.metadata.command?.text}
+              <Markdown md={message.metadata.command.text} renderObsidian={true} />
+            {:else}
+              <Markdown md={part.text} renderObsidian={true} />
+            {/if}
           </div>
         {:else if part.type === "reasoning"}
           <div

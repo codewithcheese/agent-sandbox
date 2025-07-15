@@ -32,10 +32,11 @@
   import {
     detectSlashTrigger,
     removeSlashTrigger,
+    parseSlashCommand,
   } from "$lib/utils/slash-commands";
-  import { PromptFileSelectModal } from "$lib/modals/prompt-file-select-modal";
-  import { loadPromptMessage } from "../editor/prompt-command.ts";
-  import { getTextFromParts } from "$lib/utils/ai.ts";
+  import { CommandSelectModal } from "$lib/modals/command-select-modal.ts";
+  import { createSystemContent } from "../chat/system.ts";
+  import { extractLinks } from "$lib/utils/obsidian.ts";
 
   type Props = {
     chat: Chat;
@@ -101,16 +102,73 @@
     }
   }
 
-  function handleSubmit(e: Event) {
+  async function handleSubmit(e: Event) {
     e.preventDefault();
     if (!chat.options.modelId || !chat.options.accountId) {
       new Notice("Please select a model before submitting", 3000);
       return;
     }
 
-    const transformedText = expandBacklinks(inputState.text);
+    let transformedContent = inputState.text;
+    let attachments = $state.snapshot(inputState.attachments);
+    let metadata: any = undefined;
 
-    chat.submit(transformedText, $state.snapshot(inputState.attachments));
+    // Check if this is a slash command
+    const slashCommand = parseSlashCommand(inputState.text);
+    if (slashCommand) {
+      const { promptName, arguments: args } = slashCommand;
+
+      // Find the prompt file
+      const plugin = usePlugin();
+      const file = plugin.app.metadataCache.getFirstLinkpathDest(
+        promptName,
+        "/",
+      );
+      if (!file) {
+        new Notice(`Prompt file "${promptName}" not found`, 3000);
+        return;
+      }
+
+      try {
+        // Use createSystemContent to process the prompt file
+        let promptContent = await createSystemContent(
+          file,
+          plugin.app.vault,
+          plugin.app.metadataCache,
+        );
+
+        // Process $ARGUMENTS placeholder
+        if (promptContent.includes("$ARGUMENTS")) {
+          promptContent = promptContent.replace(/\$ARGUMENTS/g, args);
+        } else if (args.trim()) {
+          // If no $ARGUMENTS placeholder but arguments provided, append to next line
+          promptContent = promptContent + "\n" + args;
+        }
+
+        transformedContent = promptContent;
+        metadata = {
+          command: {
+            text: inputState.text,
+            path: file.path,
+          },
+        };
+
+        // Extract links from the content for additional file attachments
+        const links = extractLinks(file, transformedContent);
+        attachments = [...attachments, ...links];
+      } catch (error) {
+        console.error("Error processing slash command:", error);
+        new Notice(`Error processing prompt: ${error.message}`, 3000);
+        return;
+      }
+    }
+
+    // Expand backlinks in all content
+    transformedContent = expandBacklinks(transformedContent);
+
+    // Submit with processed content and all attachments
+    chat.submit(transformedContent, attachments, metadata);
+
     inputState.reset();
   }
 
@@ -143,18 +201,75 @@
     }
   }
 
-  function handleEditSubmit(event) {
+  async function handleEditSubmit(event) {
     event.preventDefault();
     if (inputState.state.type !== "editing") {
       return new Notice("Invalid edit submit. Not in edit mode.");
     }
     if (inputState.text.trim() || inputState.attachments.length > 0) {
-      const transformedText = expandBacklinks(inputState.text.trim());
+      let transformedContent = inputState.text.trim();
+      let attachments = $state.snapshot(inputState.attachments);
+      let metadata: any = undefined;
 
+      // Check if this is a slash command
+      const slashCommand = parseSlashCommand(inputState.text);
+      if (slashCommand) {
+        const { promptName, arguments: args } = slashCommand;
+
+        // Find the prompt file
+        const plugin = usePlugin();
+        const file = plugin.app.metadataCache.getFirstLinkpathDest(
+          promptName,
+          "/",
+        );
+        if (!file) {
+          new Notice(`Prompt file "${promptName}" not found`, 3000);
+          return;
+        }
+
+        try {
+          // Use createSystemContent to process the prompt file
+          let promptContent = await createSystemContent(
+            file,
+            plugin.app.vault,
+            plugin.app.metadataCache,
+          );
+
+          // Process $ARGUMENTS placeholder
+          if (promptContent.includes("$ARGUMENTS")) {
+            promptContent = promptContent.replace(/\$ARGUMENTS/g, args);
+          } else if (args.trim()) {
+            // If no $ARGUMENTS placeholder but arguments provided, append to next line
+            promptContent = promptContent + "\n" + args;
+          }
+
+          transformedContent = promptContent;
+          metadata = {
+            command: {
+              text: inputState.text,
+              path: file.path,
+            },
+          };
+
+          // Extract links from the content for additional file attachments
+          const links = extractLinks(file, transformedContent);
+          attachments = [...attachments, ...links];
+        } catch (error) {
+          console.error("Error processing slash command:", error);
+          new Notice(`Error processing prompt: ${error.message}`, 3000);
+          return;
+        }
+      }
+
+      // Expand backlinks in all content
+      transformedContent = expandBacklinks(transformedContent);
+
+      // Edit with processed content and all attachments
       chat.edit(
         inputState.state.index,
-        transformedText,
-        $state.snapshot(inputState.attachments),
+        transformedContent,
+        attachments,
+        metadata,
       );
       inputState.reset();
     } else {
@@ -206,7 +321,7 @@
         openBacklinkModal(selectionStart);
       }
 
-      // Check for slash command trigger
+      // Check for slash command trigger (only at start of input)
       if (detectSlashTrigger(value, selectionStart)) {
         openSlashCommandModal(selectionStart);
       }
@@ -241,41 +356,33 @@
 
   function openSlashCommandModal(cursorPos: number) {
     const plugin = usePlugin();
-    const modal = new PromptFileSelectModal(plugin.app, (file) => {
+    const modal = new CommandSelectModal(plugin.app, (file) => {
       insertPrompt(cursorPos, file);
     });
     modal.open();
   }
 
-  async function insertPrompt(cursorPos: number, file: TFile) {
-    // Remove the slash trigger
+  function insertPrompt(cursorPos: number, file: TFile) {
+    // Remove the slash trigger and replace with slash command syntax
     const { newText } = removeSlashTrigger(inputState.text, cursorPos);
-    inputState.text = newText;
 
-    // Load the prompt message to get the content and metadata
-    const promptMessage = await loadPromptMessage(file);
+    // Use the shortest unambiguous linktext relative to vault root
+    const plugin = usePlugin();
+    const linktext = plugin.app.metadataCache.fileToLinktext(file, "/");
+    const slashCommand = `/[[${linktext}]] `;
 
-    // Extract the prompt metadata
-    const promptMetadata = promptMessage.metadata;
+    inputState.text = newText + slashCommand;
 
-    // If we're editing a message, update it and submit
-    if (inputState.state.type === "editing") {
-      await chat.edit(
-        inputState.state.index,
-        getTextFromParts(promptMessage.parts),
-        inputState.attachments,
-        promptMetadata,
-      );
-      inputState.reset();
-    } else {
-      // For new messages, submit the prompt directly
-      await chat.submit(
-        getTextFromParts(promptMessage.parts),
-        inputState.attachments,
-        promptMetadata,
-      );
-      inputState.reset();
-    }
+    // Focus the textarea and position cursor at the end
+    setTimeout(() => {
+      if (textareaRef) {
+        textareaRef.focus();
+        textareaRef.setSelectionRange(
+          inputState.text.length,
+          inputState.text.length,
+        );
+      }
+    }, 0);
   }
 </script>
 

@@ -1,19 +1,19 @@
 import { TFile, Plugin } from "obsidian";
 import { usePlugin } from "$lib/utils/index.ts";
 
-export class Prompts {
-  private static instance: Prompts | null = null;
+export class Commands {
+  private static instance: Commands | null = null;
   entries = $state<{ name: string; file: TFile }[]>([]);
 
-  static register(plugin: Plugin): Prompts {
-    if (!Prompts.instance) {
-      Prompts.instance = new Prompts(plugin);
+  static register(plugin: Plugin): Commands {
+    if (!Commands.instance) {
+      Commands.instance = new Commands(plugin);
     }
-    return Prompts.instance;
+    return Commands.instance;
   }
 
-  static getInstance(): Prompts | null {
-    return Prompts.instance;
+  static getInstance(): Commands | null {
+    return Commands.instance;
   }
 
   constructor(private plugin: Plugin) {
@@ -44,7 +44,7 @@ export class Prompts {
           this.entries.splice(index, 1);
         }
 
-        // Check if the renamed file is a prompt and add if needed
+        // Check if the renamed file is a command and add if needed
         this.updateEntryForFile(file);
       }),
     );
@@ -70,46 +70,46 @@ export class Prompts {
    * Update the entries list for a specific file
    */
   private updateEntryForFile(file: TFile): void {
-    // Get prompt name if this is a prompt file
-    const promptName = isPrompt(file);
+    // Get command name if this is a command file
+    const commandName = isCommand(file);
 
     // Find if this file is already in our entries
     const existingIndex = this.entries.findIndex(
       (entry) => entry.file.path === file.path,
     );
 
-    if (promptName) {
-      // It's a prompt - update or add
+    if (commandName) {
+      // It's a command - update or add
       if (existingIndex !== -1) {
         // Update existing entry
-        this.entries[existingIndex].name = promptName;
+        this.entries[existingIndex].name = commandName;
       } else {
         // Add new entry
-        this.entries.push({ name: promptName, file });
+        this.entries.push({ name: commandName, file });
       }
     } else if (existingIndex !== -1) {
-      // Not a prompt but was in our list - remove it
+      // Not a command but was in our list - remove it
       this.entries.splice(existingIndex, 1);
     }
   }
 
   static async refresh() {
-    const instance = Prompts.getInstance();
+    const instance = Commands.getInstance();
     if (!instance) return;
     instance.entries = [];
 
     const plugin = usePlugin();
     const markdownFiles = plugin.app.vault.getMarkdownFiles();
     for (const file of markdownFiles) {
-      const promptName = isPrompt(file);
-      if (promptName) {
-        instance.entries.push({ name: promptName, file });
+      const commandName = isCommand(file);
+      if (commandName) {
+        instance.entries.push({ name: commandName, file });
       }
     }
   }
 }
 
-export function isPrompt(file: TFile): string | null {
+export function isCommand(file: TFile): string | null {
   if (file.extension !== "md") return null;
 
   const plugin = usePlugin();
@@ -117,8 +117,8 @@ export function isPrompt(file: TFile): string | null {
 
   if (!metadata?.frontmatter) return null;
 
-  const promptField = metadata.frontmatter.prompt;
-  if (promptField === true || promptField === "true") {
+  const commandField = metadata.frontmatter.command;
+  if (commandField === true || commandField === "true") {
     return metadata.frontmatter.name || file.basename;
   }
 

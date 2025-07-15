@@ -1,14 +1,16 @@
 import type { UIMessage } from "ai";
-import { Chat } from "./chat.svelte";
+import { Chat, type UIMessageWithMetadata } from "./chat.svelte";
 import superjson from "superjson";
 import { nanoid } from "nanoid";
 import type { SuperJSONObject } from "$lib/utils/superjson";
+import { ChatMarkdownFormatter } from "./chat-markdown-formatter.ts";
+import { encodeBase64 } from "$lib/utils/base64.ts";
 
 export type ChatFileV1 = {
   version: 1;
   payload: {
     id: string;
-    messages: UIMessage[];
+    messages: UIMessageWithMetadata[];
     vault:
       | {
           tracking: Uint8Array;
@@ -69,8 +71,8 @@ export class ChatSerializer {
     },
   ];
 
-  static stringify(chat: Chat): string {
-    return superjson.stringify({
+  static stringify(chat: Chat, format?: "markdown" | "json"): string {
+    const chatData = {
       version: this.CURRENT_VERSION,
       payload: {
         id: chat.id,
@@ -80,12 +82,67 @@ export class ChatSerializer {
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       },
-    } satisfies CurrentChatFile);
+    } satisfies CurrentChatFile;
+
+    // Determine format: use provided format or auto-detect from file extension
+    const isMarkdownFormat =
+      format === "markdown" ||
+      (format !== "json" && chat.path.endsWith(".chat.md"));
+
+    if (isMarkdownFormat) {
+      return this.chatFileToMarkdown(chatData);
+    } else {
+      // Use raw JSON format for .chat files (backward compatibility)
+      return superjson.stringify(chatData);
+    }
   }
 
-  static parse(jsonString: string): CurrentChatFile {
-    const data = superjson.parse(jsonString);
+  static parse(content: string): CurrentChatFile {
+    // Try to extract JSON data from markdown format first
+    const extractedData = this.extractJsonFromMarkdown(content);
+    if (extractedData) {
+      return this.migrateToLatest(extractedData);
+    }
+
+    // Fall back to parsing as raw JSON for backward compatibility
+    const data = superjson.parse(content);
     return this.migrateToLatest(data);
+  }
+
+  private static extractJsonFromMarkdown(content: string): any | null {
+    const lines = content.split("\n");
+
+    // Find the chatdata code block
+    let codeBlockStart = -1;
+    let codeBlockEnd = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim() === "```chatdata") {
+        codeBlockStart = i + 1;
+      } else if (codeBlockStart !== -1 && lines[i].trim() === "```") {
+        codeBlockEnd = i;
+        break;
+      }
+    }
+
+    if (codeBlockStart === -1 || codeBlockEnd === -1) {
+      return null;
+    }
+
+    // Extract the base64 content from the code block
+    const base64Content = lines
+      .slice(codeBlockStart, codeBlockEnd)
+      .join("\n")
+      .trim();
+
+    try {
+      // Decode base64 and parse JSON
+      const decodedJson = atob(base64Content);
+      return superjson.parse(decodedJson);
+    } catch (error) {
+      console.error("Failed to parse embedded chat data:", error);
+      return null;
+    }
   }
 
   private static migrateToLatest(data: any): CurrentChatFile {
@@ -105,5 +162,47 @@ export class ChatSerializer {
     }
 
     return currentData as CurrentChatFile;
+  }
+
+  /**
+   * Converts a chat file to markdown format with embedded JSON data
+   */
+  private static chatFileToMarkdown(chatData: CurrentChatFile): string {
+    // Generate human-readable markdown format
+    const markdown = ChatMarkdownFormatter.formatChat(
+      chatData.payload.messages,
+    );
+
+    // Encode the JSON data as base64
+    const jsonString = superjson.stringify(chatData);
+    const encodedData = encodeBase64(jsonString);
+
+    // Combine markdown with embedded JSON data (similar to Excalidraw format)
+    return `${markdown}
+
+%%
+# Chat Data
+\`\`\`chatdata
+${encodedData}
+\`\`\`
+%%`;
+  }
+
+  /**
+   * Creates initial chat content in markdown format for new .chat.md files
+   */
+  static createInitialMarkdown(options?: {
+    modelId?: string;
+    accountId?: string;
+  }): string {
+    const initialData: CurrentChatFile = { ...this.INITIAL_DATA };
+    if (options?.modelId) {
+      initialData.payload.options.modelId = options.modelId;
+    }
+    if (options?.accountId) {
+      initialData.payload.options.accountId = options.accountId;
+    }
+
+    return this.chatFileToMarkdown(initialData);
   }
 }

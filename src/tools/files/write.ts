@@ -97,6 +97,15 @@ async function validateWriteInput(
 }> {
   const path = normalizePath(params.file_path);
 
+  // Prevent writing to .chat.md files - these have special format managed by chat system
+  if (path.endsWith('.chat.md')) {
+    return {
+      result: false,
+      message: "Cannot write to .chat.md files. These files have a special format managed by the chat system.",
+      humanMessage: "Chat files are read-only",
+    };
+  }
+
   // Check if any part of the path starts with a dot
   const pathParts = path.split("/");
   if (pathParts.some((part) => part.startsWith("."))) {

@@ -361,4 +361,105 @@ describe("readToolExecute", () => {
     );
     expect(result).toBe(expected);
   });
+
+  // --- .chat.md File Handling Tests ---
+  it("should truncate .chat.md files at chat data section", async () => {
+    const chatContent = `## User
+*1/1/2024, 10:30:00 AM*
+
+Hello, how are you?
+
+## Assistant
+*1/1/2024, 10:30:15 AM*
+
+I'm doing well, thank you!
+
+%%
+# Chat Data
+\`\`\`chatdata
+eyJ2ZXJzaW9uIjoxLCJwYXlsb2FkIjp7ImlkIjoidGVzdC1pZCIsIm1lc3NhZ2VzIjpbXSwidmF1bHQiOnVuZGVmaW5lZCwib3B0aW9ucyI6eyJtYXhTdGVwcyI6MTAwLCJ0ZW1wZXJhdHVyZSI6MC43LCJ0aGlua2luZ0VuYWJsZWQiOmZhbHNlLCJtYXhUb2tlbnMiOjQwMDAsInRoaW5raW5nVG9rZW5zQnVkZ2V0IjoxMjAwfSwiY3JlYXRlZEF0IjoiMjAyNC0wMS0wMVQxMDowMDowMC4wMDBaIiwidXBkYXRlZEF0IjoiMjAyNC0wMS0wMVQxMDozMDowMC4wMDBaIn19
+\`\`\`
+%%`;
+
+    await vault.create("/test/conversation.chat.md", chatContent);
+    const params = { file_path: "/test/conversation.chat.md" };
+    const result = await readToolExecute(params, toolExecOptions);
+
+    invariant(typeof result === "string", "Expected string result");
+    
+    // Should contain the readable content
+    expect(result).toContain("## User");
+    expect(result).toContain("Hello, how are you?");
+    expect(result).toContain("## Assistant");
+    expect(result).toContain("I'm doing well, thank you!");
+    
+    // Should NOT contain the encoded data section
+    expect(result).not.toContain("# Chat Data");
+    expect(result).not.toContain("chatdata");
+    expect(result).not.toContain("eyJ2ZXJzaW9u");
+    
+    // Should have correct line count (only the visible markdown content)
+    const allLines = chatContent.split('\n');
+    const chatDataIndex = allLines.findIndex(line => line.trim() === '%%');
+    const visibleLines = allLines.slice(0, chatDataIndex);
+    expect(result).toContain(`Lines 1-${visibleLines.length} of ${visibleLines.length}:`);
+  });
+
+  it("should handle .chat.md files without chat data section", async () => {
+    const chatContent = `## User
+*1/1/2024, 10:30:00 AM*
+
+Hello, this is a malformed chat file without encoded data.
+
+## Assistant
+*1/1/2024, 10:30:15 AM*
+
+This shouldn't happen, but let's handle it gracefully.`;
+
+    await vault.create("/test/malformed.chat.md", chatContent);
+    const params = { file_path: "/test/malformed.chat.md" };
+    const result = await readToolExecute(params, toolExecOptions);
+
+    invariant(typeof result === "string", "Expected string result");
+    
+    // Should return the full content since there's no %% marker
+    expect(result).toContain("## User");
+    expect(result).toContain("malformed chat file");
+    expect(result).toContain("## Assistant");
+    expect(result).toContain("handle it gracefully");
+    
+    const allLines = chatContent.split('\n');
+    expect(result).toContain(`Lines 1-${allLines.length} of ${allLines.length}:`);
+  });
+
+  it("should respect offset and limit parameters for .chat.md files", async () => {
+    const chatContent = `## User
+*1/1/2024, 10:30:00 AM*
+
+Hello, how are you?
+
+## Assistant
+*1/1/2024, 10:30:15 AM*
+
+I'm doing well, thank you!
+
+%%
+# Chat Data
+\`\`\`chatdata
+encoded-data-here
+\`\`\`
+%%`;
+
+    await vault.create("/test/chat-with-params.chat.md", chatContent);
+    const params = { file_path: "/test/chat-with-params.chat.md", offset: 3, limit: 2 };
+    const result = await readToolExecute(params, toolExecOptions);
+
+    invariant(typeof result === "string", "Expected string result");
+    
+    // Should contain lines 3-4 of the visible content
+    expect(result).toContain("Hello, how are you?");
+    expect(result).not.toContain("## User"); // Line 1, not included
+    expect(result).not.toContain("# Chat Data"); // Should be truncated anyway
+    expect(result).toContain("Lines 3-4 of 10:"); // 10 lines before %% marker
+  });
 });

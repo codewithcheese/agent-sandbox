@@ -1,10 +1,10 @@
 import matter from "front-matter";
 import type {
-  DataWriteOptions,
+  DataWriteOptions, MetadataCache,
   TAbstractFile,
   TFile,
   TFolder,
-  Vault,
+  Vault
 } from "obsidian";
 import { fs } from "@zenfs/core";
 import { normalizePath } from "./normalize-path.ts";
@@ -488,14 +488,9 @@ export const vault: Vault = {
   },
 };
 
-export const metadataCache = {
+export const metadataCache: MetadataCache = {
   getFileCache: (file: MockTFile) => {
     return fileCache.get(file.path) || null;
-  },
-
-  // Helper method for tests to set cache data
-  setFileCache: (file: MockTFile, cache: any) => {
-    fileCache.set(file.path, cache);
   },
 
   getFirstLinkpathDest: (linkpath: string, sourcePath: string) => {
@@ -631,6 +626,11 @@ export const helpers = {
 export const app = {
   vault,
   metadataCache,
+  workspace: {
+    getLeavesOfType: (type: string) => {
+      return [];
+    },
+  }
 };
 
 const settings = migrateToLatest({});
@@ -640,6 +640,7 @@ export const plugin = {
   manifest: { dir: "test-dir" },
   settings: settings,
   loadSettings: () => settings,
+
 };
 
 window.Env = {

@@ -20,11 +20,10 @@ import mainCss from "./main.css?inline";
 import { JsonSchemaCodeBlockProcessor } from "./editor/schema/json-schema-code-block.ts";
 import { AgentView } from "./editor/agent/agent-view.ts";
 import { AgentBannerComponent } from "./editor/agent/agent-banner-component.svelte.ts";
-import { PromptCommand } from "./editor/prompt-command.ts";
 import { ContextMenu } from "./editor/context-menu.ts";
 import { HtmlEscapeCommand } from "./editor/html-escape-command.ts";
 import { TestSetCommand } from "./tools/evals/test-set-command.ts";
-import { Prompts } from "./chat/prompts.svelte.ts";
+import { Commands } from "./chat/commands.svelte.ts";
 
 export class AgentSandboxPlugin extends Plugin {
   settingsManager: SettingsManager;
@@ -84,13 +83,12 @@ export class AgentSandboxPlugin extends Plugin {
     ChatHistoryView.register(this);
     AgentView.register(this);
     AgentBannerComponent.register(this);
-    PromptCommand.register(this);
     ContextMenu.register(this);
     HtmlEscapeCommand.register(this);
     TestSetCommand.register(this);
     RenameTracker.register(this);
     RecorderView.register(this);
-    Prompts.register(this);
+    Commands.register(this);
     this.jsonSchemaCodeBlock = new JsonSchemaCodeBlockProcessor();
 
     this.addRibbonIcon("folder-tree", "Show Files Tree", async () => {
@@ -108,7 +106,7 @@ export class AgentSandboxPlugin extends Plugin {
     // Open recorder view on startup
     this.app.workspace.onLayoutReady(async () => {
       // await RecorderView.openRecorderView();
-      await Prompts.refresh();
+      await Commands.refresh();
     });
   }
 

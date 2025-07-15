@@ -1,21 +1,21 @@
 import { App, FuzzySuggestModal, TFile } from "obsidian";
-import { Prompts } from "../../chat/prompts.svelte.ts";
+import { Commands } from "../../chat/commands.svelte.ts";
 
 /**
- * A modal for selecting markdown files to insert as prompts, using fuzzy search
+ * A modal for selecting markdown files to insert as commands, using fuzzy search
  */
-export class PromptFileSelectModal extends FuzzySuggestModal<TFile> {
+export class CommandSelectModal extends FuzzySuggestModal<TFile> {
   onSelect: (file: TFile) => void;
-  private showPromptsOnly = true;
-  private prompts: Prompts | null = null;
+  private showCommandsOnly = true;
+  private commands: Commands | null = null;
 
   constructor(app: App, onSelect: (file: TFile) => void) {
     super(app);
     this.onSelect = onSelect;
-    this.prompts = Prompts.getInstance();
-    // Default to showing prompts only if user has prompts, otherwise show all files
-    this.showPromptsOnly = this.prompts && this.prompts.entries.length > 0;
-    this.setPlaceholder("Select a file to insert as prompt");
+    this.commands = Commands.getInstance();
+    // Default to showing commands only if user has commands, otherwise show all files
+    this.showCommandsOnly = this.commands && this.commands.entries.length > 0;
+    this.setPlaceholder("Select a file to insert as command");
   }
 
   open() {
@@ -41,33 +41,33 @@ export class PromptFileSelectModal extends FuzzySuggestModal<TFile> {
     // Add setting info
     const settingInfo = settingItem.createDiv("setting-item-info");
     const settingName = settingInfo.createDiv("setting-item-name");
-    settingName.textContent = "Show prompts only";
+    settingName.textContent = "Show commands only";
     const settingDesc = settingInfo.createDiv("setting-item-description");
-    settingDesc.textContent = "Only show files with prompt: true frontmatter";
+    settingDesc.textContent = "Only show files with command: true frontmatter";
 
     // Add setting control with toggle
     const settingControl = settingItem.createDiv("setting-item-control");
 
     const checkboxContainer = settingControl.createDiv("checkbox-container");
-    if (this.showPromptsOnly) {
+    if (this.showCommandsOnly) {
       checkboxContainer.addClass("is-enabled");
     }
 
     checkboxContainer.setAttribute("role", "checkbox");
     checkboxContainer.setAttribute("tabindex", "0");
-    checkboxContainer.setAttribute("aria-label", "Toggle prompts only filter");
+    checkboxContainer.setAttribute("aria-label", "Toggle commands only filter");
     checkboxContainer.setAttribute(
       "aria-checked",
-      this.showPromptsOnly.toString(),
+      this.showCommandsOnly.toString(),
     );
 
     const toggleHandler = () => {
-      this.showPromptsOnly = !this.showPromptsOnly;
+      this.showCommandsOnly = !this.showCommandsOnly;
       checkboxContainer.setAttribute(
         "aria-checked",
-        this.showPromptsOnly.toString(),
+        this.showCommandsOnly.toString(),
       );
-      if (this.showPromptsOnly) {
+      if (this.showCommandsOnly) {
         checkboxContainer.addClass("is-enabled");
       } else {
         checkboxContainer.removeClass("is-enabled");
@@ -88,16 +88,16 @@ export class PromptFileSelectModal extends FuzzySuggestModal<TFile> {
     const checkbox = checkboxContainer.createEl("input");
     checkbox.type = "checkbox";
     checkbox.tabIndex = 0;
-    checkbox.checked = this.showPromptsOnly;
+    checkbox.checked = this.showCommandsOnly;
 
     // Insert after the prompt input container
     promptInputContainer.insertAdjacentElement("afterend", settingItem);
   }
 
   getItems(): TFile[] {
-    if (this.showPromptsOnly && this.prompts) {
-      // Only show files with prompt: true frontmatter
-      return this.prompts.entries.map((entry) => entry.file);
+    if (this.showCommandsOnly && this.commands) {
+      // Only show files with command: true frontmatter
+      return this.commands.entries.map((entry) => entry.file);
     } else {
       // Show all markdown files
       return this.app.vault

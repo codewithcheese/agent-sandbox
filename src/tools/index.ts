@@ -1,6 +1,6 @@
 import type { Tool, ToolUIPart } from "ai";
 import { getToolName, jsonSchema, tool } from "ai";
-import { type CachedMetadata, Notice, type TFile } from "obsidian";
+import { type CachedMetadata, Notice, type TFile, Vault } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { resolveInternalLink } from "../lib/utils/obsidian";
 import { getListFromFrontmatter } from "../lib/utils/frontmatter";
@@ -23,9 +23,12 @@ import { fetchTool } from "./fetch.ts";
 import { evaluateOutputTool } from "./evals/evaluate-output.ts";
 import { evaluateTestSetTool } from "./evals/evaluate-test-set.ts";
 import { promptTool } from "./evals/prompt.ts";
+import { agentTool } from "./agent.ts";
 import { extractCodeBlockContent } from "../lib/utils/codeblocks.ts";
 import { createSystemContent } from "../chat/system.ts";
 import { z } from "zod";
+import type { SessionStore } from "../chat/session-store.svelte.ts";
+import type { VaultOverlay } from "../chat/vault-overlay.svelte.ts";
 
 const debug = createDebug();
 
@@ -45,6 +48,7 @@ export const toolRegistry: Record<string, ToolDefinition> = {
   evaluate_output: evaluateOutputTool,
   evaluate_test_set: evaluateTestSetTool,
   prompt: promptTool,
+  agent: agentTool,
 };
 
 /**
@@ -195,9 +199,11 @@ export async function createTool(
   }
 }
 
+// fixme: use agent context as parameters
 export async function loadToolsFromFrontmatter(
   metadata: CachedMetadata,
-  chat: Chat,
+  vault: VaultOverlay,
+  sessionStore: SessionStore,
   provider: string,
 ) {
   const plugin = usePlugin();
@@ -210,11 +216,11 @@ export async function loadToolsFromFrontmatter(
     }
     const toolDef = await parseToolDefinition(toolFile);
     tools[toolDef.name] = await createTool(toolDef, provider, {
-      vault: chat.vault,
+      vault: vault,
       config: {},
-      sessionStore: chat.sessionStore,
+      sessionStore: sessionStore,
       metadataCache: new MetadataCacheOverlay(
-        chat.vault,
+        vault,
         plugin.app.metadataCache,
       ),
     });

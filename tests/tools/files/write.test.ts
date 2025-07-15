@@ -65,6 +65,18 @@ describe("Write tool", () => {
     expect(result.message).toContain("Path is a directory");
   });
 
+  it("should return error when writing to .chat.md files", async () => {
+    const params = { file_path: "/chats/conversation.chat.md", content: "# Modified content" };
+    const result = await writeToolExecute(params, toolExecOptions);
+    invariant(
+      typeof result !== "string" && "error" in result,
+      "Expected error object",
+    );
+    expect(result.error).toBe("Input Validation Failed");
+    expect(result.message).toContain("Cannot write to .chat.md files");
+    expect(result.humanMessage).toBe("Chat files are read-only");
+  });
+
   // Read state checks disabled in-lieu of a token efficient solution
   it.skip("should return error when trying to write to existing file without reading it first", async () => {
     // Create an existing file without simulating a read

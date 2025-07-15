@@ -1496,13 +1496,16 @@ export class VaultOverlay implements Vault {
     this.trackingFS.invalidateCache();
     this.proposedFS.invalidateCache();
     this.proposedDoc.revertTo(checkpoint);
-    this.trackingDoc.import(
-      this.proposedDoc.export({
-        mode: "update",
-        from: this.trackingDoc.version(),
-      }),
-    );
+    debug("Revert complete, syncing with tracking");
+    const revertUpdates = this.proposedDoc.export({
+      mode: "update",
+      from: this.trackingDoc.version(),
+    });
+    debug("Applying revert updates", revertUpdates.length);
+    this.trackingDoc.import(revertUpdates);
+    debug("Revert sync complete, computing changes");
     this.computeChanges();
+    debug("Compute changes complete");
   }
 
   revertProposed(proposedNode: LoroTreeNode, trackingNode: LoroTreeNode): void {
