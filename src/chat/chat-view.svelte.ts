@@ -99,6 +99,20 @@ export class ChatView extends FileView {
             await chat.generateTitle();
           });
       });
+      
+      // Only show migration option for .chat files
+      if (this.file.path.endsWith('.chat')) {
+        menu.addItem((item) => {
+          item
+            .setTitle("Convert to Markdown")
+            .setIcon("file-text")
+            .onClick(async () => {
+              const chat = await Chat.load(this.file.path);
+              await chat.migrateToMarkdown();
+            });
+        });
+      }
+      
       menu.addItem((item) => {
         item
           .setTitle("Delete chat")

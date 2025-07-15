@@ -49,7 +49,7 @@
 <div class="h-full flex flex-col max-w-md mx-4 mx-auto">
   <div class="py-1 px-2 border-b border-(--background-modifier-border)">
     <div class="flex justify-between items-center">
-      <h2 class="text-lg font-medium">All Conversations</h2>
+      <h2 class="text-lg font-medium">Chats</h2>
       <button class="flex gap-1" onclick={onNewChatClick} aria-label="New Chat">
         <SquarePenIcon class="size-4" /> New chat
       </button>

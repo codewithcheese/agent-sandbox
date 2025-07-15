@@ -44,8 +44,10 @@ export class ChatHistoryView extends FileView {
   watch() {
     const refresh = _.debounce(() => this.loadChats(), 150);
 
-    const isChat = (f: TFile | string) =>
-      (typeof f === "string" ? f : f.path).endsWith(".chat");
+    const isChat = (f: TFile | string) => {
+      const path = typeof f === "string" ? f : f.path;
+      return path.endsWith(".chat") || path.endsWith(".chat.md");
+    };
 
     // New or deleted files
     ["create", "delete"].forEach((evt) =>
@@ -91,13 +93,20 @@ export class ChatHistoryView extends FileView {
         .getFiles()
         .filter(
           (file) =>
-            file.extension === "chat" && file.path.startsWith(chatsPath),
+            (file.extension === "chat" || file.path.endsWith(".chat.md")) && 
+            file.path.startsWith(chatsPath),
         );
 
       this.history.chats = await Promise.all(
         files.map(async (file) => {
+          // For .chat.md files, remove the trailing .chat from basename
+          let title = file.basename;
+          if (file.path.endsWith('.chat.md') && title.endsWith('.chat')) {
+            title = title.slice(0, -5); // Remove '.chat' suffix
+          }
+          
           return {
-            title: file.basename,
+            title,
             path: file.path,
             lastModified: file.stat.mtime,
           };
