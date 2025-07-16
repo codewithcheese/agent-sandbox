@@ -32,9 +32,11 @@ export class ChatMarkdownFormatter {
       parts.push("## Assistant");
     }
 
-    // Add timestamp
-    const timestamp = new Date(message.metadata.createdAt).toLocaleString();
-    parts.push(`*${timestamp}*`);
+    if (message?.metadata?.createdAt) {
+      // Add timestamp
+      const timestamp = new Date(message.metadata.createdAt).toLocaleString();
+      parts.push(`*${timestamp}*`);
+    }
 
     // Add command info if present
     if (

@@ -38,3 +38,12 @@ export function decodeBase64(b64: string): ArrayBuffer {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
 }
+
+export function decodeBase64ToString(b64: string): string {
+  if (typeof Buffer !== "undefined" && typeof Buffer.from === "function") {
+    return Buffer.from(b64, "base64").toString("utf-8");
+  }
+
+  const arrayBuffer = decodeBase64(b64);
+  return new TextDecoder().decode(arrayBuffer);
+}

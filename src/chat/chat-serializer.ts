@@ -4,7 +4,7 @@ import superjson from "superjson";
 import { nanoid } from "nanoid";
 import type { SuperJSONObject } from "$lib/utils/superjson";
 import { ChatMarkdownFormatter } from "./chat-markdown-formatter.ts";
-import { encodeBase64 } from "$lib/utils/base64.ts";
+import { encodeBase64, decodeBase64ToString } from "$lib/utils/base64.ts";
 
 export type ChatFileV1 = {
   version: 1;
@@ -136,8 +136,8 @@ export class ChatSerializer {
       .trim();
 
     try {
-      // Decode base64 and parse JSON
-      const decodedJson = atob(base64Content);
+      // Decode base64 and parse JSON using proper UTF-8 handling
+      const decodedJson = decodeBase64ToString(base64Content);
       return superjson.parse(decodedJson);
     } catch (error) {
       console.error("Failed to parse embedded chat data:", error);
