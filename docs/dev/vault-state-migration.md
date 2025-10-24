@@ -673,17 +673,85 @@ These convenience methods enable straightforward refactoring:
 - Add findById(), getChildren(), getParent() helpers
 - Verify all vault-state tests pass (122 tests ✅)
 
-**Phase 4b: VaultOverlay Migration** (Next)
-1. Update constructor: Replace LoroDoc with VaultState
-2. Update create operations: `proposedFS.createNode()` → `proposedState.createAtPath()`
-3. Update read operations: `findByPath()` and `findById()` patterns
-4. Update mutations: `node.data.set/get/delete` → `node.modify()`
-5. Update navigation: `node.children()` → `state.getChildren()`, `node.parent()` → `state.getParent()`
-6. Remove commit() calls (automatic in VaultState)
-7. Adapt checkpoint logic (Phase 6 will refactor serialization)
-8. Run vault-overlay tests after each major method
+**Phase 4b: VaultOverlay Migration via TreeFSAdapter** (In Progress)
 
-**Expected refactoring**: 300-400 lines in VaultOverlay.svelte.ts
+**Strategy**: Layered migration using a thin adapter layer that wraps VaultState and implements the TreeFS interface. This allows tests to remain unchanged while we incrementally migrate VaultOverlay internally.
+
+**Key insight**: Tests mostly use the Vault interface, not Loro directly. Only a few tests access `overlay.proposedFS` and `overlay.trackingFS`. This means we can insert an adapter layer between VaultOverlay and the underlying storage without breaking tests.
+
+#### Sub-Phase 1: TreeFS Adapter Layer (1-2 hours)
+Create a `TreeFSAdapter` class that implements the TreeFS interface and wraps VaultState:
+- Create `/src/chat/tree-fs-adapter.ts`
+- Implement all TreeFS methods as thin wrappers around VaultState methods
+- Update VaultOverlay constructor: `new TreeFS(loroDoc)` → `new TreeFSAdapter(vaultState)`
+- Tests don't change; they still call `overlay.proposedFS` and `overlay.trackingFS`
+- **Validation**: `pnpm test -- tests/vault-overlay/path-resolution.test.ts` (6 tests) ✓
+- **Why first**: Confirms adapter layer is sound before deeper refactoring
+
+#### Sub-Phase 2: Basic Operations (2-3 hours)
+Migrate core file operations together (they're straightforward and independent):
+- Constructor initialization: Replace `LoroDoc` with `VaultState('tracking')` and `VaultState('proposed')`
+- `create()` method: Swap Loro document operations for VaultState tree mutations
+- `modify()` method: Swap text/buffer updates to use `node.modify()`
+- `delete()` method: Swap Loro node deletion for `node.delete()`
+- `rename()` method: Combine `node.move()` and `node.rename()` operations
+- `read()` method: Swap Loro data access for VaultState node queries
+- `getFileByPath()`, `getFolderByPath()`, `getAbstractFileByPath()` methods
+- **Validation**: `pnpm test -- tests/vault-overlay/operations.test.ts` (47 tests) ✓
+- **Why grouped**: All use similar Loro → VaultState patterns; testing together avoids partial states
+
+#### Sub-Phase 3: Change Detection (1 hour)
+Rewrite change detection to use VaultState operations log instead of Loro tree comparison:
+- Rewrite `getFileChanges()`: Instead of comparing tree nodes, iterate operations log and detect creates/deletes/renames/modifies
+- Adapt `computeChanges()` if needed
+- **Validation**: `pnpm test -- tests/vault-overlay/changes.test.ts` (1 test) ✓
+- **Why separate**: Depends on Sub-Phase 2 completion; isolated change detection logic
+
+#### Sub-Phase 4: Approval & Rejection (3-4 hours)
+Rewrite approval/rejection workflows (most complex Loro-specific code):
+- Replace `doc.frontiers()` → `state.checkpoint()`
+- Replace `doc.revertTo(frontiers)` → `state.rollback(checkpoint)`
+- Replace Loro document merging (`proposedDoc.import/export`) with direct VaultState operations
+- Update `approve()` method: Remove Loro snapshot logic, use VaultState checkpoint/rollback
+- Update `reject()` method: Similar checkpoint/rollback pattern
+- Remove Loro's partial revert complexity: VaultState rollback is simpler
+- Update `revert()` method: Adapt to VaultState checkpoint semantics
+- **Validation**: `pnpm test -- tests/vault-overlay/approve.test.ts` + `tests/vault-overlay/reject.test.ts` (44 tests) ✓
+- **Why last of "local" changes**: Depends on operations being stable; most complex refactoring
+
+#### Sub-Phase 5: Sync Workflows (3-4 hours)
+Migrate vault sync orchestration (most operations should "just work" by now):
+- `syncPath()`: Already mostly orchestration, may just work with Sub-Phase 2 changes
+- `syncCreate()`: Orchestrates create and modify operations
+- `syncDelete()`: Orchestrates delete operations
+- `syncRename()`: Orchestrates move/rename with conflict handling
+- `syncAll()`: Orchestrates multi-path sync with change detection
+- Replace `doc.commit()` calls (automatic now)
+- Replace TreeFS utility calls with VaultState equivalents
+- **Validation**: `pnpm test -- tests/vault-overlay/sync.test.ts` (26 tests), `tests/vault-overlay/sync-rename.test.ts` (10 tests), `tests/vault-overlay/sync-all-timestamps.test.ts` (5 tests), `tests/vault-overlay/tmp-file.test.ts` (11 tests) ✓
+- **Why last**: Orchestration layer; depends on all underlying operations working
+
+### Validation Checkpoints
+
+```
+After Sub-Phase 1 (Adapter): 6 tests ✓ (path-resolution)
+After Sub-Phase 2 (Operations): 6 + 47 = 53 tests ✓
+After Sub-Phase 3 (Changes): 53 + 1 = 54 tests ✓
+After Sub-Phase 4 (Approval/Rejection): 54 + 44 = 98 tests ✓
+After Sub-Phase 5 (Sync): 98 + 52 = 150 tests ✓ (147 + 3 skipped)
+```
+
+### Test Coverage by Sub-Phase
+
+| Sub-Phase | Focus | Tests | Approach |
+|-----------|-------|-------|----------|
+| 1 | Adapter layer | path-resolution (6) | Thin wrapper, no test changes |
+| 2 | Basic operations | operations (47) | Direct Loro → VaultState swaps |
+| 3 | Change detection | changes (1) | Operations log instead of tree comparison |
+| 4 | Approval/rejection | approve (32) + reject (12) | Checkpoint/rollback pattern |
+| 5 | Sync workflows | sync (26) + sync-rename (10) + sync-all (5) + tmp-file (11) | Orchestration cleanup |
+
+**Expected refactoring**: ~1700 lines in VaultOverlay.svelte.ts, structured as 5 focused phases with clear validation points
 
 ---
 
@@ -759,25 +827,39 @@ With the introduction of auto-generated node IDs, the architecture is now cleane
 
 ---
 
-**Document Status**: Phases 1-3 ✅ COMPLETE (with Auto-Generated IDs), Phase 4 Started ⏳
-**Current Phase**: Phase 4 (Method Migration with Convenience Methods)
-**Last Updated**: October 24, 2024 (Convenience Methods Added)
+**Document Status**: Phases 1-3 ✅ COMPLETE (with Auto-Generated IDs), Phase 4 In Progress ⏳
+**Current Phase**: Phase 4b Sub-Phase 1 - TreeFS Adapter Layer (Next)
+**Last Updated**: October 24, 2024 (Migration strategy refined with 5 sub-phases)
 
 ### Progress Summary
 
 | Phase | Status | Tests | Key Feature |
 |-------|--------|-------|-------------|
 | 1 | ✅ Complete | Types, TreeNode | Foundation, auto-generated IDs |
-| 2 | ✅ Complete | 107 tests (original) | Execute functions, rebuild, rollback |
-| 3 | ✅ Complete | 124 tests | Trash/restore, infrastructure folders (createChild) |
-| 4 | ⏳ In Progress | 122 tests | Convenience methods for TreeFS compatibility, VaultOverlay migration |
+| 2 | ✅ Complete | 107 tests | Execute functions, rebuild, rollback |
+| 3 | ✅ Complete | 124 tests | Trash/restore, infrastructure folders |
+| 4a | ✅ Complete | 122 tests | Convenience methods (createAtPath, ensureDirs, etc.) |
+| 4b.1 | 📋 Next | 6 tests | TreeFS Adapter Layer (1-2 hours) |
+| 4b.2 | 📋 Planned | 47 tests | Basic Operations (2-3 hours) |
+| 4b.3 | 📋 Planned | 1 test | Change Detection (1 hour) |
+| 4b.4 | 📋 Planned | 44 tests | Approval & Rejection (3-4 hours) |
+| 4b.5 | 📋 Planned | 52 tests | Sync Workflows (3-4 hours) |
 | 5 | 📋 Planned | - | Workflow refactoring |
 | 6 | 📋 Planned | - | JSON serialization |
 | 7 | 📋 Planned | - | Cleanup & Loro removal |
 | 8 | 📋 Planned | - | Performance optimization |
 
+### Phase 4b Sub-Phase Timeline
+
+- **Sub-Phase 1**: TreeFS Adapter (1-2 hrs) → Validates foundation
+- **Sub-Phase 2**: Basic Ops (2-3 hrs) → Core functionality
+- **Sub-Phase 3**: Change Detection (1 hr) → Isolated logic
+- **Sub-Phase 4**: Approval/Reject (3-4 hrs) → Complex workflows
+- **Sub-Phase 5**: Sync (3-4 hrs) → Orchestration
+- **Total**: ~11-18 hours of coding + testing
+
 ### Known Issues to Fix
-- 3 tests need updates for auto-generated ID system:
+- 3 vault-state tests need updates for auto-generated ID system:
   - Tests using hardcoded IDs like 'n1', 'd1' → use node.id references
   - Tests asserting empty root children → account for infrastructure folders
   - getOperationsForNode method → verify implementation or add if missing
