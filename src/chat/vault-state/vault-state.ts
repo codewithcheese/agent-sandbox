@@ -21,6 +21,7 @@ import type {
 import { TreeNode } from './tree-node';
 import { executeOperation } from './operations';
 import { TRASH_FOLDER, TMP_FOLDER, DELETED_FROM_KEY } from './types';
+import { encodeBase64, decodeBase64 } from '$lib/utils/base64';
 
 export class VaultState {
   private tree: TreeNode;  // Root of the tree
@@ -499,30 +500,98 @@ export class VaultState {
     this.operationsLog.push(op);
   }
 
-  // ===== PERSISTENCE (Phase 6) =====
+  // ===== PERSISTENCE =====
 
   /**
    * Serialize the vault state to JSON.
+   * Encodes binary buffers as base64 strings for JSON compatibility.
    * Used for chat snapshot persistence.
    *
    * @returns SerializedState ready to JSON.stringify()
-   *
-   * Phase 6: Implement (encode buffers as base64, return operationsLog)
    */
   serialize(): SerializedState {
-    throw new Error('Phase 6: Not yet implemented');
+    const serialized: SerializedOperation[] = this.operationsLog.map(op => {
+      if (op.type === 'create') {
+        // Encode buffer in create operation's data
+        const data = { ...op.data };
+        if (data.buffer instanceof Uint8Array) {
+          return {
+            type: 'create',
+            parentId: op.parentId,
+            data: {
+              ...data,
+              buffer: encodeBase64(data.buffer) as string
+            }
+          } as SerializedOperation;
+        }
+        return op as SerializedOperation;
+      } else if (op.type === 'modify') {
+        // Encode buffer in modify operation's changes
+        const changes = { ...op.changes };
+        if (changes.buffer instanceof Uint8Array) {
+          return {
+            type: 'modify',
+            nodeId: op.nodeId,
+            changes: {
+              ...changes,
+              buffer: encodeBase64(changes.buffer) as string
+            }
+          } as SerializedOperation;
+        }
+        return op as SerializedOperation;
+      }
+      // DELETE, MOVE, RENAME don't have buffers
+      return op as SerializedOperation;
+    });
+
+    return { operationsLog: serialized };
   }
 
   /**
    * Deserialize a vault state from JSON.
-   * Creates a new VaultState and replays all operations.
+   * Decodes base64 buffers back to Uint8Array and replays all operations.
    *
+   * @param peerId The peer ID ('tracking' or 'proposed') for the new state
    * @param data SerializedState from JSON.parse()
    * @returns A new VaultState with all operations replayed
-   *
-   * Phase 6: Implement (decode base64 buffers, replay ops)
    */
-  static deserialize(data: SerializedState): VaultState {
-    throw new Error('Phase 6: Not yet implemented');
+  static deserialize(peerId: 'tracking' | 'proposed', data: SerializedState): VaultState {
+    // Create a fresh VaultState
+    const state = new VaultState(peerId);
+
+    if (data.operationsLog.length === 0) {
+      return state;  // Nothing to restore
+    }
+
+    // Decode buffers in operations
+    const decodedOps: Operation[] = data.operationsLog.map((serializedOp, i) => {
+      let op: Operation = serializedOp as Operation;
+
+      if (op.type === 'create') {
+        // Decode buffer if present in create operation
+        const nodeData = { ...op.data };
+        if (typeof nodeData.buffer === 'string') {
+          nodeData.buffer = new Uint8Array(decodeBase64(nodeData.buffer));
+        }
+        op = { type: 'create', parentId: op.parentId, data: nodeData };
+      } else if (op.type === 'modify') {
+        // Decode buffer if present in modify operation
+        const changes = { ...op.changes };
+        if (typeof changes.buffer === 'string') {
+          changes.buffer = new Uint8Array(decodeBase64(changes.buffer));
+        }
+        op = { type: 'modify', nodeId: op.nodeId, changes };
+      }
+
+      return op;
+    });
+
+    // Copy operations log into the state
+    state.operationsLog = decodedOps;
+
+    // Rebuild the tree from the operations log
+    state.rebuildTreeFromLog();
+
+    return state;
   }
 }

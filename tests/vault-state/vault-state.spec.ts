@@ -243,16 +243,93 @@ describe('VaultState (Phase 1: Structure)', () => {
       expect(typeof trackingState.serialize).toBe('function');
     });
 
-    it('serialize should throw (Phase 6 not yet implemented)', () => {
-      expect(() => trackingState.serialize()).toThrow();
+    it('serialize should return empty operations log for new state', () => {
+      const serialized = trackingState.serialize();
+      expect(serialized).toBeDefined();
+      expect(serialized.operationsLog).toEqual([]);
+    });
+
+    it('serialize should include all operations', () => {
+      const root = trackingState.getNode('0')!;
+      root.createChild({ name: 'test.md', isDirectory: false, text: 'content' });
+
+      const serialized = trackingState.serialize();
+      expect(serialized.operationsLog).toHaveLength(1);
+      expect(serialized.operationsLog[0].type).toBe('create');
+    });
+
+    it('serialize should encode buffers as base64', () => {
+      const root = trackingState.getNode('0')!;
+      const buffer = new Uint8Array([1, 2, 3, 4, 5]);
+      root.createChild({ name: 'binary.dat', isDirectory: false, buffer });
+
+      const serialized = trackingState.serialize();
+      const op = serialized.operationsLog[0];
+      expect(op.type).toBe('create');
+      if (op.type === 'create') {
+        // Buffer should be encoded as string
+        expect(typeof op.data.buffer).toBe('string');
+      }
     });
 
     it('should have deserialize static method', () => {
       expect(typeof VaultState.deserialize).toBe('function');
     });
 
-    it('deserialize should throw (Phase 6 not yet implemented)', () => {
-      expect(() => VaultState.deserialize({ operationsLog: [] })).toThrow();
+    it('deserialize should restore empty state', () => {
+      const serialized = trackingState.serialize();
+      const restored = VaultState.deserialize('tracking', serialized);
+
+      expect(restored).toBeDefined();
+      expect(restored.getLogLength()).toBe(0);
+      expect(restored.getNode('0')).toBeDefined();
+    });
+
+    it('deserialize should replay all operations', () => {
+      const root = trackingState.getNode('0')!;
+      const file = root.createChild({ name: 'test.md', isDirectory: false, text: 'content' });
+      file.modify({ text: 'updated content' });
+
+      const serialized = trackingState.serialize();
+      const restored = VaultState.deserialize('proposed', serialized);
+
+      expect(restored.getLogLength()).toBe(2);
+      const restoredFile = restored.findByPath('test.md');
+      expect(restoredFile).toBeDefined();
+      expect(restoredFile?.data.text).toBe('updated content');
+    });
+
+    it('deserialize should restore binary buffers correctly', () => {
+      const root = trackingState.getNode('0')!;
+      const originalBuffer = new Uint8Array([1, 2, 3, 4, 5]);
+      const file = root.createChild({
+        name: 'binary.dat',
+        isDirectory: false,
+        buffer: originalBuffer
+      });
+
+      const serialized = trackingState.serialize();
+      const restored = VaultState.deserialize('tracking', serialized);
+
+      const restoredFile = restored.findByPath('binary.dat');
+      expect(restoredFile).toBeDefined();
+      expect(restoredFile?.data.buffer).toEqual(originalBuffer);
+    });
+
+    it('deserialize should create independent state instances', () => {
+      const root = trackingState.getNode('0')!;
+      root.createChild({ name: 'test.md', isDirectory: false });
+
+      const serialized = trackingState.serialize();
+      const restored = VaultState.deserialize('proposed', serialized);
+
+      // Add to restored state
+      const restoredRoot = restored.getNode('0')!;
+      restoredRoot.createChild({ name: 'another.md', isDirectory: false });
+
+      // Original should not be affected
+      expect(trackingState.getLogLength()).toBe(1);
+      expect(restored.getLogLength()).toBe(2);
     });
   });
 
