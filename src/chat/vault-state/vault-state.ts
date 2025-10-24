@@ -186,6 +186,150 @@ export class VaultState {
     return null;
   }
 
+  // ===== CONVENIENCE METHODS (TreeFS compatibility) =====
+
+  /**
+   * Create a node at an arbitrary path, creating intermediate directories as needed.
+   * Mirrors TreeFS.createNode(path, data) pattern for easy migration.
+   *
+   * Example:
+   *   state.createAtPath('folder/subfolder/file.md', { isDirectory: false, text: 'content' })
+   *   // Creates 'folder' and 'subfolder' if they don't exist, then creates 'file.md'
+   *
+   * @param path Full path from root (e.g., 'folder/subfolder/file.md')
+   * @param data Node data (name should NOT be included, extracted from path)
+   * @returns The created TreeNode at the path
+   * @throws Error if path contains non-directory nodes
+   */
+  createAtPath(path: string, data: NodeData): TreeNode {
+    const parts = path.split('/').filter(p => p.length > 0);
+    if (parts.length === 0) {
+      throw new Error('Cannot create node with empty path');
+    }
+
+    let current = this.tree;
+
+    // Create all parent directories
+    for (const part of parts.slice(0, -1)) {
+      let child = current.childIds
+        .map(id => this.nodeIndex.get(id))
+        .find(n => n?.data.name === part);
+
+      if (!child) {
+        child = current.createChild({ name: part, isDirectory: true });
+      } else if (!child.data.isDirectory) {
+        throw new Error(`Path is not a directory: ${part}`);
+      }
+      current = child;
+    }
+
+    // Create final node with provided data
+    const name = parts[parts.length - 1];
+    return current.createChild({ ...data, name });
+  }
+
+  /**
+   * Find or create directories along a path.
+   * Mirrors TreeFS.ensureDirs(path) pattern for easy migration.
+   *
+   * If any parent directory is in trash, it will be deleted and recreated.
+   * Returns the last directory in the path.
+   *
+   * Example:
+   *   const parent = state.ensureDirs('folder/subfolder')
+   *   // Returns the 'subfolder' node, creating both if needed
+   *
+   * @param path Directory path to ensure exists
+   * @returns The directory TreeNode at the path
+   * @throws Error if any part of path exists as a non-directory
+   */
+  ensureDirs(path: string): TreeNode {
+    if (path === '' || path === '/') return this.tree;
+
+    const parts = path.split('/').filter(p => p.length > 0);
+    let current = this.tree;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      let child = current.childIds
+        .map(id => this.nodeIndex.get(id))
+        .find(n => n?.data.name === part);
+
+      if (!child) {
+        // Check if trashed and restore or recreate
+        const partialPath = parts.slice(0, i + 1).join('/');
+        const trashed = this.findTrashed(partialPath);
+        if (trashed) {
+          // Delete the trashed node and recreate
+          const parent = this.nodeIndex.get(trashed.parentId!);
+          if (parent) {
+            parent.childIds = parent.childIds.filter(id => id !== trashed.id);
+          }
+          this.removeNode(trashed.id);
+          child = current.createChild({ name: part, isDirectory: true });
+        } else {
+          child = current.createChild({ name: part, isDirectory: true });
+        }
+      } else if (!child.data.isDirectory) {
+        throw new Error(`Path is not a directory: ${parts.slice(0, i + 1).join('/')}`);
+      }
+      current = child;
+    }
+
+    return current;
+  }
+
+  /**
+   * Alias for getNode() for TreeFS compatibility.
+   * Find a node by its ID.
+   *
+   * @param nodeId The NodeID to look up
+   * @returns The TreeNode, or null if not found
+   */
+  findById(nodeId: NodeID): TreeNode | null {
+    return this.getNode(nodeId);
+  }
+
+  /**
+   * Get all children of a node as TreeNode objects.
+   * Convenience method for iterating children without manual lookup.
+   *
+   * Example:
+   *   const children = state.getChildren(parentNode.id);
+   *   for (const child of children) {
+   *     console.log(child.data.name);
+   *   }
+   *
+   * @param nodeId The NodeID of the parent
+   * @returns Array of child TreeNodes (empty array if node not found or has no children)
+   */
+  getChildren(nodeId: NodeID): TreeNode[] {
+    const node = this.nodeIndex.get(nodeId);
+    if (!node) return [];
+    return node.childIds
+      .map(id => this.nodeIndex.get(id))
+      .filter((child): child is TreeNode => child !== undefined);
+  }
+
+  /**
+   * Get the parent of a node.
+   * Mirrors Loro's node.parent() pattern.
+   *
+   * Example:
+   *   const parent = state.getParent(nodeId);
+   *   if (parent) {
+   *     console.log(parent.data.name);
+   *   }
+   *
+   * @param nodeId The NodeID of the node
+   * @returns The parent TreeNode, or null if node not found or is root
+   */
+  getParent(nodeId: NodeID): TreeNode | null {
+    const node = this.nodeIndex.get(nodeId);
+    if (!node || !node.parentId) return null;
+    return this.nodeIndex.get(node.parentId) ?? null;
+  }
+
   // ===== MUTATIONS (record operations) =====
 
   /**

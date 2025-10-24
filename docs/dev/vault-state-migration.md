@@ -593,19 +593,69 @@ This refactor introduces **auto-generated node IDs** (not user-controlled):
 
 ## Phase 4: Method Migration (Single Backend Swap)
 
-**Status**: Planned
+**Status**: In Progress - Convenience Methods Added ✅
 
-### Key Changes from Original Plan
+### API Alignment: Convenience Methods for TreeFS Compatibility
 
-**No dual-write approach** - The tests are comprehensive enough that we can:
-1. Replace Loro calls with VaultState calls in VaultOverlay
-2. Run tests to validate behavior equivalence
-3. Fix any issues that arise during testing
+The VaultState API was designed around ID-based operations and parent-child node relationships, while VaultOverlay (and TreeFS) use path-based operations. To bridge this gap without redesigning VaultState, we added **5 convenience methods**:
 
-This is simpler than dual-write because:
-- Tests catch inconsistencies immediately
-- No wrapper logic to maintain
-- Cleaner code path
+#### 1. **createAtPath(path, data)** - Path-based node creation
+Maps to TreeFS.createNode(path, data). Creates a node at an arbitrary path, automatically creating intermediate directories.
+
+```typescript
+// Creates 'folder', 'subfolder', and 'file.md' in one call
+state.createAtPath('folder/subfolder/file.md', { isDirectory: false, text: 'content' })
+```
+
+#### 2. **ensureDirs(path)** - Ensure directory path exists
+Maps to TreeFS.ensureDirs(path). Finds or creates directories along a path, restoring trashed directories if needed.
+
+```typescript
+// Ensures 'folder/subfolder' exists, creating or restoring as needed
+const parent = state.ensureDirs('folder/subfolder')
+```
+
+#### 3. **findById(nodeId)** - Alias for getNode()
+Mirrors TreeFS.findById(id) for API compatibility.
+
+```typescript
+const node = state.findById(nodeId)
+```
+
+#### 4. **getChildren(nodeId)** - Get children as TreeNode objects
+Convenience method to get all children without manual ID-to-node mapping.
+
+```typescript
+const children = state.getChildren(parentId)
+for (const child of children) {
+  console.log(child.data.name)
+}
+```
+
+#### 5. **getParent(nodeId)** - Get parent node
+Mirrors Loro's node.parent() pattern.
+
+```typescript
+const parent = state.getParent(nodeId)
+if (parent) {
+  console.log(parent.data.name)
+}
+```
+
+### API Mapping for VaultOverlay Migration
+
+These convenience methods enable straightforward refactoring:
+
+| Old Pattern (Loro) | New Pattern (VaultState) |
+|--------------------|--------------------------|
+| `this.proposedFS.createNode(path, data)` | `this.proposedState.createAtPath(path, data)` |
+| `this.proposedFS.ensureDirs(path)` | `this.proposedState.ensureDirs(path)` |
+| `this.proposedFS.findById(id)` | `this.proposedState.findById(id)` |
+| `node.data.set('field', value)` | `node.modify({ field: value })` |
+| `node.data.get('field')` | `node.data.field` |
+| `node.children()` | `this.proposedState.getChildren(node.id)` |
+| `node.parent()` | `this.proposedState.getParent(node.id)` |
+| `this.proposedDoc.commit()` | (removed - automatic in VaultState) |
 
 ### Implementation Strategy
 
@@ -613,6 +663,27 @@ This is simpler than dual-write because:
 2. Run vault-overlay test suite after each method
 3. Keep RenameTracker (existing, not refactored)
 4. Ensure all operations flow through TreeNode API
+5. Use convenience methods to minimize refactoring complexity
+
+### Phase 4 Execution Plan
+
+**Phase 4a: Foundation** (Complete ✅)
+- Add createAtPath() convenience method
+- Add ensureDirs() convenience method
+- Add findById(), getChildren(), getParent() helpers
+- Verify all vault-state tests pass (122 tests ✅)
+
+**Phase 4b: VaultOverlay Migration** (Next)
+1. Update constructor: Replace LoroDoc with VaultState
+2. Update create operations: `proposedFS.createNode()` → `proposedState.createAtPath()`
+3. Update read operations: `findByPath()` and `findById()` patterns
+4. Update mutations: `node.data.set/get/delete` → `node.modify()`
+5. Update navigation: `node.children()` → `state.getChildren()`, `node.parent()` → `state.getParent()`
+6. Remove commit() calls (automatic in VaultState)
+7. Adapt checkpoint logic (Phase 6 will refactor serialization)
+8. Run vault-overlay tests after each major method
+
+**Expected refactoring**: 300-400 lines in VaultOverlay.svelte.ts
 
 ---
 
@@ -646,6 +717,16 @@ tests/vault-state/
 5. **Loro-compatible API** - TreeNode.createChild() mirrors Loro's parent.createNode(); less refactor friction
 6. **Recording is automatic** - No need for wrapper methods or helper functions; execute functions handle recording
 
+### Why Convenience Methods Bridge the Gap (Phase 4)
+
+Rather than redesign VaultState to match TreeFS exactly, we added 5 convenience methods that:
+
+1. **Preserve internal design** - VaultState remains ID-centric and clean internally
+2. **Enable straightforward migration** - VaultOverlay can migrate with ~300-400 lines of systematic changes
+3. **Provide familiar surface** - Developers get path-based and navigation APIs they expect
+4. **Minimize risk** - Small, focused additions rather than redesign means less chance of regressions
+5. **Support both patterns** - ID-based (for new code) and path-based (for migration) APIs available simultaneously
+
 ### Performance Characteristics
 
 | Operation | Cost | Notes |
@@ -678,9 +759,9 @@ With the introduction of auto-generated node IDs, the architecture is now cleane
 
 ---
 
-**Document Status**: Phases 1-3 ✅ COMPLETE (with Auto-Generated IDs)
-**Next Phase**: Phase 4 (Method Migration - Single Backend Swap)
-**Last Updated**: October 24, 2024
+**Document Status**: Phases 1-3 ✅ COMPLETE (with Auto-Generated IDs), Phase 4 Started ⏳
+**Current Phase**: Phase 4 (Method Migration with Convenience Methods)
+**Last Updated**: October 24, 2024 (Convenience Methods Added)
 
 ### Progress Summary
 
@@ -689,7 +770,7 @@ With the introduction of auto-generated node IDs, the architecture is now cleane
 | 1 | ✅ Complete | Types, TreeNode | Foundation, auto-generated IDs |
 | 2 | ✅ Complete | 107 tests (original) | Execute functions, rebuild, rollback |
 | 3 | ✅ Complete | 124 tests | Trash/restore, infrastructure folders (createChild) |
-| 4 | 📋 Planned | - | Direct backend swap, no dual-write |
+| 4 | ⏳ In Progress | 122 tests | Convenience methods for TreeFS compatibility, VaultOverlay migration |
 | 5 | 📋 Planned | - | Workflow refactoring |
 | 6 | 📋 Planned | - | JSON serialization |
 | 7 | 📋 Planned | - | Cleanup & Loro removal |

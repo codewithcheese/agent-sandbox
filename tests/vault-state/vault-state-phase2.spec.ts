@@ -465,4 +465,219 @@ describe('VaultState (Phase 2: Implementation)', () => {
       expect(state.getLogLength()).toBe(initialLogLength);
     });
   });
+
+  describe('Convenience Methods (TreeFS compatibility)', () => {
+    let state: VaultState;
+
+    beforeEach(() => {
+      state = new VaultState('tracking');
+    });
+
+    describe('createAtPath()', () => {
+      it('should create a file at a simple path', () => {
+        const file = state.createAtPath('test.md', { isDirectory: false, text: 'content' });
+
+        expect(file).toBeDefined();
+        expect(file.data.name).toBe('test.md');
+        expect(file.data.text).toBe('content');
+        expect(file.parentId).toBe('0'); // Root is parent
+      });
+
+      it('should create a file at a nested path, creating parent directories', () => {
+        const file = state.createAtPath('folder/subfolder/file.md', { isDirectory: false, text: 'content' });
+
+        expect(file.data.name).toBe('file.md');
+        expect(file.data.isDirectory).toBe(false);
+
+        // Check parent chain exists
+        const parent = state.getParent(file.id);
+        expect(parent?.data.name).toBe('subfolder');
+
+        const grandparent = state.getParent(parent!.id);
+        expect(grandparent?.data.name).toBe('folder');
+
+        const root = state.getParent(grandparent!.id);
+        expect(root?.id).toBe('0');
+      });
+
+      it('should create directories without repeating if they already exist', () => {
+        const file1 = state.createAtPath('folder/file1.md', { isDirectory: false });
+        const file2 = state.createAtPath('folder/file2.md', { isDirectory: false });
+
+        // Should reuse existing 'folder' directory
+        const parent1 = state.getParent(file1.id);
+        const parent2 = state.getParent(file2.id);
+        expect(parent1!.id).toBe(parent2!.id);
+      });
+
+      it('should throw if path contains a non-directory node', () => {
+        state.createAtPath('file.md', { isDirectory: false });
+
+        expect(() => {
+          state.createAtPath('file.md/nested.txt', { isDirectory: false });
+        }).toThrow('Path is not a directory');
+      });
+
+      it('should throw on empty path', () => {
+        expect(() => {
+          state.createAtPath('', { isDirectory: false });
+        }).toThrow('Cannot create node with empty path');
+      });
+
+      it('should record operations for created nodes', () => {
+        const beforeLength = state.getLogLength();
+        state.createAtPath('folder/subfolder/file.md', { isDirectory: false });
+
+        // 3 creates: folder, subfolder, file
+        expect(state.getLogLength()).toBe(beforeLength + 3);
+      });
+    });
+
+    describe('ensureDirs()', () => {
+      it('should return root for empty path', () => {
+        const root = state.ensureDirs('');
+        expect(root.id).toBe('0');
+      });
+
+      it('should return root for slash', () => {
+        const root = state.ensureDirs('/');
+        expect(root.id).toBe('0');
+      });
+
+      it('should create directories along a path', () => {
+        const result = state.ensureDirs('folder/subfolder/deep');
+
+        expect(result.data.name).toBe('deep');
+        expect(result.data.isDirectory).toBe(true);
+
+        const parent = state.getParent(result.id);
+        expect(parent?.data.name).toBe('subfolder');
+      });
+
+      it('should return existing directory without recreating', () => {
+        const first = state.ensureDirs('folder/subfolder');
+        const firstId = first.id;
+
+        const second = state.ensureDirs('folder/subfolder');
+        expect(second.id).toBe(firstId);
+      });
+
+      it('should throw if path contains a file', () => {
+        state.createAtPath('file.md', { isDirectory: false });
+
+        expect(() => {
+          state.ensureDirs('file.md/nested');
+        }).toThrow('Path is not a directory');
+      });
+
+      it('should restore and recreate trashed directories', () => {
+        const dir = state.ensureDirs('folder');
+        const dirId = dir.id;
+
+        // Trash it
+        dir.trash('folder');
+        expect(state.findByPath('folder')).toBeNull();
+
+        // Ensure path again - should recreate
+        const restored = state.ensureDirs('folder');
+        expect(restored.id).not.toBe(dirId); // New directory (old one is in trash)
+      });
+    });
+
+    describe('findById()', () => {
+      it('should find a node by ID', () => {
+        const root = state.getNode('0')!;
+        const file = root.createChild({ name: 'test.md', isDirectory: false });
+
+        const found = state.findById(file.id);
+        expect(found).toBe(file);
+      });
+
+      it('should return null for non-existent ID', () => {
+        const found = state.findById('nonexistent');
+        expect(found).toBeNull();
+      });
+
+      it('should be alias for getNode', () => {
+        const root = state.getNode('0')!;
+        const file = root.createChild({ name: 'test.md', isDirectory: false });
+
+        expect(state.findById(file.id)).toBe(state.getNode(file.id));
+      });
+    });
+
+    describe('getChildren()', () => {
+      it('should return empty array for leaf node', () => {
+        const root = state.getNode('0')!;
+        const file = root.createChild({ name: 'test.md', isDirectory: false });
+
+        const children = state.getChildren(file.id);
+        expect(children).toEqual([]);
+      });
+
+      it('should return all children of a node', () => {
+        const root = state.getNode('0')!;
+        const folder = root.createChild({ name: 'folder', isDirectory: true });
+        const file1 = folder.createChild({ name: 'file1.md', isDirectory: false });
+        const file2 = folder.createChild({ name: 'file2.md', isDirectory: false });
+
+        const children = state.getChildren(folder.id);
+        expect(children).toHaveLength(2);
+        expect(children.map(c => c.id)).toContain(file1.id);
+        expect(children.map(c => c.id)).toContain(file2.id);
+      });
+
+      it('should return empty array for non-existent node', () => {
+        const children = state.getChildren('nonexistent');
+        expect(children).toEqual([]);
+      });
+
+      it('should include infrastructure folders for root', () => {
+        const root = state.getNode('0')!;
+        const children = state.getChildren('0');
+
+        // Should include .overlay-trash and .overlay-tmp
+        expect(children.length).toBeGreaterThanOrEqual(2);
+        expect(children.map(c => c.data.name)).toContain('.overlay-trash');
+        expect(children.map(c => c.data.name)).toContain('.overlay-tmp');
+      });
+    });
+
+    describe('getParent()', () => {
+      it('should return parent of a node', () => {
+        const root = state.getNode('0')!;
+        const file = root.createChild({ name: 'test.md', isDirectory: false });
+
+        const parent = state.getParent(file.id);
+        expect(parent?.id).toBe(root.id);
+      });
+
+      it('should return null for root node', () => {
+        const parent = state.getParent('0');
+        expect(parent).toBeNull();
+      });
+
+      it('should return null for non-existent node', () => {
+        const parent = state.getParent('nonexistent');
+        expect(parent).toBeNull();
+      });
+
+      it('should navigate parent chain', () => {
+        state.createAtPath('a/b/c/file.md', { isDirectory: false });
+        const file = state.findByPath('a/b/c/file.md')!;
+
+        let current = state.getParent(file.id);
+        expect(current?.data.name).toBe('c');
+
+        current = state.getParent(current!.id);
+        expect(current?.data.name).toBe('b');
+
+        current = state.getParent(current!.id);
+        expect(current?.data.name).toBe('a');
+
+        current = state.getParent(current!.id);
+        expect(current?.id).toBe('0'); // root
+      });
+    });
+  });
 });
