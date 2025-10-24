@@ -14,6 +14,19 @@
 export type NodeID = string;
 
 /**
+ * Infrastructure folder paths - special folders created as literals, not operations.
+ * These are infrastructure for managing soft-deletes and temporary files.
+ */
+export const TRASH_FOLDER = '.overlay-trash' as const;
+export const TMP_FOLDER = '.overlay-tmp' as const;
+
+/**
+ * Metadata key for soft-deleted nodes.
+ * When a node is moved to trash, this field stores the original path for restoration.
+ */
+export const DELETED_FROM_KEY = 'deletedFrom' as const;
+
+/**
  * File metadata (modification time, creation time, size).
  * Mirrors Obsidian's TAbstractFile.stat interface.
  */
@@ -50,15 +63,16 @@ export type Operation =
 /**
  * CREATE operation: A node is created with initial data.
  *
- * The data object captures all node properties at creation time.
+ * The nodeId is NOT stored in the operation - it's auto-generated during node creation.
+ * This ensures deterministic replay: replaying in the same order produces identical IDs
+ * because the ID counter is reset at the start of rebuild.
  *
  * Example:
- *   { type: 'create', nodeId: 'n1', parentId: 'root',
+ *   { type: 'create', parentId: 'node-0',
  *     data: { name: 'notes.md', isDirectory: false, text: 'initial content' } }
  */
 export interface CreateOperation {
   type: 'create';
-  nodeId: NodeID;                  // ID of the newly created node
   parentId: NodeID;                // ID of the parent directory
   data: NodeData;                  // Full node data including name, isDirectory, text, buffer, stat, etc.
 }
@@ -147,7 +161,6 @@ type SerializedNodeData = Omit<NodeData, 'buffer'> & { buffer?: string };
 export type SerializedOperation =
   | {
       type: 'create';
-      nodeId: NodeID;
       parentId: NodeID;
       data: SerializedNodeData;
     }

@@ -20,6 +20,7 @@ import type {
 } from './types';
 import { TreeNode } from './tree-node';
 import { executeOperation } from './operations';
+import { TRASH_FOLDER, TMP_FOLDER } from './types';
 
 export class VaultState {
   private tree: TreeNode;  // Root of the tree
@@ -28,14 +29,36 @@ export class VaultState {
   private recordingEnabled: boolean = true;  // Flag to enable/disable recording during rebuild
 
   constructor(private peerId: 'tracking' | 'proposed') {
-    // Create empty root node
-    this.tree = new TreeNode('root', this);
+    // Reset ID counter to ensure root gets ID "0"
+    TreeNode.resetIdCounter();
+
+    // Create root node as literal (infrastructure, not recorded)
+    // Root naturally gets ID "0" as the first node created
+    this.tree = new TreeNode(this);
     this.tree.data = {
       name: '',
       isDirectory: true
     };
     this.tree.parentId = null;
-    this.nodeIndex.set('root', this.tree);
+    this.nodeIndex.set(this.tree.id, this.tree);
+
+    // Create infrastructure folders as literals (not recorded in operations log)
+    // Disable recording while creating these infrastructure nodes
+    this.recordingEnabled = false;
+    try {
+      this.tree.createChild({
+        name: TRASH_FOLDER,
+        isDirectory: true
+      });
+
+      this.tree.createChild({
+        name: TMP_FOLDER,
+        isDirectory: true
+      });
+    } finally {
+      // Always restore recording, even if construction fails
+      this.recordingEnabled = true;
+    }
   }
 
   // ===== TREE QUERIES =====
@@ -126,6 +149,43 @@ export class VaultState {
     return descendants;
   }
 
+  /**
+   * Get the trash folder infrastructure node.
+   * Used for soft-delete operations.
+   * Finds the trash folder by its name since it's created with an auto-generated ID.
+   *
+   * @returns The trash folder TreeNode
+   * @throws Error if trash folder not found
+   */
+  getTrashFolder(): TreeNode {
+    const root = this.tree;
+    for (const childId of root.childIds) {
+      const child = this.nodeIndex.get(childId);
+      if (child && child.data.name === TRASH_FOLDER) {
+        return child;
+      }
+    }
+    throw new Error(`Trash folder not found: ${TRASH_FOLDER}`);
+  }
+
+  /**
+   * Find a trashed node by its original path.
+   * Searches direct children of trash folder for matching `deletedFrom` metadata.
+   *
+   * @param originalPath The path the node was deleted from
+   * @returns The trashed TreeNode, or null if not found
+   */
+  findTrashed(originalPath: string): TreeNode | null {
+    const trash = this.getTrashFolder();
+    for (const childId of trash.childIds) {
+      const child = this.nodeIndex.get(childId);
+      if (child && child.data[DELETED_FROM_KEY] === originalPath) {
+        return child;
+      }
+    }
+    return null;
+  }
+
   // ===== MUTATIONS (record operations) =====
 
   /**
@@ -151,79 +211,8 @@ export class VaultState {
   }
 
   /**
-   * Create a new node.
-   * Records a CreateOperation and adds node to tree.
-   *
-   * @param nodeId Unique ID for the new node
-   * @param parentId ID of the parent directory
-   * @param data NodeData including name and isDirectory
-   * @returns The created TreeNode
-   */
-  createNode(nodeId: NodeID, parentId: NodeID, data: NodeData): TreeNode {
-    const parent = this.nodeIndex.get(parentId);
-    if (!parent) {
-      throw new Error(`Parent node not found: ${parentId}`);
-    }
-
-    // Create the node
-    const newNode = new TreeNode(nodeId, this);
-    newNode.parentId = parentId;
-    newNode.data = { ...data };
-
-    // Add to parent's children
-    parent.childIds.push(nodeId);
-
-    // Add to index
-    this.nodeIndex.set(nodeId, newNode);
-
-    // Record operation
-    this.recordOperation({
-      type: 'create',
-      nodeId,
-      parentId,
-      data
-    });
-
-    return newNode;
-  }
-
-  /**
-   * Delete a node and all its descendants.
-   * Records a single atomic DeleteOperation.
-   *
-   * @param nodeId The NodeID to delete
-   */
-  deleteNode(nodeId: NodeID): void {
-    if (nodeId === 'root') {
-      throw new Error('Cannot delete root node');
-    }
-
-    const node = this.nodeIndex.get(nodeId);
-    if (!node) {
-      throw new Error(`Node not found: ${nodeId}`);
-    }
-
-    // Remove from parent
-    if (node.parentId) {
-      const parent = this.nodeIndex.get(node.parentId);
-      if (parent) {
-        parent.childIds = parent.childIds.filter(id => id !== nodeId);
-      }
-    }
-
-    // Recursively delete children from index
-    this.deleteNodeAndChildren(nodeId);
-
-    // Record operation
-    this.recordOperation({
-      type: 'delete',
-      nodeId
-    });
-  }
-
-  /**
    * Recursively delete a node and all its descendants from the index.
-   * Private helper for deleteNode.
+   * Private helper used by execute functions during deletion and rebuild.
    *
    * @param nodeId The NodeID to delete
    */
@@ -238,107 +227,6 @@ export class VaultState {
 
     // Delete the node itself
     this.nodeIndex.delete(nodeId);
-  }
-
-
-  /**
-   * Modify fields on a node.
-   * Records a ModifyOperation with all changes.
-   *
-   * @param nodeId The NodeID to modify
-   * @param changes Object with fields to modify
-   */
-  modifyNode(nodeId: NodeID, changes: Partial<NodeData>): void {
-    const node = this.nodeIndex.get(nodeId);
-    if (!node) {
-      throw new Error(`Node not found: ${nodeId}`);
-    }
-
-    // Apply all changes
-    Object.entries(changes).forEach(([field, value]) => {
-      node.data[field] = value;
-    });
-
-    // Record operation
-    this.recordOperation({
-      type: 'modify',
-      nodeId,
-      changes
-    });
-  }
-
-  /**
-   * Move a node to a different parent.
-   * Records a MoveOperation.
-   *
-   * @param nodeId The NodeID to move
-   * @param newParentId The new parent NodeID
-   */
-  moveNode(nodeId: NodeID, newParentId: NodeID): void {
-    const node = this.nodeIndex.get(nodeId);
-    const newParent = this.nodeIndex.get(newParentId);
-
-    if (!node) {
-      throw new Error(`Node not found: ${nodeId}`);
-    }
-    if (!newParent) {
-      throw new Error(`Parent node not found: ${newParentId}`);
-    }
-
-    // Detect circular references
-    let current: TreeNode | null = newParent;
-    while (current) {
-      if (current.id === nodeId) {
-        throw new Error(`Cannot move node under its own descendant (circular reference)`);
-      }
-      current = current.parentId ? this.nodeIndex.get(current.parentId) : null;
-    }
-
-    // Remove from old parent
-    if (node.parentId) {
-      const oldParent = this.nodeIndex.get(node.parentId);
-      if (oldParent) {
-        oldParent.childIds = oldParent.childIds.filter(id => id !== nodeId);
-      }
-    }
-
-    // Add to new parent
-    newParent.childIds.push(nodeId);
-    node.parentId = newParentId;
-
-    // Record operation
-    this.recordOperation({
-      type: 'move',
-      nodeId,
-      newParentId
-    });
-  }
-
-  /**
-   * Rename a node (change path segment).
-   * Records a RenameOperation.
-   *
-   * @param nodeId The NodeID to rename
-   * @param newName The new basename
-   */
-  renameNode(nodeId: NodeID, newName: string): void {
-    if (nodeId === 'root') {
-      throw new Error('Cannot rename root node');
-    }
-
-    const node = this.nodeIndex.get(nodeId);
-    if (!node) {
-      throw new Error(`Node not found: ${nodeId}`);
-    }
-
-    node.data.name = newName;
-
-    // Record operation
-    this.recordOperation({
-      type: 'rename',
-      nodeId,
-      newName
-    });
   }
 
   // ===== OPERATION LOG MANAGEMENT =====
@@ -416,24 +304,42 @@ export class VaultState {
    *
    * Deterministic: Same log always produces same tree.
    * Idempotent: Rebuilding multiple times produces identical result.
+   *
+   * The node ID counter is reset to ensure replaying produces identical IDs.
    */
   private rebuildTreeFromLog(): void {
     // Disable recording during rebuild to prevent duplicate operations
     this.recordingEnabled = false;
 
     try {
+      // Reset node ID counter for deterministic replay
+      // Root will naturally get ID "0" as the first node created
+      TreeNode.resetIdCounter();
+
       // Start fresh
       this.nodeIndex.clear();
 
-      // Create empty root
-      const root = new TreeNode('root', this);
-      root.data = {
+      // Create empty root as literal (infrastructure, not recorded)
+      // Root naturally gets ID "0" as the first node
+      this.tree = new TreeNode(this);
+      this.tree.data = {
         name: '',
         isDirectory: true
       };
-      root.parentId = null;
-      this.nodeIndex.set('root', root);
-      this.tree = root;
+      this.tree.parentId = null;
+      this.nodeIndex.set(this.tree.id, this.tree);
+
+      // Recreate infrastructure folders using createChild
+      // (createChild will record operations, but recording is disabled, so they won't be added to log again)
+      this.tree.createChild({
+        name: TRASH_FOLDER,
+        isDirectory: true
+      });
+
+      this.tree.createChild({
+        name: TMP_FOLDER,
+        isDirectory: true
+      });
 
       // Replay all operations in order using standalone execute functions
       for (let i = 0; i < this.operationsLog.length; i++) {
@@ -461,18 +367,6 @@ export class VaultState {
   recordOperation(op: Operation): void {
     if (!this.recordingEnabled) return;  // No-op during rebuild
     this.operationsLog.push(op);
-  }
-
-  /**
-   * Execute and record an operation in one step.
-   * Used during approval workflows where operations from one state
-   * are replayed in another state.
-   *
-   * @param op The operation to execute and record
-   */
-  executeAndRecord(op: Operation): void {
-    executeOperation(this, op);
-    this.recordOperation(op);
   }
 
   // ===== PERSISTENCE (Phase 6) =====

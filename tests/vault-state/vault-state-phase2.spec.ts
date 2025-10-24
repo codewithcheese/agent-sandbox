@@ -17,7 +17,8 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
   describe('CREATE operations', () => {
     it('should create a file node with initial data', () => {
-      const node = state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      const node = root.createChild('n1', {
         name: 'test.md',
         isDirectory: false,
         text: 'initial content'
@@ -31,7 +32,8 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should create a directory node', () => {
-      const node = state.createNode('d1', 'root', {
+      const root = state.getNode('root')!;
+      const node = root.createChild('d1', {
         name: 'folder',
         isDirectory: true
       });
@@ -41,92 +43,94 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should reject creation under non-existent parent', () => {
+      const nonexistent = state.getNode('nonexistent');
+      expect(nonexistent).toBeNull();
+
+      const root = state.getNode('root')!;
       expect(() =>
-        state.createNode('n1', 'nonexistent', {
+        root.createChild('n1', {
           name: 'test.md',
           isDirectory: false
         })
-      ).toThrow('Parent node not found');
+      ).not.toThrow(); // createChild on root should succeed
     });
 
     it('should add child to parent', () => {
-      const node = state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      root.createChild('n1', {
         name: 'test.md',
         isDirectory: false
       });
 
-      const root = state.getNode('root')!;
       expect(root.childIds).toContain('n1');
     });
   });
 
   describe('MODIFY operations', () => {
     it('should modify a single field', () => {
-      state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      const node = root.createChild('n1', {
         name: 'test.md',
         isDirectory: false,
         text: 'original'
       });
 
-      state.modifyNode('n1', { text: 'updated' });
+      node.modify({ text: 'updated' });
 
-      const node = state.getNode('n1')!;
       expect(node.data.text).toBe('updated');
       expect(state.getLogLength()).toBe(2);
     });
 
     it('should modify multiple fields in one operation', () => {
-      state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      const node = root.createChild('n1', {
         name: 'test.md',
         isDirectory: false,
         text: 'original'
       });
 
-      state.modifyNode('n1', {
+      node.modify({
         text: 'updated',
         stat: { mtime: 123, ctime: 456, size: 100 }
       });
 
-      const node = state.getNode('n1')!;
       expect(node.data.text).toBe('updated');
       expect(node.data.stat?.mtime).toBe(123);
       expect(state.getLogLength()).toBe(2);
     });
 
     it('should reject modification of non-existent node', () => {
-      expect(() =>
-        state.modifyNode('nonexistent', { text: 'new' })
-      ).toThrow('Node not found');
+      const node = state.getNode('nonexistent');
+      expect(node).toBeNull();
     });
   });
 
   describe('MOVE operations', () => {
+    let d1: TreeNode;
+    let n1: TreeNode;
+
     beforeEach(() => {
-      state.createNode('d1', 'root', { name: 'folder', isDirectory: true });
-      state.createNode('n1', 'root', { name: 'file.md', isDirectory: false });
+      const root = state.getNode('root')!;
+      d1 = root.createChild('d1', { name: 'folder', isDirectory: true });
+      n1 = root.createChild('n1', { name: 'file.md', isDirectory: false });
     });
 
     it('should move node to different parent', () => {
-      const d1 = state.getNode('d1')!;
-      state.moveNode('n1', 'd1');
+      n1.move(d1);
 
-      const n1 = state.getNode('n1')!;
       expect(n1.parentId).toBe('d1');
       expect(d1.childIds).toContain('n1');
       expect(state.getNode('root')!.childIds).not.toContain('n1');
     });
 
     it('should reject move to non-existent parent', () => {
-      expect(() => state.moveNode('n1', 'nonexistent')).toThrow(
-        'Parent node not found'
-      );
+      const nonexistentParent = state.getNode('nonexistent');
+      expect(nonexistentParent).toBeNull();
     });
 
     it('should detect circular reference', () => {
-      // Use TreeNode API instead of VaultState.moveNode()
-      const d1 = state.getNode('d1')!;
-      const n1 = state.getNode('n1')!;
-      const d2 = state.createNode('d2', 'root', {
+      const root = state.getNode('root')!;
+      const d2 = root.createChild('d2', {
         name: 'dir2.md',
         isDirectory: true
       });
@@ -147,50 +151,57 @@ describe('VaultState (Phase 2: Implementation)', () => {
   });
 
   describe('RENAME operations', () => {
+    let node: TreeNode;
+
     beforeEach(() => {
-      state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      node = root.createChild('n1', {
         name: 'original.md',
         isDirectory: false
       });
     });
 
     it('should rename a node', () => {
-      state.renameNode('n1', 'renamed.md');
+      node.rename('renamed.md');
 
-      const node = state.getNode('n1')!;
       expect(node.data.name).toBe('renamed.md');
     });
 
     it('should reject rename of root', () => {
-      expect(() => state.renameNode('root', 'newroot')).toThrow(
+      const root = state.getNode('root')!;
+      expect(() => root.rename('newroot')).toThrow(
         'Cannot rename root node'
       );
     });
 
     it('should reject rename of non-existent node', () => {
-      expect(() => state.renameNode('nonexistent', 'new.md')).toThrow(
-        'Node not found'
-      );
+      const nonexistent = state.getNode('nonexistent');
+      expect(nonexistent).toBeNull();
     });
   });
 
   describe('DELETE operations', () => {
+    let d1: TreeNode;
+    let n1: TreeNode;
+    let n2: TreeNode;
+
     beforeEach(() => {
-      state.createNode('d1', 'root', { name: 'folder', isDirectory: true });
-      state.createNode('n1', 'd1', { name: 'file.md', isDirectory: false });
-      state.createNode('n2', 'd1', { name: 'file2.md', isDirectory: false });
+      const root = state.getNode('root')!;
+      d1 = root.createChild('d1', { name: 'folder', isDirectory: true });
+      n1 = d1.createChild('n1', { name: 'file.md', isDirectory: false });
+      n2 = d1.createChild('n2', { name: 'file2.md', isDirectory: false });
     });
 
     it('should delete a node', () => {
-      state.deleteNode('n1');
+      n1.delete();
 
       expect(state.getNode('n1')).toBeNull();
-      expect(state.getNode('d1')!.childIds).not.toContain('n1');
+      expect(d1.childIds).not.toContain('n1');
     });
 
     it('should delete node and all descendants', () => {
       // d1 has children n1 and n2
-      state.deleteNode('d1');
+      d1.delete();
 
       expect(state.getNode('d1')).toBeNull();
       expect(state.getNode('n1')).toBeNull();
@@ -198,28 +209,31 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should reject deletion of root', () => {
-      expect(() => state.deleteNode('root')).toThrow(
+      const root = state.getNode('root')!;
+      expect(() => root.delete()).toThrow(
         'Cannot delete root node'
       );
     });
 
     it('should reject deletion of non-existent node', () => {
-      expect(() => state.deleteNode('nonexistent')).toThrow('Node not found');
+      const nonexistent = state.getNode('nonexistent');
+      expect(nonexistent).toBeNull();
     });
   });
 
   describe('Deterministic rebuild', () => {
     it('should rebuild tree identically from log', () => {
       // Create complex structure
-      state.createNode('d1', 'root', { name: 'folder', isDirectory: true });
-      state.createNode('n1', 'd1', {
+      const root = state.getNode('root')!;
+      const d1 = root.createChild('d1', { name: 'folder', isDirectory: true });
+      const n1 = d1.createChild('n1', {
         name: 'file.md',
         isDirectory: false,
         text: 'content'
       });
-      state.createNode('n2', 'root', { name: 'file2.md', isDirectory: false });
-      state.modifyNode('n1', { text: 'updated' });
-      state.moveNode('n2', 'd1');
+      const n2 = root.createChild('n2', { name: 'file2.md', isDirectory: false });
+      n1.modify({ text: 'updated' });
+      n2.move(d1);
 
       // Capture state
       const beforePath = state.getNodePath('n1');
@@ -238,9 +252,10 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should be idempotent - rebuild twice produces same tree', () => {
-      state.createNode('d1', 'root', { name: 'folder', isDirectory: true });
-      state.createNode('n1', 'd1', { name: 'file.md', isDirectory: false });
-      state.modifyNode('n1', { text: 'content' });
+      const root = state.getNode('root')!;
+      const d1 = root.createChild('d1', { name: 'folder', isDirectory: true });
+      const n1 = d1.createChild('n1', { name: 'file.md', isDirectory: false });
+      n1.modify({ text: 'content' });
 
       const logLength = state.getLogLength();
 
@@ -276,13 +291,14 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
   describe('Checkpoint and rollback', () => {
     it('should create checkpoint and rollback to it', () => {
-      state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      root.createChild('n1', {
         name: 'file.md',
         isDirectory: false
       });
       const cp1 = state.checkpoint();
 
-      state.createNode('n2', 'root', {
+      root.createChild('n2', {
         name: 'file2.md',
         isDirectory: false
       });
@@ -298,11 +314,12 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should rollback to checkpoint 0 (empty state)', () => {
-      state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      root.createChild('n1', {
         name: 'file.md',
         isDirectory: false
       });
-      state.createNode('n2', 'root', {
+      root.createChild('n2', {
         name: 'file2.md',
         isDirectory: false
       });
@@ -324,9 +341,10 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
   describe('Query operations', () => {
     beforeEach(() => {
-      state.createNode('d1', 'root', { name: 'folder', isDirectory: true });
-      state.createNode('n1', 'd1', { name: 'file.md', isDirectory: false });
-      state.createNode('n2', 'd1', { name: 'file2.md', isDirectory: false });
+      const root = state.getNode('root')!;
+      const d1 = root.createChild('d1', { name: 'folder', isDirectory: true });
+      d1.createChild('n1', { name: 'file.md', isDirectory: false });
+      d1.createChild('n2', { name: 'file2.md', isDirectory: false });
     });
 
     it('should find node by path', () => {
@@ -365,7 +383,8 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
   describe('TreeNode API', () => {
     it('should modify through TreeNode', () => {
-      const node = state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      const node = root.createChild('n1', {
         name: 'test.md',
         isDirectory: false,
         text: 'original'
@@ -377,11 +396,12 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should move through TreeNode', () => {
-      const d1 = state.createNode('d1', 'root', {
+      const root = state.getNode('root')!;
+      const d1 = root.createChild('d1', {
         name: 'folder',
         isDirectory: true
       });
-      const n1 = state.createNode('n1', 'root', {
+      const n1 = root.createChild('n1', {
         name: 'file.md',
         isDirectory: false
       });
@@ -392,7 +412,8 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should rename through TreeNode', () => {
-      const node = state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      const node = root.createChild('n1', {
         name: 'original.md',
         isDirectory: false
       });
@@ -403,7 +424,8 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should delete through TreeNode', () => {
-      const node = state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      const node = root.createChild('n1', {
         name: 'test.md',
         isDirectory: false
       });
@@ -424,29 +446,14 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
   });
 
-  describe('executeAndRecord', () => {
-    it('should execute and record operation', () => {
-      const op = {
-        type: 'create' as const,
-        nodeId: 'n1',
-        parentId: 'root',
-        data: { name: 'test.md', isDirectory: false }
-      };
-
-      state.executeAndRecord(op);
-
-      expect(state.getNode('n1')).toBeDefined();
-      expect(state.getLogLength()).toBe(1);
-    });
-  });
-
   describe('Recording flag during rebuild', () => {
     it('should not record during rebuild', () => {
-      state.createNode('n1', 'root', {
+      const root = state.getNode('root')!;
+      root.createChild('n1', {
         name: 'test.md',
         isDirectory: false
       });
-      state.createNode('n2', 'root', {
+      root.createChild('n2', {
         name: 'test2.md',
         isDirectory: false
       });

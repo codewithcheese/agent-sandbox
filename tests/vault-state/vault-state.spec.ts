@@ -40,15 +40,18 @@ describe('VaultState (Phase 1: Structure)', () => {
 
     it('root should have correct initial properties', () => {
       const root = trackingState.getNode('root');
-      expect(root?.id).toBe('root');
+      expect(root?.id).toBeDefined();
       expect(root?.parentId).toBeNull();
       expect(root?.data.name).toBe('');
       expect(root?.data.isDirectory).toBe(true);
     });
 
-    it('root should have empty children initially', () => {
+    it('root should have infrastructure folders as children', () => {
       const root = trackingState.getNode('root');
-      expect(root?.childIds).toEqual([]);
+      // Root has two infrastructure folders with auto-generated IDs
+      expect(root?.childIds).toHaveLength(2);
+      const childNames = root?.childIds.map(id => trackingState.getNode(id)?.data.name).sort();
+      expect(childNames).toEqual(['.overlay-tmp', '.overlay-trash']);
     });
   });
 
@@ -81,78 +84,65 @@ describe('VaultState (Phase 1: Structure)', () => {
       expect(trackingState.getNodePath('root')).toBe('');
     });
 
-    it('getDescendants should return empty array for root', () => {
-      expect(trackingState.getDescendants('root')).toEqual([]);
+    it('getDescendants should return infrastructure folders for root', () => {
+      // Root has two infrastructure folders that are always present
+      const descendants = trackingState.getDescendants('root');
+      expect(descendants).toHaveLength(2);
+      expect(descendants.map(d => d.id)).toContain('trash-folder');
+      expect(descendants.map(d => d.id)).toContain('tmp-folder');
     });
   });
 
-  describe('Mutation methods', () => {
-    it('should have createNode method', () => {
-      expect(typeof trackingState.createNode).toBe('function');
-    });
-
-    it('should have deleteNode method', () => {
-      expect(typeof trackingState.deleteNode).toBe('function');
-    });
-
-    it('should have modifyNode method', () => {
-      expect(typeof trackingState.modifyNode).toBe('function');
-    });
-
-    it('should have moveNode method', () => {
-      expect(typeof trackingState.moveNode).toBe('function');
-    });
-
-    it('should have renameNode method', () => {
-      expect(typeof trackingState.renameNode).toBe('function');
-    });
-
-    it('createNode creates a node and records operation', () => {
-      const node = trackingState.createNode('node-1', 'root', {
-        name: 'test.md',
-        isDirectory: false,
-        text: 'content'
-      });
-      expect(node).toBeDefined();
-      expect(node.id).toBe('node-1');
-      expect(trackingState.getLogLength()).toBe(1);
-    });
-
-    it('modifyNode modifies node and records operation', () => {
-      const node = trackingState.createNode('node-1', 'root', {
+  describe('Node mutation methods', () => {
+    it('node.modify modifies node and records operation', () => {
+      const root = trackingState.getNode('root')!;
+      const node = root.createChild('node-1', {
         name: 'test.md',
         isDirectory: false
       });
-      trackingState.modifyNode('node-1', { text: 'new content' });
+      node.modify({ text: 'new content' });
       expect(node.data.text).toBe('new content');
       expect(trackingState.getLogLength()).toBe(2);
     });
 
-    it('moveNode moves node between parents', () => {
-      const parent1 = trackingState.createNode('parent1', 'root', {
+    it('node.move moves node between parents', () => {
+      const root = trackingState.getNode('root')!;
+      const parent1 = root.createChild('parent1', {
         name: 'folder1',
         isDirectory: true
       });
-      const parent2 = trackingState.createNode('parent2', 'root', {
+      const parent2 = root.createChild('parent2', {
         name: 'folder2',
         isDirectory: true
       });
-      const node = trackingState.createNode('node-1', 'parent1', {
+      const node = parent1.createChild('node-1', {
         name: 'file.md',
         isDirectory: false
       });
-      trackingState.moveNode('node-1', 'parent2');
+      node.move(parent2);
       expect(node.parentId).toBe('parent2');
       expect(trackingState.getLogLength()).toBe(4);
     });
 
-    it('renameNode changes node name', () => {
-      const node = trackingState.createNode('node-1', 'root', {
+    it('node.rename changes node name', () => {
+      const root = trackingState.getNode('root')!;
+      const node = root.createChild('node-1', {
         name: 'test.md',
         isDirectory: false
       });
-      trackingState.renameNode('node-1', 'renamed.md');
+      node.rename('renamed.md');
       expect(node.data.name).toBe('renamed.md');
+      expect(trackingState.getLogLength()).toBe(2);
+    });
+
+    it('node.delete removes node and records operation', () => {
+      const root = trackingState.getNode('root')!;
+      const node = root.createChild('node-1', {
+        name: 'test.md',
+        isDirectory: false
+      });
+      node.delete();
+      expect(trackingState.getNode('node-1')).toBeNull();
       expect(trackingState.getLogLength()).toBe(2);
     });
   });
@@ -167,31 +157,21 @@ describe('VaultState (Phase 1: Structure)', () => {
     });
 
     it('checkpoint returns current log length', () => {
-      trackingState.createNode('node-1', 'root', {
-        name: 'test.md',
-        isDirectory: false
-      });
+      const root = trackingState.getNode('root')!;
+      root.createChild('node-1', { name: 'test.md', isDirectory: false });
       const checkpoint = trackingState.checkpoint();
       expect(checkpoint).toBe(1);
 
-      trackingState.createNode('node-2', 'root', {
-        name: 'test2.md',
-        isDirectory: false
-      });
+      root.createChild('node-2', { name: 'test2.md', isDirectory: false });
       expect(trackingState.checkpoint()).toBe(2);
     });
 
     it('rollback truncates log and rebuilds tree', () => {
-      const node1 = trackingState.createNode('node-1', 'root', {
-        name: 'test.md',
-        isDirectory: false
-      });
+      const root = trackingState.getNode('root')!;
+      const node1 = root.createChild('node-1', { name: 'test.md', isDirectory: false });
       const checkpoint = trackingState.checkpoint();
 
-      const node2 = trackingState.createNode('node-2', 'root', {
-        name: 'test2.md',
-        isDirectory: false
-      });
+      const node2 = root.createChild('node-2', { name: 'test2.md', isDirectory: false });
       expect(trackingState.getLogLength()).toBe(2);
 
       trackingState.rollback(checkpoint);
@@ -219,11 +199,12 @@ describe('VaultState (Phase 1: Structure)', () => {
     });
 
     it('getOperations returns all operations', () => {
-      trackingState.createNode('node-1', 'root', {
+      const root = trackingState.getNode('root')!;
+      const node1 = root.createChild('node-1', {
         name: 'test.md',
         isDirectory: false
       });
-      trackingState.modifyNode('node-1', { text: 'content' });
+      node1.modify({ text: 'content' });
 
       const ops = trackingState.getOperations();
       expect(ops).toHaveLength(2);
@@ -232,12 +213,13 @@ describe('VaultState (Phase 1: Structure)', () => {
     });
 
     it('getOperationsForNode returns operations for specific node', () => {
-      trackingState.createNode('node-1', 'root', {
+      const root = trackingState.getNode('root')!;
+      const node1 = root.createChild('node-1', {
         name: 'test.md',
         isDirectory: false
       });
-      trackingState.modifyNode('node-1', { text: 'content' });
-      trackingState.createNode('node-2', 'root', {
+      node1.modify({ text: 'content' });
+      const node2 = root.createChild('node-2', {
         name: 'test2.md',
         isDirectory: false
       });
