@@ -26,16 +26,25 @@ VaultOverlay → TreeFS → Loro Tree (CRDT)
 - Complex serialization: Binary WASM snapshots
 - Change detection: O(n) full tree diff after every mutation
 
-### New System (Operations Log)
+### New System (Operations Log + Object Model)
 
 ```
-VaultOverlay → VaultState → Operations Log
-                ↓
+VaultOverlay → TreeNode API → Standalone execute functions
+                    ↓                     ↓
+                VaultState           operations.ts
+                (data container)     (pure functions)
+                    ↓
+            Operations Log
             Pure TypeScript
-            Simple tree mutations
-            rollback() truncates log
+            Rebuild by replaying
             Serialize to JSON
 ```
+
+**Architecture**:
+- **TreeNode**: Primary object-oriented API, validates and executes mutations
+- **VaultState**: Data container holding nodeIndex, tree, operationsLog, and query methods
+- **execute* functions**: Standalone functions that apply operations to the tree (used by both TreeNode and rebuild)
+- **Operations Log**: Append-only log of all mutations
 
 **Benefits**:
 - Rollback cost: O(n) single rebuild (where n = operations to replay)
@@ -43,6 +52,8 @@ VaultOverlay → VaultState → Operations Log
 - Multiple reverts: Constant cost per rollback
 - Simple serialization: JSON-serializable
 - Change detection: O(m) diff of staged operations
+- Clean OOP API: mutations through TreeNode methods
+- Testable execute functions: no state coupling
 
 ## Phase Overview
 
@@ -205,14 +216,16 @@ Test infrastructure for new classes:
 
 ---
 
-# Phase 2: VaultState Implementation
+# Phase 2: VaultState Implementation & Execute Functions
 
 ## Objectives
 
-- Implement operation execution engine
+- Create standalone execute* functions for each operation type
+- Implement VaultState as a data container with query methods
+- Implement TreeNode mutation methods (validate → execute → record)
 - Implement deterministic tree rebuild from log
 - Implement rollback mechanism
-- Full test coverage for all operation types
+- Full test coverage using TreeNode API
 
 ## Design Decisions Made
 
@@ -278,53 +291,147 @@ Before implementation, the following key design decisions were made:
 - `rebuildTreeFromLog()` - Deterministic replay with flag control
 - `executeAndRecord(op)` - Execute and record in one step (for workflows)
 
-### TreeNode Class (`/src/chat/vault-state/tree-node.ts`)
+### Standalone Execute Functions (`/src/chat/vault-state/operations.ts`)
 
-Delegates all mutations to VaultState, ensuring all operations are recorded:
+Pure functions that apply operations to the tree. Used by both:
+1. TreeNode methods (for normal mutations)
+2. VaultState.rebuildTreeFromLog() (for replay)
 
 ```typescript
-modify(changes: Partial<NodeData>) → vaultState.modifyNode()
-move(newParentNode: TreeNode) → vaultState.moveNode()
-rename(newName: string) → vaultState.renameNode()
-delete() → vaultState.deleteNode()
+executeCreate(state: VaultState, op: CreateOperation): void
+executeDelete(state: VaultState, op: DeleteOperation): void
+executeModify(state: VaultState, op: ModifyOperation): void
+executeMove(state: VaultState, op: MoveOperation): void
+executeRename(state: VaultState, op: RenameOperation): void
+executeOperation(state: VaultState, op: Operation): void  // Dispatcher
 ```
 
-Both `rename()` and `delete()` include root node protection checks.
+No coupling to specific node instances—works with any VaultState and operation.
+
+### TreeNode Class (`/src/chat/vault-state/tree-node.ts`)
+
+Primary object-oriented API. Each method:
+1. Validates preconditions (e.g., circular reference check)
+2. Calls execute function to apply changes
+3. Records operation to VaultState
+
+```typescript
+modify(changes: Partial<NodeData>) {
+  executeModify(this.vaultState, { type: 'modify', nodeId: this.id, changes });
+  this.vaultState.recordOperation({ ... });
+}
+
+move(newParentNode: TreeNode) {
+  validateNoCircularReference(newParentNode);
+  executeMove(this.vaultState, { type: 'move', nodeId: this.id, newParentId: newParentNode.id });
+  this.vaultState.recordOperation({ ... });
+}
+
+rename(newName: string) {
+  validateNotRoot();
+  executeRename(this.vaultState, { type: 'rename', nodeId: this.id, newName });
+  this.vaultState.recordOperation({ ... });
+}
+
+delete() {
+  validateNotRoot();
+  executeDelete(this.vaultState, { type: 'delete', nodeId: this.id });
+  this.vaultState.recordOperation({ ... });
+}
+```
+
+### VaultState Class (`/src/chat/vault-state/vault-state.ts`)
+
+Data container and query interface. Responsibilities:
+- Hold nodeIndex, tree, operationsLog
+- Provide query methods: getNode(), findByPath(), getNodePath(), getDescendants()
+- Record operations: recordOperation()
+- Manage checkpoints: checkpoint(), rollback()
+- Rebuild from log: rebuildTreeFromLog() (calls execute functions)
 
 ## Implementation Details
 
 ### Rebuild Algorithm
 
 ```typescript
-rebuildTreeFromLog() {
-  recordingEnabled = false;  // Prevent recording during replay
+private rebuildTreeFromLog(): void {
+  this.recordingEnabled = false;  // Prevent recording during replay
   try {
-    nodeIndex.clear();
-    create root node;
-    for each operation in log {
-      executeOperation(operation);
+    this.nodeIndex.clear();
+
+    // Create empty root
+    const root = new TreeNode('root', this);
+    root.data = { name: '', isDirectory: true };
+    root.parentId = null;
+    this.nodeIndex.set('root', root);
+    this.tree = root;
+
+    // Replay all operations by calling execute functions
+    for (let i = 0; i < this.operationsLog.length; i++) {
+      const op = this.operationsLog[i];
+      try {
+        executeOperation(this, op);  // Calls standalone execute function
+      } catch (e) {
+        throw new Error(`Failed to replay operation #${i} (${op.type}): ${(e as Error).message}`);
+      }
     }
   } finally {
-    recordingEnabled = true;  // Guaranteed restoration
+    this.recordingEnabled = true;  // Guaranteed restoration
   }
 }
 ```
 
-**Properties**:
+**Key points**:
+- Uses standalone execute functions (same as TreeNode mutations)
+- recordingEnabled flag prevents duplicate operation recording during replay
 - Deterministic: Same log always produces same tree
 - Idempotent: Multiple rebuilds produce identical trees
 - Error reporting: Includes operation index on failure
 
+### Execute Function Pattern
+
+Example: executeMove
+
+```typescript
+export function executeMove(state: VaultState, op: MoveOperation): void {
+  const node = state.getNode(op.nodeId)!;
+  const newParent = state.getNode(op.newParentId)!;
+
+  // Remove from old parent
+  if (node.parentId) {
+    const oldParent = state.getNode(node.parentId)!;
+    oldParent.childIds = oldParent.childIds.filter(id => id !== op.nodeId);
+  }
+
+  // Add to new parent
+  newParent.childIds.push(op.nodeId);
+  node.parentId = op.newParentId;
+}
+```
+
+**Advantages**:
+- Pure function: no hidden state or side effects
+- Reusable: called from TreeNode.move() and rebuildTreeFromLog()
+- Testable: can test operation execution in isolation
+- No TreeNode coupling: works with any state and operation
+
 ### Circular Reference Check
 
-In `moveNode()`:
+In `TreeNode.move()`:
 ```typescript
-let current = newParent;
-while (current) {
-  if (current.id === nodeId) {
-    throw Error("Circular reference");
+move(newParentNode: TreeNode): void {
+  // Validate: prevent cycles
+  let current: TreeNode | null = newParentNode;
+  while (current) {
+    if (current.id === this.id) {
+      throw new Error(`Cannot move node under its own descendant (circular reference)`);
+    }
+    current = current.parentId ? this.vaultState.getNode(current.parentId) : null;
   }
-  current = current.parent;
+
+  // Execute and record
+  executeMove(this.vaultState, { ... });
+  this.vaultState.recordOperation({ ... });
 }
 ```
 
@@ -1816,19 +1923,20 @@ Before implementation, confirm answers to:
 
 ```
 src/chat/
-├── vault-overlay.svelte.ts        (refactored: VaultState only)
+├── vault-overlay.svelte.ts        (refactored: uses TreeNode API)
 ├── chat-serializer.ts             (updated: JSON serialization)
 ├── metadata-cache-overlay.ts       (unchanged)
 ├── vault-state/                   (NEW)
-│   ├── index.ts                   (exports)
-│   ├── types.ts                   (Operation, NodeData, etc.)
-│   ├── tree-node.ts               (TreeNode class)
-│   ├── vault-state.ts             (VaultState class)
+│   ├── index.ts                   (exports: VaultState, TreeNode, operations)
+│   ├── types.ts                   (Operation, NodeData, FileStats, etc.)
+│   ├── tree-node.ts               (TreeNode class - primary API)
+│   ├── vault-state.ts             (VaultState class - data container)
+│   ├── operations.ts              (standalone execute* functions)
 │   ├── merge.ts                   (three-way merge using node-diff3)
-│   └── serialization.ts           (serialize/deserialize)
+│   └── serialization.ts           (serialize/deserialize - Phase 6)
 └── (removed: tree-fs.ts, loro.ts)
 
-tests/vault-overlay/               (updated to use VaultState)
+tests/vault-overlay/               (updated to use TreeNode API)
 ├── approve.test.ts
 ├── reject.test.ts
 ├── sync.test.ts
@@ -1838,18 +1946,16 @@ tests/vault-overlay/               (updated to use VaultState)
 └── ...
 
 tests/vault-state/                 (NEW)
-├── tree-node.spec.ts
-├── vault-state.spec.ts
-├── rebuild.spec.ts
-├── rollback.spec.ts
-├── path-cache.spec.ts
-├── edge-cases.spec.ts
-├── serialization.spec.ts
-├── integration.spec.ts
-└── performance.spec.ts
+├── types.spec.ts                  (type definitions)
+├── tree-node.spec.ts              (TreeNode API)
+├── vault-state.spec.ts            (VaultState class)
+├── vault-state-phase2.spec.ts     (operations, rebuild, rollback)
+├── operations.spec.ts             (standalone execute functions)
+├── integration.spec.ts            (Phase 3 scaffolding)
+└── performance.spec.ts            (Phase 8 benchmarking)
 
 docs/dev/
-├── vault-state.md                 (NEW: architecture documentation)
+├── vault-state-migration.md       (this document)
 └── ...
 ```
 

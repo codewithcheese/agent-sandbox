@@ -15,15 +15,11 @@ import type {
   NodeID,
   NodeData,
   Operation,
-  CreateOperation,
-  DeleteOperation,
-  ModifyOperation,
-  MoveOperation,
-  RenameOperation,
   SerializedState,
   SerializedOperation
 } from './types';
 import { TreeNode } from './tree-node';
+import { executeOperation } from './operations';
 
 export class VaultState {
   private tree: TreeNode;  // Root of the tree
@@ -133,6 +129,28 @@ export class VaultState {
   // ===== MUTATIONS (record operations) =====
 
   /**
+   * Add a node to the index.
+   * Used by execute functions during rebuild.
+   * Does NOT record an operation.
+   *
+   * @param node The TreeNode to add
+   */
+  addNode(node: TreeNode): void {
+    this.nodeIndex.set(node.id, node);
+  }
+
+  /**
+   * Remove a node from the index.
+   * Used by deleteNodeAndChildren helper.
+   * Does NOT record an operation.
+   *
+   * @param nodeId The NodeID to remove
+   */
+  removeNode(nodeId: NodeID): void {
+    this.nodeIndex.delete(nodeId);
+  }
+
+  /**
    * Create a new node.
    * Records a CreateOperation and adds node to tree.
    *
@@ -205,7 +223,7 @@ export class VaultState {
 
   /**
    * Recursively delete a node and all its descendants from the index.
-   * Does NOT record operations (called during delete or rebuild).
+   * Private helper for deleteNode.
    *
    * @param nodeId The NodeID to delete
    */
@@ -221,6 +239,7 @@ export class VaultState {
     // Delete the node itself
     this.nodeIndex.delete(nodeId);
   }
+
 
   /**
    * Modify fields on a node.
@@ -390,140 +409,6 @@ export class VaultState {
     return this.operationsLog.length;
   }
 
-  // ===== OPERATION EXECUTION (Internal) =====
-
-  /**
-   * Execute a single operation on the tree.
-   * Called during rebuildTreeFromLog().
-   * Dispatches to specific executeXxx() methods based on operation type.
-   *
-   * @param op The operation to execute
-   */
-  private executeOperation(op: Operation): void {
-    switch (op.type) {
-      case 'create':
-        this.executeCreate(op);
-        break;
-      case 'delete':
-        this.executeDelete(op);
-        break;
-      case 'modify':
-        this.executeModify(op);
-        break;
-      case 'move':
-        this.executeMove(op);
-        break;
-      case 'rename':
-        this.executeRename(op);
-        break;
-    }
-  }
-
-  /**
-   * Execute a CREATE operation.
-   * Creates new TreeNode and adds to parent's children.
-   *
-   * @param op The CreateOperation
-   */
-  private executeCreate(op: CreateOperation): void {
-    const parent = this.nodeIndex.get(op.parentId);
-    if (!parent) {
-      throw new Error(`Parent node not found during CREATE: ${op.parentId}`);
-    }
-
-    const newNode = new TreeNode(op.nodeId, this);
-    newNode.parentId = op.parentId;
-    newNode.data = { ...op.data };
-
-    parent.childIds.push(op.nodeId);
-    this.nodeIndex.set(op.nodeId, newNode);
-  }
-
-  /**
-   * Execute a DELETE operation.
-   * Removes node from parent and deletes all descendants from index.
-   *
-   * @param op The DeleteOperation
-   */
-  private executeDelete(op: DeleteOperation): void {
-    const node = this.nodeIndex.get(op.nodeId);
-    if (!node) {
-      throw new Error(`Node not found during DELETE: ${op.nodeId}`);
-    }
-
-    // Remove from parent
-    if (node.parentId) {
-      const parent = this.nodeIndex.get(node.parentId);
-      if (parent) {
-        parent.childIds = parent.childIds.filter(id => id !== op.nodeId);
-      }
-    }
-
-    // Recursively delete children
-    this.deleteNodeAndChildren(op.nodeId);
-  }
-
-  /**
-   * Execute a MODIFY operation.
-   * Updates fields on the node.
-   *
-   * @param op The ModifyOperation
-   */
-  private executeModify(op: ModifyOperation): void {
-    const node = this.nodeIndex.get(op.nodeId);
-    if (!node) {
-      throw new Error(`Node not found during MODIFY: ${op.nodeId}`);
-    }
-
-    Object.entries(op.changes).forEach(([field, value]) => {
-      node.data[field] = value;
-    });
-  }
-
-  /**
-   * Execute a MOVE operation.
-   * Changes the parent of a node.
-   *
-   * @param op The MoveOperation
-   */
-  private executeMove(op: MoveOperation): void {
-    const node = this.nodeIndex.get(op.nodeId);
-    const newParent = this.nodeIndex.get(op.newParentId);
-
-    if (!node) {
-      throw new Error(`Node not found during MOVE: ${op.nodeId}`);
-    }
-    if (!newParent) {
-      throw new Error(`Parent node not found during MOVE: ${op.newParentId}`);
-    }
-
-    // Remove from old parent
-    if (node.parentId) {
-      const oldParent = this.nodeIndex.get(node.parentId);
-      if (oldParent) {
-        oldParent.childIds = oldParent.childIds.filter(id => id !== op.nodeId);
-      }
-    }
-
-    // Add to new parent
-    newParent.childIds.push(op.nodeId);
-    node.parentId = op.newParentId;
-  }
-
-  /**
-   * Execute a RENAME operation.
-   * Changes the name (path segment) of a node.
-   *
-   * @param op The RenameOperation
-   */
-  private executeRename(op: RenameOperation): void {
-    const node = this.nodeIndex.get(op.nodeId);
-    if (!node) {
-      throw new Error(`Node not found during RENAME: ${op.nodeId}`);
-    }
-
-    node.data.name = op.newName;
-  }
 
   /**
    * Rebuild the entire tree by replaying all operations from the log.
@@ -550,11 +435,11 @@ export class VaultState {
       this.nodeIndex.set('root', root);
       this.tree = root;
 
-      // Replay all operations in order
+      // Replay all operations in order using standalone execute functions
       for (let i = 0; i < this.operationsLog.length; i++) {
         const op = this.operationsLog[i];
         try {
-          this.executeOperation(op);
+          executeOperation(this, op);
         } catch (e) {
           throw new Error(
             `Failed to replay operation #${i} (${op.type}): ${(e as Error).message}`
@@ -586,7 +471,7 @@ export class VaultState {
    * @param op The operation to execute and record
    */
   executeAndRecord(op: Operation): void {
-    this.executeOperation(op);
+    executeOperation(this, op);
     this.recordOperation(op);
   }
 

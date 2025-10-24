@@ -30,3 +30,13 @@ export type {
 // Classes
 export { TreeNode } from './tree-node';
 export { VaultState } from './vault-state';
+
+// Operation execution functions
+export {
+  executeCreate,
+  executeDelete,
+  executeModify,
+  executeMove,
+  executeRename,
+  executeOperation
+} from './operations';

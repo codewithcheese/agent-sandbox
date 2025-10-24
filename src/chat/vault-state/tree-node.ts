@@ -1,12 +1,17 @@
 /**
  * TreeNode represents a single node in the vault tree (file or directory).
  *
- * Mutations on TreeNode automatically record operations to VaultState,
- * making it impossible to accidentally skip operation recording.
+ * Primary API for mutations. Each method:
+ * 1. Validates preconditions
+ * 2. Calls standalone execute function to apply changes
+ * 3. Records the operation to VaultState
+ *
+ * This ensures all mutations go through the operation log.
  */
 
 import type { NodeID, NodeData, FileStats } from './types';
 import type { VaultState } from './vault-state';
+import { executeModify, executeMove, executeDelete, executeRename } from './operations';
 
 export class TreeNode {
   id: NodeID;
@@ -31,7 +36,19 @@ export class TreeNode {
    * @param changes Object with fields to modify
    */
   modify(changes: Partial<NodeData>): void {
-    this.vaultState.modifyNode(this.id, changes);
+    // Execute the operation
+    executeModify(this.vaultState, {
+      type: 'modify',
+      nodeId: this.id,
+      changes
+    });
+
+    // Record the operation
+    this.vaultState.recordOperation({
+      type: 'modify',
+      nodeId: this.id,
+      changes
+    });
   }
 
   /**
@@ -43,10 +60,31 @@ export class TreeNode {
    *   node.move(newParent);
    *
    * @param newParentNode The new parent node
+   * @throws Error if move would create circular reference
    */
   move(newParentNode: TreeNode): void {
-    // Delegate to VaultState which handles circular reference checking
-    this.vaultState.moveNode(this.id, newParentNode.id);
+    // Validate: prevent circular references
+    let current: TreeNode | null = newParentNode;
+    while (current) {
+      if (current.id === this.id) {
+        throw new Error(`Cannot move node under its own descendant (circular reference)`);
+      }
+      current = current.parentId ? this.vaultState.getNode(current.parentId) : null;
+    }
+
+    // Execute the operation
+    executeMove(this.vaultState, {
+      type: 'move',
+      nodeId: this.id,
+      newParentId: newParentNode.id
+    });
+
+    // Record the operation
+    this.vaultState.recordOperation({
+      type: 'move',
+      nodeId: this.id,
+      newParentId: newParentNode.id
+    });
   }
 
   /**
@@ -57,12 +95,26 @@ export class TreeNode {
    *   node.rename('new-filename.md');
    *
    * @param newName New basename for this node
+   * @throws Error if trying to rename root node
    */
   rename(newName: string): void {
     if (this.id === 'root') {
       throw new Error('Cannot rename root node');
     }
-    this.vaultState.renameNode(this.id, newName);
+
+    // Execute the operation
+    executeRename(this.vaultState, {
+      type: 'rename',
+      nodeId: this.id,
+      newName
+    });
+
+    // Record the operation
+    this.vaultState.recordOperation({
+      type: 'rename',
+      nodeId: this.id,
+      newName
+    });
   }
 
   /**
@@ -71,11 +123,24 @@ export class TreeNode {
    *
    * Example:
    *   node.delete();  // Deletes node and all children
+   *
+   * @throws Error if trying to delete root node
    */
   delete(): void {
     if (this.id === 'root') {
       throw new Error('Cannot delete root node');
     }
-    this.vaultState.deleteNode(this.id);
+
+    // Execute the operation
+    executeDelete(this.vaultState, {
+      type: 'delete',
+      nodeId: this.id
+    });
+
+    // Record the operation
+    this.vaultState.recordOperation({
+      type: 'delete',
+      nodeId: this.id
+    });
   }
 }
