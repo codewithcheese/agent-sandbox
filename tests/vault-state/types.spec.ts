@@ -92,16 +92,14 @@ describe('Type definitions', () => {
       it('should have required fields', () => {
         const op: CreateOperation = {
           type: 'create',
-          nodeId: 'n1',
-          parentId: 'root',
+          parentId: '0',
           data: {
             name: 'test.md',
             isDirectory: false
           }
         };
         expect(op.type).toBe('create');
-        expect(op.nodeId).toBe('n1');
-        expect(op.parentId).toBe('root');
+        expect(op.parentId).toBe('0');
         expect(op.data.name).toBe('test.md');
         expect(op.data.isDirectory).toBe(false);
       });
@@ -109,8 +107,7 @@ describe('Type definitions', () => {
       it('should support optional text in data', () => {
         const op: CreateOperation = {
           type: 'create',
-          nodeId: 'n1',
-          parentId: 'root',
+          parentId: '0',
           data: {
             name: 'test.md',
             isDirectory: false,
@@ -124,8 +121,7 @@ describe('Type definitions', () => {
         const buffer = new Uint8Array([1, 2, 3]);
         const op: CreateOperation = {
           type: 'create',
-          nodeId: 'n1',
-          parentId: 'root',
+          parentId: '0',
           data: {
             name: 'image.png',
             isDirectory: false,
@@ -139,8 +135,7 @@ describe('Type definitions', () => {
         const stat: FileStats = { mtime: Date.now(), ctime: Date.now(), size: 100 };
         const op: CreateOperation = {
           type: 'create',
-          nodeId: 'n1',
-          parentId: 'root',
+          parentId: '0',
           data: {
             name: 'test.md',
             isDirectory: false,
@@ -267,8 +262,7 @@ describe('Type definitions', () => {
     it('should accept CreateOperation', () => {
       const op: Operation = {
         type: 'create',
-        nodeId: 'n1',
-        parentId: 'root',
+        parentId: '0',
         data: { name: 'test.md', isDirectory: false }
       };
       expect(op.type).toBe('create');

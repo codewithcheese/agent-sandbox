@@ -16,14 +16,15 @@ describe('TreeNode (Phase 1: Structure)', () => {
 
   beforeEach(() => {
     vaultState = new VaultState('tracking');
-    root = vaultState.getNode(vaultState.findByPath('')!)!;  // Get root
+    root = vaultState.findByPath('')!;  // Get root by path
   });
 
   it('should have an auto-generated ID', () => {
     const node = root.createChild({ name: 'test.md', isDirectory: false });
     expect(node.id).toBeDefined();
     expect(typeof node.id).toBe('string');
-    expect(node.id.startsWith('node-')).toBe(true);
+    // IDs are auto-incremented numbers: root is "0", trash is "1", tmp is "2", first user node is "3"
+    expect(/^\d+$/.test(node.id)).toBe(true);
   });
 
   it('should have no parent initially (except root)', () => {

@@ -68,7 +68,7 @@ export type Operation =
  * because the ID counter is reset at the start of rebuild.
  *
  * Example:
- *   { type: 'create', parentId: 'node-0',
+ *   { type: 'create', parentId: '0',
  *     data: { name: 'notes.md', isDirectory: false, text: 'initial content' } }
  */
 export interface CreateOperation {

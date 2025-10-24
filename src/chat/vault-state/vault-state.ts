@@ -20,7 +20,7 @@ import type {
 } from './types';
 import { TreeNode } from './tree-node';
 import { executeOperation } from './operations';
-import { TRASH_FOLDER, TMP_FOLDER } from './types';
+import { TRASH_FOLDER, TMP_FOLDER, DELETED_FROM_KEY } from './types';
 
 export class VaultState {
   private tree: TreeNode;  // Root of the tree
@@ -110,12 +110,12 @@ export class VaultState {
   getNodePath(nodeId: NodeID): string {
     const node = this.nodeIndex.get(nodeId);
     if (!node) return '';
-    if (node.id === 'root') return '';
+    if (node.parentId === null) return '';  // Root has no parent
 
     const parts: string[] = [];
     let current: TreeNode | null = node;
 
-    while (current && current.id !== 'root') {
+    while (current && current.parentId !== null) {  // Stop at root
       parts.unshift(current.data.name);
       current = current.parentId ? this.nodeIndex.get(current.parentId) : null;
     }
@@ -245,19 +245,6 @@ export class VaultState {
   }
 
   /**
-   * Get operations affecting a specific node.
-   *
-   * @param nodeId The NodeID to filter by
-   * @returns Array of operations that mention this nodeId
-   */
-  getOperationsForNode(nodeId: NodeID): Operation[] {
-    return this.operationsLog.filter(op => {
-      // All operation types have a nodeId field
-      return 'nodeId' in op && op.nodeId === nodeId;
-    });
-  }
-
-  /**
    * Create a checkpoint (saves current position in log).
    * Returns the index that can be passed to rollback().
    *
@@ -319,8 +306,7 @@ export class VaultState {
       // Start fresh
       this.nodeIndex.clear();
 
-      // Create empty root as literal (infrastructure, not recorded)
-      // Root naturally gets ID "0" as the first node
+      // Create root as literal (infrastructure, not recorded)
       this.tree = new TreeNode(this);
       this.tree.data = {
         name: '',

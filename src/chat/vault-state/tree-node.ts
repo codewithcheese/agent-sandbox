@@ -11,7 +11,7 @@
 import type { NodeID, NodeData } from './types';
 import type { VaultState } from './vault-state';
 import { executeModify, executeMove, executeDelete, executeRename, executeCreate } from './operations';
-import { DELETED_FROM_KEY } from './types';
+import { DELETED_FROM_KEY, TRASH_FOLDER, TMP_FOLDER } from './types';
 
 export class TreeNode {
   private static nextId: number = 0;  // Start at 0; root will naturally be "0"
@@ -131,7 +131,7 @@ export class TreeNode {
    * @throws Error if trying to rename root node
    */
   rename(newName: string): void {
-    if (this.id === 'root') {
+    if (this.parentId === null) {
       throw new Error('Cannot rename root node');
     }
 
@@ -152,7 +152,7 @@ export class TreeNode {
    * @throws Error if trying to delete root node
    */
   delete(): void {
-    if (this.id === 'root') {
+    if (this.parentId === null) {
       throw new Error('Cannot delete root node');
     }
 
@@ -179,7 +179,7 @@ export class TreeNode {
    */
   trash(originalPath: string): void {
     // Prevent trashing root or infrastructure folders
-    if (this.data.name === '' || this.data.name === '.overlay-trash' || this.data.name === '.overlay-tmp') {
+    if (this.parentId === null || this.data.name === TRASH_FOLDER || this.data.name === TMP_FOLDER) {
       throw new Error('Cannot trash root or infrastructure nodes');
     }
 

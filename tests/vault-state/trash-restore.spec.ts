@@ -39,7 +39,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
 
   describe('TreeNode.trash()', () => {
     it('should move node to trash and set deletedFrom metadata', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const file = root.createChild({
         name: 'test.md',
         isDirectory: false,
@@ -62,7 +62,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
     });
 
     it('should preserve node content when trashing', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const file = root.createChild({
         name: 'test.md',
         isDirectory: false,
@@ -76,7 +76,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
     });
 
     it('should reject trashing root node', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       expect(() => root.trash('/')).toThrow('Cannot trash root or infrastructure nodes');
     });
 
@@ -84,14 +84,14 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
       const trash = state.getTrashFolder();
       expect(() => trash.trash(TRASH_FOLDER)).toThrow('Cannot trash root or infrastructure nodes');
 
-      const tmp = state.getNode('tmp-folder')!;
+      const tmp = state.findByPath(TMP_FOLDER)!;
       expect(() => tmp.trash(TMP_FOLDER)).toThrow('Cannot trash root or infrastructure nodes');
     });
   });
 
   describe('TreeNode.restore()', () => {
     it('should restore node from trash to specified parent', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const dir = root.createChild({ name: 'folder', isDirectory: true });
       const file = root.createChild({
         name: 'test.md',
@@ -115,14 +115,14 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
     });
 
     it('should reject restoring node not in trash', () => {
-      const root = state.getNode('root')!;
-      const file = root.createChild('n1', { name: 'test.md', isDirectory: false });
+      const root = state.getNode('0')!;
+      const file = root.createChild({ name: 'test.md', isDirectory: false });
 
       expect(() => file.restore(root)).toThrow('Cannot restore node');
     });
 
     it('should allow restoring to root', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const file = root.createChild({ name: 'test.md', isDirectory: false });
 
       file.trash('test.md');
@@ -135,7 +135,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
 
   describe('TreeNode.isTrashed()', () => {
     it('should return true for trashed nodes', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const file = root.createChild({ name: 'test.md', isDirectory: false });
 
       expect(file.isTrashed()).toBe(false);
@@ -150,7 +150,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
 
   describe('VaultState.findTrashed()', () => {
     it('should find trashed node by original path', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const file = root.createChild({ name: 'test.md', isDirectory: false });
 
       file.trash('folder/test.md');
@@ -165,7 +165,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
     });
 
     it('should handle multiple trashed files with different paths', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const file1 = root.createChild({ name: 'file1.md', isDirectory: false });
       const file2 = root.createChild({ name: 'file2.md', isDirectory: false });
 
@@ -179,7 +179,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
 
   describe('Rollback with trash/restore', () => {
     it('should restore nodes when rolling back trash operation', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const file = root.createChild({ name: 'test.md', isDirectory: false });
       const fileId = file.id;
       const checkpoint = state.checkpoint();
@@ -194,7 +194,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
     });
 
     it('should preserve trash state through rebuild', () => {
-      const root = state.getNode('root')!;
+      const root = state.getNode('0')!;
       const file = root.createChild({ name: 'test.md', isDirectory: false });
       file.trash('test.md');
 
