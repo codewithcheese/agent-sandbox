@@ -265,4 +265,16 @@ export class TreeNode {
   isTrashed(): boolean {
     return typeof this.data[DELETED_FROM_KEY] === 'string';
   }
+
+  /**
+   * Get all child nodes of this node.
+   * Similar to LoroTreeNode.children() API.
+   *
+   * @returns Array of child TreeNode objects
+   */
+  children(): TreeNode[] {
+    return this.childIds
+      .map(id => this.vaultState.getNode(id))
+      .filter((node): node is TreeNode => node !== undefined);
+  }
 }

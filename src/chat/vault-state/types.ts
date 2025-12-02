@@ -102,17 +102,24 @@ export interface DeleteOperation {
  * Multiple calls to node.modify() with different fields are automatically batched
  * in the operation log.
  *
+ * When text is modified, `previousText` captures the text before the change.
+ * This enables three-way merge during `mergeDocs()` when both tracking (vault)
+ * and proposed (AI) have modified the same file.
+ *
  * Example:
  *   { type: 'modify', nodeId: 'n1', changes: {
  *       text: 'new content',
  *       mtime: 1234567890,
  *       stat: { ctime: 1234567890, mtime: 1234567890, size: 12 }
- *     } }
+ *     },
+ *     previousText: 'old content'
+ *   }
  */
 export interface ModifyOperation {
   type: 'modify';
   nodeId: NodeID;                  // ID of the modified node
   changes: Partial<NodeData>;      // Fields that changed (any NodeData field)
+  previousText?: string;           // Text before this MODIFY (for three-way merge)
 }
 
 /**
@@ -172,6 +179,7 @@ export type SerializedOperation =
       type: 'modify';
       nodeId: NodeID;
       changes: Omit<Partial<NodeData>, 'buffer'> & { buffer?: string };
+      previousText?: string;
     }
   | MoveOperation
   | RenameOperation;

@@ -30,7 +30,7 @@ import {
   wasCreatedKey,
 } from "./tree-fs.ts";
 import { TreeFSAdapter, type NodeData_FS } from "./tree-fs-adapter.ts";
-import { VaultState } from "./vault-state/index.ts";
+import { VaultState, TreeNode } from "./vault-state/index.ts";
 import {
   createStat,
   getBuffer,
@@ -868,27 +868,10 @@ export class VaultOverlay implements Vault {
             `Expected node for ${path} to be a file, got folder.`,
           );
 
-          // Capture original text versions before any updates
-          const baseText = getText(trackingNode);
-          const proposedText = proposedNode ? getText(proposedNode) : undefined;
-
           // Update tracking with vault content
+          // The MODIFY operation will capture previousText for three-way merge in mergeDocs()
           setStat(trackingNode, abstractFile.stat);
           updateText(trackingNode, vaultContents);
-
-          // Perform three-way merge if proposed exists and has content
-          if (
-            proposedNode &&
-            proposedText !== undefined &&
-            baseText !== undefined
-          ) {
-            await this.performThreeWayMerge(
-              baseText,
-              proposedText,
-              vaultContents,
-              proposedNode,
-            );
-          }
 
           return trackingNode;
         } else {
@@ -1584,6 +1567,46 @@ export class VaultOverlay implements Vault {
           if ('newParentId' in op && idMapping.has((op as any).newParentId)) {
             remappedOp = { ...remappedOp, newParentId: idMapping.get((op as any).newParentId)! };
           }
+
+          // Three-way merge for MODIFY operations with text changes
+          if (
+            remappedOp.type === 'modify' &&
+            'text' in remappedOp.changes &&
+            remappedOp.previousText !== undefined
+          ) {
+            const proposedNode = proposedState.findById(remappedOp.nodeId);
+            const proposedText = proposedNode?.data.text;
+
+            // If proposed text differs from base, perform three-way merge
+            if (
+              proposedNode &&
+              typeof proposedText === 'string' &&
+              proposedText !== remappedOp.previousText
+            ) {
+              const baseText = remappedOp.previousText;
+              const vaultText = remappedOp.changes.text as string;
+
+              // Perform three-way merge
+              const baseLines = baseText.split('\n');
+              const proposedLines = proposedText.split('\n');
+              const vaultLines = vaultText.split('\n');
+
+              const mergeResult = diff3Merge(proposedLines, baseLines, vaultLines, {
+                excludeFalseConflicts: true,
+              });
+
+              const mergedText = mergeResult.result.join('\n');
+              debug(`mergeDocs: Three-way merge for ${remappedOp.nodeId}`);
+
+              // Replay with merged text instead of vault text
+              proposedState.replayOperation({
+                ...remappedOp,
+                changes: { ...remappedOp.changes, text: mergedText },
+              });
+              continue;
+            }
+          }
+
           proposedState.replayOperation(remappedOp);
         }
       } catch (e) {
@@ -1936,11 +1959,7 @@ export class VaultOverlay implements Vault {
     const root = doc.getNode("0");
 
     if (root) {
-      const rootProxy = this.trackingFS.findById(root.id) ||
-        this.proposedFS.findById(root.id);
-      if (rootProxy) {
-        this.collectPathsFromNode(rootProxy, "", paths);
-      }
+      this.collectPathsFromNode(root, "", paths);
     }
 
     // Filter out infrastructure folders
@@ -1950,30 +1969,29 @@ export class VaultOverlay implements Vault {
   }
 
   /**
-   * Recursively collect paths from tree using TreeNodeProxy objects.
-   * TreeNodeProxy provides .data.get() interface for accessing node data.
+   * Recursively collect paths from tree using TreeNode objects.
    * Only includes explicitly created directories and all files.
    */
   private collectPathsFromNode(
-    node: any,
+    node: TreeNode,
     parentPath: string,
     paths: string[],
   ): void {
-    const name = node.data.get("name") as string;
+    const name = node.data.name;
     const path = parentPath ? `${parentPath}/${name}` : name;
 
     // Only collect non-root nodes with actual paths that were explicitly created
+    const nodeIsDirectory = node.data.isDirectory;
     if (
       path &&
       path !== "" &&
-      (!isDirectory(node) || (isDirectory(node) && node.data.get("wasCreated")))
+      (!nodeIsDirectory || node.data[wasCreatedKey])
     ) {
       paths.push(path);
     }
 
-    // Recursively process children using TreeNodeProxy objects
-    const children = node.children();
-    for (const child of children) {
+    // Recursively process children
+    for (const child of node.children()) {
       this.collectPathsFromNode(child, path, paths);
     }
   }

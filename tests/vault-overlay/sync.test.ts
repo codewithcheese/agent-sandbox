@@ -28,7 +28,7 @@ describe("Sync", () => {
         await vault.modify(ideaFile, "Hello\n\nHuman line\n\nGoodbye"); // Human edit
       });
 
-      it("SHOULD sync vault contents to tracking, and merge proposed", async () => {
+      it("SHOULD sync vault contents to tracking, and merge proposed with conflict markers", async () => {
         const result = await overlay.syncAll();
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("Notes/idea.md");
@@ -36,9 +36,14 @@ describe("Sync", () => {
         expect(getText(overlay.trackingFS.findByPath("Notes/idea.md"))).toEqual(
           "Hello\n\nHuman line\n\nGoodbye",
         );
-        expect(getText(overlay.proposedFS.findByPath("Notes/idea.md"))).toEqual(
-          "Hello\n\nHuman line\n\nAI line\n\nGoodbye",
-        );
+        // When both AI and human add content at the same position, it's a conflict
+        // Three-way merge produces conflict markers
+        const proposedText = getText(overlay.proposedFS.findByPath("Notes/idea.md"));
+        expect(proposedText).toContain("<<<<<<<");
+        expect(proposedText).toContain("AI line");
+        expect(proposedText).toContain("=======");
+        expect(proposedText).toContain("Human line");
+        expect(proposedText).toContain(">>>>>>>");
       });
     });
 
@@ -464,7 +469,7 @@ describe("Sync", () => {
       expect(proposedNode.isDeleted()).toEqual(true);
     });
 
-    it("human edits and syncs vault file without losing overlay edits", async () => {
+    it("human edits and syncs vault file with conflict markers when both modify same region", async () => {
       const ideaFile = helpers.addFile("Notes/idea.md", "Hello\n\nGoodbye");
 
       // AI renames
@@ -478,10 +483,14 @@ describe("Sync", () => {
       await vault.modify(ideaFile, "Hello\n\nHuman line\n\nGoodbye");
       await overlay.syncPath(ideaFile.path);
 
-      // Renamed file contains both AI and human edits
+      // Renamed file contains conflict markers since both modified the same region
       const renameFile = overlay.getFileByPath("Notes/renamed.md");
       const updated = await overlay.read(renameFile);
-      expect(updated).toEqual("Hello\n\nHuman line\n\nAI line\n\nGoodbye");
+      expect(updated).toContain("<<<<<<<");
+      expect(updated).toContain("AI line");
+      expect(updated).toContain("=======");
+      expect(updated).toContain("Human line");
+      expect(updated).toContain(">>>>>>>");
     });
 
     it("SHOULD handle syncPath for files with large content", async () => {

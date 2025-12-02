@@ -87,6 +87,10 @@ export function executeDelete(state: VaultState, op: DeleteOperation): void {
  * Execute a MODIFY operation on the tree.
  * Updates fields on a node.
  * Automatically records the operation in the log.
+ *
+ * When text is being modified and `previousText` is not already set,
+ * captures the current text value before applying changes. This enables
+ * three-way merge during `mergeDocs()`.
  */
 export function executeModify(state: VaultState, op: ModifyOperation): void {
   const node = state.getNode(op.nodeId);
@@ -94,12 +98,21 @@ export function executeModify(state: VaultState, op: ModifyOperation): void {
     throw new Error(`Node not found during MODIFY: ${op.nodeId}`);
   }
 
+  // Capture previousText if text is being changed and not already provided
+  let opToRecord: ModifyOperation = op;
+  if ('text' in op.changes && op.previousText === undefined) {
+    const currentText = node.data.text;
+    if (typeof currentText === 'string') {
+      opToRecord = { ...op, previousText: currentText };
+    }
+  }
+
   Object.entries(op.changes).forEach(([field, value]) => {
     node.data[field] = value;
   });
 
-  // Record operation (no-op if recordingEnabled is false)
-  state.recordOperation(op);
+  // Record operation with previousText (no-op if recordingEnabled is false)
+  state.recordOperation(opToRecord);
 }
 
 /**
