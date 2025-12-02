@@ -87,10 +87,11 @@ class TreeNodeProxy {
   }
 
   /**
-   * Check if this node is deleted (has deletedFrom metadata).
+   * Check if this node has been deleted from the tree.
+   * Returns true if the node is no longer in the state index.
    */
   isDeleted(): boolean {
-    return this.treeNode.isTrashed();
+    return !this.state.getNode(this.treeNode.id);
   }
 }
 
@@ -304,10 +305,10 @@ export class TreeFSAdapter {
 
   /**
    * Find a node by ID.
-   * Maps to VaultState.getNode().
+   * Maps to VaultState.getNode(), also checks deleted nodes (tombstones).
    */
   findById(id: NodeID): TreeNodeProxy | undefined {
-    const node = this.state.getNode(id);
+    const node = this.state.getNode(id) ?? this.state.getDeletedNode(id);
     return node ? new TreeNodeProxy(node, this.state) : undefined;
   }
 

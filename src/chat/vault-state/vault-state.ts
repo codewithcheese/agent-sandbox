@@ -26,6 +26,7 @@ import { encodeBase64, decodeBase64 } from '$lib/utils/base64';
 export class VaultState {
   private tree: TreeNode;  // Root of the tree
   private nodeIndex: Map<NodeID, TreeNode> = new Map();  // Fast node lookup
+  private deletedNodes: Map<NodeID, TreeNode> = new Map();  // Tombstones for deleted nodes
   private operationsLog: Operation[] = [];  // Append-only log of all mutations
   private recordingEnabled: boolean = true;  // Flag to enable/disable recording during rebuild
 
@@ -345,14 +346,32 @@ export class VaultState {
   }
 
   /**
-   * Remove a node from the index.
+   * Remove a node from the index and move it to deleted nodes.
    * Used by deleteNodeAndChildren helper.
    * Does NOT record an operation.
+   *
+   * Deleted nodes are kept as tombstones so that references to them
+   * can still check isDeleted() like Loro's behavior.
    *
    * @param nodeId The NodeID to remove
    */
   removeNode(nodeId: NodeID): void {
+    const node = this.nodeIndex.get(nodeId);
+    if (node) {
+      this.deletedNodes.set(nodeId, node);
+    }
     this.nodeIndex.delete(nodeId);
+  }
+
+  /**
+   * Get a deleted node by its ID (tombstone lookup).
+   * Returns null if node was never deleted or doesn't exist.
+   *
+   * @param nodeId The NodeID to look up
+   * @returns The deleted TreeNode, or null if not found
+   */
+  getDeletedNode(nodeId: NodeID): TreeNode | null {
+    return this.deletedNodes.get(nodeId) ?? null;
   }
 
   /**
@@ -471,6 +490,7 @@ export class VaultState {
 
       // Start fresh
       this.nodeIndex.clear();
+      this.deletedNodes.clear();
 
       // Create root as literal (infrastructure, not recorded)
       this.tree = new TreeNode(this);

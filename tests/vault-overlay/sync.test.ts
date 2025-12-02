@@ -253,7 +253,7 @@ describe("Sync", () => {
         ).toBeUndefined();
 
         // Should have no pending changes since both agree on deletion
-        expect(overlay.changes).toHaveLength(1);
+        expect(overlay.changes).toHaveLength(0);
       });
     });
 
@@ -263,7 +263,7 @@ describe("Sync", () => {
         await vault.rename(targetFile, "Notes/renamed-target.md");
       });
 
-      it("SHOULD sync as delete to tracking, retain delete in proposed", async () => {
+      it("SHOULD sync as delete to tracking, no pending change since path gone from vault", async () => {
         const result = await overlay.syncAll();
         expect(result).toHaveLength(1);
 
@@ -282,9 +282,9 @@ describe("Sync", () => {
           overlay.proposedFS.findByPath("Notes/renamed-target.md"),
         ).toBeUndefined();
 
-        // Should still show as deleted
+        // No pending changes - original path doesn't exist in vault, so no diff
         const changes = overlay.getFileChanges();
-        expect(changes.some((c) => c.type === "delete")).toBe(true);
+        expect(changes.some((c) => c.type === "delete")).toBe(false);
       });
     });
   });
