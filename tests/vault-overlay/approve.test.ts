@@ -329,9 +329,12 @@ describe("Approve changes", () => {
     await overlay.syncPath(ideaFile.path);
 
     // Renamed file contains both AI and human edits
+    // Both sides insert at the same position, which is a genuine conflict
     const renameFile = overlay.getFileByPath("Notes/renamed.md");
     const updated = await overlay.read(renameFile);
-    expect(updated).toEqual("Hello\n\nHuman line\n\nAI line\n\nGoodbye");
+    expect(updated).toEqual(
+      "Hello\n\n<<<<<<<\nAI line\n\n=======\nHuman line\n\n>>>>>>>\nGoodbye",
+    );
 
     // user approves rename
     await overlay.approve([{ path: "Notes/renamed.md", type: "rename" }]);

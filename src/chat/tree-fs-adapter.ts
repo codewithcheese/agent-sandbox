@@ -184,6 +184,7 @@ export class TreeFSAdapter {
     const node = this.state.createAtPath(path, {
       name: basename(path),
       ...data,
+      ...(data.isDirectory && { [wasCreatedKey]: true }),
     });
 
     this.invalidateCache();
