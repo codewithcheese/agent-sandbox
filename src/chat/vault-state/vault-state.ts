@@ -429,6 +429,27 @@ export class VaultState {
     return this.operationsLog.length;
   }
 
+  /**
+   * Get operations since a specific index.
+   * Used by mergeDocs() to get new operations since last merge.
+   *
+   * @param sinceIndex The index to start from (exclusive of operations before this)
+   * @returns Array of operations from sinceIndex to end
+   */
+  getOperationsSince(sinceIndex: number): Operation[] {
+    return this.operationsLog.slice(sinceIndex);
+  }
+
+  /**
+   * Replay a single operation from another state.
+   * Used by mergeDocs() to sync operations between tracking and proposed.
+   * The operation is executed and recorded in this state's log.
+   *
+   * @param op The operation to replay (contains nodeId for creates)
+   */
+  replayOperation(op: Operation): void {
+    executeOperation(this, op);
+  }
 
   /**
    * Rebuild the entire tree by replaying all operations from the log.
@@ -500,6 +521,16 @@ export class VaultState {
     this.operationsLog.push(op);
   }
 
+  /**
+   * No-op commit method for Loro compatibility.
+   * VaultState records operations automatically, so explicit commits are not needed.
+   * This method exists to allow VaultOverlay code to call .commit() during migration.
+   * TODO: Phase 4b.2 - Remove this method after removing all .commit() calls from VaultOverlay.
+   */
+  commit(): void {
+    // no-op: VaultState records operations automatically
+  }
+
   // ===== PERSISTENCE =====
 
   /**
@@ -517,6 +548,7 @@ export class VaultState {
         if (data.buffer instanceof Uint8Array) {
           return {
             type: 'create',
+            nodeId: op.nodeId,
             parentId: op.parentId,
             data: {
               ...data,
@@ -573,7 +605,7 @@ export class VaultState {
         if (typeof nodeData.buffer === 'string') {
           nodeData.buffer = new Uint8Array(decodeBase64(nodeData.buffer));
         }
-        op = { type: 'create', parentId: op.parentId, data: nodeData };
+        op = { type: 'create', nodeId: op.nodeId, parentId: op.parentId, data: nodeData };
       } else if (op.type === 'modify') {
         // Decode buffer if present in modify operation
         const changes = { ...op.changes };

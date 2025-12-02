@@ -25,19 +25,34 @@ export class TreeNode {
   };
 
   /**
-   * Create a tree node with an auto-generated unique ID.
+   * Create a tree node with either an explicit ID or auto-generated ID.
    *
    * Node IDs are auto-incremented integers for readability in operation logs.
-   * The node ID is an implementation detail not controlled by the caller.
-   * Root is naturally ID "0" (first node created); other nodes are IDs "1", "2", etc.
-   *
-   * During tree rebuild, the ID counter is reset so that replay produces
-   * identical node IDs in the same order as the original creation.
+   * When replaying operations or merging between states, the explicit ID from
+   * the operation is used to ensure consistent node identity.
    *
    * @param vaultState The VaultState that owns this node
+   * @param explicitId Optional explicit ID (used during replay/merge)
    */
-  constructor(private vaultState: VaultState) {
-    this.id = String(TreeNode.nextId++);
+  constructor(private vaultState: VaultState, explicitId?: NodeID) {
+    if (explicitId !== undefined) {
+      this.id = explicitId;
+      // Update counter to stay ahead of explicit IDs
+      const numericId = parseInt(explicitId, 10);
+      if (!isNaN(numericId) && numericId >= TreeNode.nextId) {
+        TreeNode.nextId = numericId + 1;
+      }
+    } else {
+      this.id = String(TreeNode.nextId++);
+    }
+  }
+
+  /**
+   * Generate the next auto-increment ID without creating a node.
+   * Used by createChild to generate ID before calling executeCreate.
+   */
+  static generateNextId(): NodeID {
+    return String(TreeNode.nextId++);
   }
 
   /**
@@ -53,7 +68,7 @@ export class TreeNode {
    * Similar to Loro's API: parent.createNode()
    *
    * The child node is assigned an auto-generated unique ID automatically.
-   * The create operation is recorded in the operations log.
+   * The ID is generated first, then recorded in the operation for replay/merge.
    *
    * @param data NodeData including name and isDirectory
    * @returns The created child TreeNode with auto-generated unique ID
@@ -63,13 +78,35 @@ export class TreeNode {
    *   const file = root.createChild({ name: 'test.md', isDirectory: false });
    */
   createChild(data: NodeData): TreeNode {
-    // executeCreate will:
-    // 1. Create the node with auto-generated ID
-    // 2. Add it to this parent
-    // 3. Record the operation
-    // 4. Return the created node
+    // Generate ID first, then include in operation for replay/merge support
+    const nodeId = TreeNode.generateNextId();
+
     return executeCreate(this.vaultState, {
       type: 'create',
+      nodeId,
+      parentId: this.id,
+      data
+    });
+  }
+
+  /**
+   * Create a child node with an explicit ID.
+   * Used for ID reconciliation during sync when we need to create a node
+   * in tracking with the same ID that already exists in proposed.
+   *
+   * @param data NodeData including name and isDirectory
+   * @param nodeId Explicit ID to use for the new node
+   * @returns The created child TreeNode with the specified ID
+   *
+   * Example:
+   *   // Create directory in tracking with same ID as proposed
+   *   const proposedId = proposedNode.id;
+   *   parent.createChildWithId({ name: 'folder', isDirectory: true }, proposedId);
+   */
+  createChildWithId(data: NodeData, nodeId: NodeID): TreeNode {
+    return executeCreate(this.vaultState, {
+      type: 'create',
+      nodeId,
       parentId: this.id,
       data
     });

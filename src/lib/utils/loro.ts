@@ -12,36 +12,39 @@ export type FileContent =
   | { type: "binary" }
   | { type: "missing" };
 
-export function getText(node: LoroTreeNode): string | undefined {
-  return (node.data.get("text") as LoroText)?.toString();
+// Type for TreeNodeProxy (VaultState nodes)
+type TreeNodeLike = {
+  data: {
+    get(key: string): unknown;
+    set(key: string, value: unknown): void;
+    delete(key: string): void;
+  };
+};
+
+export function getText(node: TreeNodeLike): string | undefined {
+  const text = node.data.get("text");
+  return typeof text === "string" ? text : undefined;
 }
 
-export function getBuffer(node: LoroTreeNode): ArrayBuffer | undefined {
-  const enc = node.data.get("buffer") as string | undefined;
-  return enc && decodeBase64(enc);
+export function getBuffer(node: TreeNodeLike): ArrayBuffer | undefined {
+  const buf = node.data.get("buffer");
+  return buf instanceof ArrayBuffer ? buf : undefined;
 }
 
-export function updateText(node: LoroTreeNode, text: string) {
-  const txtC = node.data.get("text") as LoroText;
-  // Loro recommends updateByLine for texts > 50_000 characters
-  if (text.length > 50_000) {
-    txtC.updateByLine(text);
-  } else {
-    txtC.update(text);
-  }
+export function updateText(node: TreeNodeLike, text: string) {
+  node.data.set("text", text);
 }
 
-export function replaceBuffer(node: LoroTreeNode, buffer: ArrayBuffer) {
-  node.data.set("buffer", encodeBase64(buffer));
+export function replaceBuffer(node: TreeNodeLike, buffer: ArrayBuffer) {
+  node.data.set("buffer", buffer);
 }
 
-export function replaceText(node: LoroTreeNode, text: string) {
+export function replaceText(node: TreeNodeLike, text: string) {
   node.data.delete("text");
-  const txtC = node.data.setContainer("text", new LoroText());
-  txtC.insert(0, text);
+  node.data.set("text", text);
 }
 
-export function getNodeData(node: LoroTreeNode): NodeData {
+export function getNodeData(node: TreeNodeLike): NodeData {
   return {
     isDirectory: isDirectory(node) || undefined,
     text: getText(node),
@@ -50,35 +53,35 @@ export function getNodeData(node: LoroTreeNode): NodeData {
   };
 }
 
-export function getStat(node: LoroTreeNode): FileStats | undefined {
+export function getStat(node: TreeNodeLike): FileStats | undefined {
   return node.data.get("stat") as FileStats | undefined;
 }
 
-export function setStat(node: LoroTreeNode, stat: FileStats) {
+export function setStat(node: TreeNodeLike, stat: FileStats) {
   node.data.set("stat", stat);
 }
 
-export function isDirectory(node: LoroTreeNode): boolean {
+export function isDirectory(node: TreeNodeLike): boolean {
   return node.data.get(isDirectoryKey) === true;
 }
 
-export function setDirectory(node: LoroTreeNode, isDirectory: boolean) {
+export function setDirectory(node: TreeNodeLike, isDirectory: boolean) {
   node.data.set(isDirectoryKey, isDirectory);
 }
 
-export function setDeletedFrom(node: LoroTreeNode, path: string) {
+export function setDeletedFrom(node: TreeNodeLike, path: string) {
   node.data.set(deletedFrom, path);
 }
 
-export function getDeletedFrom(node: LoroTreeNode): string | undefined {
+export function getDeletedFrom(node: TreeNodeLike): string | undefined {
   return node.data.get(deletedFrom) as string | undefined;
 }
 
-export function getName(node: LoroTreeNode): string {
+export function getName(node: TreeNodeLike): string {
   return node.data.get("name") as string;
 }
 
-export function setName(node: LoroTreeNode, name: string) {
+export function setName(node: TreeNodeLike, name: string) {
   node.data.set("name", name);
 }
 
@@ -94,13 +97,13 @@ export function createStat(
   };
 }
 
-export function isTrashed(node: LoroTreeNode): boolean {
+export function isTrashed(node: TreeNodeLike): boolean {
   return !!getDeletedFrom(node);
 }
 
 export function hasContentChanged(
-  trackingNode: LoroTreeNode,
-  proposedNode: LoroTreeNode,
+  trackingNode: TreeNodeLike,
+  proposedNode: TreeNodeLike,
 ): boolean {
   const proposedIsDirectory = isDirectory(proposedNode); // Using helper
   if (proposedIsDirectory) {

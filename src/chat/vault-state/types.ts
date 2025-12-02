@@ -63,16 +63,18 @@ export type Operation =
 /**
  * CREATE operation: A node is created with initial data.
  *
- * The nodeId is NOT stored in the operation - it's auto-generated during node creation.
- * This ensures deterministic replay: replaying in the same order produces identical IDs
- * because the ID counter is reset at the start of rebuild.
+ * The nodeId is auto-generated at creation time and recorded in the operation.
+ * This enables:
+ * - Deterministic replay: operations contain the exact nodeId to use
+ * - Cross-state merging: operations can be copied between states with preserved IDs
  *
  * Example:
- *   { type: 'create', parentId: '0',
+ *   { type: 'create', nodeId: '3', parentId: '0',
  *     data: { name: 'notes.md', isDirectory: false, text: 'initial content' } }
  */
 export interface CreateOperation {
   type: 'create';
+  nodeId: NodeID;                  // Auto-generated ID, recorded for replay/merge
   parentId: NodeID;                // ID of the parent directory
   data: NodeData;                  // Full node data including name, isDirectory, text, buffer, stat, etc.
 }
@@ -161,6 +163,7 @@ type SerializedNodeData = Omit<NodeData, 'buffer'> & { buffer?: string };
 export type SerializedOperation =
   | {
       type: 'create';
+      nodeId: NodeID;
       parentId: NodeID;
       data: SerializedNodeData;
     }
