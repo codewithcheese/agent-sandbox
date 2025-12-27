@@ -2,6 +2,13 @@
 
 This document describes integrating three-way merge logic into `mergeDocs()` by storing previous text in MODIFY operations.
 
+**Status:** Implemented
+
+**Key files:**
+- `src/chat/vault-state/types.ts` - `ModifyOperation.previousText` field
+- `src/chat/vault-state/operations.ts` - `executeModify()` captures `previousText`
+- `src/chat/vault-overlay.svelte.ts` - `mergeDocs()` performs three-way merge
+
 ## Background
 
 With Loro CRDT, merge happened inside `proposedDoc.import(trackingDoc.export(...))`. The CRDT automatically merged concurrent character-level edits.
@@ -179,3 +186,19 @@ Consider **Option 3 (Pruning)** if storage becomes a concern:
 | Proposed unchanged | `proposedText === previousText`, apply directly |
 | Text deleted | `changes.text` is undefined, apply directly |
 | Conflicts in merge | diff3 includes conflict markers in result |
+
+## Conflict Behavior
+
+Unlike Loro CRDT which performed character-level merging (where concurrent insertions at the same position would both be kept), three-way merge uses line-based diff3 semantics.
+
+When both AI and human add content at the same position, this is a **genuine conflict**. The result includes standard conflict markers:
+
+```
+<<<<<<<
+AI content
+=======
+Human content
+>>>>>>>
+```
+
+This is standard three-way merge behavior. Users must resolve conflicts manually by editing the file.

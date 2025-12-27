@@ -11,13 +11,6 @@ import {
 } from "obsidian";
 import { invariant } from "@epic-web/invariant";
 import { createDebug } from "$lib/debug.ts";
-import {
-  type Frontiers,
-  LoroDoc,
-  LoroText,
-  type LoroTreeNode,
-  type TreeID,
-} from "loro-crdt/base64";
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
 import {
@@ -26,7 +19,6 @@ import {
   trashPath,
   isDirectoryKey,
   deletedFrom,
-  TreeFS,
   wasCreatedKey,
 } from "./tree-fs.ts";
 import { TreeFSAdapter, type NodeData_FS } from "./tree-fs-adapter.ts";
@@ -242,12 +234,10 @@ export class VaultOverlay implements Vault {
       } else if ("buffer" in data) {
         replaceBuffer(proposedNode, data.buffer);
       }
-      this.proposedDoc.commit();
       return this.createTFile(path, stat);
     }
 
     this.proposedFS.createNode(path, { ...data, stat });
-    this.proposedDoc.commit();
 
     if ("isDirectory" in data) {
       return this.createTFolder(path);
@@ -361,20 +351,16 @@ export class VaultOverlay implements Vault {
 
     invariant(proposedNode, `Cannot delete file not found: ${file.path} `);
 
-    try {
-      if (!trackingNode) {
-        // File was created in overlay - just remove it completely
-        this.proposedFS.deleteNode(proposedNode.id);
-      } else {
-        // File exists in tracking - undo proposed to tracking state (rollback changes)
-        this.revertProposed(proposedNode, trackingNode);
+    if (!trackingNode) {
+      // File was created in overlay - just remove it completely
+      this.proposedFS.deleteNode(proposedNode.id);
+    } else {
+      // File exists in tracking - undo proposed to tracking state (rollback changes)
+      this.revertProposed(proposedNode, trackingNode);
 
-        // Now trash from original path
-        const originalPath = this.trackingFS.getNodePath(trackingNode);
-        this.proposedFS.trashNode(proposedNode, originalPath);
-      }
-    } finally {
-      this.proposedDoc.commit();
+      // Now trash from original path
+      const originalPath = this.trackingFS.getNodePath(trackingNode);
+      this.proposedFS.trashNode(proposedNode, originalPath);
     }
   }
 
@@ -433,7 +419,6 @@ export class VaultOverlay implements Vault {
 
     this.proposedFS.moveNode(proposedNode, newParent.id);
     this.proposedFS.renameNode(proposedNode.id, basename(newPath));
-    this.proposedDoc.commit();
   }
 
   async modify(file: TFile, text: string, options?: DataWriteOptions) {
@@ -494,7 +479,6 @@ export class VaultOverlay implements Vault {
     }
     const stat = getStat(proposedNode);
     setStat(proposedNode, { ...stat, mtime: Date.now() });
-    this.proposedDoc.commit();
   }
 
   _validateCreate(path: string) {
@@ -894,7 +878,6 @@ export class VaultOverlay implements Vault {
         throw new Error(`${path} is not a file or folder`);
       }
     } finally {
-      this.trackingDoc.commit();
       this.mergeDocs();
     }
   }
@@ -973,6 +956,9 @@ export class VaultOverlay implements Vault {
       stat = abstractFile.stat;
     }
 
+    // Sync parent directories with ID reconciliation before creating node
+    this.syncDirectory(path);
+
     // Delete proposed node to make room for resync
     this.proposedFS.deleteNode(proposedNode.id);
 
@@ -984,7 +970,6 @@ export class VaultOverlay implements Vault {
       stat,
     });
 
-    this.trackingDoc.commit();
     this.mergeDocs();
 
     // Verify proposed node was recreated
@@ -1024,7 +1009,6 @@ export class VaultOverlay implements Vault {
 
     // Delete from tracking state
     this.trackingFS.deleteNode(trackingNode.id);
-    this.trackingDoc.commit();
     this.mergeDocs();
   }
 
@@ -1082,7 +1066,6 @@ export class VaultOverlay implements Vault {
 
         // Delete AI-created node to make room for vault rename
         this.proposedFS.deleteNode(conflictNode.id);
-        this.proposedDoc.commit();
       }
     }
 
@@ -1090,7 +1073,6 @@ export class VaultOverlay implements Vault {
     const newParentTracking = this.trackingFS.ensureDirs(dirname(newPath));
     this.trackingFS.moveNode(trackingNode, newParentTracking.id);
     this.trackingFS.renameNode(trackingNode.id, basename(newPath));
-    this.trackingDoc.commit();
     this.mergeDocs();
 
     // Update proposed to follow tracking rename
@@ -1105,7 +1087,6 @@ export class VaultOverlay implements Vault {
       }
 
       this.proposedFS.renameNode(proposedNode.id, basename(newPath));
-      this.proposedDoc.commit();
     }
 
     // If we preserved AI-created content, restore it as a modification at new path
@@ -1124,19 +1105,16 @@ export class VaultOverlay implements Vault {
   }
 
   async approve(ops: ApprovedChange[]) {
-    const proposedCheckpoint = this.proposedDoc.frontiers();
-    const trackingCheckpoint = this.trackingDoc.frontiers();
+    // Create checkpoints for rollback on error
+    const proposedCheckpoint = (this.proposedDoc as VaultState).checkpoint();
+    const trackingCheckpoint = (this.trackingDoc as VaultState).checkpoint();
     try {
       // proposed data remaining after approval is persisted and synced
       const remainders: {
-        tracking: LoroTreeNode;
-        proposed: LoroTreeNode;
+        tracking: ReturnType<TreeFSAdapter["findByPath"]>;
+        proposed: ReturnType<TreeFSAdapter["findByPath"]>;
         proposedData: NodeData;
       }[] = [];
-
-      // an untracked proposed node, becomes obsolete once `create`
-      // is approved and a tracking node is created
-      const obsoleteNodes: LoroTreeNode[] = [];
 
       for (const op of ops) {
         const proposedNode =
@@ -1155,7 +1133,7 @@ export class VaultOverlay implements Vault {
         const proposedData = getNodeData(proposedNode);
         const trackingNode = this.trackingFS.findById(proposedNode.id);
         if (op.type === "create") {
-          // write change to tracking
+          // write change to tracking with same ID as proposed
           const data = getNodeData(proposedNode);
           if (data.isDirectory && op.override) {
             throw new Error(
@@ -1165,14 +1143,19 @@ export class VaultOverlay implements Vault {
           if ("override" in op) {
             data.text = op.override.text;
           }
-          const trackingNode = this.trackingFS.createNode(op.path, data);
+          // Sync parent directories with ID reconciliation before creating node
+          this.syncDirectory(op.path);
+          // Use proposed ID for ID consistency - proposed node becomes tracked
+          const trackingNode = this.trackingFS.createNode(
+            op.path,
+            data,
+            proposedNode.id,
+          );
           remainders.push({
             tracking: trackingNode,
             proposed: proposedNode,
             proposedData,
           });
-          // non-tracked proposed node is obsolete once create approved
-          obsoleteNodes.push(proposedNode);
           await this.persistApproval("create", op.path, data);
         } else if (op.type === "delete") {
           this.trackingFS.deleteNode(trackingNode.id);
@@ -1184,10 +1167,12 @@ export class VaultOverlay implements Vault {
           if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
             let parentNode = this.trackingFS.findByPath(dirname(op.path));
             if (!parentNode) {
-              // if parent path is not tracked, create it
+              // if parent path is not tracked, create it with proposed parent's ID
+              const proposedParent = proposedNode.parent();
               parentNode = this.trackingFS.createNode(
                 dirname(op.path),
-                getNodeData(proposedNode.parent()),
+                getNodeData(proposedParent),
+                proposedParent?.id,
               );
             }
             this.trackingFS.moveNode(trackingNode, parentNode.id);
@@ -1234,7 +1219,6 @@ export class VaultOverlay implements Vault {
         }
       }
 
-      this.trackingDoc.commit();
       this.mergeDocs();
 
       // Apply remaining changes from partial approvals
@@ -1254,13 +1238,8 @@ export class VaultOverlay implements Vault {
           proposedNode.move(parentNode);
         }
       }
-      // delete untracked proposed, new proposed was created when tracking synced
-      for (const node of obsoleteNodes) {
-        this.proposedFS.deleteNode(node.id);
-      }
-      this.proposedDoc.commit();
     } catch (e) {
-      // use TreeFS revertTo so that caches are invalidated
+      // Rollback to checkpoints on error
       this.proposedFS.revertTo(proposedCheckpoint);
       this.trackingFS.revertTo(trackingCheckpoint);
       throw e;
@@ -1354,8 +1333,6 @@ export class VaultOverlay implements Vault {
           `Unhandled ProposedChange type: ${JSON.stringify(change satisfies never)}`,
         );
     }
-
-    this.proposedDoc.commit();
   }
 
   async persistApproval(
@@ -1513,7 +1490,7 @@ export class VaultOverlay implements Vault {
    *
    * Conflict handling:
    * - If a node with the same ID already exists in proposed, skip (already merged)
-   * - If a CREATE would create at a path that already exists, map tracking ID to proposed ID
+   * - ID consistency is ensured at source (callers use proposed ID when creating tracking nodes)
    */
   mergeDocs() {
     // Skip if using Loro (has import/export methods)
@@ -1527,64 +1504,34 @@ export class VaultOverlay implements Vault {
     // Get new operations since last merge
     const newOps = trackingState.getOperationsSince(this.lastMergePoint);
 
-    // Track ID mappings when we skip creates (tracking ID → proposed ID)
-    const idMapping = new Map<string, string>();
-
     // Replay each operation into proposed
     for (const op of newOps) {
       try {
         if (op.type === 'create') {
           // Skip if node with this ID already exists in proposed
+          // (ID consistency is ensured at source - tracking uses proposed ID when available)
           if (proposedState.findById(op.nodeId)) {
             continue;
           }
-
-          // Map parentId if it was remapped
-          const mappedParentId = idMapping.get(op.parentId) ?? op.parentId;
-
-          // Check if path already exists in proposed (AI may have created it)
-          const trackingNode = trackingState.findById(op.nodeId);
-          if (trackingNode) {
-            const trackingPath = trackingState.getNodePath(op.nodeId);
-            const existingProposed = proposedState.findByPath(trackingPath);
-            if (existingProposed) {
-              // Path exists in proposed - map tracking ID to existing proposed ID
-              idMapping.set(op.nodeId, existingProposed.id);
-              debug(`mergeDocs: Mapping ${op.nodeId} → ${existingProposed.id} for ${trackingPath}`);
-              continue;
-            }
-          }
-
-          // Create with potentially remapped parentId
-          const remappedOp = { ...op, parentId: mappedParentId };
-          proposedState.replayOperation(remappedOp);
+          proposedState.replayOperation(op);
         } else {
-          // For other operations, remap nodeId if needed
-          let remappedOp = op;
-          if ('nodeId' in op && idMapping.has(op.nodeId)) {
-            remappedOp = { ...op, nodeId: idMapping.get(op.nodeId)! };
-          }
-          if ('newParentId' in op && idMapping.has((op as any).newParentId)) {
-            remappedOp = { ...remappedOp, newParentId: idMapping.get((op as any).newParentId)! };
-          }
-
           // Three-way merge for MODIFY operations with text changes
           if (
-            remappedOp.type === 'modify' &&
-            'text' in remappedOp.changes &&
-            remappedOp.previousText !== undefined
+            op.type === 'modify' &&
+            'text' in op.changes &&
+            op.previousText !== undefined
           ) {
-            const proposedNode = proposedState.findById(remappedOp.nodeId);
+            const proposedNode = proposedState.findById(op.nodeId);
             const proposedText = proposedNode?.data.text;
 
             // If proposed text differs from base, perform three-way merge
             if (
               proposedNode &&
               typeof proposedText === 'string' &&
-              proposedText !== remappedOp.previousText
+              proposedText !== op.previousText
             ) {
-              const baseText = remappedOp.previousText;
-              const vaultText = remappedOp.changes.text as string;
+              const baseText = op.previousText;
+              const vaultText = op.changes.text as string;
 
               // Perform three-way merge
               const baseLines = baseText.split('\n');
@@ -1596,18 +1543,18 @@ export class VaultOverlay implements Vault {
               });
 
               const mergedText = mergeResult.result.join('\n');
-              debug(`mergeDocs: Three-way merge for ${remappedOp.nodeId}`);
+              debug(`mergeDocs: Three-way merge for ${op.nodeId}`);
 
               // Replay with merged text instead of vault text
               proposedState.replayOperation({
-                ...remappedOp,
-                changes: { ...remappedOp.changes, text: mergedText },
+                ...op,
+                changes: { ...op.changes, text: mergedText },
               });
               continue;
             }
           }
 
-          proposedState.replayOperation(remappedOp);
+          proposedState.replayOperation(op);
         }
       } catch (e) {
         // Log but don't fail - proposed may have diverged (AI changes)
@@ -1873,24 +1820,17 @@ export class VaultOverlay implements Vault {
 
   snapshot() {
     return {
-      tracking: this.trackingDoc.export({ mode: "snapshot" }),
-      proposed: this.proposedDoc.export({ mode: "snapshot" }),
+      tracking: (this.trackingDoc as VaultState).serialize(),
+      proposed: (this.proposedDoc as VaultState).serialize(),
     };
   }
 
-  revert(checkpoint: Frontiers) {
+  revert(checkpoint: number) {
     debug("Reverting to checkpoint", checkpoint);
     this.trackingFS.invalidateCache();
     this.proposedFS.invalidateCache();
-    this.proposedDoc.revertTo(checkpoint);
-    debug("Revert complete, syncing with tracking");
-    const revertUpdates = this.proposedDoc.export({
-      mode: "update",
-      from: this.trackingDoc.version(),
-    });
-    debug("Applying revert updates", revertUpdates.length);
-    this.trackingDoc.import(revertUpdates);
-    debug("Revert sync complete, computing changes");
+    (this.proposedDoc as VaultState).rollback(checkpoint);
+    debug("Revert complete, computing changes");
     this.computeChanges();
     debug("Compute changes complete");
   }

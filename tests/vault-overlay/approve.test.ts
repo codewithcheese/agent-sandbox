@@ -373,15 +373,13 @@ describe("Approve changes", () => {
     // Approve the creation
     await overlay.approve([{ path: "new-folder", type: "create" }]);
 
-    // Verify the untracked proposed node is deleted
-    expect(proposedNode.isDeleted()).toEqual(true);
-
-    // Verify it now exists in tracking
+    // Verify it now exists in tracking with same ID as proposed
     const trackingNode = trackingFS.findByPath("new-folder");
     expect(trackingNode).toBeDefined();
     expect(trackingNode.data.get("isDirectory")).toBe(true);
+    expect(trackingNode.id).toEqual(proposedNode.id);
 
-    // Verify a new proposed matches the tracking node
+    // Verify proposed still exists (same node, now tracked)
     const newProposedNode = proposedFS.findByPath("new-folder");
     expect(newProposedNode).toBeDefined();
     expect(newProposedNode.id).toEqual(trackingNode.id);
@@ -1124,14 +1122,14 @@ describe("Approve changes", () => {
     expect(trackingFS.findByPath(originalPath)).toBeUndefined();
     const trackingNodeNew = trackingFS.findByPath(renamedPath);
     expect(trackingNodeNew).toBeDefined();
-    expect(trackingNodeNew.data.get("isDirectory")).toBe(undefined);
+    expect(trackingNodeNew.data.get("isDirectory")).toBe(false);
     expect(getText(trackingNodeNew!)).toEqual(binaryContent);
 
     // Assertions for proposedFS (after sync)
     expect(proposedFS.findByPath(originalPath)).toBeUndefined();
     const proposedNodeNew = proposedFS.findByPath(renamedPath);
     expect(proposedNodeNew).toBeDefined();
-    expect(proposedNodeNew.data.get("isDirectory")).toBe(undefined);
+    expect(proposedNodeNew.data.get("isDirectory")).toBe(false);
     expect(getText(proposedNodeNew!)).toEqual(binaryContent);
   });
 

@@ -832,9 +832,9 @@ With the introduction of auto-generated node IDs, the architecture is now cleane
 
 ---
 
-**Document Status**: Phases 1-3 ✅ COMPLETE (with Auto-Generated IDs), Phase 4b.4 ✅ COMPLETE ⏳
-**Current Phase**: Phase 4b Sub-Phase 5 - Approval & Rejection (Next)
-**Last Updated**: October 25, 2024 (Sub-Phase 4 Complete: All sync operations refactored to VaultState APIs with three-way merge)
+**Document Status**: Phase 4b ✅ COMPLETE (All sub-phases done)
+**Current Phase**: Phase 5 - Workflow Refactoring (Next)
+**Last Updated**: December 28, 2024 (Phase 4b.5 Complete: Checkpoint/revert pattern migrated)
 
 ### Progress Summary
 
@@ -844,25 +844,25 @@ With the introduction of auto-generated node IDs, the architecture is now cleane
 | 2 | ✅ Complete | 107 tests | Execute functions, rebuild, rollback |
 | 3 | ✅ Complete | 124 tests | Trash/restore, infrastructure folders |
 | 4a | ✅ Complete | 122 tests | Convenience methods (createAtPath, ensureDirs, etc.) |
-| 4b.1 | ✅ Complete | 6 tests | TreeFS Adapter Layer ✓ |
-| 4b.2 | ✅ Complete | 32/47 tests | Basic Operations (create, modify, delete, rename, read) ✓ |
-| 4b.3 | ✅ Complete | 1 test | Change Detection algorithm (VaultState tree-traversal based) ✓ |
-| 4b.4 | ✅ Complete | 8/26 passing | Sync Workflows - All operations refactored (syncPath, syncCreate, syncDelete, syncRename, getAllTrackedPaths, syncAll) ✓ |
-| 4b.5 | 📋 Next | 44 tests | Approval & Rejection (3-4 hours) - builds on sync |
-| 5 | 📋 Planned | - | Workflow refactoring |
+| 4b.1 | ✅ Complete | 6 tests | TreeFS Adapter Layer |
+| 4b.2 | ✅ Complete | 47 tests | Basic Operations (create, modify, delete, rename, read) |
+| 4b.3 | ✅ Complete | 1 test | Change Detection algorithm (VaultState tree-traversal based) |
+| 4b.4 | ✅ Complete | 52 tests | Sync Workflows + ID Reconciliation Fix |
+| 4b.5 | ✅ Complete | 668 tests | Checkpoint/Revert Pattern + Serialization Types |
+| 5 | 📋 Next | - | Workflow refactoring |
 | 6 | 📋 Planned | - | JSON serialization |
 | 7 | 📋 Planned | - | Cleanup & Loro removal |
 | 8 | 📋 Planned | - | Performance optimization |
 
-### Phase 4b Sub-Phase Timeline (Completed)
+### Phase 4b Sub-Phase Timeline ✅ COMPLETE
 
 - **Sub-Phase 1**: TreeFS Adapter (1-2 hrs) → Validates foundation ✅
 - **Sub-Phase 2**: Basic Ops (2-3 hrs) → Core functionality ✅
 - **Sub-Phase 3**: Change Detection (1 hr) → Isolated logic ✅
-- **Sub-Phase 4**: Sync Workflows (3-4 hrs) → Unblocks remaining operations tests & approval ✅ COMPLETE
-- **Sub-Phase 5**: Approval/Rejection (3-4 hrs) → Complex workflows (builds on sync) 📋 NEXT
-- **Total Completed**: ~7-8 hours
-- **Remaining**: ~6-8 hours for Sub-Phases 5+ and test fixes
+- **Sub-Phase 4**: Sync Workflows (3-4 hrs) → Unblocks remaining operations tests & approval ✅
+- **ID Reconciliation Fix** (2 hrs) → Fixed approval tests, simplified mergeDocs ✅
+- **Sub-Phase 5**: Checkpoint/Revert Pattern (0.5 hr) → Replace Loro frontiers/revertTo ✅
+- **Total Phase 4b**: ~12 hours
 
 ### Phase 4b.3 - Change Detection Implementation ✅
 
@@ -1041,3 +1041,97 @@ When syncing text files where both vault and proposed have changed:
 - Three-way merge with conflict markers is the standard approach in version control (Git, Mercurial, etc.)
 - Preserves user agency in conflict resolution while preventing silent data loss
 - Users can see both versions and choose/combine them explicitly
+
+### ID Reconciliation Fix ✅ COMPLETE
+
+**Status**: Complete - All vault-overlay tests passing (150+ tests)
+
+**Problem**: After Phase 4b.4, approval tests were failing because `mergeDocs()` used ID mapping to handle cases where tracking and proposed had nodes at the same path with different IDs. This broke assumptions from the Loro implementation where IDs were inherently consistent through CRDT merge.
+
+**Root Cause Analysis**:
+- With Loro: `proposedDoc.import(trackingDoc.export())` would merge operations, maintaining ID consistency
+- With VaultState: `mergeDocs()` replayed operations, but when a path existed in both states with different IDs, it mapped tracking ID → proposed ID and skipped creation
+- When `approve()` later deleted the "obsolete" proposed node, the mapped node was gone, leaving no node at the path
+
+**Solution**: ID Consistency at Source
+
+Instead of mapping IDs in `mergeDocs()`, ensure ID consistency when creating nodes:
+
+**1. `VaultState.createAtPath(path, data, nodeId?)` - Added optional nodeId parameter**
+- When `nodeId` is provided, creates the final node with that explicit ID
+- Parent directories still use auto-generated IDs
+
+**2. `TreeFSAdapter.createNode(path, data, nodeId?)` - Added optional nodeId parameter**
+- Passes through to `createAtPath()`
+- Also fixed `isDirectory` to always be set (spread after default, not before)
+
+**3. `syncDirectory(path)` - ID reconciliation for parent directories**
+- Already existed, checks if proposed has each directory and uses its ID when creating in tracking
+- Now called before creating nodes in `syncCreate()` and `approve()` create case
+
+**4. `approve()` create case - Uses proposed ID**
+- Calls `syncDirectory(op.path)` before creating
+- Uses `proposedNode.id` when creating tracking node
+- Removed obsolete node deletion (node stays, now tracked)
+
+**5. `mergeDocs()` - Simplified**
+- Removed ID mapping logic entirely
+- For CREATE: skip if node with same ID already exists in proposed
+- For other ops: replay directly (three-way merge for MODIFY preserved)
+
+**Test Updates**:
+- `should approve create folder`: Removed expectation that proposed node is deleted (it stays, now tracked)
+- `should approve rename binary file`: Updated `isDirectory` expectation from `undefined` to `false`
+
+**Key Insight**: The original `mergeDocs()` ID mapping was designed for sync (avoid duplicates when AI creates same path), but broke approval (where we explicitly want tracking ID = proposed ID). By ensuring ID consistency at the source, both flows work correctly.
+
+---
+
+### Phase 4b.5 - Checkpoint/Revert Pattern ✅ COMPLETE
+
+**Status**: Complete - All chat tests passing (668 total tests passing)
+
+**Goal**: Replace remaining Loro-specific checkpoint/revert patterns with VaultState equivalents.
+
+**Changes Made**:
+
+| File | Change |
+|------|--------|
+| `chat.svelte.ts` | Removed `Frontiers` import, changed `checkpoint?: Frontiers` to `checkpoint?: number`, changed `frontiers()` to `checkpoint()` |
+| `vault-overlay.svelte.ts` | Removed `Frontiers` import, updated `revert(checkpoint: number)` to use `rollback()` |
+| `vault-overlay.svelte.ts` | Updated `snapshot()` to use `serialize()` instead of Loro's `export()` |
+| `chat-serializer.ts` | Updated `ChatFileV1` vault type from `Uint8Array` to `SerializedState` |
+
+**Implementation Details**:
+
+**1. `chat.svelte.ts`**
+- Removed `import type { Frontiers } from "loro-crdt/base64"`
+- Changed `WithUserMetadata.metadata.checkpoint` type from `Frontiers` to `number`
+- Changed `this.vault.proposedDoc.frontiers()` to `this.vault.proposedDoc.checkpoint()`
+
+**2. `vault-overlay.svelte.ts`**
+- Removed `Frontiers` from loro-crdt import
+- Simplified `revert()` method:
+  ```typescript
+  revert(checkpoint: number) {
+    (this.proposedDoc as VaultState).rollback(checkpoint);
+    this.proposedFS.invalidateCache();
+    this.trackingFS.invalidateCache();
+    this.computeChanges();
+  }
+  ```
+- Updated `snapshot()` to use VaultState's `serialize()`:
+  ```typescript
+  snapshot() {
+    return {
+      tracking: (this.trackingDoc as VaultState).serialize(),
+      proposed: (this.proposedDoc as VaultState).serialize(),
+    };
+  }
+  ```
+
+**3. `chat-serializer.ts`**
+- Added import: `import type { SerializedState } from "./vault-state/types.ts"`
+- Updated `ChatFileV1.vault` type from `{ tracking: Uint8Array; proposed: Uint8Array }` to `{ tracking: SerializedState; proposed: SerializedState }`
+
+**Test Results**: 668 passing, 2 failing (pre-existing metadata-cache-overlay issues unrelated to this phase)

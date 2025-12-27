@@ -171,8 +171,12 @@ export class TreeFSAdapter {
   /**
    * Create a node at the given path with data.
    * Maps to VaultState.createAtPath().
+   *
+   * @param path Path to create the node at
+   * @param data Node data
+   * @param nodeId Optional explicit ID (for ID consistency during sync/approval)
    */
-  createNode(path: string, data: NodeData_FS): TreeNodeProxy {
+  createNode(path: string, data: NodeData_FS, nodeId?: NodeID): TreeNodeProxy {
     path = normalizePath(path);
 
     // Check if node already exists
@@ -181,11 +185,17 @@ export class TreeFSAdapter {
       throw Error(`Node already exists: ${path}`);
     }
 
-    const node = this.state.createAtPath(path, {
-      name: basename(path),
-      ...data,
-      ...(data.isDirectory && { [wasCreatedKey]: true }),
-    });
+    const isDir = data.isDirectory ?? false;
+    const node = this.state.createAtPath(
+      path,
+      {
+        name: basename(path),
+        ...data,
+        isDirectory: isDir,
+        ...(isDir && { [wasCreatedKey]: true }),
+      },
+      nodeId,
+    );
 
     this.invalidateCache();
     return new TreeNodeProxy(node, this.state);
@@ -208,10 +218,12 @@ export class TreeFSAdapter {
       throw new Error("Cannot create directory with text or binary data");
     }
 
+    const isDir = data.isDirectory ?? false;
     const child = parent.treeNode.createChild({
       name: basename(path),
       ...data,
-      ...(data.isDirectory && { [wasCreatedKey]: true }),
+      isDirectory: isDir,
+      ...(isDir && { [wasCreatedKey]: true }),
     });
 
     this.invalidateCache();

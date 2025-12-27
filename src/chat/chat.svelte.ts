@@ -15,7 +15,6 @@ import { createDebug } from "$lib/debug.ts";
 import type { AIAccount } from "../settings/settings.ts";
 import { loadFileParts } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
-import type { Frontiers } from "loro-crdt/base64";
 import { SessionStore } from "./session-store.svelte.ts";
 import { syncChangesReminder } from "./system-reminders.ts";
 import { getTextFromParts } from "$lib/utils/ai.ts";
@@ -47,7 +46,7 @@ export type WithSystemMetadata = {
 export type WithUserMetadata = {
   role: "user";
   metadata?: {
-    checkpoint?: Frontiers;
+    checkpoint?: number;
     modified?: string[];
     command?: {
       text: string;
@@ -191,7 +190,7 @@ export class Chat {
     userMetadata: Partial<WithUserMetadata["metadata"]> = {},
   ) {
     // Checkpoint before sync to enable fresh diff calculation on edit/regenerate
-    const checkpoint = this.vault.proposedDoc.frontiers();
+    const checkpoint = this.vault.proposedDoc.checkpoint();
 
     // Get timestamp of last message to filter renames
     const lastMessage = this.messages[this.messages.length - 1];

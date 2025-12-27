@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import type { SuperJSONObject } from "$lib/utils/superjson";
 import { ChatMarkdownFormatter } from "./chat-markdown-formatter.ts";
 import { encodeBase64, decodeBase64ToString } from "$lib/utils/base64.ts";
+import type { SerializedState } from "./vault-state/types.ts";
 
 export type ChatFileV1 = {
   version: 1;
@@ -13,8 +14,8 @@ export type ChatFileV1 = {
     messages: UIMessageWithMetadata[];
     vault:
       | {
-          tracking: Uint8Array;
-          proposed: Uint8Array;
+          tracking: SerializedState;
+          proposed: SerializedState;
         }
       | undefined;
     options: {

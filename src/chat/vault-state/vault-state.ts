@@ -200,10 +200,11 @@ export class VaultState {
    *
    * @param path Full path from root (e.g., 'folder/subfolder/file.md')
    * @param data Node data (name should NOT be included, extracted from path)
+   * @param nodeId Optional explicit ID for the final node (for ID consistency during sync/approval)
    * @returns The created TreeNode at the path
    * @throws Error if path contains non-directory nodes
    */
-  createAtPath(path: string, data: NodeData): TreeNode {
+  createAtPath(path: string, data: NodeData, nodeId?: NodeID): TreeNode {
     const parts = path.split('/').filter(p => p.length > 0);
     if (parts.length === 0) {
       throw new Error('Cannot create node with empty path');
@@ -227,6 +228,9 @@ export class VaultState {
 
     // Create final node with provided data
     const name = parts[parts.length - 1];
+    if (nodeId) {
+      return current.createChildWithId({ ...data, name }, nodeId);
+    }
     return current.createChild({ ...data, name });
   }
 
