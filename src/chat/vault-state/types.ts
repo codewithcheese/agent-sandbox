@@ -44,7 +44,7 @@ export interface NodeData {
   name: string;                    // Filename or directory name (path segment, not full path)
   isDirectory: boolean;            // True for directories, false for files
   text?: string;                   // Text file content (only set for text files)
-  buffer?: Uint8Array;             // Binary file data (only set for binary files)
+  buffer?: ArrayBuffer;            // Binary file data (only set for binary files)
   stat?: FileStats;                // File metadata (mtime, ctime, size)
   [key: string]: unknown;          // Extensible for future fields
 }

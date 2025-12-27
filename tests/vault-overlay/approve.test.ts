@@ -1,15 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
-import type { TreeFS } from "../../src/chat/tree-fs.ts";
+import type { TreeFSAdapter } from "../../src/chat/tree-fs-adapter.ts";
 import { getBuffer, getText } from "$lib/utils/loro.ts";
 import { TFile, TFolder } from "obsidian";
-import type { LoroTreeNode } from "loro-crdt/base64";
 
 describe("Approve changes", () => {
   let overlay: VaultOverlay;
-  let proposedFS: TreeFS;
-  let trackingFS: TreeFS;
+  let proposedFS: TreeFSAdapter;
+  let trackingFS: TreeFSAdapter;
 
   beforeEach(() => {
     overlay = new VaultOverlay(vault);
@@ -678,7 +677,7 @@ describe("Approve changes", () => {
   });
 
   describe("Given an existing file was modified then renamed", () => {
-    let proposedNode: LoroTreeNode;
+    let proposedNode: ReturnType<TreeFSAdapter["findByPath"]>;
 
     beforeEach(async () => {
       helpers.addFolder("notes");

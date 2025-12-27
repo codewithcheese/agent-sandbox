@@ -260,7 +260,7 @@ describe('VaultState (Phase 1: Structure)', () => {
 
     it('serialize should encode buffers as base64', () => {
       const root = trackingState.getNode('0')!;
-      const buffer = new Uint8Array([1, 2, 3, 4, 5]);
+      const buffer = new Uint8Array([1, 2, 3, 4, 5]).buffer;
       root.createChild({ name: 'binary.dat', isDirectory: false, buffer });
 
       const serialized = trackingState.serialize();
@@ -301,7 +301,8 @@ describe('VaultState (Phase 1: Structure)', () => {
 
     it('deserialize should restore binary buffers correctly', () => {
       const root = trackingState.getNode('0')!;
-      const originalBuffer = new Uint8Array([1, 2, 3, 4, 5]);
+      const originalBytes = [1, 2, 3, 4, 5];
+      const originalBuffer = new Uint8Array(originalBytes).buffer;
       const file = root.createChild({
         name: 'binary.dat',
         isDirectory: false,
@@ -313,7 +314,9 @@ describe('VaultState (Phase 1: Structure)', () => {
 
       const restoredFile = restored.findByPath('binary.dat');
       expect(restoredFile).toBeDefined();
-      expect(restoredFile?.data.buffer).toEqual(originalBuffer);
+      // Compare as Uint8Array views of the ArrayBuffers
+      const restoredBytes = Array.from(new Uint8Array(restoredFile!.data.buffer!));
+      expect(restoredBytes).toEqual(originalBytes);
     });
 
     it('deserialize should create independent state instances', () => {

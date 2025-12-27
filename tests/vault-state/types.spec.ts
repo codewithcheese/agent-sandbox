@@ -59,12 +59,13 @@ describe('Type definitions', () => {
     });
 
     it('should support optional buffer field', () => {
+      const buffer = new Uint8Array([1, 2, 3]).buffer;
       const data: NodeData = {
         name: 'image.png',
         isDirectory: false,
-        buffer: new Uint8Array([1, 2, 3])
+        buffer
       };
-      expect(data.buffer).toEqual(new Uint8Array([1, 2, 3]));
+      expect(new Uint8Array(data.buffer!)).toEqual(new Uint8Array([1, 2, 3]));
     });
 
     it('should support optional stat field', () => {
@@ -92,6 +93,7 @@ describe('Type definitions', () => {
       it('should have required fields', () => {
         const op: CreateOperation = {
           type: 'create',
+          nodeId: '1',
           parentId: '0',
           data: {
             name: 'test.md',
@@ -99,6 +101,7 @@ describe('Type definitions', () => {
           }
         };
         expect(op.type).toBe('create');
+        expect(op.nodeId).toBe('1');
         expect(op.parentId).toBe('0');
         expect(op.data.name).toBe('test.md');
         expect(op.data.isDirectory).toBe(false);
@@ -107,6 +110,7 @@ describe('Type definitions', () => {
       it('should support optional text in data', () => {
         const op: CreateOperation = {
           type: 'create',
+          nodeId: '1',
           parentId: '0',
           data: {
             name: 'test.md',
@@ -118,9 +122,10 @@ describe('Type definitions', () => {
       });
 
       it('should support optional buffer in data', () => {
-        const buffer = new Uint8Array([1, 2, 3]);
+        const buffer = new Uint8Array([1, 2, 3]).buffer;
         const op: CreateOperation = {
           type: 'create',
+          nodeId: '1',
           parentId: '0',
           data: {
             name: 'image.png',
@@ -128,13 +133,14 @@ describe('Type definitions', () => {
             buffer
           }
         };
-        expect(op.data.buffer).toEqual(buffer);
+        expect(new Uint8Array(op.data.buffer!)).toEqual(new Uint8Array([1, 2, 3]));
       });
 
       it('should support optional stat in data', () => {
         const stat: FileStats = { mtime: Date.now(), ctime: Date.now(), size: 100 };
         const op: CreateOperation = {
           type: 'create',
+          nodeId: '1',
           parentId: '0',
           data: {
             name: 'test.md',
@@ -262,6 +268,7 @@ describe('Type definitions', () => {
     it('should accept CreateOperation', () => {
       const op: Operation = {
         type: 'create',
+        nodeId: '1',
         parentId: '0',
         data: { name: 'test.md', isDirectory: false }
       };

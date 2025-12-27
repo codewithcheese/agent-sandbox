@@ -368,7 +368,7 @@ export class TreeFSAdapter {
    * Get the full path of a node.
    * Maps to VaultState.getNodePath().
    */
-  getNodePath(node: TreeNode): string {
+  getNodePath(node: { id: NodeID }): string {
     return this.state.getNodePath(node.id);
   }
 

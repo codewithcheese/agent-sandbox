@@ -1,4 +1,3 @@
-import { LoroText, LoroTreeNode } from "loro-crdt/base64";
 import { decodeBase64, encodeBase64 } from "$lib/utils/base64.ts";
 import type { DataWriteOptions, FileStats } from "obsidian";
 import {
@@ -167,7 +166,7 @@ export function hasContentChanged(
   return false;
 }
 
-export function getFileContent(node: LoroTreeNode | null): FileContent {
+export function getFileContent(node: TreeNodeLike | null | undefined): FileContent {
   if (!node) return { type: "missing" };
 
   const text = getText(node);

@@ -199,12 +199,12 @@ export class VaultState {
    *   // Creates 'folder' and 'subfolder' if they don't exist, then creates 'file.md'
    *
    * @param path Full path from root (e.g., 'folder/subfolder/file.md')
-   * @param data Node data (name should NOT be included, extracted from path)
+   * @param data Node data (name is extracted from path, can be omitted)
    * @param nodeId Optional explicit ID for the final node (for ID consistency during sync/approval)
    * @returns The created TreeNode at the path
    * @throws Error if path contains non-directory nodes
    */
-  createAtPath(path: string, data: NodeData, nodeId?: NodeID): TreeNode {
+  createAtPath(path: string, data: Omit<NodeData, 'name'>, nodeId?: NodeID): TreeNode {
     const parts = path.split('/').filter(p => p.length > 0);
     if (parts.length === 0) {
       throw new Error('Cannot create node with empty path');
@@ -228,10 +228,11 @@ export class VaultState {
 
     // Create final node with provided data
     const name = parts[parts.length - 1];
+    const nodeData = { ...data, name } as NodeData;
     if (nodeId) {
-      return current.createChildWithId({ ...data, name }, nodeId);
+      return current.createChildWithId(nodeData, nodeId);
     }
-    return current.createChild({ ...data, name });
+    return current.createChild(nodeData);
   }
 
   /**
@@ -569,35 +570,50 @@ export class VaultState {
       if (op.type === 'create') {
         // Encode buffer in create operation's data
         const data = { ...op.data };
-        if (data.buffer instanceof Uint8Array) {
+        if (data.buffer instanceof ArrayBuffer) {
+          const { buffer, ...rest } = data;
           return {
             type: 'create',
             nodeId: op.nodeId,
             parentId: op.parentId,
             data: {
-              ...data,
-              buffer: encodeBase64(data.buffer) as string
+              ...rest,
+              buffer: encodeBase64(new Uint8Array(buffer))
             }
-          } as SerializedOperation;
+          } satisfies SerializedOperation;
         }
-        return op as SerializedOperation;
+        const { buffer, ...rest } = data;
+        return {
+          type: 'create',
+          nodeId: op.nodeId,
+          parentId: op.parentId,
+          data: rest
+        } satisfies SerializedOperation;
       } else if (op.type === 'modify') {
         // Encode buffer in modify operation's changes
         const changes = { ...op.changes };
-        if (changes.buffer instanceof Uint8Array) {
+        if (changes.buffer instanceof ArrayBuffer) {
+          const { buffer, ...rest } = changes;
           return {
             type: 'modify',
             nodeId: op.nodeId,
             changes: {
-              ...changes,
-              buffer: encodeBase64(changes.buffer) as string
-            }
-          } as SerializedOperation;
+              ...rest,
+              buffer: encodeBase64(new Uint8Array(buffer))
+            },
+            ...(op.previousText !== undefined && { previousText: op.previousText })
+          } satisfies SerializedOperation;
         }
-        return op as SerializedOperation;
+        const { buffer, ...rest } = changes;
+        return {
+          type: 'modify',
+          nodeId: op.nodeId,
+          changes: rest,
+          ...(op.previousText !== undefined && { previousText: op.previousText })
+        } satisfies SerializedOperation;
       }
       // DELETE, MOVE, RENAME don't have buffers
-      return op as SerializedOperation;
+      return op satisfies SerializedOperation;
     });
 
     return { operationsLog: serialized };
@@ -605,7 +621,7 @@ export class VaultState {
 
   /**
    * Deserialize a vault state from JSON.
-   * Decodes base64 buffers back to Uint8Array and replays all operations.
+   * Decodes base64 buffers back to ArrayBuffer and replays all operations.
    *
    * @param peerId The peer ID ('tracking' or 'proposed') for the new state
    * @param data SerializedState from JSON.parse()
@@ -620,23 +636,23 @@ export class VaultState {
     }
 
     // Decode buffers in operations
-    const decodedOps: Operation[] = data.operationsLog.map((serializedOp, i) => {
+    const decodedOps: Operation[] = data.operationsLog.map((serializedOp) => {
       let op: Operation = serializedOp as Operation;
 
       if (op.type === 'create') {
         // Decode buffer if present in create operation
-        const nodeData = { ...op.data };
-        if (typeof nodeData.buffer === 'string') {
-          nodeData.buffer = new Uint8Array(decodeBase64(nodeData.buffer));
+        const serializedData = op.data as Record<string, unknown>;
+        if (typeof serializedData.buffer === 'string') {
+          serializedData.buffer = decodeBase64(serializedData.buffer);
         }
-        op = { type: 'create', nodeId: op.nodeId, parentId: op.parentId, data: nodeData };
+        op = { type: 'create', nodeId: op.nodeId, parentId: op.parentId, data: serializedData as NodeData };
       } else if (op.type === 'modify') {
         // Decode buffer if present in modify operation
-        const changes = { ...op.changes };
-        if (typeof changes.buffer === 'string') {
-          changes.buffer = new Uint8Array(decodeBase64(changes.buffer));
+        const serializedChanges = op.changes as Record<string, unknown>;
+        if (typeof serializedChanges.buffer === 'string') {
+          serializedChanges.buffer = decodeBase64(serializedChanges.buffer);
         }
-        op = { type: 'modify', nodeId: op.nodeId, changes };
+        op = { type: 'modify', nodeId: op.nodeId, changes: serializedChanges as Partial<NodeData>, previousText: op.previousText };
       }
 
       return op;

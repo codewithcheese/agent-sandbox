@@ -4,7 +4,7 @@ import {
   type ProposedChange,
 } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
-import type { TreeFS } from "../../src/chat/tree-fs.ts";
+import type { TreeFSAdapter } from "../../src/chat/tree-fs-adapter.ts";
 import {
   getBuffer,
   getDeletedFrom,
@@ -12,13 +12,12 @@ import {
   getText,
   isDirectory,
   isTrashed,
-} from "$lib/utils/loro.ts"; // Assuming these helpers
-import type { LoroTreeNode } from "loro-crdt/base64";
+} from "$lib/utils/loro.ts";
 
 describe("Reject changes", () => {
   let overlay: VaultOverlay;
-  let proposedFS: TreeFS;
-  let trackingFS: TreeFS;
+  let proposedFS: TreeFSAdapter;
+  let trackingFS: TreeFSAdapter;
 
   beforeEach(() => {
     overlay = new VaultOverlay(vault);
