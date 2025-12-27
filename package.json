@@ -100,7 +100,6 @@
     "front-matter": "^4.0.2",
     "github-slugger": "^2.0.0",
     "lodash": "^4.17.21",
-    "loro-crdt": "^1.5.6",
     "mermaid": "^11.6.0",
     "monkey-around": "^3.0.0",
     "nanoid": "^5.1.5",

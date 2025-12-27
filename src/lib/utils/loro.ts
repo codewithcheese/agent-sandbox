@@ -1,10 +1,7 @@
 import { decodeBase64, encodeBase64 } from "$lib/utils/base64.ts";
 import type { DataWriteOptions, FileStats } from "obsidian";
-import {
-  deletedFrom,
-  isDirectoryKey,
-  type NodeData,
-} from "../../chat/tree-fs.ts";
+import { deletedFrom, isDirectoryKey } from "../../chat/tree-fs-adapter.ts";
+import type { NodeData } from "../../chat/vault-state/types.ts";
 
 export type FileContent =
   | { type: "text"; content: string }
@@ -43,9 +40,9 @@ export function replaceText(node: TreeNodeLike, text: string) {
   node.data.set("text", text);
 }
 
-export function getNodeData(node: TreeNodeLike): NodeData {
+export function getNodeData(node: TreeNodeLike): Omit<NodeData, 'name'> {
   return {
-    isDirectory: isDirectory(node) || undefined,
+    isDirectory: isDirectory(node) ?? false,
     text: getText(node),
     buffer: getBuffer(node),
     stat: getStat(node),

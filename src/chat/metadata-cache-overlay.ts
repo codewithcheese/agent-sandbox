@@ -4,7 +4,7 @@ import { basename, dirname } from "path-browserify";
 import matter from "front-matter";
 import type { VaultOverlay } from "./vault-overlay.svelte.ts";
 import { getText, getStat, isDirectory, isTrashed } from "$lib/utils/loro.ts";
-import { trashPath, overlayTmpPath } from "./tree-fs.ts";
+import { trashPath, overlayTmpPath } from "./tree-fs-adapter.ts";
 
 export class MetadataCacheOverlay implements MetadataCache {
   constructor(

@@ -14,15 +14,15 @@ import { createDebug } from "$lib/debug.ts";
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
 import {
-  type NodeData,
+  TreeFSAdapter,
+  type NodeData_FS,
   overlayTmpPath,
   trashPath,
   isDirectoryKey,
   deletedFrom,
   wasCreatedKey,
-} from "./tree-fs.ts";
-import { TreeFSAdapter, type NodeData_FS } from "./tree-fs-adapter.ts";
-import { VaultState, TreeNode } from "./vault-state/index.ts";
+} from "./tree-fs-adapter.ts";
+import { VaultState, TreeNode, type NodeData } from "./vault-state/index.ts";
 import {
   createStat,
   getBuffer,

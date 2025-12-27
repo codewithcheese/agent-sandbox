@@ -832,9 +832,8 @@ With the introduction of auto-generated node IDs, the architecture is now cleane
 
 ---
 
-**Document Status**: Phase 4b ✅ COMPLETE (All sub-phases done)
-**Current Phase**: Phase 5 - Workflow Refactoring (Next)
-**Last Updated**: December 28, 2024 (Phase 4b.5 Complete: Checkpoint/revert pattern migrated)
+**Document Status**: ✅ MIGRATION COMPLETE
+**Last Updated**: December 28, 2024 (Phase 5 Complete: Loro fully removed)
 
 ### Progress Summary
 
@@ -849,10 +848,8 @@ With the introduction of auto-generated node IDs, the architecture is now cleane
 | 4b.3 | ✅ Complete | 1 test | Change Detection algorithm (VaultState tree-traversal based) |
 | 4b.4 | ✅ Complete | 52 tests | Sync Workflows + ID Reconciliation Fix |
 | 4b.5 | ✅ Complete | 668 tests | Checkpoint/Revert Pattern + Serialization Types |
-| 5 | 📋 Next | - | Workflow refactoring |
-| 6 | 📋 Planned | - | JSON serialization |
-| 7 | 📋 Planned | - | Cleanup & Loro removal |
-| 8 | 📋 Planned | - | Performance optimization |
+| 5 | ✅ Complete | 668 tests | Loro Removal & Type Alignment |
+| 6 | 📋 Optional | - | Performance optimization (if needed) |
 
 ### Phase 4b Sub-Phase Timeline ✅ COMPLETE
 
@@ -1135,3 +1132,44 @@ Instead of mapping IDs in `mergeDocs()`, ensure ID consistency when creating nod
 - Updated `ChatFileV1.vault` type from `{ tracking: Uint8Array; proposed: Uint8Array }` to `{ tracking: SerializedState; proposed: SerializedState }`
 
 **Test Results**: 668 passing, 2 failing (pre-existing metadata-cache-overlay issues unrelated to this phase)
+
+---
+
+### Phase 5 - Loro Removal & Type Alignment ✅ COMPLETE
+
+**Status**: Complete - Loro dependency fully removed
+
+**Goal**: Remove all Loro dependencies and align types to VaultState implementation.
+
+**Changes Made**:
+
+| Category | Change |
+|----------|--------|
+| **Imports** | Removed all `loro-crdt` imports from `vault-overlay.svelte.ts` |
+| **Types** | Changed class properties from `LoroDoc \| VaultState` to `VaultState` |
+| **Types** | Changed class properties from `TreeFS \| TreeFSAdapter` to `TreeFSAdapter` |
+| **Constructor** | Unified both branches to use `VaultState.deserialize()` |
+| **Type casts** | Removed all `as VaultState` casts (no longer needed) |
+| **Deprecated code** | Removed deprecated Loro implementation in `getFileChanges()` |
+| **Comments** | Removed Loro references from comments |
+| **Buffer type** | Changed `NodeData.buffer` from `Uint8Array` to `ArrayBuffer` (matches Obsidian API) |
+| **Serialization** | Updated serialize/deserialize to handle `ArrayBuffer` |
+
+**Files Modified**:
+- `src/chat/vault-overlay.svelte.ts` - Removed Loro imports, unified types, removed deprecated code
+- `src/chat/vault-state/types.ts` - Changed `buffer` from `Uint8Array` to `ArrayBuffer`
+- `src/chat/vault-state/vault-state.ts` - Updated serialization for `ArrayBuffer`, `createAtPath` takes `Omit<NodeData, 'name'>`
+- `src/lib/utils/loro.ts` - Removed `loro-crdt` imports, uses `TreeNodeLike` type throughout
+- `src/chat/metadata-cache-overlay.ts` - Updated imports to use `tree-fs-adapter.ts`
+- `tests/vault-overlay/*.ts` - Updated imports from `TreeFS` to `TreeFSAdapter`
+- `tests/vault-state/*.ts` - Updated buffer types from `Uint8Array` to `ArrayBuffer`
+
+**Files Deleted**:
+- `src/chat/tree-fs.ts` - Old Loro-based TreeFS (replaced by TreeFSAdapter)
+
+**Dependencies Removed**:
+- `loro-crdt` removed from `package.json` (65 packages removed)
+
+**Bundle Size**: 5,740 kB (gzip: 1,718 kB)
+
+**Test Results**: 668 passing, 2 failing (pre-existing metadata-cache-overlay issues)
