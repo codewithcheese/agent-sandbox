@@ -15,6 +15,13 @@ try {
   globalThis.process.chdir("/");
 } catch (e) {}
 
+// Counter to ensure mtime always advances in tests (zenfs may not update mtime reliably)
+// Use a very high initial value to ensure it's always higher than zenfs's timestamps
+let mockMtimeCounter = Date.now() + 10000000000;
+
+// Track mtime for each file path (zenfs may not update mtime reliably)
+const fileMtimeMap = new Map<string, number>();
+
 export const fileCache = new Map<string, any>();
 
 // Simple requestUrl mock with hardcoded responses
@@ -121,8 +128,10 @@ export class MockTFile implements TFile {
     // Get real stats from memfs if file exists
     try {
       const stats = fs.statSync(this.path);
+      // Use tracked mtime if available (zenfs may not update mtime reliably)
+      const trackedMtime = fileMtimeMap.get(this.path);
       this.stat = {
-        mtime: stats.mtimeMs || Date.now(),
+        mtime: trackedMtime ?? stats.mtimeMs ?? Date.now(),
         ctime: stats.ctimeMs || Date.now(),
         size: stats.size || 0,
       };
@@ -359,14 +368,31 @@ export const vault: Vault = {
   },
   modify: async (file: MockTFile, content: string) => {
     fs.writeFileSync(file.path, content, "utf8");
+    // Update file stat after modification with advancing counter
+    const newMtime = ++mockMtimeCounter;
+    fileMtimeMap.set(file.path, newMtime);
+    const stats = fs.statSync(file.path);
+    file.stat = {
+      mtime: newMtime,
+      ctime: file.stat.ctime,
+      size: stats.size || 0,
+    };
   },
-  modifyBinary(
+  async modifyBinary(
     file: TFile,
     data: ArrayBuffer,
     options?: DataWriteOptions,
   ): Promise<void> {
     fs.writeFileSync(file.path, Buffer.from(data));
-    return;
+    // Update file stat after modification with advancing counter
+    const newMtime = ++mockMtimeCounter;
+    fileMtimeMap.set(file.path, newMtime);
+    const stats = fs.statSync(file.path);
+    (file as MockTFile).stat = {
+      mtime: newMtime,
+      ctime: (file as MockTFile).stat.ctime,
+      size: stats.size || 0,
+    };
   },
   delete: async (file: MockTFile | MockTFolder) => {
     try {
@@ -609,6 +635,7 @@ export const helpers = {
   async reset() {
     // Clear the entire volume and recreate root
     fileCache.clear();
+    fileMtimeMap.clear();
     try {
       fs.rmSync("/", { recursive: true, force: true });
     } catch (error) {

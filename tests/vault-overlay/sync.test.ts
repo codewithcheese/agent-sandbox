@@ -291,8 +291,7 @@ describe("Sync", () => {
   // ^ Roll-up test cases below, to fill out the possible combinations
 
   describe("Edge cases for diff generation", () => {
-    // fixme: syncPath does not support reading binary files
-    describe.skip("GIVEN binary file modified externally", () => {
+    describe("GIVEN binary file modified externally", () => {
       let binaryFile: TFile;
 
       beforeEach(async () => {
@@ -315,8 +314,7 @@ describe("Sync", () => {
       });
     });
 
-    // fixme: syncPath does not support reading binary files
-    describe.skip("GIVEN text file with no content changes", () => {
+    describe("GIVEN text file with no content changes", () => {
       let textFile: TFile;
 
       beforeEach(async () => {

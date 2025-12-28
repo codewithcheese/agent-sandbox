@@ -30,6 +30,22 @@ import { RenameTracker } from "./rename-tracker.ts";
 
 const debug = createDebug();
 
+// Common binary file extensions - used for first-time sync detection
+const BINARY_EXTENSIONS = new Set([
+  // Images
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'svg', 'tiff', 'tif',
+  // Documents
+  'pdf',
+  // Audio
+  'mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac',
+  // Video
+  'mp4', 'webm', 'mov', 'avi', 'mkv',
+  // Archives
+  'zip', 'tar', 'gz', 'rar', '7z',
+  // Other
+  'woff', 'woff2', 'ttf', 'otf', 'eot',
+]);
+
 export type ProposedChange =
   | { type: "create"; path: string; info: { isDirectory: boolean } }
   | { type: "delete"; path: string; info: { isDirectory: boolean } }
@@ -826,25 +842,48 @@ export class VaultOverlay implements Vault {
 
     try {
       if (abstractFile instanceof TFile) {
-        const vaultContents = await this.vault.read(abstractFile);
-        if (trackingNode) {
-          invariant(
-            !trackingNode.isDirectory,
-            `Expected node for ${path} to be a file, got folder.`,
-          );
+        const isBinary = this.isBinaryFile(abstractFile, trackingNode);
 
-          // Update tracking with vault content
-          // The MODIFY operation will capture previousText for three-way merge in mergeDocs()
-          trackingNode.stat = abstractFile.stat;
-          trackingNode.text = vaultContents;
-
-          return trackingNode;
+        if (isBinary) {
+          // Binary file handling
+          const vaultBuffer = await this.vault.readBinary(abstractFile);
+          if (trackingNode) {
+            invariant(
+              !trackingNode.isDirectory,
+              `Expected node for ${path} to be a file, got folder.`,
+            );
+            trackingNode.stat = abstractFile.stat;
+            trackingNode.buffer = vaultBuffer;
+            return trackingNode;
+          } else {
+            return this.trackingDoc.createAtPath(path, {
+              isDirectory: false,
+              buffer: vaultBuffer,
+              stat: abstractFile.stat,
+            });
+          }
         } else {
-          return this.trackingDoc.createAtPath(path, {
-            isDirectory: false,
-            text: vaultContents,
-            stat: abstractFile.stat,
-          });
+          // Text file handling
+          const vaultContents = await this.vault.read(abstractFile);
+          if (trackingNode) {
+            invariant(
+              !trackingNode.isDirectory,
+              `Expected node for ${path} to be a file, got folder.`,
+            );
+
+            // Update tracking with vault content
+            // The MODIFY operation will capture previousText for three-way merge in mergeDocs()
+            trackingNode.stat = abstractFile.stat;
+            trackingNode.text = vaultContents;
+
+            return trackingNode;
+          } else {
+            return this.trackingDoc.createAtPath(path, {
+              isDirectory: false,
+              text: vaultContents,
+              stat: abstractFile.stat,
+            });
+          }
         }
       } else if (abstractFile instanceof TFolder) {
         if (!trackingNode) {
@@ -1807,6 +1846,20 @@ export class VaultOverlay implements Vault {
 
   async destroy() {}
 
+  /**
+   * Determine if a file should be treated as binary based on:
+   * 1. Existing tracking node content type (buffer vs text)
+   * 2. File extension for new files
+   */
+  private isBinaryFile(file: TFile, trackingNode?: TreeNode): boolean {
+    // If tracking node exists, use its content type
+    if (trackingNode) {
+      return trackingNode.buffer !== undefined;
+    }
+    // For new files, check extension
+    return BINARY_EXTENSIONS.has(file.extension.toLowerCase());
+  }
+
   private generateDiffMessage(
     oldPath: string,
     newPath: string,
@@ -1824,7 +1877,7 @@ export class VaultOverlay implements Vault {
     if (beforeContent?.type === "binary" || afterContent?.type === "binary") {
       const pathInfo =
         oldPath !== newPath ? `${oldPath} → ${newPath}` : newPath;
-      return `File ${pathInfo} was modified.`;
+      return `File ${pathInfo} (binary) was modified.`;
     }
 
     // Handle text files

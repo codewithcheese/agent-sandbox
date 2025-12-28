@@ -338,7 +338,12 @@ export class TreeNode {
   /** Get binary buffer, or undefined if not a binary file. */
   get buffer(): ArrayBuffer | undefined {
     const buf = this.data.buffer;
-    return buf instanceof ArrayBuffer ? buf : undefined;
+    // Use duck typing instead of instanceof due to cross-realm issues
+    // (ArrayBuffer from zenfs may fail instanceof check)
+    if (buf && Object.prototype.toString.call(buf) === '[object ArrayBuffer]') {
+      return buf as ArrayBuffer;
+    }
+    return undefined;
   }
 
   /** Set binary buffer. */
