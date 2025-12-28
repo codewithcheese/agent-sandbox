@@ -148,7 +148,7 @@
                 title={getDisplayPath(change)}
               >
                 {#if change.type === "rename" && "oldPath" in change.info}
-                  `${change.info.oldPath} → ${change.path}`
+                  {change.info.oldPath} → {change.path}
                 {:else}
                   <span class="flex-1">
                     {change.path.split(".").pop() === "md"

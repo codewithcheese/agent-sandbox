@@ -528,8 +528,8 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
   }
 
   async migrateToMarkdown(): Promise<void> {
-    if (this.path.endsWith('.chat.md')) {
-      new Notice('Chat is already in markdown format');
+    if (this.path.endsWith(".chat.md")) {
+      new Notice("Chat is already in markdown format");
       return;
     }
 
@@ -538,36 +538,36 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     if (!currentFile) {
       throw new Error(`Chat file not found: ${this.path}`);
     }
-    
+
     // Generate new path (similar to title generation logic)
-    const basePath = this.path.replace(/\.chat$/, '');
+    const basePath = this.path.replace(/\.chat$/, "");
     let newPath = `${basePath}.chat.md`;
     let counter = 1;
-    
+
     // Ensure unique filename
     while (plugin.app.vault.getAbstractFileByPath(newPath)) {
       newPath = `${basePath} ${counter}.chat.md`;
       counter++;
     }
-    
+
     try {
       // Pre-emptively update path (similar to title generation workaround)
       const oldPath = this.path;
       this.path = normalizePath(newPath);
-      
+
       // Create new file with markdown format
       const content = ChatSerializer.stringify(this); // Will use markdown format due to .chat.md extension
       await plugin.app.vault.create(newPath, content);
-      
+
       // TODO: Delete old file after testing
       // await plugin.app.vault.delete(currentFile);
-      
-      new Notice('Chat converted to markdown format');
+
+      new Notice("Chat converted to markdown format");
     } catch (error) {
       // Rollback path on error
       this.path = currentFile.path;
-      console.error('Failed to migrate chat to markdown:', error);
-      new Notice('Failed to convert chat to markdown format');
+      console.error("Failed to migrate chat to markdown:", error);
+      new Notice("Failed to convert chat to markdown format");
       throw error;
     }
   }
@@ -764,8 +764,9 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     }> &
       WithUserMetadata,
   ): Promise<void> {
+    debug("Reverting");
     const checkpoint = message.metadata?.checkpoint;
-    if (checkpoint) {
+    if (Number.isNumber(checkpoint)) {
       this.vault.revert(checkpoint);
       // Close merge view since changes are now invalid
       MergeView.close();
