@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
-import { getText } from "$lib/utils/loro.ts";
 import type { TFile } from "obsidian";
 
 describe("Sync", () => {
@@ -28,17 +27,19 @@ describe("Sync", () => {
         await vault.modify(ideaFile, "Hello\n\nHuman line\n\nGoodbye"); // Human edit
       });
 
-      it("SHOULD sync vault contents to tracking, and merge proposed", async () => {
+      it("SHOULD sync vault contents to tracking, and skip merge on conflict (proposed keeps AI version)", async () => {
         const result = await overlay.syncAll();
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("Notes/idea.md");
 
-        expect(getText(overlay.trackingFS.findByPath("Notes/idea.md"))).toEqual(
+        // Tracking has human's version from disk
+        expect(overlay.trackingDoc.findByPath("Notes/idea.md")?.text).toEqual(
           "Hello\n\nHuman line\n\nGoodbye",
         );
-        expect(getText(overlay.proposedFS.findByPath("Notes/idea.md"))).toEqual(
-          "Hello\n\nHuman line\n\nAI line\n\nGoodbye",
-        );
+        // When there's a conflict, proposed keeps AI's version (no conflict markers)
+        // MergeView will show the diff for user resolution
+        const proposedText = overlay.proposedDoc.findByPath("Notes/idea.md")?.text;
+        expect(proposedText).toEqual("Hello\n\nAI line\n\nGoodbye");
       });
     });
 
@@ -52,10 +53,10 @@ describe("Sync", () => {
         expect(result).toHaveLength(1);
 
         // File SHOULD be deleted from tracking
-        expect(overlay.trackingFS.findByPath("Notes/idea.md")).toBeUndefined();
+        expect(overlay.trackingDoc.findByPath("Notes/idea.md")).toBeUndefined();
 
         // Proposed changes should be deleted
-        expect(overlay.proposedFS.findByPath("Notes/idea.md")).toBeUndefined();
+        expect(overlay.proposedDoc.findByPath("Notes/idea.md")).toBeUndefined();
 
         // Should have no changes
         const changes = overlay.getFileChanges();
@@ -81,10 +82,10 @@ describe("Sync", () => {
         expect(result).toHaveLength(0);
 
         expect(
-          getText(overlay.trackingFS.findByPath("Notes/new-file.md")),
+          overlay.trackingDoc.findByPath("Notes/new-file.md")?.text,
         ).toEqual("Human created content");
         expect(
-          getText(overlay.proposedFS.findByPath("Notes/new-file.md")),
+          overlay.proposedDoc.findByPath("Notes/new-file.md")?.text,
         ).toEqual("AI created content");
 
         const changes = overlay.getFileChanges();
@@ -119,12 +120,12 @@ describe("Sync", () => {
 
         // Original path in tracking SHOULD have human changes
         expect(
-          getText(overlay.trackingFS.findByPath("Notes/original.md")),
+          overlay.trackingDoc.findByPath("Notes/original.md")?.text,
         ).toEqual("Hello\n\nHuman edit\n\nGoodbye");
 
         // Renamed file in proposed SHOULD have merged content
         expect(
-          getText(overlay.proposedFS.findByPath("Notes/renamed.md")),
+          overlay.proposedDoc.findByPath("Notes/renamed.md")?.text,
         ).toEqual("Hello\n\nHuman edit\n\nGoodbye");
 
         // Should still show as a rename change
@@ -149,12 +150,12 @@ describe("Sync", () => {
 
         // Original file SHOULD be deleted from tracking
         expect(
-          overlay.trackingFS.findByPath("Notes/original.md"),
+          overlay.trackingDoc.findByPath("Notes/original.md"),
         ).toBeUndefined();
 
         // Renamed file SHOULD be deleted from proposed
         expect(
-          overlay.proposedFS.findByPath("Notes/renamed.md"),
+          overlay.proposedDoc.findByPath("Notes/renamed.md"),
         ).toBeUndefined();
 
         // Should now show as a `create` change (since original was deleted)
@@ -174,10 +175,10 @@ describe("Sync", () => {
         expect(result).toHaveLength(1);
 
         // Tracking SHOULD be deleted
-        expect(overlay.trackingFS.findByPath("Notes/idea.md")).toBeUndefined();
+        expect(overlay.trackingDoc.findByPath("Notes/idea.md")).toBeUndefined();
         // Overlay SHOULD still have `rename`
         expect(
-          overlay.proposedFS.findByPath("Notes/renamed.md"),
+          overlay.proposedDoc.findByPath("Notes/renamed.md"),
         ).toBeUndefined();
 
         // Should show as create (AI's rename) since tracking path changed
@@ -209,12 +210,12 @@ describe("Sync", () => {
 
         // Tracking SHOULD have human changes
         expect(
-          getText(overlay.trackingFS.findByPath("Notes/target.md")),
+          overlay.trackingDoc.findByPath("Notes/target.md")?.text,
         ).toEqual("Hello\n\nHuman edit\n\nGoodbye");
 
         // File SHOULD be restored in proposed with human changes
         expect(
-          overlay.proposedFS.findByPath("Notes/target.md"),
+          overlay.proposedDoc.findByPath("Notes/target.md"),
         ).toBeUndefined();
 
         // Should no longer show as deleted
@@ -239,16 +240,16 @@ describe("Sync", () => {
 
         // File SHOULD be deleted from tracking
         expect(
-          overlay.trackingFS.findByPath("Notes/target.md"),
+          overlay.trackingDoc.findByPath("Notes/target.md"),
         ).toBeUndefined();
 
         // File SHOULD remain deleted in proposed
         expect(
-          overlay.proposedFS.findByPath("Notes/target.md"),
+          overlay.proposedDoc.findByPath("Notes/target.md"),
         ).toBeUndefined();
 
         // Should have no pending changes since both agree on deletion
-        expect(overlay.changes).toHaveLength(1);
+        expect(overlay.changes).toHaveLength(0);
       });
     });
 
@@ -258,28 +259,28 @@ describe("Sync", () => {
         await vault.rename(targetFile, "Notes/renamed-target.md");
       });
 
-      it("SHOULD sync as delete to tracking, retain delete in proposed", async () => {
+      it("SHOULD sync as delete to tracking, no pending change since path gone from vault", async () => {
         const result = await overlay.syncAll();
         expect(result).toHaveLength(1);
 
         // Original path SHOULD be gone from tracking
         expect(
-          overlay.trackingFS.findByPath("Notes/target.md"),
+          overlay.trackingDoc.findByPath("Notes/target.md"),
         ).toBeUndefined();
 
         // New path NOT tracked, since rename event not tracked
         expect(
-          overlay.trackingFS.findByPath("Notes/renamed-target.md"),
+          overlay.trackingDoc.findByPath("Notes/renamed-target.md"),
         ).toBeUndefined();
 
         // File SHOULD remain deleted in proposed
         expect(
-          overlay.proposedFS.findByPath("Notes/renamed-target.md"),
+          overlay.proposedDoc.findByPath("Notes/renamed-target.md"),
         ).toBeUndefined();
 
-        // Should still show as deleted
+        // No pending changes - original path doesn't exist in vault, so no diff
         const changes = overlay.getFileChanges();
-        expect(changes.some((c) => c.type === "delete")).toBe(true);
+        expect(changes.some((c) => c.type === "delete")).toBe(false);
       });
     });
   });
@@ -287,8 +288,7 @@ describe("Sync", () => {
   // ^ Roll-up test cases below, to fill out the possible combinations
 
   describe("Edge cases for diff generation", () => {
-    // fixme: syncPath does not support reading binary files
-    describe.skip("GIVEN binary file modified externally", () => {
+    describe("GIVEN binary file modified externally", () => {
       let binaryFile: TFile;
 
       beforeEach(async () => {
@@ -311,8 +311,7 @@ describe("Sync", () => {
       });
     });
 
-    // fixme: syncPath does not support reading binary files
-    describe.skip("GIVEN text file with no content changes", () => {
+    describe("GIVEN text file with no content changes", () => {
       let textFile: TFile;
 
       beforeEach(async () => {
@@ -456,15 +455,15 @@ describe("Sync", () => {
 
       await vault.delete(ideaFile);
 
-      const trackingNode = overlay.trackingFS.findByPath("Notes/idea.md");
+      const trackingNode = overlay.trackingDoc.findByPath("Notes/idea.md");
       await overlay.syncDelete("Notes/idea.md");
 
-      const proposedNode = overlay.proposedFS.findById(trackingNode.id);
+      const proposedNode = overlay.proposedDoc.findById(trackingNode.id);
       expect(trackingNode.isDeleted()).toEqual(true);
       expect(proposedNode.isDeleted()).toEqual(true);
     });
 
-    it("human edits and syncs vault file without losing overlay edits", async () => {
+    it("human edits and syncs vault file - conflict skips merge (proposed keeps AI version)", async () => {
       const ideaFile = helpers.addFile("Notes/idea.md", "Hello\n\nGoodbye");
 
       // AI renames
@@ -478,10 +477,16 @@ describe("Sync", () => {
       await vault.modify(ideaFile, "Hello\n\nHuman line\n\nGoodbye");
       await overlay.syncPath(ideaFile.path);
 
-      // Renamed file contains both AI and human edits
+      // When there's a conflict, proposed keeps AI's version (no conflict markers)
+      // MergeView will show the diff for user resolution
       const renameFile = overlay.getFileByPath("Notes/renamed.md");
       const updated = await overlay.read(renameFile);
-      expect(updated).toEqual("Hello\n\nHuman line\n\nAI line\n\nGoodbye");
+      expect(updated).toEqual("Hello\n\nAI line\n\nGoodbye");
+
+      // Tracking has human's version
+      expect(overlay.trackingDoc.findByPath("Notes/idea.md")?.text).toEqual(
+        "Hello\n\nHuman line\n\nGoodbye",
+      );
     });
 
     it("SHOULD handle syncPath for files with large content", async () => {
@@ -521,7 +526,7 @@ describe("Sync", () => {
 
     it("SHOULD update existing tracking node text during syncPath", async () => {
       // Create file in tracking with different content
-      overlay.trackingFS.createNode("test.md", { text: "old content" });
+      overlay.trackingDoc.createAtPath("test.md", { isDirectory: false, text: "old content" });
 
       // Create same file in vault with new content
       await vault.create("test.md", "new content");
@@ -529,8 +534,8 @@ describe("Sync", () => {
       await overlay.syncPath("test.md");
 
       // Verify tracking was updated
-      const trackingNode = overlay.trackingFS.findByPath("test.md");
-      const text = trackingNode.data.get("text").toString();
+      const trackingNode = overlay.trackingDoc.findByPath("test.md");
+      const text = trackingNode!.data.text;
       expect(text).toBe("new content");
     });
   });

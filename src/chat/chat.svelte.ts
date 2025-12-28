@@ -10,12 +10,11 @@ import { type CachedMetadata, normalizePath, Notice, TFile } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
-import { VaultOverlay } from "./vault-overlay.svelte.ts";
+import { VaultOverlay, type VaultCheckpoint } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { AIAccount } from "../settings/settings.ts";
 import { loadFileParts } from "./attachments.ts";
 import { invariant } from "@epic-web/invariant";
-import type { Frontiers } from "loro-crdt/base64";
 import { SessionStore } from "./session-store.svelte.ts";
 import { syncChangesReminder } from "./system-reminders.ts";
 import { getTextFromParts } from "$lib/utils/ai.ts";
@@ -47,7 +46,7 @@ export type WithSystemMetadata = {
 export type WithUserMetadata = {
   role: "user";
   metadata?: {
-    checkpoint?: Frontiers;
+    checkpoint?: VaultCheckpoint;
     modified?: string[];
     command?: {
       text: string;
@@ -191,7 +190,7 @@ export class Chat {
     userMetadata: Partial<WithUserMetadata["metadata"]> = {},
   ) {
     // Checkpoint before sync to enable fresh diff calculation on edit/regenerate
-    const checkpoint = this.vault.proposedDoc.frontiers();
+    const checkpoint = this.vault.checkpoint();
 
     // Get timestamp of last message to filter renames
     const lastMessage = this.messages[this.messages.length - 1];
@@ -529,8 +528,8 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
   }
 
   async migrateToMarkdown(): Promise<void> {
-    if (this.path.endsWith('.chat.md')) {
-      new Notice('Chat is already in markdown format');
+    if (this.path.endsWith(".chat.md")) {
+      new Notice("Chat is already in markdown format");
       return;
     }
 
@@ -539,36 +538,36 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     if (!currentFile) {
       throw new Error(`Chat file not found: ${this.path}`);
     }
-    
+
     // Generate new path (similar to title generation logic)
-    const basePath = this.path.replace(/\.chat$/, '');
+    const basePath = this.path.replace(/\.chat$/, "");
     let newPath = `${basePath}.chat.md`;
     let counter = 1;
-    
+
     // Ensure unique filename
     while (plugin.app.vault.getAbstractFileByPath(newPath)) {
       newPath = `${basePath} ${counter}.chat.md`;
       counter++;
     }
-    
+
     try {
       // Pre-emptively update path (similar to title generation workaround)
       const oldPath = this.path;
       this.path = normalizePath(newPath);
-      
+
       // Create new file with markdown format
       const content = ChatSerializer.stringify(this); // Will use markdown format due to .chat.md extension
       await plugin.app.vault.create(newPath, content);
-      
+
       // TODO: Delete old file after testing
       // await plugin.app.vault.delete(currentFile);
-      
-      new Notice('Chat converted to markdown format');
+
+      new Notice("Chat converted to markdown format");
     } catch (error) {
       // Rollback path on error
       this.path = currentFile.path;
-      console.error('Failed to migrate chat to markdown:', error);
-      new Notice('Failed to convert chat to markdown format');
+      console.error("Failed to migrate chat to markdown:", error);
+      new Notice("Failed to convert chat to markdown format");
       throw error;
     }
   }
@@ -765,8 +764,9 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
     }> &
       WithUserMetadata,
   ): Promise<void> {
+    debug("Reverting");
     const checkpoint = message.metadata?.checkpoint;
-    if (checkpoint) {
+    if (checkpoint && typeof checkpoint === "object" && "tracking" in checkpoint && "proposed" in checkpoint) {
       this.vault.revert(checkpoint);
       // Close merge view since changes are now invalid
       MergeView.close();
