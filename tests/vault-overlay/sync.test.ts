@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
-import { getText } from "$lib/utils/tree-node-utils.ts";
 import type { TFile } from "obsidian";
 
 describe("Sync", () => {
@@ -33,12 +32,12 @@ describe("Sync", () => {
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("Notes/idea.md");
 
-        expect(getText(overlay.trackingDoc.findByPath("Notes/idea.md"))).toEqual(
+        expect(overlay.trackingDoc.findByPath("Notes/idea.md")?.text).toEqual(
           "Hello\n\nHuman line\n\nGoodbye",
         );
         // When both AI and human add content at the same position, it's a conflict
         // Three-way merge produces conflict markers
-        const proposedText = getText(overlay.proposedDoc.findByPath("Notes/idea.md"));
+        const proposedText = overlay.proposedDoc.findByPath("Notes/idea.md")?.text;
         expect(proposedText).toContain("<<<<<<<");
         expect(proposedText).toContain("AI line");
         expect(proposedText).toContain("=======");
@@ -86,10 +85,10 @@ describe("Sync", () => {
         expect(result).toHaveLength(0);
 
         expect(
-          getText(overlay.trackingDoc.findByPath("Notes/new-file.md")),
+          overlay.trackingDoc.findByPath("Notes/new-file.md")?.text,
         ).toEqual("Human created content");
         expect(
-          getText(overlay.proposedDoc.findByPath("Notes/new-file.md")),
+          overlay.proposedDoc.findByPath("Notes/new-file.md")?.text,
         ).toEqual("AI created content");
 
         const changes = overlay.getFileChanges();
@@ -124,12 +123,12 @@ describe("Sync", () => {
 
         // Original path in tracking SHOULD have human changes
         expect(
-          getText(overlay.trackingDoc.findByPath("Notes/original.md")),
+          overlay.trackingDoc.findByPath("Notes/original.md")?.text,
         ).toEqual("Hello\n\nHuman edit\n\nGoodbye");
 
         // Renamed file in proposed SHOULD have merged content
         expect(
-          getText(overlay.proposedDoc.findByPath("Notes/renamed.md")),
+          overlay.proposedDoc.findByPath("Notes/renamed.md")?.text,
         ).toEqual("Hello\n\nHuman edit\n\nGoodbye");
 
         // Should still show as a rename change
@@ -214,7 +213,7 @@ describe("Sync", () => {
 
         // Tracking SHOULD have human changes
         expect(
-          getText(overlay.trackingDoc.findByPath("Notes/target.md")),
+          overlay.trackingDoc.findByPath("Notes/target.md")?.text,
         ).toEqual("Hello\n\nHuman edit\n\nGoodbye");
 
         // File SHOULD be restored in proposed with human changes

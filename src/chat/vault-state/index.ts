@@ -35,8 +35,9 @@ export {
   WAS_CREATED_KEY
 } from './types';
 
-// Classes
+// Classes and related types
 export { TreeNode } from './tree-node';
+export type { NodeDataWithoutName, FileContent } from './tree-node';
 export { VaultState } from './vault-state';
 
 // Operation execution functions

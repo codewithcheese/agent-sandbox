@@ -3,8 +3,7 @@ import { normalizePath } from "obsidian";
 import { basename, dirname } from "path-browserify";
 import matter from "front-matter";
 import type { VaultOverlay } from "./vault-overlay.svelte.ts";
-import type { TreeNode } from "./vault-state/tree-node.ts";
-import { getText, getStat, isDirectory, isTrashed, TRASH_FOLDER, TMP_FOLDER } from "$lib/utils/tree-node-utils.ts";
+import { type TreeNode, TRASH_FOLDER, TMP_FOLDER } from "./vault-state/index.ts";
 
 export class MetadataCacheOverlay implements MetadataCache {
   constructor(
@@ -16,9 +15,9 @@ export class MetadataCacheOverlay implements MetadataCache {
     // Check if file has proposed changes
     const proposedNode = this.vaultOverlay.proposedDoc.findByPath(file.path);
 
-    if (proposedNode && !isTrashed(proposedNode)) {
+    if (proposedNode && !proposedNode.isTrashed()) {
       // File exists in proposed state
-      const proposedText = getText(proposedNode);
+      const proposedText = proposedNode.text;
       if (proposedText !== undefined) {
         // Text file - parse frontmatter
         const { attributes } = matter(proposedText);
@@ -54,8 +53,8 @@ export class MetadataCacheOverlay implements MetadataCache {
     let proposedNode = this.vaultOverlay.proposedDoc.findByPath(cleanLinkpath);
     if (
       proposedNode &&
-      !isTrashed(proposedNode) &&
-      !isDirectory(proposedNode)
+      !proposedNode.isTrashed() &&
+      !proposedNode.isDirectory
     ) {
       return this.createTFileFromProposed(cleanLinkpath, proposedNode);
     }
@@ -66,8 +65,8 @@ export class MetadataCacheOverlay implements MetadataCache {
       proposedNode = this.vaultOverlay.proposedDoc.findByPath(mdPath);
       if (
         proposedNode &&
-        !isTrashed(proposedNode) &&
-        !isDirectory(proposedNode)
+        !proposedNode.isTrashed() &&
+        !proposedNode.isDirectory
       ) {
         return this.createTFileFromProposed(mdPath, proposedNode);
       }
@@ -81,8 +80,8 @@ export class MetadataCacheOverlay implements MetadataCache {
       proposedNode = this.vaultOverlay.proposedDoc.findByPath(relativePath);
       if (
         proposedNode &&
-        !isTrashed(proposedNode) &&
-        !isDirectory(proposedNode)
+        !proposedNode.isTrashed() &&
+        !proposedNode.isDirectory
       ) {
         return this.createTFileFromProposed(relativePath, proposedNode);
       }
@@ -93,8 +92,8 @@ export class MetadataCacheOverlay implements MetadataCache {
         proposedNode = this.vaultOverlay.proposedDoc.findByPath(relativeMdPath);
         if (
           proposedNode &&
-          !isTrashed(proposedNode) &&
-          !isDirectory(proposedNode)
+          !proposedNode.isTrashed() &&
+          !proposedNode.isDirectory
         ) {
           return this.createTFileFromProposed(relativeMdPath, proposedNode);
         }
@@ -109,8 +108,8 @@ export class MetadataCacheOverlay implements MetadataCache {
         proposedNode = this.vaultOverlay.proposedDoc.findByPath(matchingPath);
         if (
           proposedNode &&
-          !isTrashed(proposedNode) &&
-          !isDirectory(proposedNode)
+          !proposedNode.isTrashed() &&
+          !proposedNode.isDirectory
         ) {
           return this.createTFileFromProposed(matchingPath, proposedNode);
         }
@@ -198,8 +197,7 @@ export class MetadataCacheOverlay implements MetadataCache {
   }
 
   private createTFileFromProposed(path: string, node: TreeNode): TFile {
-    const stat = getStat(node);
-    return this.vaultOverlay.createTFile(path, stat);
+    return this.vaultOverlay.createTFile(path, node.stat);
   }
 
   getCache(path: string): CachedMetadata | null {

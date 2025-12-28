@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 import { VaultState, type TreeNode } from "../../src/chat/vault-state/index.ts";
-import { getBuffer, getText } from "$lib/utils/tree-node-utils.ts";
 import { TFile, TFolder } from "obsidian";
 
 describe("Approve changes", () => {
@@ -33,12 +32,12 @@ describe("Approve changes", () => {
 
       // expect tracking to equal proposed contents after approve
       const trackingNode = trackingDoc.findByPath("notes/test.md");
-      expect(getText(trackingNode)).toEqual("Hello\n\nProposed\n\nGoodbye");
+      expect(trackingNode.text).toEqual("Hello\n\nProposed\n\nGoodbye");
 
       // expect tracking and proposed to be the same
       const proposedNode = proposedDoc.findByPath("notes/test.md");
       expect(trackingNode.id).toEqual(proposedNode.id);
-      expect(getText(trackingNode)).toEqual(getText(proposedNode));
+      expect(trackingNode.text).toEqual(proposedNode.text);
 
       // expect file in vault to match proposed contents
       const file = vault.getFileByPath("notes/test.md");
@@ -58,12 +57,12 @@ describe("Approve changes", () => {
 
       // expect tracking to equal proposed contents after approve
       const trackingNode = trackingDoc.findByPath("notes/test.md");
-      expect(getText(trackingNode)).toEqual("Hello\n\nEdited\n\nGoodbye");
+      expect(trackingNode.text).toEqual("Hello\n\nEdited\n\nGoodbye");
 
       const proposedNode = proposedDoc.findByPath("notes/test.md");
       expect(trackingNode.id).toEqual(proposedNode.id);
       // expect tracking and proposed to be different
-      expect(getText(trackingNode)).not.toEqual(getText(proposedNode));
+      expect(trackingNode.text).not.toEqual(proposedNode.text);
 
       const file = vault.getFileByPath("notes/test.md");
       expect(file).not.toBeNull();
@@ -91,13 +90,13 @@ describe("Approve changes", () => {
       { path: "another/two.md", type: "modify" },
     ]);
 
-    expect(getText(trackingDoc.findByPath("something/one.md"))).toEqual(
+    expect(trackingDoc.findByPath("something/one.md")?.text).toEqual(
       "Original\n\nProposed\n\nGoodbye",
     );
-    expect(getText(trackingDoc.findByPath("another/two.md"))).toEqual(
+    expect(trackingDoc.findByPath("another/two.md")?.text).toEqual(
       "Thank you",
     );
-    expect(getText(trackingDoc.findByPath("another/three.md"))).toEqual(
+    expect(trackingDoc.findByPath("another/three.md")?.text).toEqual(
       "Original\n\nThree",
     );
 
@@ -152,7 +151,7 @@ describe("Approve changes", () => {
     const gTrackingNode = trackingDoc.findById(gProposedNode.id);
 
     expect(aTrackingNode.isDeleted()).toBe(true);
-    expect(getText(bTrackingNode)).toBe("Beta content");
+    expect(bTrackingNode.text).toBe("Beta content");
     expect(bTrackingNode.isDeleted()).toBe(false);
     expect(gTrackingNode.isDeleted()).toBe(true);
 
@@ -242,7 +241,7 @@ describe("Approve changes", () => {
     // Non-approved items should remain unchanged
     expect(archiveTrackingNode.isDeleted()).toBe(false);
     expect(projectTrackingNode.isDeleted()).toBe(false);
-    expect(getText(projectTrackingNode)).toBe("Main project"); // Original content
+    expect(projectTrackingNode.text).toBe("Main project"); // Original content
 
     // Check proposed state
     expect(docsDeletedNode.isDeleted()).toBe(true);
@@ -267,7 +266,7 @@ describe("Approve changes", () => {
     // Verify it exists in proposed but not tracking before approval
     const proposedNode = proposedDoc.findByPath("new-dir/new-document.md");
     expect(proposedNode).toBeDefined();
-    expect(getText(proposedNode)).toEqual("Initial content");
+    expect(proposedNode.text).toEqual("Initial content");
     expect(trackingDoc.findByPath("new-dir/new-document.md")).toBeUndefined();
 
     // Approve the creation
@@ -278,8 +277,8 @@ describe("Approve changes", () => {
     // Verify it now exists in tracking with correct content
     const trackingNode = trackingDoc.findByPath("new-dir/new-document.md");
     expect(trackingNode).toBeDefined();
-    expect(getText(trackingNode)).toEqual("Initial content");
-    expect(getText(trackingNode)).toEqual(getText(proposedNode));
+    expect(trackingNode.text).toEqual("Initial content");
+    expect(trackingNode.text).toEqual(proposedNode.text);
 
     // Check vault state - file should be created in vault
     const vaultFile = vault.getFileByPath("new-dir/new-document.md");
@@ -295,7 +294,7 @@ describe("Approve changes", () => {
     // Verify it exists in proposed but not tracking before approval
     const proposedNode = proposedDoc.findByPath("test/image.jpg");
     expect(proposedNode).toBeDefined();
-    expect(getBuffer(proposedNode)).toEqual(data);
+    expect(proposedNode.buffer).toEqual(data);
     expect(trackingDoc.findByPath("test/image.jpg")).toBeUndefined();
 
     // Approve the creation
@@ -304,8 +303,8 @@ describe("Approve changes", () => {
     // Verify it now exists in tracking with correct content
     const trackingNode = trackingDoc.findByPath("test/image.jpg");
     expect(trackingNode).toBeDefined();
-    expect(getBuffer(proposedNode)).toEqual(data);
-    expect(getBuffer(trackingNode)).toEqual(getBuffer(proposedNode));
+    expect(proposedNode.buffer).toEqual(data);
+    expect(trackingNode.buffer).toEqual(proposedNode.buffer);
 
     // Check vault state - binary file should be created in vault
     const vaultFile = vault.getFileByPath("test/image.jpg");
@@ -433,7 +432,7 @@ describe("Approve changes", () => {
     // Verify file exists in new location in proposed state
     const proposedNode = proposedDoc.findByPath("folderB/test.md");
     expect(proposedNode).toBeDefined();
-    expect(getText(proposedNode)).toEqual("Test file content");
+    expect(proposedNode.text).toEqual("Test file content");
 
     // Verify old location is no longer accessible in proposed
     expect(proposedDoc.findByPath("folderA/test.md")).not.toBeDefined();
@@ -444,7 +443,7 @@ describe("Approve changes", () => {
     // Verify file exists in new location in tracking
     const trackingNode = trackingDoc.findByPath("folderB/test.md");
     expect(trackingNode).toBeDefined();
-    expect(getText(trackingNode)).toEqual("Test file content");
+    expect(trackingNode.text).toEqual("Test file content");
     expect(trackingNode.id).toEqual(proposedNode.id);
 
     // Verify old location doesn't exist in tracking
@@ -476,7 +475,7 @@ describe("Approve changes", () => {
     // Verify file exists with new name in proposed state
     const proposedNode = proposedDoc.findByPath("documents/newname.md");
     expect(proposedNode).toBeDefined();
-    expect(getText(proposedNode)).toEqual("Original file content");
+    expect(proposedNode.text).toEqual("Original file content");
 
     // Verify old name is no longer accessible in proposed
     expect(proposedDoc.findByPath("documents/original.md")).not.toBeDefined();
@@ -492,7 +491,7 @@ describe("Approve changes", () => {
     // Verify file exists with new name in tracking
     const trackingNode = trackingDoc.findByPath("documents/newname.md");
     expect(trackingNode).toBeDefined();
-    expect(getText(trackingNode)).toEqual("Original file content");
+    expect(trackingNode.text).toEqual("Original file content");
     expect(trackingNode.id).toEqual(proposedNode.id);
 
     // Verify old name doesn't exist in tracking
@@ -527,7 +526,7 @@ describe("Approve changes", () => {
     expect(proposedFolder).toBeDefined();
     expect(proposedFolder.data.isDirectory).toBe(true);
     expect(proposedFile).toBeDefined();
-    expect(getText(proposedFile)).toEqual("Document content");
+    expect(proposedFile.text).toEqual("Document content");
 
     // Verify old location no longer accessible
     expect(proposedDoc.findByPath("existing/document.md")).not.toBeDefined();
@@ -551,7 +550,7 @@ describe("Approve changes", () => {
     expect(trackingFolder).toBeDefined();
     expect(trackingFolder.data.isDirectory).toBe(true);
     expect(trackingFile).toBeDefined();
-    expect(getText(trackingFile)).toEqual("Document content");
+    expect(trackingFile.text).toEqual("Document content");
 
     // Verify old path doesn't exist in tracking
     expect(trackingDoc.findByPath("existing/document.md")).toBeUndefined();
@@ -641,7 +640,7 @@ describe("Approve changes", () => {
     const renamedNode = proposedDoc.findByPath("docs/renamed-lifecycle.md");
 
     expect(renamedNode).toBeDefined();
-    expect(getText(renamedNode)).toEqual("Modified content after rename");
+    expect(renamedNode.text).toEqual("Modified content after rename");
 
     // Verify original path no longer accessible
     expect(proposedDoc.findByPath("docs/lifecycle.md")).not.toBeDefined();
@@ -654,7 +653,7 @@ describe("Approve changes", () => {
     // Verify final state in tracking - file should exist with final content
     const trackingFile = trackingDoc.findByPath("docs/renamed-lifecycle.md");
     expect(trackingFile).toBeDefined();
-    expect(getText(trackingFile)).toEqual("Modified content after rename");
+    expect(trackingFile.text).toEqual("Modified content after rename");
 
     const proposedFile = proposedDoc.findByPath("docs/renamed-lifecycle.md");
     expect(trackingFile.id).toEqual(proposedFile.id);
@@ -694,7 +693,7 @@ describe("Approve changes", () => {
       // Verify both operations exist in proposed state
       proposedNode = proposedDoc.findByPath("notes/renamed-report.md");
       expect(proposedNode).toBeDefined();
-      expect(getText(proposedNode)).toEqual("Modified content");
+      expect(proposedNode.text).toEqual("Modified content");
 
       // Verify old name is no longer accessible in proposed
       expect(proposedDoc.findByPath("notes/report.md")).not.toBeDefined();
@@ -716,7 +715,7 @@ describe("Approve changes", () => {
           "notes/renamed-report.md",
         );
         expect(trackingNodeFinal).toBeDefined();
-        expect(getText(trackingNodeFinal)).toEqual("Modified content");
+        expect(trackingNodeFinal.text).toEqual("Modified content");
         expect(trackingNodeFinal.id).toEqual(proposedNode.id);
 
         // Verify old name doesn't exist in tracking
@@ -750,7 +749,7 @@ describe("Approve changes", () => {
           "notes/renamed-report.md",
         );
         expect(trackingNodeFinal).toBeDefined();
-        expect(getText(trackingNodeFinal)).toEqual("Modified content");
+        expect(trackingNodeFinal.text).toEqual("Modified content");
         expect(trackingNodeFinal.id).toEqual(proposedNode.id);
 
         // Verify old name doesn't exist in tracking
@@ -778,7 +777,7 @@ describe("Approve changes", () => {
         // Verify contents were modified and was not renamed
         const trackingNodeFinal = trackingDoc.findByPath("notes/report.md");
         expect(trackingNodeFinal).toBeDefined();
-        expect(getText(trackingNodeFinal)).toEqual("Modified content");
+        expect(trackingNodeFinal.text).toEqual("Modified content");
         expect(trackingNodeFinal.id).toEqual(proposedNode.id);
 
         // Verify rename not applied to tracking yet
@@ -813,7 +812,7 @@ describe("Approve changes", () => {
           "notes/renamed-report.md",
         );
         expect(trackingNodeFinal).toBeDefined();
-        expect(getText(trackingNodeFinal)).toEqual("Original content");
+        expect(trackingNodeFinal.text).toEqual("Original content");
         expect(trackingNodeFinal.id).toEqual(proposedNode.id);
 
         // Verify old name doesn't exist in tracking
@@ -894,7 +893,7 @@ describe("Approve changes", () => {
       "documents/temp-doc.md",
     );
     // Expect file text is not modified
-    expect(getText(deletedNode)).toEqual("Original content");
+    expect(deletedNode.text).toEqual("Original content");
 
     // Approve only the delete operation - rename becomes irrelevant once file is deleted
     await overlay.approve([{ type: "delete", path: "documents/temp-doc.md" }]);
@@ -1053,7 +1052,7 @@ describe("Approve changes", () => {
     expect(trackingDoc.findByPath("alpha/beta/gamma")).toBeDefined();
     const trackingNode = trackingDoc.findByPath(nestedFilePath);
     expect(trackingNode).toBeDefined();
-    expect(getText(trackingNode!)).toEqual(nestedFileContent);
+    expect(trackingNode!.text).toEqual(nestedFileContent);
 
     // Assertions for proposedFS (after sync)
     expect(proposedDoc.findByPath("alpha")).toBeDefined();
@@ -1061,7 +1060,7 @@ describe("Approve changes", () => {
     expect(proposedDoc.findByPath("alpha/beta/gamma")).toBeDefined();
     const proposedNode = proposedDoc.findByPath(nestedFilePath);
     expect(proposedNode).toBeDefined();
-    expect(getText(proposedNode!)).toEqual(nestedFileContent);
+    expect(proposedNode!.text).toEqual(nestedFileContent);
   });
 
   it("should approve move binary file");
@@ -1090,10 +1089,10 @@ describe("Approve changes", () => {
     if (initialVaultFile) {
       expect(await vault.read(initialVaultFile)).toEqual(binaryContent);
     }
-    expect(getText(trackingDoc.findByPath(originalPath)!)).toEqual(
+    expect(trackingDoc.findByPath(originalPath)!.text).toEqual(
       binaryContent,
     );
-    expect(getText(proposedDoc.findByPath(originalPath)!)).toEqual(
+    expect(proposedDoc.findByPath(originalPath)!.text).toEqual(
       binaryContent,
     );
 
@@ -1122,14 +1121,14 @@ describe("Approve changes", () => {
     const trackingNodeNew = trackingDoc.findByPath(renamedPath);
     expect(trackingNodeNew).toBeDefined();
     expect(trackingNodeNew.data.isDirectory).toBe(false);
-    expect(getText(trackingNodeNew!)).toEqual(binaryContent);
+    expect(trackingNodeNew!.text).toEqual(binaryContent);
 
     // Assertions for proposedFS (after sync)
     expect(proposedDoc.findByPath(originalPath)).toBeUndefined();
     const proposedNodeNew = proposedDoc.findByPath(renamedPath);
     expect(proposedNodeNew).toBeDefined();
     expect(proposedNodeNew.data.isDirectory).toBe(false);
-    expect(getText(proposedNodeNew!)).toEqual(binaryContent);
+    expect(proposedNodeNew!.text).toEqual(binaryContent);
   });
 
   it("should throw error when approving operation on non-existent proposed file", async () => {

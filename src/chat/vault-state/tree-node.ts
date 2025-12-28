@@ -8,10 +8,30 @@
  * between the tree and the operation history.
  */
 
+import type { FileStats } from 'obsidian';
 import type { NodeID, NodeData } from './types';
 import type { VaultState } from './vault-state';
 import { executeModify, executeMove, executeDelete, executeRename, executeCreate } from './operations';
 import { DELETED_FROM_KEY, TRASH_FOLDER, TMP_FOLDER } from './types';
+
+/**
+ * Core node data without the name field (since name is derived from path).
+ * Used when copying node data to create new nodes at different paths.
+ */
+export interface NodeDataWithoutName {
+  isDirectory: boolean;
+  text?: string;
+  buffer?: ArrayBuffer;
+  stat?: FileStats;
+}
+
+/**
+ * Discriminated union representing file content state.
+ */
+export type FileContent =
+  | { type: 'text'; content: string }
+  | { type: 'binary' }
+  | { type: 'missing' };
 
 export class TreeNode {
   private static nextId: number = 0;  // Start at 0; root will naturally be "0"
@@ -295,5 +315,130 @@ export class TreeNode {
     return this.childIds
       .map(id => this.vaultState.getNode(id))
       .filter((node): node is TreeNode => node !== undefined);
+  }
+
+  // ========== Property Getters ==========
+
+  /** Get the node's name (path segment). */
+  get name(): string {
+    return this.data.name;
+  }
+
+  /** Get text content, or undefined if not a text file. */
+  get text(): string | undefined {
+    const text = this.data.text;
+    return typeof text === 'string' ? text : undefined;
+  }
+
+  /** Set text content. */
+  set text(value: string) {
+    this.modify({ text: value });
+  }
+
+  /** Get binary buffer, or undefined if not a binary file. */
+  get buffer(): ArrayBuffer | undefined {
+    const buf = this.data.buffer;
+    return buf instanceof ArrayBuffer ? buf : undefined;
+  }
+
+  /** Set binary buffer. */
+  set buffer(value: ArrayBuffer) {
+    this.modify({ buffer: value });
+  }
+
+  /** Get file stats (mtime, ctime, size). */
+  get stat(): FileStats | undefined {
+    return this.data.stat as FileStats | undefined;
+  }
+
+  /** Set file stats. */
+  set stat(value: FileStats) {
+    this.modify({ stat: value });
+  }
+
+  /** Check if this node is a directory. */
+  get isDirectory(): boolean {
+    return this.data.isDirectory === true;
+  }
+
+  /** Get the original path this node was deleted from, if trashed. */
+  get deletedFrom(): string | undefined {
+    const value = this.data[DELETED_FROM_KEY];
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  // ========== Content Methods ==========
+
+  /**
+   * Get node data without the name field.
+   * Used when copying data to create nodes at different paths.
+   */
+  getDataWithoutName(): NodeDataWithoutName {
+    return {
+      isDirectory: this.isDirectory,
+      text: this.text,
+      buffer: this.buffer,
+      stat: this.stat,
+    };
+  }
+
+  /**
+   * Get file content as a discriminated union.
+   * Returns { type: 'text', content } for text files,
+   * { type: 'binary' } for binary files.
+   */
+  get fileContent(): { type: 'text'; content: string } | { type: 'binary' } {
+    const text = this.text;
+    if (text === undefined) return { type: 'binary' };
+    return { type: 'text', content: text };
+  }
+
+  /**
+   * Check if this node's content equals another node's content.
+   * Compares text and binary buffer data.
+   * Directories are considered equal (no content to compare).
+   */
+  contentEquals(other: TreeNode): boolean {
+    // If other is directory, they're "equal" for content purposes
+    if (other.isDirectory) return true;
+    // If this is directory but other is file, content differs
+    if (this.isDirectory) return false;
+
+    // Compare text content
+    const thisText = this.text;
+    const otherText = other.text;
+    if (thisText !== otherText) {
+      // Handle undefined/empty equivalence
+      if (!((thisText === undefined && otherText === '') ||
+            (thisText === '' && otherText === undefined))) {
+        return false;
+      }
+    }
+
+    // Compare binary buffers
+    const thisBuffer = this.buffer;
+    const otherBuffer = other.buffer;
+    if (thisBuffer && otherBuffer) {
+      if (thisBuffer.byteLength !== otherBuffer.byteLength) return false;
+      const thisView = new Uint8Array(thisBuffer);
+      const otherView = new Uint8Array(otherBuffer);
+      for (let i = 0; i < thisBuffer.byteLength; i++) {
+        if (thisView[i] !== otherView[i]) return false;
+      }
+    } else if (thisBuffer !== otherBuffer) {
+      // One has buffer, other doesn't
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Get file content for a node that may be null/undefined.
+   * Static helper that handles the "missing" case.
+   */
+  static getFileContent(node: TreeNode | null | undefined): FileContent {
+    if (!node) return { type: 'missing' };
+    return node.fileContent;
   }
 }

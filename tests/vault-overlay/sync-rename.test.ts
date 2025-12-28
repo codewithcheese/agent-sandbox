@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VaultOverlay } from "../../src/chat/vault-overlay.svelte.ts";
 import { RenameTracker } from "../../src/chat/rename-tracker.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
-import { getText, isTrashed } from "$lib/utils/tree-node-utils.ts";
 import type { TFile, TFolder } from "obsidian";
 
 describe("syncRename", () => {
@@ -51,7 +50,7 @@ describe("syncRename", () => {
         expect(trackingNode).toBeTruthy();
         expect(proposedNode).toBeTruthy();
         expect(trackingNode?.id).toBe(proposedNode?.id);
-        expect(getText(proposedNode)).toBe("Original content");
+        expect(proposedNode.text).toBe("Original content");
       });
     });
 
@@ -75,7 +74,7 @@ describe("syncRename", () => {
 
         // Check content is preserved
         const proposedNode = overlay.proposedDoc.findByPath("renamed.md");
-        expect(getText(proposedNode)).toBe("Original content\n\nAI addition");
+        expect(proposedNode.text).toBe("Original content\n\nAI addition");
       });
     });
 
@@ -122,7 +121,7 @@ describe("syncRename", () => {
         const childNode = overlay.proposedDoc.findByPath(
           "renamed-folder/child.md",
         );
-        expect(getText(childNode)).toBe("Child content");
+        expect(childNode.text).toBe("Child content");
       });
     });
   });
@@ -151,11 +150,11 @@ describe("syncRename", () => {
 
         // Should have the vault content in tracking
         const trackingNode = overlay.trackingDoc.findByPath("renamed.md");
-        expect(getText(trackingNode)).toBe("Original content");
+        expect(trackingNode.text).toBe("Original content");
 
         // Should have AI content in proposed (rebased as modify)
         const proposedNode = overlay.proposedDoc.findByPath("renamed.md");
-        expect(getText(proposedNode)).toBe("AI created content");
+        expect(proposedNode.text).toBe("AI created content");
 
         // Should be same node ID (rebased)
         expect(trackingNode?.id).toBe(proposedNode?.id);
@@ -190,11 +189,11 @@ describe("syncRename", () => {
 
         // Original file should be at new path
         const renamedNode = overlay.proposedDoc.findByPath("renamed.md");
-        expect(getText(renamedNode)).toBe("Original content");
+        expect(renamedNode.text).toBe("Original content");
 
         // Other file should be back at original path (AI rename undone)
         const otherNode = overlay.proposedDoc.findByPath("other.md");
-        expect(getText(otherNode)).toBe("Other content");
+        expect(otherNode.text).toBe("Other content");
 
         // No file should be orphaned
         expect(overlay.proposedDoc.findByPath("original.md")).toBeUndefined();
@@ -225,8 +224,8 @@ describe("syncRename", () => {
         // Node should be restored at new path
         const proposedNode = overlay.proposedDoc.findByPath("renamed.md");
         expect(proposedNode).toBeTruthy();
-        expect(isTrashed(proposedNode!)).toBe(false);
-        expect(getText(proposedNode)).toBe("Original content");
+        expect(proposedNode!.isTrashed()).toBe(false);
+        expect(proposedNode.text).toBe("Original content");
       });
     });
   });
@@ -266,7 +265,7 @@ describe("syncRename", () => {
         const finalNode = overlay.proposedDoc.findByPath(
           "deep/nested/path/renamed.md",
         );
-        expect(getText(finalNode)).toBe("Original content");
+        expect(finalNode.text).toBe("Original content");
       });
     });
   });
@@ -346,11 +345,11 @@ describe("syncRename", () => {
 
         // FileA content should be at fileB.md (vault rename wins)
         const nodeBPath = overlay.proposedDoc.findByPath("fileB.md");
-        expect(getText(nodeBPath)).toBe("Content A");
+        expect(nodeBPath.text).toBe("Content A");
 
         // FileB should be back at fileA.md (AI rename undone)
         const nodeAPath = overlay.proposedDoc.findByPath("fileA.md");
-        expect(getText(nodeAPath)).toBe("Content B");
+        expect(nodeAPath.text).toBe("Content B");
 
         // Temp file should be gone
         expect(overlay.proposedDoc.findByPath("temp.md")).toBeUndefined();

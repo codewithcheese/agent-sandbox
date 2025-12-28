@@ -5,14 +5,6 @@ import {
 } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
 import { VaultState } from "../../src/chat/vault-state/index.ts";
-import {
-  getBuffer,
-  getDeletedFrom,
-  getName,
-  getText,
-  isDirectory,
-  isTrashed,
-} from "$lib/utils/tree-node-utils.ts";
 
 describe("Reject changes", () => {
   let overlay: VaultOverlay;
@@ -112,18 +104,18 @@ describe("Reject changes", () => {
       const trashedProposedNode = proposedDoc.findTrashed("notes/to-delete.md");
       expect(trashedProposedNode).toBeDefined();
       // Content in trash should be original content because delete reverts to tracking before trashing
-      expect(getText(trashedProposedNode!)).toEqual("Original Content");
+      expect(trashedProposedNode!.text).toEqual("Original Content");
 
       await overlay.reject(deleteChange!);
 
       const restoredProposedNode = proposedDoc.findByPath("notes/to-delete.md");
       expect(restoredProposedNode).toBeDefined();
-      expect(isTrashed(restoredProposedNode!)).toBe(false);
-      expect(getText(restoredProposedNode!)).toEqual("Original Content"); // Content remains as it was in trash
+      expect(restoredProposedNode!.isTrashed()).toBe(false);
+      expect(restoredProposedNode!.text).toEqual("Original Content"); // Content remains as it was in trash
 
       const trackingNode = trackingDoc.findByPath("notes/to-delete.md");
       expect(trackingNode).toBeDefined(); // Still exists in tracking
-      expect(getText(trackingNode!)).toEqual("Original Content");
+      expect(trackingNode!.text).toEqual("Original Content");
 
       changes = overlay.getFileChanges();
       expect(
@@ -156,15 +148,15 @@ describe("Reject changes", () => {
         "notes/folder-to-delete",
       );
       expect(restoredProposedFolder).toBeDefined();
-      expect(isTrashed(restoredProposedFolder!)).toBe(false);
-      expect(isDirectory(restoredProposedFolder!)).toBe(true);
+      expect(restoredProposedFolder!.isTrashed()).toBe(false);
+      expect(restoredProposedFolder!.isDirectory).toBe(true);
 
       // Child item should also be "restored" as part of its parent folder being restored
       const restoredProposedItem = proposedDoc.findByPath(
         "notes/folder-to-delete/item.md",
       );
       expect(restoredProposedItem).toBeDefined();
-      expect(getText(restoredProposedItem!)).toEqual("Item inside");
+      expect(restoredProposedItem!.text).toEqual("Item inside");
 
       const trackingFolder = trackingDoc.findByPath("notes/folder-to-delete");
       expect(trackingFolder).toBeDefined();
@@ -188,7 +180,7 @@ describe("Reject changes", () => {
       let changes = overlay.getFileChanges();
       const modifyChange = findChange(changes, "modify", "notes/to-modify.md");
       expect(modifyChange).toBeDefined();
-      expect(getText(proposedDoc.findByPath("notes/to-modify.md")!)).toEqual(
+      expect(proposedDoc.findByPath("notes/to-modify.md")?.text).toEqual(
         "Proposed New Content",
       );
 
@@ -197,10 +189,10 @@ describe("Reject changes", () => {
       const proposedNodeAfterReject =
         proposedDoc.findByPath("notes/to-modify.md");
       expect(proposedNodeAfterReject).toBeDefined();
-      expect(getText(proposedNodeAfterReject!)).toEqual("Original Content"); // Reverted
+      expect(proposedNodeAfterReject!.text).toEqual("Original Content"); // Reverted
 
       const trackingNode = trackingDoc.findByPath("notes/to-modify.md");
-      expect(getText(trackingNode!)).toEqual("Original Content"); // Unchanged
+      expect(trackingNode!.text).toEqual("Original Content"); // Unchanged
 
       changes = overlay.getFileChanges();
       expect(
@@ -232,7 +224,7 @@ describe("Reject changes", () => {
       expect(renameChange).toBeDefined();
       expect(proposedDoc.findByPath("notes/proposed-new-name.md")).toBeDefined();
       expect(
-        getText(proposedDoc.findByPath("notes/proposed-new-name.md")!),
+        proposedDoc.findByPath("notes/proposed-new-name.md")?.text,
       ).toEqual("Modified Content After Rename");
       expect(proposedDoc.findByPath("notes/original-name.md")).toBeUndefined();
 
@@ -242,8 +234,8 @@ describe("Reject changes", () => {
         "notes/original-name.md",
       );
       expect(proposedNodeAfterReject).toBeDefined(); // Back to original path
-      expect(getName(proposedNodeAfterReject!)).toEqual("original-name.md");
-      expect(getText(proposedNodeAfterReject!)).toEqual(
+      expect(proposedNodeAfterReject!.name).toEqual("original-name.md");
+      expect(proposedNodeAfterReject!.text).toEqual(
         "Modified Content After Rename",
       ); // Content preserved
 
@@ -253,7 +245,7 @@ describe("Reject changes", () => {
 
       const trackingNode = trackingDoc.findByPath("notes/original-name.md");
       expect(trackingNode).toBeDefined(); // Still at original path in tracking
-      expect(getText(trackingNode!)).toEqual("Content"); // Original content in tracking
+      expect(trackingNode!.text).toEqual("Content"); // Original content in tracking
 
       changes = overlay.getFileChanges();
       expect(
@@ -314,25 +306,23 @@ describe("Reject changes", () => {
         "notes/original-folder-name",
       );
       expect(proposedFolderAfterReject).toBeDefined(); // Back to original path
-      expect(getName(proposedFolderAfterReject!)).toEqual(
+      expect(proposedFolderAfterReject!.name).toEqual(
         "original-folder-name",
       );
-      expect(isDirectory(proposedFolderAfterReject!)).toBe(true);
+      expect(proposedFolderAfterReject!.isDirectory).toBe(true);
 
       // Children should have moved with the parent
       expect(
         proposedDoc.findByPath("notes/original-folder-name/item.md"),
       ).toBeDefined();
       expect(
-        getText(proposedDoc.findByPath("notes/original-folder-name/item.md")!),
+        proposedDoc.findByPath("notes/original-folder-name/item.md")?.text,
       ).toEqual("Folder Item");
       expect(
         proposedDoc.findByPath("notes/original-folder-name/new-item.md"),
       ).toBeDefined();
       expect(
-        getText(
-          proposedDoc.findByPath("notes/original-folder-name/new-item.md")!,
-        ),
+        proposedDoc.findByPath("notes/original-folder-name/new-item.md")?.text,
       ).toEqual("New Item in Renamed");
 
       expect(
@@ -375,8 +365,8 @@ describe("Reject changes", () => {
 
       const proposedNode = proposedDoc.findByPath("notes/combo-renamed.md");
       expect(proposedNode).toBeDefined();
-      expect(getText(proposedNode!)).toEqual("Original"); // Content reverted
-      expect(getName(proposedNode!)).toEqual("combo-renamed.md"); // Still renamed
+      expect(proposedNode!.text).toEqual("Original"); // Content reverted
+      expect(proposedNode!.name).toEqual("combo-renamed.md"); // Still renamed
 
       changes = overlay.getFileChanges();
       expect(
@@ -406,8 +396,8 @@ describe("Reject changes", () => {
 
       const proposedNode = proposedDoc.findByPath("notes/combo-original.md"); // Back to original path
       expect(proposedNode).toBeDefined();
-      expect(getText(proposedNode!)).toEqual("Modified After Rename"); // Content preserved
-      expect(getName(proposedNode!)).toEqual("combo-original.md");
+      expect(proposedNode!.text).toEqual("Modified After Rename"); // Content preserved
+      expect(proposedNode!.name).toEqual("combo-original.md");
 
       expect(proposedDoc.findByPath("notes/combo-renamed.md")).toBeUndefined();
 
