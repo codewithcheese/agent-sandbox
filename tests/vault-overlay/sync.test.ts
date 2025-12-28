@@ -27,22 +27,19 @@ describe("Sync", () => {
         await vault.modify(ideaFile, "Hello\n\nHuman line\n\nGoodbye"); // Human edit
       });
 
-      it("SHOULD sync vault contents to tracking, and merge proposed with conflict markers", async () => {
+      it("SHOULD sync vault contents to tracking, and skip merge on conflict (proposed keeps AI version)", async () => {
         const result = await overlay.syncAll();
         expect(result).toHaveLength(1);
         expect(result[0].path).toBe("Notes/idea.md");
 
+        // Tracking has human's version from disk
         expect(overlay.trackingDoc.findByPath("Notes/idea.md")?.text).toEqual(
           "Hello\n\nHuman line\n\nGoodbye",
         );
-        // When both AI and human add content at the same position, it's a conflict
-        // Three-way merge produces conflict markers
+        // When there's a conflict, proposed keeps AI's version (no conflict markers)
+        // MergeView will show the diff for user resolution
         const proposedText = overlay.proposedDoc.findByPath("Notes/idea.md")?.text;
-        expect(proposedText).toContain("<<<<<<<");
-        expect(proposedText).toContain("AI line");
-        expect(proposedText).toContain("=======");
-        expect(proposedText).toContain("Human line");
-        expect(proposedText).toContain(">>>>>>>");
+        expect(proposedText).toEqual("Hello\n\nAI line\n\nGoodbye");
       });
     });
 
@@ -466,7 +463,7 @@ describe("Sync", () => {
       expect(proposedNode.isDeleted()).toEqual(true);
     });
 
-    it("human edits and syncs vault file with conflict markers when both modify same region", async () => {
+    it("human edits and syncs vault file - conflict skips merge (proposed keeps AI version)", async () => {
       const ideaFile = helpers.addFile("Notes/idea.md", "Hello\n\nGoodbye");
 
       // AI renames
@@ -480,14 +477,16 @@ describe("Sync", () => {
       await vault.modify(ideaFile, "Hello\n\nHuman line\n\nGoodbye");
       await overlay.syncPath(ideaFile.path);
 
-      // Renamed file contains conflict markers since both modified the same region
+      // When there's a conflict, proposed keeps AI's version (no conflict markers)
+      // MergeView will show the diff for user resolution
       const renameFile = overlay.getFileByPath("Notes/renamed.md");
       const updated = await overlay.read(renameFile);
-      expect(updated).toContain("<<<<<<<");
-      expect(updated).toContain("AI line");
-      expect(updated).toContain("=======");
-      expect(updated).toContain("Human line");
-      expect(updated).toContain(">>>>>>>");
+      expect(updated).toEqual("Hello\n\nAI line\n\nGoodbye");
+
+      // Tracking has human's version
+      expect(overlay.trackingDoc.findByPath("Notes/idea.md")?.text).toEqual(
+        "Hello\n\nHuman line\n\nGoodbye",
+      );
     });
 
     it("SHOULD handle syncPath for files with large content", async () => {

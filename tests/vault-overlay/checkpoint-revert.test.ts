@@ -226,7 +226,7 @@ describe("checkpoint/revert", () => {
       });
 
       it("SHOULD only affect proposed state", async () => {
-        const checkpoint = overlay.proposedDoc.checkpoint();
+        const checkpoint = overlay.checkpoint();
 
         // AI makes more changes
         await overlay.create("new-file.md", "new content");
@@ -251,7 +251,7 @@ describe("checkpoint/revert", () => {
 
     describe("GIVEN AI create, rename, modify sequence then revert", () => {
       it("SHOULD undo all operations in sequence", async () => {
-        const checkpoint = overlay.proposedDoc.checkpoint();
+        const checkpoint = overlay.checkpoint();
 
         // Complex sequence of operations
         await overlay.create("step1.md", "step 1");
@@ -277,7 +277,7 @@ describe("checkpoint/revert", () => {
 
     describe("GIVEN revert updates changes list", () => {
       it("SHOULD recalculate getFileChanges after revert", async () => {
-        const checkpoint = overlay.proposedDoc.checkpoint();
+        const checkpoint = overlay.checkpoint();
 
         await overlay.create("new.md", "content");
         expect(overlay.getFileChanges().length).toBe(1);
@@ -299,7 +299,7 @@ describe("checkpoint/revert", () => {
       });
 
       it("SHOULD restore deleted file in proposed", async () => {
-        const checkpoint = overlay.proposedDoc.checkpoint();
+        const checkpoint = overlay.checkpoint();
 
         await overlay.delete(existingFile);
 
@@ -319,10 +319,10 @@ describe("checkpoint/revert", () => {
     describe("GIVEN partial revert with multiple checkpoints", () => {
       it("SHOULD allow incremental undo", async () => {
         await overlay.create("file1.md", "one");
-        const checkpoint1 = overlay.proposedDoc.checkpoint();
+        const checkpoint1 = overlay.checkpoint();
 
         await overlay.create("file2.md", "two");
-        const checkpoint2 = overlay.proposedDoc.checkpoint();
+        const checkpoint2 = overlay.checkpoint();
 
         await overlay.create("file3.md", "three");
 
@@ -339,6 +339,86 @@ describe("checkpoint/revert", () => {
         expect(overlay.getFileChanges().length).toBe(1);
         expect(overlay.proposedDoc.findByPath("file2.md")).toBeUndefined();
         expect(overlay.proposedDoc.findByPath("file1.md")).toBeTruthy();
+      });
+    });
+  });
+
+  describe("Revert consistency with tracking", () => {
+    let overlay: VaultOverlay;
+
+    beforeEach(() => {
+      overlay = new VaultOverlay(vault);
+    });
+
+    afterEach(async () => {
+      await helpers.reset();
+    });
+
+    describe("GIVEN checkpoint before sync then sync then revert", () => {
+      it("SHOULD roll back both states consistently", async () => {
+        // Checkpoint BEFORE any sync
+        const checkpoint = overlay.checkpoint();
+
+        // Sync a vault file (this adds to tracking AND proposed via mergeDocs)
+        const vaultFile = helpers.addFile("synced.md", "vault content");
+        await overlay.modify(vaultFile, "vault content");
+
+        // Verify file exists in both states before revert
+        expect(overlay.trackingDoc.findByPath("synced.md")).toBeTruthy();
+        expect(overlay.proposedDoc.findByPath("synced.md")).toBeTruthy();
+
+        // Revert to checkpoint (before the sync)
+        overlay.revert(checkpoint);
+
+        // After revert, BOTH states should be rolled back
+        // The file is "forgotten" but still exists on disk
+        // It will be re-synced on demand when accessed
+        expect(overlay.trackingDoc.findByPath("synced.md")).toBeUndefined();
+        expect(overlay.proposedDoc.findByPath("synced.md")).toBeUndefined();
+
+        // Both states remain consistent
+        expect(overlay.getFileChanges().length).toBe(0);
+      });
+    });
+  });
+
+  describe("ID counter preservation after revert", () => {
+    let overlay: VaultOverlay;
+
+    beforeEach(() => {
+      overlay = new VaultOverlay(vault);
+    });
+
+    afterEach(async () => {
+      await helpers.reset();
+    });
+
+    describe("GIVEN synced file then AI create then revert then AI create again", () => {
+      it("SHOULD NOT detect rename between unrelated files", async () => {
+        // Sync a vault file - this establishes IDs in tracking
+        const vaultFile = helpers.addFile("vault-file.md", "vault content");
+        await overlay.modify(vaultFile, "vault content"); // sync to overlay
+
+        // AI creates a file
+        const checkpoint = overlay.checkpoint();
+        await overlay.create("first-ai-file.md", "first AI content");
+
+        // Revert
+        overlay.revert(checkpoint);
+
+        // AI creates a different file
+        await overlay.create("second-ai-file.md", "second AI content");
+
+        // Should be a CREATE, not a RENAME
+        const changes = overlay.getFileChanges();
+        const secondFileChange = changes.find(c => c.path === "second-ai-file.md");
+
+        expect(secondFileChange).toBeTruthy();
+        expect(secondFileChange!.type).toBe("create");
+
+        // Should not have any renames
+        const renames = changes.filter(c => c.type === "rename");
+        expect(renames.length).toBe(0);
       });
     });
   });

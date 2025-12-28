@@ -312,7 +312,7 @@ describe("Approve changes", () => {
     expect(await vault.readBinary(vaultFile)).toEqual(data);
   });
 
-  it("should approve rename with synced modifications", async () => {
+  it("should approve rename with synced modifications (conflict skips merge)", async () => {
     const ideaFile = helpers.addFile("Notes/idea.md", "Hello\n\nGoodbye");
 
     // AI renames
@@ -326,12 +326,15 @@ describe("Approve changes", () => {
     await vault.modify(ideaFile, "Hello\n\nHuman line\n\nGoodbye");
     await overlay.syncPath(ideaFile.path);
 
-    // Renamed file contains both AI and human edits
-    // Both sides insert at the same position, which is a genuine conflict
+    // When there's a conflict, proposed keeps AI's version (no conflict markers)
+    // MergeView will show the diff for user resolution
     const renameFile = overlay.getFileByPath("Notes/renamed.md");
     const updated = await overlay.read(renameFile);
-    expect(updated).toEqual(
-      "Hello\n\n<<<<<<<\nAI line\n\n=======\nHuman line\n\n>>>>>>>\nGoodbye",
+    expect(updated).toEqual("Hello\n\nAI line\n\nGoodbye");
+
+    // Tracking has human's version at the old path
+    expect(overlay.trackingDoc.findByPath("Notes/idea.md")?.text).toEqual(
+      "Hello\n\nHuman line\n\nGoodbye",
     );
 
     // user approves rename
@@ -352,7 +355,7 @@ describe("Approve changes", () => {
     // Check vault state - file should be renamed in vault
     expect(vault.getFileByPath("Notes/renamed.md")).not.toBeNull();
     expect(vault.getFileByPath("Notes/idea.md")).toBeNull();
-    // Only rename was approved so contents should equal human edits
+    // Only rename was approved so contents should equal human edits (from tracking)
     expect(await vault.read(vault.getFileByPath("Notes/renamed.md"))).toEqual(
       "Hello\n\nHuman line\n\nGoodbye",
     );

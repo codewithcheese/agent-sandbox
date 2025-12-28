@@ -84,6 +84,21 @@ export class TreeNode {
   }
 
   /**
+   * Set the ID counter to a specific value.
+   * Used after rebuild to ensure new IDs don't collide with existing nodes.
+   */
+  static setIdCounter(value: number): void {
+    TreeNode.nextId = value;
+  }
+
+  /**
+   * Get the current ID counter value.
+   */
+  static getIdCounter(): number {
+    return TreeNode.nextId;
+  }
+
+  /**
    * Create a child node under this node.
    * Similar to Loro's API: parent.createNode()
    *

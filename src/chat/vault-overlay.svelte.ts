@@ -67,6 +67,11 @@ type ApprovedChange =
 
 export type SyncResult = { path: string; diff: string }[];
 
+export type VaultCheckpoint = {
+  tracking: number;
+  proposed: number;
+};
+
 export class VaultOverlay implements Vault {
   trackingDoc: VaultState;
   proposedDoc: VaultState;
@@ -754,11 +759,24 @@ export class VaultOverlay implements Vault {
         // Check if vault file changed since tracking
         if (await this.hasVaultChanged(vaultFile, trackingNode)) {
           debug("Sync modify", path);
-          // Capture proposed content before sync
+          // Capture content before sync
           const proposedNode = this.proposedDoc.findById(trackingNode.id);
-          const beforeContent = TreeNode.getFileContent(proposedNode);
+          const beforeProposed = TreeNode.getFileContent(proposedNode);
+          const beforeTracking = TreeNode.getFileContent(trackingNode);
           await this.syncPath(path);
-          const afterContent = TreeNode.getFileContent(proposedNode);
+          const afterProposed = TreeNode.getFileContent(proposedNode);
+          const afterTracking = TreeNode.getFileContent(trackingNode);
+
+          // If proposed changed, show proposed diff (normal merge case)
+          // If proposed didn't change but tracking did, show tracking diff (conflict case)
+          // This ensures the AI sees the external changes even when merge is skipped
+          const beforeContent = beforeProposed.type === 'text' && afterProposed.type === 'text' &&
+            beforeProposed.content === afterProposed.content
+            ? beforeTracking : beforeProposed;
+          const afterContent = beforeProposed.type === 'text' && afterProposed.type === 'text' &&
+            beforeProposed.content === afterProposed.content
+            ? afterTracking : afterProposed;
+
           results.push({
             path,
             diff: this.generateDiffMessage(
@@ -1555,8 +1573,15 @@ export class VaultOverlay implements Vault {
                 excludeFalseConflicts: true,
               });
 
+              // If there's a conflict, skip the merge - let proposed keep AI's version
+              // MergeView will show the diff between disk and proposed for user resolution
+              if (mergeResult.conflict) {
+                debug(`mergeDocs: Conflict detected for ${op.nodeId}, skipping merge (MergeView will handle)`);
+                continue;
+              }
+
               const mergedText = mergeResult.result.join('\n');
-              debug(`mergeDocs: Three-way merge for ${op.nodeId}`);
+              debug(`mergeDocs: Three-way merge (no conflicts) for ${op.nodeId}`);
 
               // Replay with merged text instead of vault text
               proposedState.replayOperation({
@@ -1703,9 +1728,28 @@ export class VaultOverlay implements Vault {
     };
   }
 
-  revert(checkpoint: number) {
+  /**
+   * Create a checkpoint capturing both tracking and proposed state.
+   * Used to enable revert to a previous state.
+   */
+  checkpoint(): VaultCheckpoint {
+    return {
+      tracking: this.trackingDoc.checkpoint(),
+      proposed: this.proposedDoc.checkpoint(),
+    };
+  }
+
+  /**
+   * Revert both tracking and proposed to a checkpoint.
+   * This ensures both states remain consistent after revert.
+   */
+  revert(checkpoint: VaultCheckpoint) {
     debug("Reverting to checkpoint", checkpoint);
-    this.proposedDoc.rollback(checkpoint);
+    this.trackingDoc.rollback(checkpoint.tracking);
+    this.proposedDoc.rollback(checkpoint.proposed);
+    // Reset merge point to current tracking log length
+    // so mergeDocs() doesn't try to replay non-existent operations
+    this.lastMergePoint = this.trackingDoc.getLogLength();
     debug("Revert complete, computing changes");
     this.computeChanges();
     debug("Compute changes complete");

@@ -185,20 +185,19 @@ Consider **Option 3 (Pruning)** if storage becomes a concern:
 | New file (no previous) | `previousText` is undefined, apply directly |
 | Proposed unchanged | `proposedText === previousText`, apply directly |
 | Text deleted | `changes.text` is undefined, apply directly |
-| Conflicts in merge | diff3 includes conflict markers in result |
+| Conflicts in merge | Skip merge, defer to MergeView |
 
 ## Conflict Behavior
 
-Unlike Loro CRDT which performed character-level merging (where concurrent insertions at the same position would both be kept), three-way merge uses line-based diff3 semantics.
+When `mergeDocs()` detects a conflict (both AI and user modified overlapping lines), it **skips the merge** rather than inserting conflict markers. This keeps the proposed state clean with AI's version while tracking has the disk version.
 
-When both AI and human add content at the same position, this is a **genuine conflict**. The result includes standard conflict markers:
+The user resolves conflicts via **MergeView**, which shows a visual diff between disk content and proposed content, allowing chunk-by-chunk accept/reject.
 
-```
-<<<<<<<
-AI content
-=======
-Human content
->>>>>>>
-```
+**Rationale:** MergeView already provides a conflict resolution UI. Inserting conflict markers would:
+- Pollute file content with marker syntax
+- Potentially confuse the AI if it continues working on the file
+- Be redundant since MergeView handles resolution
 
-This is standard three-way merge behavior. Users must resolve conflicts manually by editing the file.
+**Flow:**
+- Non-conflicting changes: Auto-merged, both states get the combined result
+- Conflicting changes: Proposed keeps AI's version, tracking keeps disk version, MergeView shows diff

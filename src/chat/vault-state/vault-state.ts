@@ -16,21 +16,21 @@ import type {
   NodeData,
   Operation,
   SerializedState,
-  SerializedOperation
-} from './types';
-import { TreeNode } from './tree-node';
-import { executeOperation } from './operations';
-import { TRASH_FOLDER, TMP_FOLDER, DELETED_FROM_KEY } from './types';
-import { encodeBase64, decodeBase64 } from '$lib/utils/base64';
+  SerializedOperation,
+} from "./types";
+import { TreeNode } from "./tree-node";
+import { executeOperation } from "./operations";
+import { TRASH_FOLDER, TMP_FOLDER, DELETED_FROM_KEY } from "./types";
+import { encodeBase64, decodeBase64 } from "$lib/utils/base64";
 
 export class VaultState {
-  private tree: TreeNode;  // Root of the tree
-  private nodeIndex: Map<NodeID, TreeNode> = new Map();  // Fast node lookup
-  private deletedNodes: Map<NodeID, TreeNode> = new Map();  // Tombstones for deleted nodes
-  private operationsLog: Operation[] = [];  // Append-only log of all mutations
-  private recordingEnabled: boolean = true;  // Flag to enable/disable recording during rebuild
+  private tree: TreeNode; // Root of the tree
+  private nodeIndex: Map<NodeID, TreeNode> = new Map(); // Fast node lookup
+  private deletedNodes: Map<NodeID, TreeNode> = new Map(); // Tombstones for deleted nodes
+  private operationsLog: Operation[] = []; // Append-only log of all mutations
+  private recordingEnabled: boolean = true; // Flag to enable/disable recording during rebuild
 
-  constructor(private peerId: 'tracking' | 'proposed') {
+  constructor(private peerId: "tracking" | "proposed") {
     // Reset ID counter to ensure root gets ID "0"
     TreeNode.resetIdCounter();
 
@@ -38,8 +38,8 @@ export class VaultState {
     // Root naturally gets ID "0" as the first node created
     this.tree = new TreeNode(this);
     this.tree.data = {
-      name: '',
-      isDirectory: true
+      name: "",
+      isDirectory: true,
     };
     this.tree.parentId = null;
     this.nodeIndex.set(this.tree.id, this.tree);
@@ -50,12 +50,12 @@ export class VaultState {
     try {
       this.tree.createChild({
         name: TRASH_FOLDER,
-        isDirectory: true
+        isDirectory: true,
       });
 
       this.tree.createChild({
         name: TMP_FOLDER,
-        isDirectory: true
+        isDirectory: true,
       });
     } finally {
       // Always restore recording, even if construction fails
@@ -85,17 +85,18 @@ export class VaultState {
    */
   findByPath(path: string): TreeNode | undefined {
     // Handle root path variations
-    if (path === '' || path === '/' || path === '.' || path === './') return this.tree;
+    if (path === "" || path === "/" || path === "." || path === "./")
+      return this.tree;
 
     // Filter out empty segments (handles leading/trailing slashes and double slashes)
-    const parts = path.split('/').filter(p => p.length > 0);
+    const parts = path.split("/").filter((p) => p.length > 0);
     if (parts.length === 0) return this.tree;
 
     let current = this.tree;
 
     for (const part of parts) {
       // Find child with matching name
-      const childId = current.childIds.find(id => {
+      const childId = current.childIds.find((id) => {
         const child = this.nodeIndex.get(id);
         return child?.data.name === part;
       });
@@ -115,18 +116,19 @@ export class VaultState {
    */
   getNodePath(nodeId: NodeID): string {
     const node = this.nodeIndex.get(nodeId);
-    if (!node) return '';
-    if (node.parentId === null) return '';  // Root has no parent
+    if (!node) return "";
+    if (node.parentId === null) return ""; // Root has no parent
 
     const parts: string[] = [];
     let current: TreeNode | null = node;
 
-    while (current && current.parentId !== null) {  // Stop at root
+    while (current && current.parentId !== null) {
+      // Stop at root
       parts.unshift(current.data.name);
       current = current.parentId ? this.nodeIndex.get(current.parentId) : null;
     }
 
-    return parts.join('/');
+    return parts.join("/");
   }
 
   /**
@@ -219,10 +221,14 @@ export class VaultState {
    * @returns The created TreeNode at the path
    * @throws Error if path contains non-directory nodes
    */
-  createAtPath(path: string, data: Omit<NodeData, 'name'>, nodeId?: NodeID): TreeNode {
-    const parts = path.split('/').filter(p => p.length > 0);
+  createAtPath(
+    path: string,
+    data: Omit<NodeData, "name">,
+    nodeId?: NodeID,
+  ): TreeNode {
+    const parts = path.split("/").filter((p) => p.length > 0);
     if (parts.length === 0) {
-      throw new Error('Cannot create node with empty path');
+      throw new Error("Cannot create node with empty path");
     }
 
     // Check if node already exists
@@ -236,8 +242,8 @@ export class VaultState {
     // Create all parent directories
     for (const part of parts.slice(0, -1)) {
       let child = current.childIds
-        .map(id => this.nodeIndex.get(id))
-        .find(n => n?.data.name === part);
+        .map((id) => this.nodeIndex.get(id))
+        .find((n) => n?.data.name === part);
 
       if (!child) {
         child = current.createChild({ name: part, isDirectory: true });
@@ -272,26 +278,26 @@ export class VaultState {
    * @throws Error if any part of path exists as a non-directory
    */
   ensureDirs(path: string): TreeNode {
-    if (path === '' || path === '/' || path === '.') return this.tree;
+    if (path === "" || path === "/" || path === ".") return this.tree;
 
-    const parts = path.split('/').filter(p => p.length > 0);
+    const parts = path.split("/").filter((p) => p.length > 0);
     let current = this.tree;
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       let child = current.childIds
-        .map(id => this.nodeIndex.get(id))
-        .find(n => n?.data.name === part);
+        .map((id) => this.nodeIndex.get(id))
+        .find((n) => n?.data.name === part);
 
       if (!child) {
         // Check if trashed and restore or recreate
-        const partialPath = parts.slice(0, i + 1).join('/');
+        const partialPath = parts.slice(0, i + 1).join("/");
         const trashed = this.findTrashed(partialPath);
         if (trashed) {
           // Delete the trashed node and recreate
           const parent = this.nodeIndex.get(trashed.parentId!);
           if (parent) {
-            parent.childIds = parent.childIds.filter(id => id !== trashed.id);
+            parent.childIds = parent.childIds.filter((id) => id !== trashed.id);
           }
           this.removeNode(trashed.id);
           child = current.createChild({ name: part, isDirectory: true });
@@ -299,7 +305,9 @@ export class VaultState {
           child = current.createChild({ name: part, isDirectory: true });
         }
       } else if (!child.data.isDirectory) {
-        throw new Error(`Path is not a directory: ${parts.slice(0, i + 1).join('/')}`);
+        throw new Error(
+          `Path is not a directory: ${parts.slice(0, i + 1).join("/")}`,
+        );
       }
       current = child;
     }
@@ -335,7 +343,7 @@ export class VaultState {
     const node = this.nodeIndex.get(nodeId);
     if (!node) return [];
     return node.childIds
-      .map(id => this.nodeIndex.get(id))
+      .map((id) => this.nodeIndex.get(id))
       .filter((child): child is TreeNode => child !== undefined);
   }
 
@@ -431,7 +439,7 @@ export class VaultState {
     if (!type) {
       return [...this.operationsLog];
     }
-    return this.operationsLog.filter(op => op.type === type);
+    return this.operationsLog.filter((op) => op.type === type);
   }
 
   /**
@@ -509,6 +517,10 @@ export class VaultState {
     // Disable recording during rebuild to prevent duplicate operations
     this.recordingEnabled = false;
 
+    // Save current counter to restore after rebuild
+    // This prevents ID collisions when other VaultState instances exist
+    const savedCounter = TreeNode.getIdCounter();
+
     try {
       // Reset node ID counter for deterministic replay
       // Root will naturally get ID "0" as the first node created
@@ -521,8 +533,8 @@ export class VaultState {
       // Create root as literal (infrastructure, not recorded)
       this.tree = new TreeNode(this);
       this.tree.data = {
-        name: '',
-        isDirectory: true
+        name: "",
+        isDirectory: true,
       };
       this.tree.parentId = null;
       this.nodeIndex.set(this.tree.id, this.tree);
@@ -531,12 +543,12 @@ export class VaultState {
       // (createChild will record operations, but recording is disabled, so they won't be added to log again)
       this.tree.createChild({
         name: TRASH_FOLDER,
-        isDirectory: true
+        isDirectory: true,
       });
 
       this.tree.createChild({
         name: TMP_FOLDER,
-        isDirectory: true
+        isDirectory: true,
       });
 
       // Replay all operations in order using standalone execute functions
@@ -546,14 +558,34 @@ export class VaultState {
           executeOperation(this, op);
         } catch (e) {
           throw new Error(
-            `Failed to replay operation #${i} (${op.type}): ${(e as Error).message}`
+            `Failed to replay operation #${i} (${op.type}): ${(e as Error).message}`,
           );
         }
       }
+
+      // Restore counter to max of saved value and max ID in rebuilt tree
+      // This prevents new nodes from getting IDs that collide with other states
+      const maxIdInTree = this.findMaxNodeId();
+      TreeNode.setIdCounter(Math.max(savedCounter, maxIdInTree + 1));
     } finally {
       // Always re-enable recording, even if rebuild fails
       this.recordingEnabled = true;
     }
+  }
+
+  /**
+   * Find the maximum numeric node ID in the tree.
+   * Used after rebuild to set the ID counter appropriately.
+   */
+  private findMaxNodeId(): number {
+    let maxId = 0;
+    for (const nodeId of this.nodeIndex.keys()) {
+      const numId = parseInt(nodeId, 10);
+      if (!isNaN(numId) && numId > maxId) {
+        maxId = numId;
+      }
+    }
+    return maxId;
   }
 
   /**
@@ -563,7 +595,7 @@ export class VaultState {
    * @param op The operation to record
    */
   recordOperation(op: Operation): void {
-    if (!this.recordingEnabled) return;  // No-op during rebuild
+    if (!this.recordingEnabled) return; // No-op during rebuild
     this.operationsLog.push(op);
   }
 
@@ -587,50 +619,54 @@ export class VaultState {
    * @returns SerializedState ready to JSON.stringify()
    */
   serialize(): SerializedState {
-    const serialized: SerializedOperation[] = this.operationsLog.map(op => {
-      if (op.type === 'create') {
+    const serialized: SerializedOperation[] = this.operationsLog.map((op) => {
+      if (op.type === "create") {
         // Encode buffer in create operation's data
         const data = { ...op.data };
         if (data.buffer instanceof ArrayBuffer) {
           const { buffer, ...rest } = data;
           return {
-            type: 'create',
+            type: "create",
             nodeId: op.nodeId,
             parentId: op.parentId,
             data: {
               ...rest,
-              buffer: encodeBase64(new Uint8Array(buffer))
-            }
+              buffer: encodeBase64(new Uint8Array(buffer)),
+            },
           } satisfies SerializedOperation;
         }
         const { buffer, ...rest } = data;
         return {
-          type: 'create',
+          type: "create",
           nodeId: op.nodeId,
           parentId: op.parentId,
-          data: rest
+          data: rest,
         } satisfies SerializedOperation;
-      } else if (op.type === 'modify') {
+      } else if (op.type === "modify") {
         // Encode buffer in modify operation's changes
         const changes = { ...op.changes };
         if (changes.buffer instanceof ArrayBuffer) {
           const { buffer, ...rest } = changes;
           return {
-            type: 'modify',
+            type: "modify",
             nodeId: op.nodeId,
             changes: {
               ...rest,
-              buffer: encodeBase64(new Uint8Array(buffer))
+              buffer: encodeBase64(new Uint8Array(buffer)),
             },
-            ...(op.previousText !== undefined && { previousText: op.previousText })
+            ...(op.previousText !== undefined && {
+              previousText: op.previousText,
+            }),
           } satisfies SerializedOperation;
         }
         const { buffer, ...rest } = changes;
         return {
-          type: 'modify',
+          type: "modify",
           nodeId: op.nodeId,
           changes: rest,
-          ...(op.previousText !== undefined && { previousText: op.previousText })
+          ...(op.previousText !== undefined && {
+            previousText: op.previousText,
+          }),
         } satisfies SerializedOperation;
       }
       // DELETE, MOVE, RENAME don't have buffers
@@ -648,32 +684,45 @@ export class VaultState {
    * @param data SerializedState from JSON.parse()
    * @returns A new VaultState with all operations replayed
    */
-  static deserialize(peerId: 'tracking' | 'proposed', data: SerializedState): VaultState {
+  static deserialize(
+    peerId: "tracking" | "proposed",
+    data: SerializedState,
+  ): VaultState {
     // Create a fresh VaultState
     const state = new VaultState(peerId);
 
     if (data.operationsLog.length === 0) {
-      return state;  // Nothing to restore
+      return state; // Nothing to restore
     }
 
     // Decode buffers in operations
     const decodedOps: Operation[] = data.operationsLog.map((serializedOp) => {
       let op: Operation = serializedOp as Operation;
 
-      if (op.type === 'create') {
+      if (op.type === "create") {
         // Decode buffer if present in create operation
         const serializedData = op.data as Record<string, unknown>;
-        if (typeof serializedData.buffer === 'string') {
+        if (typeof serializedData.buffer === "string") {
           serializedData.buffer = decodeBase64(serializedData.buffer);
         }
-        op = { type: 'create', nodeId: op.nodeId, parentId: op.parentId, data: serializedData as NodeData };
-      } else if (op.type === 'modify') {
+        op = {
+          type: "create",
+          nodeId: op.nodeId,
+          parentId: op.parentId,
+          data: serializedData as NodeData,
+        };
+      } else if (op.type === "modify") {
         // Decode buffer if present in modify operation
         const serializedChanges = op.changes as Record<string, unknown>;
-        if (typeof serializedChanges.buffer === 'string') {
+        if (typeof serializedChanges.buffer === "string") {
           serializedChanges.buffer = decodeBase64(serializedChanges.buffer);
         }
-        op = { type: 'modify', nodeId: op.nodeId, changes: serializedChanges as Partial<NodeData>, previousText: op.previousText };
+        op = {
+          type: "modify",
+          nodeId: op.nodeId,
+          changes: serializedChanges as Partial<NodeData>,
+          previousText: op.previousText,
+        };
       }
 
       return op;

@@ -10,7 +10,7 @@ import { type CachedMetadata, normalizePath, Notice, TFile } from "obsidian";
 import { usePlugin } from "$lib/utils";
 import { ChatSerializer, type CurrentChatFile } from "./chat-serializer.ts";
 import { hasVariable, renderStringAsync } from "$lib/utils/nunjucks.ts";
-import { VaultOverlay } from "./vault-overlay.svelte.ts";
+import { VaultOverlay, type VaultCheckpoint } from "./vault-overlay.svelte.ts";
 import { createDebug } from "$lib/debug.ts";
 import type { AIAccount } from "../settings/settings.ts";
 import { loadFileParts } from "./attachments.ts";
@@ -46,7 +46,7 @@ export type WithSystemMetadata = {
 export type WithUserMetadata = {
   role: "user";
   metadata?: {
-    checkpoint?: number;
+    checkpoint?: VaultCheckpoint;
     modified?: string[];
     command?: {
       text: string;
@@ -190,7 +190,7 @@ export class Chat {
     userMetadata: Partial<WithUserMetadata["metadata"]> = {},
   ) {
     // Checkpoint before sync to enable fresh diff calculation on edit/regenerate
-    const checkpoint = this.vault.proposedDoc.checkpoint();
+    const checkpoint = this.vault.checkpoint();
 
     // Get timestamp of last message to filter renames
     const lastMessage = this.messages[this.messages.length - 1];
@@ -766,7 +766,7 @@ https://github.com/glowingjade/obsidian-smart-composer/issues/286`,
   ): Promise<void> {
     debug("Reverting");
     const checkpoint = message.metadata?.checkpoint;
-    if (Number.isNumber(checkpoint)) {
+    if (checkpoint && typeof checkpoint === "object" && "tracking" in checkpoint && "proposed" in checkpoint) {
       this.vault.revert(checkpoint);
       // Close merge view since changes are now invalid
       MergeView.close();
