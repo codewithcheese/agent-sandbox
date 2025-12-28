@@ -411,9 +411,9 @@ describe("VaultOverlaySvelte", () => {
 
       const renamedFile = overlay.getFileByPath("folder/renamed.md");
       expect(renamedFile).toBeTruthy();
-      const renamedNode = overlay.proposedFS.findByPath("folder/renamed.md");
+      const renamedNode = overlay.proposedDoc.findByPath("folder/renamed.md");
       expect(renamedNode).toBeTruthy();
-      expect(renamedNode.data.get("name")).toBe("renamed.md");
+      expect(renamedNode!.data.name).toBe("renamed.md");
 
       const oldFile = overlay.getFileByPath("folder/test.md");
       expect(oldFile).toBeNull();
@@ -434,8 +434,8 @@ describe("VaultOverlaySvelte", () => {
 
       // Assert
       // Verify the file is tracked as deleted in the overlay
-      const proposedNode = overlay.proposedFS.findTrashed(file.path);
-      expect(proposedNode.data.get("deletedFrom")).toEqual(file.path);
+      const proposedNode = overlay.proposedDoc.findTrashed(file.path);
+      expect(proposedNode!.data.deletedFrom).toEqual(file.path);
 
       // Verify the file still exists in the mock filesystem
       const fileInVault = vault.getFileByPath(filePath);
@@ -482,7 +482,7 @@ describe("VaultOverlaySvelte", () => {
       it("should throw not found when trying to delete already deleted file", async () => {
         // Create and delete a file
         await overlay.create("test.md", "content");
-        const proposedNode = overlay.proposedFS.findByPath("test.md");
+        const proposedNode = overlay.proposedDoc.findByPath("test.md");
         expect(proposedNode.isDeleted()).toEqual(false);
         const file = overlay.getFileByPath("test.md");
 
@@ -528,7 +528,7 @@ describe("VaultOverlaySvelte", () => {
       await overlay.delete(vaultFile);
 
       // Verify file was synced and then deleted
-      const deletedNode = overlay.proposedFS.findTrashed("vault-file.md");
+      const deletedNode = overlay.proposedDoc.findTrashed("vault-file.md");
       expect(deletedNode).toBeTruthy();
     });
   });
@@ -536,14 +536,14 @@ describe("VaultOverlaySvelte", () => {
   describe("Node Creation", () => {
     it("should throw error when creating node that already exists", () => {
       // Create node
-      overlay.proposedFS.createNode("test.md", {
+      overlay.proposedDoc.createAtPath("test.md", {
         isDirectory: false,
         text: "content",
       });
 
       // Try to create same node again
       expect(() => {
-        overlay.proposedFS.createNode("test.md", {
+        overlay.proposedDoc.createAtPath("test.md", {
           isDirectory: false,
           text: "content",
         });
@@ -551,7 +551,7 @@ describe("VaultOverlaySvelte", () => {
     });
 
     it("should create intermediate directories when creating nested paths", () => {
-      const node = overlay.proposedFS.createNode("deep/nested/path/file.md", {
+      const node = overlay.proposedDoc.createAtPath("deep/nested/path/file.md", {
         isDirectory: false,
         text: "content",
       });
@@ -559,9 +559,9 @@ describe("VaultOverlaySvelte", () => {
       expect(node).toBeTruthy();
 
       // Verify intermediate directories were created
-      const deepFolder = overlay.proposedFS.findByPath("deep");
-      const nestedFolder = overlay.proposedFS.findByPath("deep/nested");
-      const pathFolder = overlay.proposedFS.findByPath("deep/nested/path");
+      const deepFolder = overlay.proposedDoc.findByPath("deep");
+      const nestedFolder = overlay.proposedDoc.findByPath("deep/nested");
+      const pathFolder = overlay.proposedDoc.findByPath("deep/nested/path");
 
       expect(deepFolder).toBeTruthy();
       expect(nestedFolder).toBeTruthy();
@@ -576,10 +576,10 @@ describe("VaultOverlaySvelte", () => {
       const file = overlay.getFileByPath("test.md");
       await overlay.delete(file);
 
-      const deletedNode = overlay.proposedFS.findTrashed("test.md");
+      const deletedNode = overlay.proposedDoc.findTrashed("test.md");
       expect(deletedNode).toBeDefined();
 
-      expect(deletedNode.parent().data.get("name")).toEqual(".overlay-trash");
+      expect(deletedNode!.parent()!.data.name).toEqual(".overlay-trash");
     });
 
     it("should restore deleted file when creating with same path", async () => {
@@ -590,7 +590,7 @@ describe("VaultOverlaySvelte", () => {
 
       // Verify file is deleted and not accessible
       expect(overlay.getFileByPath("test.md")).toBeNull();
-      expect(overlay.proposedFS.isDeleted("test.md")).toBe(true);
+      expect(overlay.proposedDoc.isDeleted("test.md")).toBe(true);
 
       // Create file with same path but different content
       const newFile = await overlay.create("test.md", "new content");
@@ -603,7 +603,7 @@ describe("VaultOverlaySvelte", () => {
       expect(content).toBe("new content");
 
       // Should no longer be marked as deleted
-      expect(overlay.proposedFS.isDeleted("test.md")).toBe(false);
+      expect(overlay.proposedDoc.isDeleted("test.md")).toBe(false);
 
       // Should be accessible via getFileByPath
       const retrievedFile = overlay.getFileByPath("test.md");

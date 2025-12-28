@@ -72,8 +72,8 @@ export class VaultState {
    * @param nodeId The NodeID to look up
    * @returns The TreeNode, or null if not found
    */
-  getNode(nodeId: NodeID): TreeNode | null {
-    return this.nodeIndex.get(nodeId) ?? null;
+  getNode(nodeId: NodeID): TreeNode | undefined {
+    return this.nodeIndex.get(nodeId);
   }
 
   /**
@@ -81,12 +81,16 @@ export class VaultState {
    * Simple tree traversal: split path and walk down the tree.
    *
    * @param path The full path to search for (e.g., 'folder/file.md')
-   * @returns The TreeNode, or null if not found
+   * @returns The TreeNode, or undefined if not found
    */
-  findByPath(path: string): TreeNode | null {
-    if (path === '') return this.tree;  // Root
+  findByPath(path: string): TreeNode | undefined {
+    // Handle root path variations
+    if (path === '' || path === '/' || path === '.' || path === './') return this.tree;
 
-    const parts = path.split('/');
+    // Filter out empty segments (handles leading/trailing slashes and double slashes)
+    const parts = path.split('/').filter(p => p.length > 0);
+    if (parts.length === 0) return this.tree;
+
     let current = this.tree;
 
     for (const part of parts) {
@@ -96,7 +100,7 @@ export class VaultState {
         return child?.data.name === part;
       });
 
-      if (!childId) return null;
+      if (!childId) return undefined;
       current = this.nodeIndex.get(childId)!;
     }
 
@@ -177,7 +181,7 @@ export class VaultState {
    * @param originalPath The path the node was deleted from
    * @returns The trashed TreeNode, or null if not found
    */
-  findTrashed(originalPath: string): TreeNode | null {
+  findTrashed(originalPath: string): TreeNode | undefined {
     const trash = this.getTrashFolder();
     for (const childId of trash.childIds) {
       const child = this.nodeIndex.get(childId);
@@ -185,7 +189,18 @@ export class VaultState {
         return child;
       }
     }
-    return null;
+    return undefined;
+  }
+
+  /**
+   * Check if a path has been deleted (is in trash).
+   * Searches trash folder for a node with matching `deletedFrom` metadata.
+   *
+   * @param path The path to check
+   * @returns true if the path is in trash, false otherwise
+   */
+  isDeleted(path: string): boolean {
+    return this.findTrashed(path) !== undefined;
   }
 
   // ===== CONVENIENCE METHODS (TreeFS compatibility) =====
@@ -208,6 +223,12 @@ export class VaultState {
     const parts = path.split('/').filter(p => p.length > 0);
     if (parts.length === 0) {
       throw new Error('Cannot create node with empty path');
+    }
+
+    // Check if node already exists
+    const existing = this.findByPath(path);
+    if (existing) {
+      throw new Error(`Node already exists: ${path}`);
     }
 
     let current = this.tree;
@@ -251,7 +272,7 @@ export class VaultState {
    * @throws Error if any part of path exists as a non-directory
    */
   ensureDirs(path: string): TreeNode {
-    if (path === '' || path === '/') return this.tree;
+    if (path === '' || path === '/' || path === '.') return this.tree;
 
     const parts = path.split('/').filter(p => p.length > 0);
     let current = this.tree;
@@ -287,14 +308,14 @@ export class VaultState {
   }
 
   /**
-   * Alias for getNode() for TreeFS compatibility.
-   * Find a node by its ID.
+   * Find a node by its ID, including deleted nodes.
+   * This allows checking isDeleted() on nodes that have been hard-deleted.
    *
    * @param nodeId The NodeID to look up
-   * @returns The TreeNode, or null if not found
+   * @returns The TreeNode, or undefined if not found
    */
-  findById(nodeId: NodeID): TreeNode | null {
-    return this.getNode(nodeId);
+  findById(nodeId: NodeID): TreeNode | undefined {
+    return this.getNode(nodeId) ?? this.deletedNodes.get(nodeId);
   }
 
   /**
@@ -329,12 +350,12 @@ export class VaultState {
    *   }
    *
    * @param nodeId The NodeID of the node
-   * @returns The parent TreeNode, or null if node not found or is root
+   * @returns The parent TreeNode, or undefined if node not found or is root
    */
-  getParent(nodeId: NodeID): TreeNode | null {
+  getParent(nodeId: NodeID): TreeNode | undefined {
     const node = this.nodeIndex.get(nodeId);
-    if (!node || !node.parentId) return null;
-    return this.nodeIndex.get(node.parentId) ?? null;
+    if (!node || !node.parentId) return undefined;
+    return this.nodeIndex.get(node.parentId);
   }
 
   // ===== MUTATIONS (record operations) =====

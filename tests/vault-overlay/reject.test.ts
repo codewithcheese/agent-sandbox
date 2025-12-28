@@ -4,7 +4,7 @@ import {
   type ProposedChange,
 } from "../../src/chat/vault-overlay.svelte.ts";
 import { helpers, vault } from "../mocks/obsidian.ts";
-import type { TreeFSAdapter } from "../../src/chat/tree-fs-adapter.ts";
+import { VaultState } from "../../src/chat/vault-state/index.ts";
 import {
   getBuffer,
   getDeletedFrom,
@@ -12,17 +12,17 @@ import {
   getText,
   isDirectory,
   isTrashed,
-} from "$lib/utils/loro.ts";
+} from "$lib/utils/tree-node-utils.ts";
 
 describe("Reject changes", () => {
   let overlay: VaultOverlay;
-  let proposedFS: TreeFSAdapter;
-  let trackingFS: TreeFSAdapter;
+  let proposedDoc: VaultState;
+  let trackingDoc: VaultState;
 
   beforeEach(() => {
     overlay = new VaultOverlay(vault);
-    proposedFS = overlay.proposedFS;
-    trackingFS = overlay.trackingFS;
+    proposedDoc = overlay.proposedDoc;
+    trackingDoc = overlay.trackingDoc;
     // No automatic computeChanges on overlay.changes
   });
 
@@ -53,12 +53,12 @@ describe("Reject changes", () => {
       let changes = overlay.getFileChanges();
       const createChange = findChange(changes, "create", "notes/new-file.md");
       expect(createChange).toBeDefined();
-      expect(proposedFS.findByPath("notes/new-file.md")).toBeDefined();
+      expect(proposedDoc.findByPath("notes/new-file.md")).toBeDefined();
 
       await overlay.reject(createChange!);
 
-      expect(proposedFS.findByPath("notes/new-file.md")).toBeUndefined();
-      expect(trackingFS.findByPath("notes/new-file.md")).toBeUndefined(); // Should not exist in tracking
+      expect(proposedDoc.findByPath("notes/new-file.md")).toBeUndefined();
+      expect(trackingDoc.findByPath("notes/new-file.md")).toBeUndefined(); // Should not exist in tracking
 
       changes = overlay.getFileChanges();
       expect(
@@ -77,18 +77,18 @@ describe("Reject changes", () => {
         "notes/new-folder",
       );
       expect(createFolderChange).toBeDefined();
-      expect(proposedFS.findByPath("notes/new-folder")).toBeDefined();
-      expect(proposedFS.findByPath("notes/new-folder/item.md")).toBeDefined();
+      expect(proposedDoc.findByPath("notes/new-folder")).toBeDefined();
+      expect(proposedDoc.findByPath("notes/new-folder/item.md")).toBeDefined();
 
       await overlay.reject(createFolderChange!);
 
-      expect(proposedFS.findByPath("notes/new-folder")).toBeUndefined();
+      expect(proposedDoc.findByPath("notes/new-folder")).toBeUndefined();
       // Rejecting folder creation should also remove its children if they were part of the same "untracked" creation.
       // If item.md was a separate "create" proposal, it would need separate rejection.
       // Current `reject("create")` just deletes the node by ID. If folder is deleted, children are gone.
-      expect(proposedFS.findByPath("notes/new-folder/item.md")).toBeUndefined();
+      expect(proposedDoc.findByPath("notes/new-folder/item.md")).toBeUndefined();
 
-      expect(trackingFS.findByPath("notes/new-folder")).toBeUndefined();
+      expect(trackingDoc.findByPath("notes/new-folder")).toBeUndefined();
 
       changes = overlay.getFileChanges();
       expect(findChange(changes, "create", "notes/new-folder")).toBeUndefined();
@@ -109,19 +109,19 @@ describe("Reject changes", () => {
       const deleteChange = findChange(changes, "delete", "notes/to-delete.md");
       expect(deleteChange).toBeDefined();
 
-      const trashedProposedNode = proposedFS.findTrashed("notes/to-delete.md");
+      const trashedProposedNode = proposedDoc.findTrashed("notes/to-delete.md");
       expect(trashedProposedNode).toBeDefined();
       // Content in trash should be original content because delete reverts to tracking before trashing
       expect(getText(trashedProposedNode!)).toEqual("Original Content");
 
       await overlay.reject(deleteChange!);
 
-      const restoredProposedNode = proposedFS.findByPath("notes/to-delete.md");
+      const restoredProposedNode = proposedDoc.findByPath("notes/to-delete.md");
       expect(restoredProposedNode).toBeDefined();
       expect(isTrashed(restoredProposedNode!)).toBe(false);
       expect(getText(restoredProposedNode!)).toEqual("Original Content"); // Content remains as it was in trash
 
-      const trackingNode = trackingFS.findByPath("notes/to-delete.md");
+      const trackingNode = trackingDoc.findByPath("notes/to-delete.md");
       expect(trackingNode).toBeDefined(); // Still exists in tracking
       expect(getText(trackingNode!)).toEqual("Original Content");
 
@@ -148,11 +148,11 @@ describe("Reject changes", () => {
         "notes/folder-to-delete",
       );
       expect(deleteChange).toBeDefined();
-      expect(proposedFS.findTrashed("notes/folder-to-delete")).toBeDefined();
+      expect(proposedDoc.findTrashed("notes/folder-to-delete")).toBeDefined();
 
       await overlay.reject(deleteChange!);
 
-      const restoredProposedFolder = proposedFS.findByPath(
+      const restoredProposedFolder = proposedDoc.findByPath(
         "notes/folder-to-delete",
       );
       expect(restoredProposedFolder).toBeDefined();
@@ -160,13 +160,13 @@ describe("Reject changes", () => {
       expect(isDirectory(restoredProposedFolder!)).toBe(true);
 
       // Child item should also be "restored" as part of its parent folder being restored
-      const restoredProposedItem = proposedFS.findByPath(
+      const restoredProposedItem = proposedDoc.findByPath(
         "notes/folder-to-delete/item.md",
       );
       expect(restoredProposedItem).toBeDefined();
       expect(getText(restoredProposedItem!)).toEqual("Item inside");
 
-      const trackingFolder = trackingFS.findByPath("notes/folder-to-delete");
+      const trackingFolder = trackingDoc.findByPath("notes/folder-to-delete");
       expect(trackingFolder).toBeDefined();
 
       changes = overlay.getFileChanges();
@@ -188,18 +188,18 @@ describe("Reject changes", () => {
       let changes = overlay.getFileChanges();
       const modifyChange = findChange(changes, "modify", "notes/to-modify.md");
       expect(modifyChange).toBeDefined();
-      expect(getText(proposedFS.findByPath("notes/to-modify.md")!)).toEqual(
+      expect(getText(proposedDoc.findByPath("notes/to-modify.md")!)).toEqual(
         "Proposed New Content",
       );
 
       await overlay.reject(modifyChange!);
 
       const proposedNodeAfterReject =
-        proposedFS.findByPath("notes/to-modify.md");
+        proposedDoc.findByPath("notes/to-modify.md");
       expect(proposedNodeAfterReject).toBeDefined();
       expect(getText(proposedNodeAfterReject!)).toEqual("Original Content"); // Reverted
 
-      const trackingNode = trackingFS.findByPath("notes/to-modify.md");
+      const trackingNode = trackingDoc.findByPath("notes/to-modify.md");
       expect(getText(trackingNode!)).toEqual("Original Content"); // Unchanged
 
       changes = overlay.getFileChanges();
@@ -230,15 +230,15 @@ describe("Reject changes", () => {
         "notes/original-name.md",
       );
       expect(renameChange).toBeDefined();
-      expect(proposedFS.findByPath("notes/proposed-new-name.md")).toBeDefined();
+      expect(proposedDoc.findByPath("notes/proposed-new-name.md")).toBeDefined();
       expect(
-        getText(proposedFS.findByPath("notes/proposed-new-name.md")!),
+        getText(proposedDoc.findByPath("notes/proposed-new-name.md")!),
       ).toEqual("Modified Content After Rename");
-      expect(proposedFS.findByPath("notes/original-name.md")).toBeUndefined();
+      expect(proposedDoc.findByPath("notes/original-name.md")).toBeUndefined();
 
       await overlay.reject(renameChange!);
 
-      const proposedNodeAfterReject = proposedFS.findByPath(
+      const proposedNodeAfterReject = proposedDoc.findByPath(
         "notes/original-name.md",
       );
       expect(proposedNodeAfterReject).toBeDefined(); // Back to original path
@@ -248,10 +248,10 @@ describe("Reject changes", () => {
       ); // Content preserved
 
       expect(
-        proposedFS.findByPath("notes/proposed-new-name.md"),
+        proposedDoc.findByPath("notes/proposed-new-name.md"),
       ).toBeUndefined(); // New path gone
 
-      const trackingNode = trackingFS.findByPath("notes/original-name.md");
+      const trackingNode = trackingDoc.findByPath("notes/original-name.md");
       expect(trackingNode).toBeDefined(); // Still at original path in tracking
       expect(getText(trackingNode!)).toEqual("Content"); // Original content in tracking
 
@@ -299,18 +299,18 @@ describe("Reject changes", () => {
       );
       expect(renameChange).toBeDefined();
       expect(
-        proposedFS.findByPath("notes/proposed-folder-new-name"),
+        proposedDoc.findByPath("notes/proposed-folder-new-name"),
       ).toBeDefined();
       expect(
-        proposedFS.findByPath("notes/proposed-folder-new-name/item.md"),
+        proposedDoc.findByPath("notes/proposed-folder-new-name/item.md"),
       ).toBeDefined();
       expect(
-        proposedFS.findByPath("notes/proposed-folder-new-name/new-item.md"),
+        proposedDoc.findByPath("notes/proposed-folder-new-name/new-item.md"),
       ).toBeDefined();
 
       await overlay.reject(renameChange!);
 
-      const proposedFolderAfterReject = proposedFS.findByPath(
+      const proposedFolderAfterReject = proposedDoc.findByPath(
         "notes/original-folder-name",
       );
       expect(proposedFolderAfterReject).toBeDefined(); // Back to original path
@@ -321,22 +321,22 @@ describe("Reject changes", () => {
 
       // Children should have moved with the parent
       expect(
-        proposedFS.findByPath("notes/original-folder-name/item.md"),
+        proposedDoc.findByPath("notes/original-folder-name/item.md"),
       ).toBeDefined();
       expect(
-        getText(proposedFS.findByPath("notes/original-folder-name/item.md")!),
+        getText(proposedDoc.findByPath("notes/original-folder-name/item.md")!),
       ).toEqual("Folder Item");
       expect(
-        proposedFS.findByPath("notes/original-folder-name/new-item.md"),
+        proposedDoc.findByPath("notes/original-folder-name/new-item.md"),
       ).toBeDefined();
       expect(
         getText(
-          proposedFS.findByPath("notes/original-folder-name/new-item.md")!,
+          proposedDoc.findByPath("notes/original-folder-name/new-item.md")!,
         ),
       ).toEqual("New Item in Renamed");
 
       expect(
-        proposedFS.findByPath("notes/proposed-folder-new-name"),
+        proposedDoc.findByPath("notes/proposed-folder-new-name"),
       ).toBeUndefined(); // New path gone
 
       changes = overlay.getFileChanges();
@@ -373,7 +373,7 @@ describe("Reject changes", () => {
 
       await overlay.reject(modifyChange!);
 
-      const proposedNode = proposedFS.findByPath("notes/combo-renamed.md");
+      const proposedNode = proposedDoc.findByPath("notes/combo-renamed.md");
       expect(proposedNode).toBeDefined();
       expect(getText(proposedNode!)).toEqual("Original"); // Content reverted
       expect(getName(proposedNode!)).toEqual("combo-renamed.md"); // Still renamed
@@ -404,12 +404,12 @@ describe("Reject changes", () => {
 
       await overlay.reject(renameChange!);
 
-      const proposedNode = proposedFS.findByPath("notes/combo-original.md"); // Back to original path
+      const proposedNode = proposedDoc.findByPath("notes/combo-original.md"); // Back to original path
       expect(proposedNode).toBeDefined();
       expect(getText(proposedNode!)).toEqual("Modified After Rename"); // Content preserved
       expect(getName(proposedNode!)).toEqual("combo-original.md");
 
-      expect(proposedFS.findByPath("notes/combo-renamed.md")).toBeUndefined();
+      expect(proposedDoc.findByPath("notes/combo-renamed.md")).toBeUndefined();
 
       changes = overlay.getFileChanges();
       expect(
@@ -431,7 +431,7 @@ describe("Reject changes", () => {
     it("rejecting create for a file that was then deleted (hard delete)", async () => {
       // 1. Create in overlay (not in tracking)
       await overlay.create("notes/ephemeral.md", "Ephemeral content");
-      const createdNode = proposedFS.findByPath("notes/ephemeral.md");
+      const createdNode = proposedDoc.findByPath("notes/ephemeral.md");
       expect(createdNode).toBeDefined();
 
       let changes = overlay.getFileChanges();
@@ -440,7 +440,7 @@ describe("Reject changes", () => {
 
       // 2. Delete it (since it's not in tracking, it's a hard delete from proposed)
       await overlay.delete(overlay.getFileByPath("notes/ephemeral.md")!); // This will hard delete from proposed
-      expect(proposedFS.findByPath("notes/ephemeral.md")).toBeUndefined(); // Gone
+      expect(proposedDoc.findByPath("notes/ephemeral.md")).toBeUndefined(); // Gone
 
       // Now, try to reject the original "create" change.
       // The `reject` method's initial `findChange` will fail because the "create" proposal is gone

@@ -14,15 +14,14 @@ import { createDebug } from "$lib/debug.ts";
 import { basename, dirname } from "path-browserify";
 import type { CurrentChatFile } from "./chat-serializer.ts";
 import {
-  TreeFSAdapter,
-  type NodeData_FS,
-  overlayTmpPath,
-  trashPath,
-  isDirectoryKey,
-  deletedFrom,
-  wasCreatedKey,
-} from "./tree-fs-adapter.ts";
-import { VaultState, TreeNode, type NodeData } from "./vault-state/index.ts";
+  VaultState,
+  TreeNode,
+  type NodeData,
+  TRASH_FOLDER,
+  TMP_FOLDER,
+  DELETED_FROM_KEY,
+  WAS_CREATED_KEY,
+} from "./vault-state/index.ts";
 import {
   createStat,
   getBuffer,
@@ -40,7 +39,8 @@ import {
   setStat,
   updateText,
   type FileContent,
-} from "$lib/utils/loro.ts";
+  type NodeDataWithoutName,
+} from "$lib/utils/tree-node-utils.ts";
 import { createTwoFilesPatch } from "diff";
 import { merge as diff3Merge } from "node-diff3";
 import { RenameTracker } from "./rename-tracker.ts";
@@ -72,8 +72,6 @@ export class VaultOverlay implements Vault {
   trackingDoc: VaultState;
   proposedDoc: VaultState;
   changes = $state<ProposedChange[]>([]);
-  trackingFS: TreeFSAdapter;
-  proposedFS: TreeFSAdapter;
 
   // Track merge point for syncing tracking operations to proposed
   private lastMergePoint: number = 0;
@@ -101,10 +99,6 @@ export class VaultOverlay implements Vault {
     // Track merge point for syncing tracking operations to proposed
     this.lastMergePoint = this.trackingDoc.getLogLength();
 
-    // Wrap with TreeFSAdapter for interface compatibility
-    this.trackingFS = new TreeFSAdapter(this.trackingDoc);
-    this.proposedFS = new TreeFSAdapter(this.proposedDoc);
-
     this.computeChanges();
   }
 
@@ -120,13 +114,13 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     debug("getFileByPath", path);
 
-    const proposedNode = this.proposedFS.findByPath(path);
+    const proposedNode = this.proposedDoc.findByPath(path);
     if (proposedNode) {
       // If the file is tracked and exists, create a TFile
-      return this.createTFile(path, proposedNode.data.get("stat") as FileStats);
+      return this.createTFile(path, proposedNode.data.stat as FileStats);
     }
 
-    const trackingNode = this.trackingFS.findByPath(path);
+    const trackingNode = this.trackingDoc.findByPath(path);
     if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
@@ -143,8 +137,8 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     debug("getFolderByPath", path);
 
-    const proposedNode = this.proposedFS.findByPath(path);
-    if (proposedNode && !proposedNode.data.get(isDirectoryKey)) {
+    const proposedNode = this.proposedDoc.findByPath(path);
+    if (proposedNode && !proposedNode.data.isDirectory) {
       return null;
     }
 
@@ -153,7 +147,7 @@ export class VaultOverlay implements Vault {
       return this.createTFolder(path);
     }
 
-    const trackingNode = this.trackingFS.findByPath(path);
+    const trackingNode = this.trackingDoc.findByPath(path);
     if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
@@ -168,16 +162,16 @@ export class VaultOverlay implements Vault {
   getAbstractFileByPath(path: string) {
     path = normalizePath(path);
     debug("getAbstractFileByPath", path);
-    const proposedNode = this.proposedFS.findByPath(path);
+    const proposedNode = this.proposedDoc.findByPath(path);
     if (proposedNode) {
       // if the file is tracked and exists
       return this.createAbstractFile(
         path,
-        proposedNode.data.get(isDirectoryKey) === true,
+        proposedNode.data.isDirectory === true,
       );
     }
 
-    const trackingNode = this.trackingFS.findByPath(path);
+    const trackingNode = this.trackingDoc.findByPath(path);
     if (trackingNode && !proposedNode) {
       return null; // file in overlay but no longer accessible at this path
     }
@@ -201,7 +195,7 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
 
     // Ensure parent directories exist
-    const parent = this.proposedFS.ensureDirs(dirname(path));
+    const parent = this.proposedDoc.ensureDirs(dirname(path));
 
     const size =
       "text" in data
@@ -214,10 +208,10 @@ export class VaultOverlay implements Vault {
     // Proposals are trashed at their tracking path (even if they were renamed).
     // If trashed at this path, then it was deleted and is now being created with new content.
     // Allow since AI may have deleted the file, and now wants to create a new one.
-    const trashedNode = this.proposedFS.findTrashed(path);
+    const trashedNode = this.proposedDoc.findTrashed(path);
     if (trashedNode) {
-      this.proposedFS.restoreNode(trashedNode, parent);
-      const proposedNode = this.proposedFS.findByPath(path);
+      trashedNode.restore(parent);
+      const proposedNode = this.proposedDoc.findByPath(path);
       invariant(
         proposedNode,
         `${"isDirectory" in data ? "Folder" : "File"} not found: ${path}`,
@@ -230,7 +224,13 @@ export class VaultOverlay implements Vault {
       return this.createTFile(path, stat);
     }
 
-    this.proposedFS.createNode(path, { ...data, stat });
+    const isDir = "isDirectory" in data;
+    this.proposedDoc.createAtPath(path, {
+      ...data,
+      stat,
+      isDirectory: isDir,
+      ...(isDir && { [WAS_CREATED_KEY]: true }),
+    });
 
     if ("isDirectory" in data) {
       return this.createTFolder(path);
@@ -266,13 +266,13 @@ export class VaultOverlay implements Vault {
    *  Read
    */
   async read(file: TFile): Promise<string> {
-    const proposedNode = this.proposedFS.findByPath(file.path);
+    const proposedNode = this.proposedDoc.findByPath(file.path);
 
-    if (proposedNode && proposedNode.data.get(deletedFrom)) {
+    if (proposedNode && proposedNode.data[DELETED_FROM_KEY]) {
       throw new Error(`File was deleted: ${file.path} `);
     } else if (proposedNode) {
       return getText(proposedNode) ?? "";
-    } else if (this.trackingFS.findByPath(file.path)) {
+    } else if (this.trackingDoc.findByPath(file.path)) {
       // if no proposed and tracking exists, then file has been renamed or deleted
       throw new Error(`File does not exist: ${file.path} `);
     }
@@ -286,15 +286,15 @@ export class VaultOverlay implements Vault {
   }
 
   async readBinary(file: TFile): Promise<ArrayBuffer> {
-    const proposedNode = this.proposedFS.findByPath(file.path);
+    const proposedNode = this.proposedDoc.findByPath(file.path);
 
-    if (proposedNode && proposedNode.data.get(deletedFrom)) {
+    if (proposedNode && proposedNode.data[DELETED_FROM_KEY]) {
       throw new Error(`File was deleted: ${file.path} `);
-    } else if (proposedNode && proposedNode.data.get("buffer") === undefined) {
+    } else if (proposedNode && proposedNode.data.buffer === undefined) {
       throw Error(`Cannot read file as binary, buffer not found: ${file.path}`);
     } else if (proposedNode) {
-      return getBuffer(proposedNode);
-    } else if (this.trackingFS.findByPath(file.path)) {
+      return getBuffer(proposedNode)!;
+    } else if (this.trackingDoc.findByPath(file.path)) {
       // if no proposed and tracking exists, then file has been renamed or deleted
       throw new Error(`File does not exist: ${file.path} `);
     }
@@ -318,14 +318,14 @@ export class VaultOverlay implements Vault {
    */
   async delete(file: TAbstractFile): Promise<void> {
     // If the file is already deleted, nothing to do
-    const deleted = this.proposedFS.findTrashed(file.path);
+    const deleted = this.proposedDoc.findTrashed(file.path);
     if (deleted) {
       return;
     }
 
-    let proposedNode = this.proposedFS.findByPath(file.path);
+    let proposedNode = this.proposedDoc.findByPath(file.path);
     let trackingNode =
-      proposedNode && this.trackingFS.findById(proposedNode.id);
+      proposedNode && this.trackingDoc.findById(proposedNode.id);
 
     if (!proposedNode && !trackingNode) {
       const abstractFile = this.vault.getAbstractFileByPath(
@@ -339,21 +339,21 @@ export class VaultOverlay implements Vault {
         trackingNode,
         `Cannot delete file not found after sync: ${file.path}`,
       );
-      proposedNode = this.proposedFS.findByPath(file.path);
+      proposedNode = this.proposedDoc.findByPath(file.path);
     }
 
     invariant(proposedNode, `Cannot delete file not found: ${file.path} `);
 
     if (!trackingNode) {
       // File was created in overlay - just remove it completely
-      this.proposedFS.deleteNode(proposedNode.id);
+      proposedNode.delete();
     } else {
       // File exists in tracking - undo proposed to tracking state (rollback changes)
       this.revertProposed(proposedNode, trackingNode);
 
       // Now trash from original path
-      const originalPath = this.trackingFS.getNodePath(trackingNode);
-      this.proposedFS.trashNode(proposedNode, originalPath);
+      const originalPath = this.trackingDoc.getNodePath(trackingNode.id);
+      proposedNode.trash(originalPath);
     }
   }
 
@@ -369,26 +369,26 @@ export class VaultOverlay implements Vault {
       throw new Error("Path is outside the vault");
     }
 
-    const destProposedNode = this.proposedFS.findByPath(newPath);
+    const destProposedNode = this.proposedDoc.findByPath(newPath);
     if (destProposedNode) {
       throw new Error(`Cannot rename to path that already exists: ${newPath}`);
     }
 
-    const trashedNode = this.proposedFS.findTrashed(file.path);
+    const trashedNode = this.proposedDoc.findTrashed(file.path);
     if (trashedNode) {
       throw new Error(`Cannot rename file that was deleted: ${file.path}`);
     }
 
     // Check if new path exists in vault
-    const newPathTracking = this.trackingFS.findByPath(newPath);
+    const newPathTracking = this.trackingDoc.findByPath(newPath);
     const newPathExists = this.vault.getFileByPath(newPath);
     if (!newPathTracking && newPathExists) {
       throw new Error(`Cannot rename to path that already exists: ${newPath}`);
     }
 
     // Check if the file is tracked
-    let trackingNode = this.trackingFS.findByPath(file.path);
-    let proposedNode = this.proposedFS.findByPath(file.path);
+    let trackingNode = this.trackingDoc.findByPath(file.path);
+    let proposedNode = this.proposedDoc.findByPath(file.path);
     // Import if the file exists in the vault, but not in overlay
     if (!trackingNode && !proposedNode) {
       const vaultFile = this.vault.getAbstractFileByPath(
@@ -404,14 +404,14 @@ export class VaultOverlay implements Vault {
         trackingNode,
         `Cannot rename ${type} not found after sync: ${file.path}`,
       );
-      proposedNode = this.proposedFS.findByPath(file.path);
+      proposedNode = this.proposedDoc.findByPath(file.path);
     }
 
     invariant(proposedNode, `Cannot rename file not found: ${file.path}`);
-    let newParent = this.proposedFS.ensureDirs(dirname(newPath));
+    let newParent = this.proposedDoc.ensureDirs(dirname(newPath));
 
-    this.proposedFS.moveNode(proposedNode, newParent.id);
-    this.proposedFS.renameNode(proposedNode.id, basename(newPath));
+    proposedNode.move(newParent);
+    proposedNode.rename(basename(newPath));
   }
 
   async modify(file: TFile, text: string, options?: DataWriteOptions) {
@@ -431,29 +431,29 @@ export class VaultOverlay implements Vault {
     data: { text: string } | { buffer: ArrayBuffer },
     options?: DataWriteOptions,
   ) {
-    let proposedNode = this.proposedFS.findByPath(file.path);
+    let proposedNode = this.proposedDoc.findByPath(file.path);
     const existsInVault = this.vault.getFileByPath(normalizePath(file.path));
 
     // Sync if no proposal exists at this path, file exists in the vault, and is not tracked
     if (
       !proposedNode &&
       existsInVault &&
-      !this.trackingFS.findByPath(file.path)
+      !this.trackingDoc.findByPath(file.path)
     ) {
       const trackingNode = await this.syncPath(file.path);
       invariant(
         trackingNode,
         `Cannot modify file not found after sync: ${file.path}`,
       );
-      proposedNode = this.proposedFS.findById(trackingNode.id);
+      proposedNode = this.proposedDoc.findById(trackingNode.id);
     }
 
-    const parent = this.proposedFS.ensureDirs(dirname(file.path));
+    const parent = this.proposedDoc.ensureDirs(dirname(file.path));
     // Restore if file was trashed
-    const trashedNode = this.proposedFS.findTrashed(file.path);
+    const trashedNode = this.proposedDoc.findTrashed(file.path);
     if (trashedNode) {
-      this.proposedFS.restoreNode(trashedNode, parent);
-      proposedNode = this.proposedFS.findByPath(file.path);
+      trashedNode.restore(parent);
+      proposedNode = this.proposedDoc.findByPath(file.path);
       invariant(
         proposedNode,
         `Failed to find file after restored from trash: ${file.path}`,
@@ -482,7 +482,7 @@ export class VaultOverlay implements Vault {
       throw new Error("Path is outside the vault");
     }
 
-    const proposedNode = this.proposedFS.findByPath(path);
+    const proposedNode = this.proposedDoc.findByPath(path);
     if (proposedNode) {
       throw new Error(
         `${proposedNode instanceof TFolder ? "Folder" : "File"} already exists.`,
@@ -492,7 +492,7 @@ export class VaultOverlay implements Vault {
     // todo: reject existing case insensitive file name
 
     // If trashed, allow to re-create
-    const trashedNode = this.proposedFS.findTrashed(path);
+    const trashedNode = this.proposedDoc.findTrashed(path);
     const existsInVault = this.vault.getAbstractFileByPath(path);
     if (!trashedNode && existsInVault) {
       throw new Error(
@@ -549,9 +549,9 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     const abstractFile = this.createAbstractFile(path, true);
 
-    const folderNode = this.proposedFS.findByPath(path);
+    const folderNode = this.proposedDoc.findByPath(path);
     invariant(
-      folderNode.data.get(isDirectoryKey),
+      folderNode?.data.isDirectory,
       `Failed to create TFolder path is not a directory: ${path}`,
     );
 
@@ -573,31 +573,31 @@ export class VaultOverlay implements Vault {
           const childNodes = folderNode.children() || [];
           for (const childNode of childNodes) {
             if (
-              childNode.data.get(deletedFrom) ||
-              childNode.data.get("name") === trashPath ||
-              childNode.data.get("name") === overlayTmpPath
+              childNode.data[DELETED_FROM_KEY] ||
+              childNode.data.name === TRASH_FOLDER ||
+              childNode.data.name === TMP_FOLDER
             ) {
               continue;
             }
 
-            const trackingNode = this.trackingFS.findById(childNode.id);
+            const trackingNode = this.trackingDoc.findById(childNode.id);
             // If file was synced (not created in overlay), mark tracking path as seen
             // If file was not synced (created in overlay), mark proposed path as seen
-            const childPath = this.proposedFS.getNodePath(childNode);
+            const childPath = this.proposedDoc.getNodePath(childNode.id);
             seenPaths.add(
               trackingNode
-                ? this.trackingFS.getNodePath(trackingNode)
+                ? this.trackingDoc.getNodePath(trackingNode.id)
                 : childPath,
             );
 
-            const isDir = childNode.data.get(isDirectoryKey);
+            const isDir = childNode.data.isDirectory;
             if (isDir) {
               children.push(this.createTFolder(childPath));
             } else {
               children.push(
                 this.createTFile(
                   childPath,
-                  childNode.data.get("stat") as FileStats,
+                  childNode.data.stat as FileStats,
                 ),
               );
             }
@@ -610,7 +610,7 @@ export class VaultOverlay implements Vault {
           for (const child of vaultFolder.children) {
             if (
               !seenPaths.has(child.path) &&
-              !this.proposedFS.isDeleted(child.path)
+              !this.proposedDoc.isDeleted(child.path)
             ) {
               child.vault = this as unknown as Vault; // Pass-through pattern
               children.push(child);
@@ -706,8 +706,8 @@ export class VaultOverlay implements Vault {
 
     for (const path of trackedPaths) {
       const vaultFile = this.vault.getAbstractFileByPath(path);
-      const trackingNode = this.trackingFS.findByPath(path);
-      const proposedNode = this.proposedFS.findByPath(path);
+      const trackingNode = this.trackingDoc.findByPath(path);
+      const proposedNode = this.proposedDoc.findByPath(path);
 
       if (!vaultFile && trackingNode) {
         // Check if this file was recently renamed using the global rename tracker
@@ -751,7 +751,7 @@ export class VaultOverlay implements Vault {
         if (await this.hasVaultChanged(vaultFile, trackingNode)) {
           debug("Sync modify", path);
           // Capture proposed content before sync
-          const proposedNode = this.proposedFS.findById(trackingNode.id);
+          const proposedNode = this.proposedDoc.findById(trackingNode.id);
           const beforeContent = getFileContent(proposedNode);
           await this.syncPath(path);
           const afterContent = getFileContent(proposedNode);
@@ -804,7 +804,7 @@ export class VaultOverlay implements Vault {
       if (!parent) continue;
 
       // Check if proposed has this directory
-      const proposedNode = this.proposedFS.findByPath(currentPath);
+      const proposedNode = this.proposedDoc.findByPath(currentPath);
 
       if (proposedNode) {
         debug(`Ensure directory with ID reconciliation: ${currentPath} (ID: ${proposedNode.id})`);
@@ -830,8 +830,8 @@ export class VaultOverlay implements Vault {
     // Sync parent directories with ID reconciliation before syncing the file
     this.syncDirectory(path);
 
-    const trackingNode = this.trackingFS.findByPath(path);
-    const proposedNode = this.proposedFS.findByPath(path);
+    const trackingNode = this.trackingDoc.findByPath(path);
+    const proposedNode = this.proposedDoc.findByPath(path);
     if (!trackingNode && proposedNode) {
       throw new Error(`Failed to sync path, proposal already exists: ${path}`);
     }
@@ -852,17 +852,18 @@ export class VaultOverlay implements Vault {
 
           return trackingNode;
         } else {
-          return this.trackingFS.createNode(path, {
+          return this.trackingDoc.createAtPath(path, {
+            isDirectory: false,
             text: vaultContents,
             stat: abstractFile.stat,
           });
         }
       } else if (abstractFile instanceof TFolder) {
         if (!trackingNode) {
-          return this.trackingFS.createNode(path, {
+          return this.trackingDoc.createAtPath(path, {
             isDirectory: true,
           });
-        } else if (trackingNode.data.get(isDirectoryKey) === false) {
+        } else if (trackingNode.data.isDirectory === false) {
           throw new Error(
             `Path is folder in vault, but not in tracking: ${path}`,
           );
@@ -928,7 +929,7 @@ export class VaultOverlay implements Vault {
     path = normalizePath(path);
     const abstractFile = this.vault.getAbstractFileByPath(path);
     invariant(abstractFile, `Cannot sync create, file not in vault: ${path}`);
-    const proposedNode = this.proposedFS.findByPath(path);
+    const proposedNode = this.proposedDoc.findByPath(path);
     invariant(
       proposedNode,
       `Cannot sync create, file not in proposed: ${path}`,
@@ -953,10 +954,10 @@ export class VaultOverlay implements Vault {
     this.syncDirectory(path);
 
     // Delete proposed node to make room for resync
-    this.proposedFS.deleteNode(proposedNode.id);
+    proposedNode.delete();
 
     // Create tracking node from vault content
-    const trackingNode = this.trackingFS.createNode(path, {
+    const trackingNode = this.trackingDoc.createAtPath(path, {
       isDirectory: abstractFile instanceof TFolder,
       text,
       buffer,
@@ -966,7 +967,7 @@ export class VaultOverlay implements Vault {
     this.mergeDocs();
 
     // Verify proposed node was recreated
-    const newProposedNode = this.proposedFS.findByPath(path);
+    const newProposedNode = this.proposedDoc.findByPath(path);
     invariant(
       newProposedNode,
       `Failed sync create, synced proposed not found: ${path}`,
@@ -994,14 +995,14 @@ export class VaultOverlay implements Vault {
       !abstractFile,
       `Cannot sync delete, file exists in vault: ${path}`,
     );
-    const trackingNode = this.trackingFS.findByPath(path);
+    const trackingNode = this.trackingDoc.findByPath(path);
     invariant(
       trackingNode,
       `Cannot sync delete, file not in tracking: ${path}`,
     );
 
     // Delete from tracking state
-    this.trackingFS.deleteNode(trackingNode.id);
+    trackingNode.delete();
     this.mergeDocs();
   }
 
@@ -1024,13 +1025,13 @@ export class VaultOverlay implements Vault {
       return [];
     }
 
-    const trackingNode = this.trackingFS.findByPath(oldPath);
+    const trackingNode = this.trackingDoc.findByPath(oldPath);
     if (!trackingNode) {
       debug(`Dropping rename event - not tracking: ${oldPath}`);
       return [];
     }
 
-    const proposedNode = this.proposedFS.findById(trackingNode.id);
+    const proposedNode = this.proposedDoc.findById(trackingNode.id);
     invariant(
       proposedNode,
       `Corrupted overlay state: tracking node exists at ${oldPath} but corresponding proposed node with ID ${trackingNode.id} not found`,
@@ -1040,46 +1041,46 @@ export class VaultOverlay implements Vault {
     let preservedAiBuffer: ArrayBuffer | undefined;
 
     // Check for conflict: AI renamed/created different file to the same newPath
-    const conflictNode = this.proposedFS.findByPath(newPath);
+    const conflictNode = this.proposedDoc.findByPath(newPath);
     if (conflictNode && proposedNode && conflictNode.id !== proposedNode.id) {
-      const conflictTrackingNode = this.trackingFS.findById(conflictNode.id);
+      const conflictTrackingNode = this.trackingDoc.findById(conflictNode.id);
 
       if (conflictTrackingNode) {
         // AI renamed different file - undo it (vault rename wins)
-        const originalPath = this.trackingFS.getNodePath(conflictTrackingNode);
-        const originalParent = this.proposedFS.ensureDirs(
+        const originalPath = this.trackingDoc.getNodePath(conflictTrackingNode.id);
+        const originalParent = this.proposedDoc.ensureDirs(
           dirname(originalPath),
         );
-        this.proposedFS.moveNode(conflictNode, originalParent.id);
-        this.proposedFS.renameNode(conflictNode.id, basename(originalPath));
+        conflictNode.move(originalParent);
+        conflictNode.rename(basename(originalPath));
       } else {
         // AI created new file at newPath - preserve its content for later restoration
         preservedAiContent = getText(conflictNode);
         preservedAiBuffer = getBuffer(conflictNode);
 
         // Delete AI-created node to make room for vault rename
-        this.proposedFS.deleteNode(conflictNode.id);
+        conflictNode.delete();
       }
     }
 
     // Update tracking to match vault rename (vault rename wins)
-    const newParentTracking = this.trackingFS.ensureDirs(dirname(newPath));
-    this.trackingFS.moveNode(trackingNode, newParentTracking.id);
-    this.trackingFS.renameNode(trackingNode.id, basename(newPath));
+    const newParentTracking = this.trackingDoc.ensureDirs(dirname(newPath));
+    trackingNode.move(newParentTracking);
+    trackingNode.rename(basename(newPath));
     this.mergeDocs();
 
     // Update proposed to follow tracking rename
     if (proposedNode) {
-      const newParentProposed = this.proposedFS.ensureDirs(dirname(newPath));
+      const newParentProposed = this.proposedDoc.ensureDirs(dirname(newPath));
 
       // Handle trashed nodes: restore them to their new location
       if (isTrashed(proposedNode)) {
-        this.proposedFS.restoreNode(proposedNode, newParentProposed);
+        proposedNode.restore(newParentProposed);
       } else {
-        this.proposedFS.moveNode(proposedNode, newParentProposed.id);
+        proposedNode.move(newParentProposed);
       }
 
-      this.proposedFS.renameNode(proposedNode.id, basename(newPath));
+      proposedNode.rename(basename(newPath));
     }
 
     // If we preserved AI-created content, restore it as a modification at new path
@@ -1104,27 +1105,27 @@ export class VaultOverlay implements Vault {
     try {
       // proposed data remaining after approval is persisted and synced
       const remainders: {
-        tracking: ReturnType<TreeFSAdapter["findByPath"]>;
-        proposed: ReturnType<TreeFSAdapter["findByPath"]>;
-        proposedData: NodeData;
+        tracking: TreeNode;
+        proposed: TreeNode;
+        proposedData: NodeDataWithoutName;
       }[] = [];
 
       for (const op of ops) {
         const proposedNode =
-          this.proposedFS.findByPath(op.path) ||
-          this.proposedFS.findTrashed(op.path);
+          this.proposedDoc.findByPath(op.path) ||
+          this.proposedDoc.findTrashed(op.path);
         invariant(
           proposedNode,
           `Cannot approve ${op.type}, no proposal found for: ${op.path}`,
         );
-        if (proposedNode.data.get(deletedFrom) && op.type !== "delete") {
+        if (proposedNode.data[DELETED_FROM_KEY] && op.type !== "delete") {
           throw new Error(
             `Cannot approve ${op.type}, file was deleted: ${op.path}`,
           );
         }
         // get proposed data before approved changes are synced
         const proposedData = getNodeData(proposedNode);
-        const trackingNode = this.trackingFS.findById(proposedNode.id);
+        const trackingNode = this.trackingDoc.findById(proposedNode.id);
         if (op.type === "create") {
           // write change to tracking with same ID as proposed
           const data = getNodeData(proposedNode);
@@ -1139,39 +1140,39 @@ export class VaultOverlay implements Vault {
           // Sync parent directories with ID reconciliation before creating node
           this.syncDirectory(op.path);
           // Use proposed ID for ID consistency - proposed node becomes tracked
-          const trackingNode = this.trackingFS.createNode(
+          const newTrackingNode = this.trackingDoc.createAtPath(
             op.path,
-            data,
+            data as NodeDataWithoutName & Record<string, unknown>,
             proposedNode.id,
           );
           remainders.push({
-            tracking: trackingNode,
+            tracking: newTrackingNode,
             proposed: proposedNode,
             proposedData,
           });
           await this.persistApproval("create", op.path, data);
         } else if (op.type === "delete") {
-          this.trackingFS.deleteNode(trackingNode.id);
+          trackingNode!.delete();
           // node deletion does not sync, so mark proposed as deleted manually
-          this.proposedFS.deleteNode(proposedNode.id);
+          proposedNode.delete();
           await this.persistApproval("delete", op.path, undefined);
         } else if (op.type === "rename") {
-          const oldPath = this.trackingFS.getNodePath(trackingNode);
-          if (trackingNode.parent()?.id !== proposedNode.parent()?.id) {
-            let parentNode = this.trackingFS.findByPath(dirname(op.path));
+          const oldPath = this.trackingDoc.getNodePath(trackingNode!.id);
+          if (trackingNode!.parentId !== proposedNode.parentId) {
+            let parentNode = this.trackingDoc.findByPath(dirname(op.path));
             if (!parentNode) {
               // if parent path is not tracked, create it with proposed parent's ID
               const proposedParent = proposedNode.parent();
-              parentNode = this.trackingFS.createNode(
+              parentNode = this.trackingDoc.createAtPath(
                 dirname(op.path),
-                getNodeData(proposedParent),
+                getNodeData(proposedParent!) as NodeDataWithoutName & Record<string, unknown>,
                 proposedParent?.id,
               );
             }
-            this.trackingFS.moveNode(trackingNode, parentNode.id);
+            trackingNode!.move(parentNode);
           }
-          if (getName(trackingNode) !== getName(proposedNode)) {
-            this.trackingFS.renameNode(trackingNode.id, op.path);
+          if (getName(trackingNode!) !== getName(proposedNode)) {
+            trackingNode!.rename(basename(op.path));
           }
           await this.persistApproval("rename", op.path, {
             oldPath,
@@ -1199,11 +1200,11 @@ export class VaultOverlay implements Vault {
             });
           }
           // Modify is approved separately from rename, modify current tracking path.
-          const trackingPath = this.trackingFS.getNodePath(trackingNode);
+          const trackingPath = this.trackingDoc.getNodePath(trackingNode!.id);
           await this.persistApproval(
             "modify",
             trackingPath,
-            getNodeData(trackingNode),
+            getNodeData(trackingNode!),
           );
         } else {
           throw Error(
@@ -1218,7 +1219,7 @@ export class VaultOverlay implements Vault {
       for (const { tracking, proposed, proposedData } of remainders) {
         const diff = this.diffProposed(tracking, proposed, proposedData);
         // get tracked proposed node
-        const proposedNode = this.proposedFS.findById(tracking.id);
+        const proposedNode = this.proposedDoc.findById(tracking.id);
         if (diff.text) {
           updateText(proposedNode, diff.text.proposed);
         }
@@ -1226,15 +1227,16 @@ export class VaultOverlay implements Vault {
           replaceBuffer(proposedNode, diff.buffer.proposed);
         }
         if (diff.path) {
-          const parentPath = this.proposedFS.getNodePath(proposedNode.parent());
-          const parentNode = this.proposedFS.findByPath(parentPath);
-          proposedNode.move(parentNode);
+          const parent = proposedNode!.parent();
+          const parentPath = parent ? this.proposedDoc.getNodePath(parent.id) : "";
+          const parentNode = this.proposedDoc.findByPath(parentPath);
+          proposedNode!.move(parentNode!);
         }
       }
     } catch (e) {
       // Rollback to checkpoints on error
-      this.proposedFS.revertTo(proposedCheckpoint);
-      this.trackingFS.revertTo(trackingCheckpoint);
+      this.proposedDoc.rollback(proposedCheckpoint);
+      this.trackingDoc.rollback(trackingCheckpoint);
       throw e;
     }
   }
@@ -1250,42 +1252,42 @@ export class VaultOverlay implements Vault {
     );
 
     const proposedNode =
-      this.proposedFS.findByPath(change.path) ??
-      this.proposedFS.findTrashed(change.path);
+      this.proposedDoc.findByPath(change.path) ??
+      this.proposedDoc.findTrashed(change.path);
 
     // For create, there's no tracking node. For others, we expect one.
-    let trackingNode = this.trackingFS.findById(proposedNode.id);
+    let trackingNode = this.trackingDoc.findById(proposedNode.id);
 
     switch (change.type) {
       case "create":
         // Rejecting a "create" means the item should not exist in proposed.
-        this.proposedFS.deleteNode(proposedNode.id);
+        proposedNode!.delete();
         break;
 
       case "delete":
         // Rejecting a "delete" means the item should be restored from trash.
         // BUT KEEP ITS CURRENT CONTENT in proposed.
-        const parent = this.proposedFS.findById(trackingNode.parent().id);
+        const parent = this.proposedDoc.findById(trackingNode!.parentId!);
         invariant(
           parent,
           `Failed to reject ${change.type} on ${change.path}, original parent not found.`,
         );
-        this.proposedFS.restoreNode(proposedNode, parent);
+        proposedNode!.restore(parent);
         break;
 
       case "rename": {
         // Rejecting a "rename" means the item in proposed (at change.newPath)
         // should revert to its old path (change.oldPath) from tracking,
         // BUT KEEP ITS CURRENT CONTENT in proposed.
-        const oldPath = this.trackingFS.getNodePath(trackingNode);
+        const oldPath = this.trackingDoc.getNodePath(trackingNode!.id);
         invariant(
           match.type === "rename" && match.info.oldPath === oldPath,
           `Cannot reject rename on ${change.path}. Original path (${oldPath}) does not match current proposed change.`,
         );
         // restore any trashed parents
-        const oldParent = this.proposedFS.ensureDirs(dirname(oldPath));
-        this.proposedFS.moveNode(proposedNode, oldParent.id);
-        this.proposedFS.renameNode(proposedNode.id, basename(oldPath));
+        const oldParent = this.proposedDoc.ensureDirs(dirname(oldPath));
+        proposedNode!.move(oldParent);
+        proposedNode!.rename(basename(oldPath));
         break;
       }
 
@@ -1299,26 +1301,26 @@ export class VaultOverlay implements Vault {
         );
 
         // Revert content (text or buffer)
-        const trackingText = getText(trackingNode);
+        const trackingText = getText(trackingNode!);
         if (trackingText !== undefined) {
-          updateText(proposedNode, trackingText);
+          updateText(proposedNode!, trackingText);
         } else {
-          proposedNode.data.delete("text"); // Ensure text container is removed if tracking had no text
+          proposedNode!.modify({ text: undefined }); // Ensure text is removed if tracking had no text
         }
 
-        const trackingBuffer = getBuffer(trackingNode);
+        const trackingBuffer = getBuffer(trackingNode!);
         if (trackingBuffer !== undefined) {
-          replaceBuffer(proposedNode, trackingBuffer); // replaceBuffer handles base64 encoding
+          replaceBuffer(proposedNode!, trackingBuffer);
         } else {
-          proposedNode.data.delete("buffer"); // Ensure buffer is removed if tracking had no buffer
+          proposedNode!.modify({ buffer: undefined }); // Ensure buffer is removed if tracking had no buffer
         }
 
         // Revert stats
-        const trackingStat = getStat(trackingNode);
+        const trackingStat = getStat(trackingNode!);
         if (trackingStat) {
-          setStat(proposedNode, trackingStat);
+          setStat(proposedNode!, trackingStat);
         } else {
-          proposedNode.data.delete("stat");
+          proposedNode!.modify({ stat: undefined });
         }
         break;
       default:
@@ -1330,8 +1332,8 @@ export class VaultOverlay implements Vault {
 
   async persistApproval(
     ...args:
-      | ["create", string, NodeData]
-      | ["modify", string, NodeData]
+      | ["create", string, NodeDataWithoutName]
+      | ["modify", string, NodeDataWithoutName]
       | ["rename", string, { oldPath: string }]
       | ["delete", string, undefined]
   ) {
@@ -1396,9 +1398,9 @@ export class VaultOverlay implements Vault {
   }
 
   diffProposed(
-    trackingNode: ReturnType<TreeFSAdapter["findByPath"]>,
-    proposedNode: ReturnType<TreeFSAdapter["findByPath"]>,
-    proposedData: NodeData,
+    trackingNode: TreeNode,
+    proposedNode: TreeNode,
+    proposedData: NodeDataWithoutName,
   ) {
     const diff: {
       text?: { proposed: string | undefined; tracking: string | undefined };
@@ -1410,8 +1412,8 @@ export class VaultOverlay implements Vault {
     } = {};
 
     // Compare path
-    const trackingPath = this.trackingFS.getNodePath(trackingNode);
-    const proposedPath = this.proposedFS.getNodePath(proposedNode);
+    const trackingPath = this.trackingDoc.getNodePath(trackingNode.id);
+    const proposedPath = this.proposedDoc.getNodePath(proposedNode.id);
     if (trackingPath !== proposedPath) {
       diff.path = {
         tracking: trackingPath,
@@ -1553,8 +1555,6 @@ export class VaultOverlay implements Vault {
     this.lastMergePoint = trackingState.getLogLength();
 
     // Invalidate caches
-    this.proposedFS.invalidateCache();
-    this.trackingFS.invalidateCache();
   }
 
   computeChanges() {
@@ -1570,30 +1570,30 @@ export class VaultOverlay implements Vault {
     this.collectNodeIds(this.proposedDoc, allIds);
 
     for (const id of allIds) {
-      const trackingNode = this.trackingFS.findById(id);
-      const proposedNode = this.proposedFS.findById(id);
+      const trackingNode = this.trackingDoc.findById(id);
+      const proposedNode = this.proposedDoc.findById(id);
 
       // If node only exists in tracking, it means it was hard-deleted from proposed
       // (not via our trash mechanism). This is an edge case.
       // Our primary "delete" mechanism involves moving to .overlay-trash in proposed.
       if (trackingNode && !proposedNode) {
         console.warn(
-          `Node ${id} (path: ${this.trackingFS.getNodePath(trackingNode)}) exists in tracking but not in proposed. Consider this a hard delete?`,
+          `Node ${id} (path: ${this.trackingDoc.getNodePath(trackingNode.id)}) exists in tracking but not in proposed. Consider this a hard delete?`,
         );
         continue;
       }
 
       if (!proposedNode) continue; // Should not happen if allIds includes proposedNode IDs.
 
-      const pnPath = this.proposedFS.getNodePath(proposedNode);
+      const pnPath = this.proposedDoc.getNodePath(proposedNode.id);
 
       // Skip the .overlay-trash folder itself
-      if (pnPath === trashPath) {
+      if (pnPath === TRASH_FOLDER) {
         continue;
       }
 
       // Skip the .overlay-tmp folder itself
-      if (pnPath.startsWith(overlayTmpPath)) {
+      if (pnPath.startsWith(TMP_FOLDER)) {
         continue;
       }
 
@@ -1601,10 +1601,10 @@ export class VaultOverlay implements Vault {
 
       if (!trackingNode && proposedNode && !isProposedTrashed) {
         // Case 1: CREATED - Node exists in proposed, not in tracking, and not in trash.
-        const pnPath = this.proposedFS.getNodePath(proposedNode);
+        const pnPath = this.proposedDoc.getNodePath(proposedNode.id);
         const pnIsDir = isDirectory(proposedNode);
         // Only return directories explicitly created.
-        if (pnIsDir && proposedNode.data.get("wasCreated")) {
+        if (pnIsDir && proposedNode.data[WAS_CREATED_KEY]) {
           changes.push({
             type: "create",
             path: pnPath,
@@ -1635,13 +1635,13 @@ export class VaultOverlay implements Vault {
           });
         } else {
           console.warn(
-            `Trashed node ${id} (proposed path: ${this.proposedFS.getNodePath(proposedNode)}) is missing 'deletedFrom' metadata.`,
+            `Trashed node ${id} (proposed path: ${this.proposedDoc.getNodePath(proposedNode.id)}) is missing 'DELETED_FROM_KEY' metadata.`,
           );
         }
       } else if (trackingNode && proposedNode && !isProposedTrashed) {
         // Case 3: EXISTING - Node in both, not in trash. Check for RENAME and/or MODIFY.
-        const trackingPath = this.trackingFS.getNodePath(trackingNode);
-        const proposedPath = this.proposedFS.getNodePath(proposedNode);
+        const trackingPath = this.trackingDoc.getNodePath(trackingNode.id);
+        const proposedPath = this.proposedDoc.getNodePath(proposedNode.id);
         const nodeIsDir = isDirectory(proposedNode);
 
         // Check for RENAME (path changed)
@@ -1681,8 +1681,6 @@ export class VaultOverlay implements Vault {
 
   revert(checkpoint: number) {
     debug("Reverting to checkpoint", checkpoint);
-    this.trackingFS.invalidateCache();
-    this.proposedFS.invalidateCache();
     this.proposedDoc.rollback(checkpoint);
     debug("Revert complete, computing changes");
     this.computeChanges();
@@ -1699,10 +1697,10 @@ export class VaultOverlay implements Vault {
     // If parent IDs differ, find the correct parent in proposed
     if (proposedParent && trackingParent && proposedParent.id !== trackingParent.id) {
       // Try by ID first, then fall back to path
-      let originalParent = this.proposedFS.findById(trackingParent.id);
+      let originalParent = this.proposedDoc.findById(trackingParent.id);
       if (!originalParent) {
-        const trackingParentPath = this.trackingFS.getNodePath(trackingParent);
-        originalParent = this.proposedFS.findByPath(trackingParentPath);
+        const trackingParentPath = this.trackingDoc.getNodePath(trackingParent.id);
+        originalParent = this.proposedDoc.findByPath(trackingParentPath);
       }
       if (originalParent) {
         proposedNode.move(originalParent);
@@ -1710,38 +1708,37 @@ export class VaultOverlay implements Vault {
     }
 
     // Reset deleted flag
-    proposedNode.data.delete(deletedFrom);
+    proposedNode.modify({ [DELETED_FROM_KEY]: undefined });
 
     // Reset text and buffer
-    if (trackingNode.data.get("text")) {
-      replaceText(proposedNode, getText(trackingNode));
+    if (trackingNode.data.text) {
+      replaceText(proposedNode, getText(trackingNode)!);
     }
-    if (trackingNode.data.get("buffer")) {
-      replaceBuffer(proposedNode, getBuffer(trackingNode));
+    if (trackingNode.data.buffer) {
+      replaceBuffer(proposedNode, getBuffer(trackingNode)!);
     }
     // Reset name
-    if (trackingNode.data.get("name")) {
-      proposedNode.data.set("name", trackingNode.data.get("name"));
+    if (trackingNode.data.name) {
+      proposedNode.modify({ name: trackingNode.data.name });
     }
     // Reset stat
-    if (trackingNode.data.get("stat")) {
-      proposedNode.data.set("stat", trackingNode.data.get("stat"));
+    if (trackingNode.data.stat) {
+      proposedNode.modify({ stat: trackingNode.data.stat });
     }
 
     // Undo move if parents changed (use path-based fallback)
     const parent = trackingNode.parent();
     if (proposedNode.parent()?.id !== parent?.id) {
-      let targetParent = this.proposedFS.findById(parent.id);
+      let targetParent = this.proposedDoc.findById(parent!.id);
       if (!targetParent && parent) {
-        const parentPath = this.trackingFS.getNodePath(parent);
-        targetParent = this.proposedFS.findByPath(parentPath);
+        const parentPath = this.trackingDoc.getNodePath(parent.id);
+        targetParent = this.proposedDoc.findByPath(parentPath);
       }
       if (targetParent) {
         proposedNode.move(targetParent);
       }
     }
 
-    this.proposedFS.invalidateCache();
   }
 
   /**
@@ -1758,7 +1755,7 @@ export class VaultOverlay implements Vault {
 
     // Filter out infrastructure folders
     return paths.filter(
-      (path) => path && path !== trashPath && !path.startsWith(overlayTmpPath),
+      (path) => path && path !== TRASH_FOLDER && !path.startsWith(TMP_FOLDER),
     );
   }
 
@@ -1779,7 +1776,7 @@ export class VaultOverlay implements Vault {
     if (
       path &&
       path !== "" &&
-      (!nodeIsDirectory || node.data[wasCreatedKey])
+      (!nodeIsDirectory || node.data[WAS_CREATED_KEY])
     ) {
       paths.push(path);
     }

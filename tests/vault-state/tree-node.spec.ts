@@ -103,7 +103,7 @@ describe('TreeNode (Phase 1: Structure)', () => {
     const node = root.createChild({ name: 'test.md', isDirectory: false });
     node.delete();
 
-    expect(vaultState.getNode(node.id)).toBeNull();
+    expect(vaultState.getNode(node.id)).toBeUndefined();
   });
 
   it('should allow setting parent and child IDs programmatically', () => {

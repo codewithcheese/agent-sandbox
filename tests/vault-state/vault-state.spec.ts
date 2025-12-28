@@ -77,7 +77,7 @@ describe('VaultState (Phase 1: Structure)', () => {
     });
 
     it('getNode should return null for non-existent node', () => {
-      expect(trackingState.getNode('non-existent')).toBeNull();
+      expect(trackingState.getNode('non-existent')).toBeUndefined();
     });
 
     it('findByPath should return root for empty path', () => {
@@ -146,7 +146,7 @@ describe('VaultState (Phase 1: Structure)', () => {
         isDirectory: false
       });
       node.delete();
-      expect(trackingState.getNode(node.id)).toBeNull();
+      expect(trackingState.getNode(node.id)).toBeUndefined();
       expect(trackingState.getLogLength()).toBe(2);
     });
   });
@@ -180,7 +180,7 @@ describe('VaultState (Phase 1: Structure)', () => {
 
       trackingState.rollback(checkpoint);
       expect(trackingState.getLogLength()).toBe(1);
-      expect(trackingState.getNode(node2.id)).toBeNull();
+      expect(trackingState.getNode(node2.id)).toBeUndefined();
       expect(trackingState.getNode(node1.id)).toBeDefined();
     });
   });
@@ -342,8 +342,8 @@ describe('VaultState (Phase 1: Structure)', () => {
       expect(proposedState.getLogLength()).toBe(0);
 
       // Both start with only root
-      expect(trackingState.getNode('root')).toBeDefined();
-      expect(proposedState.getNode('root')).toBeDefined();
+      expect(trackingState.getNode('0')).toBeDefined();
+      expect(proposedState.getNode('0')).toBeDefined();
     });
   });
 });

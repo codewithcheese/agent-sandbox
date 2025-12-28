@@ -27,6 +27,14 @@ export type {
   SerializedState
 } from './types';
 
+// Constants
+export {
+  TRASH_FOLDER,
+  TMP_FOLDER,
+  DELETED_FROM_KEY,
+  WAS_CREATED_KEY
+} from './types';
+
 // Classes
 export { TreeNode } from './tree-node';
 export { VaultState } from './vault-state';

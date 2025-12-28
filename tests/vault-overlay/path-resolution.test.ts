@@ -57,10 +57,10 @@ describe("VaultOverlaySvelte Path Resolution", () => {
     it("should handle root path variations", () => {
       const overlay = new VaultOverlay(vault);
 
-      const root1 = overlay.proposedFS.findByPath(".");
-      const root2 = overlay.proposedFS.findByPath("/");
-      const root3 = overlay.proposedFS.findByPath("");
-      const root4 = overlay.proposedFS.findByPath("./");
+      const root1 = overlay.proposedDoc.findByPath(".");
+      const root2 = overlay.proposedDoc.findByPath("/");
+      const root3 = overlay.proposedDoc.findByPath("");
+      const root4 = overlay.proposedDoc.findByPath("./");
 
       expect(root1).toBeTruthy();
       expect(root2).toBeTruthy();
@@ -68,24 +68,24 @@ describe("VaultOverlaySvelte Path Resolution", () => {
       expect(root4).toBeTruthy();
 
       // All should be the same root node
-      expect(root1.id).toBe(root2.id);
-      expect(root2.id).toBe(root3.id);
-      expect(root3.id).toBe(root4.id);
+      expect(root1!.id).toBe(root2!.id);
+      expect(root2!.id).toBe(root3!.id);
+      expect(root3!.id).toBe(root4!.id);
     });
 
     it("should handle paths with empty segments", () => {
       const overlay = new VaultOverlay(vault);
 
       // Create node with normal path
-      overlay.proposedFS.createNode("folder/file.md", {
+      overlay.proposedDoc.createAtPath("folder/file.md", {
         isDirectory: false,
         text: "content",
       });
 
       // Find with path containing empty segments
-      const node1 = overlay.proposedFS.findByPath("folder//file.md");
-      const node2 = overlay.proposedFS.findByPath("/folder/file.md");
-      const node3 = overlay.proposedFS.findByPath("folder/file.md/");
+      const node1 = overlay.proposedDoc.findByPath("folder//file.md");
+      const node2 = overlay.proposedDoc.findByPath("/folder/file.md");
+      const node3 = overlay.proposedDoc.findByPath("folder/file.md/");
 
       expect(node1).toBeTruthy();
       expect(node2).toBeTruthy();

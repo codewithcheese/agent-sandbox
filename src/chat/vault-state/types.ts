@@ -27,6 +27,13 @@ export const TMP_FOLDER = '.overlay-tmp' as const;
 export const DELETED_FROM_KEY = 'deletedFrom' as const;
 
 /**
+ * Metadata key for explicitly created directories.
+ * Used to distinguish directories created by user/AI from those implicitly created
+ * as part of path creation (e.g., creating "a/b/c.md" implicitly creates "a" and "a/b").
+ */
+export const WAS_CREATED_KEY = 'wasCreated' as const;
+
+/**
  * File metadata (modification time, creation time, size).
  * Mirrors Obsidian's TAbstractFile.stat interface.
  */

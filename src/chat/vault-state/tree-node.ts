@@ -267,6 +267,25 @@ export class TreeNode {
   }
 
   /**
+   * Check if this node is hard-deleted (removed from the index).
+   * For checking soft-delete (trash), use isTrashed().
+   */
+  isDeleted(): boolean {
+    return !this.vaultState.getNode(this.id);
+  }
+
+  /**
+   * Get the parent node of this node.
+   * Similar to LoroTreeNode.parent() API.
+   *
+   * @returns The parent TreeNode, or null if this is the root
+   */
+  parent(): TreeNode | null {
+    if (!this.parentId) return null;
+    return this.vaultState.getNode(this.parentId);
+  }
+
+  /**
    * Get all child nodes of this node.
    * Similar to LoroTreeNode.children() API.
    *

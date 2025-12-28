@@ -44,7 +44,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
     it('should reject creation under non-existent parent', () => {
       const nonexistent = state.getNode('nonexistent');
-      expect(nonexistent).toBeNull();
+      expect(nonexistent).toBeUndefined();
 
       const root = state.getNode('0')!;
       expect(() =>
@@ -101,7 +101,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
     it('should reject modification of non-existent node', () => {
       const node = state.getNode('nonexistent');
-      expect(node).toBeNull();
+      expect(node).toBeUndefined();
     });
   });
 
@@ -125,7 +125,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
     it('should reject move to non-existent parent', () => {
       const nonexistentParent = state.getNode('nonexistent');
-      expect(nonexistentParent).toBeNull();
+      expect(nonexistentParent).toBeUndefined();
     });
 
     it('should detect circular reference', () => {
@@ -176,7 +176,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
     it('should reject rename of non-existent node', () => {
       const nonexistent = state.getNode('nonexistent');
-      expect(nonexistent).toBeNull();
+      expect(nonexistent).toBeUndefined();
     });
   });
 
@@ -195,7 +195,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
     it('should delete a node', () => {
       n1.delete();
 
-      expect(state.getNode('n1')).toBeNull();
+      expect(state.getNode('n1')).toBeUndefined();
       expect(d1.childIds).not.toContain('n1');
     });
 
@@ -203,9 +203,9 @@ describe('VaultState (Phase 2: Implementation)', () => {
       // d1 has children n1 and n2
       d1.delete();
 
-      expect(state.getNode('d1')).toBeNull();
-      expect(state.getNode('n1')).toBeNull();
-      expect(state.getNode('n2')).toBeNull();
+      expect(state.getNode('d1')).toBeUndefined();
+      expect(state.getNode('n1')).toBeUndefined();
+      expect(state.getNode('n2')).toBeUndefined();
     });
 
     it('should reject deletion of root', () => {
@@ -217,7 +217,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
     it('should reject deletion of non-existent node', () => {
       const nonexistent = state.getNode('nonexistent');
-      expect(nonexistent).toBeNull();
+      expect(nonexistent).toBeUndefined();
     });
   });
 
@@ -310,7 +310,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
       expect(state.getLogLength()).toBe(1);
       expect(state.getNode(n1.id)).toBeDefined();
-      expect(state.getNode(n2.id)).toBeNull();
+      expect(state.getNode(n2.id)).toBeUndefined();
     });
 
     it('should rollback to checkpoint 0 (empty state)', () => {
@@ -327,8 +327,8 @@ describe('VaultState (Phase 2: Implementation)', () => {
       state.rollback(0);
 
       expect(state.getLogLength()).toBe(0);
-      expect(state.getNode(n1.id)).toBeNull();
-      expect(state.getNode(n2.id)).toBeNull();
+      expect(state.getNode(n1.id)).toBeUndefined();
+      expect(state.getNode(n2.id)).toBeUndefined();
       // Root should still exist
       expect(state.getNode('0')).toBeDefined();
     });
@@ -358,7 +358,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
     });
 
     it('should return null for non-existent path', () => {
-      expect(state.findByPath('nonexistent/file.md')).toBeNull();
+      expect(state.findByPath('nonexistent/file.md')).toBeUndefined();
     });
 
     it('should get node path', () => {
@@ -431,7 +431,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
       node.delete();
 
-      expect(state.getNode('n1')).toBeNull();
+      expect(state.getNode('n1')).toBeUndefined();
     });
 
     it('should reject TreeNode rename of root', () => {
@@ -576,7 +576,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
         // Trash it
         dir.trash('folder');
-        expect(state.findByPath('folder')).toBeNull();
+        expect(state.findByPath('folder')).toBeUndefined();
 
         // Ensure path again - should recreate
         const restored = state.ensureDirs('folder');
@@ -595,7 +595,7 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
       it('should return null for non-existent ID', () => {
         const found = state.findById('nonexistent');
-        expect(found).toBeNull();
+        expect(found).toBeUndefined();
       });
 
       it('should be alias for getNode', () => {
@@ -654,12 +654,12 @@ describe('VaultState (Phase 2: Implementation)', () => {
 
       it('should return null for root node', () => {
         const parent = state.getParent('0');
-        expect(parent).toBeNull();
+        expect(parent).toBeUndefined();
       });
 
       it('should return null for non-existent node', () => {
         const parent = state.getParent('nonexistent');
-        expect(parent).toBeNull();
+        expect(parent).toBeUndefined();
       });
 
       it('should navigate parent chain', () => {

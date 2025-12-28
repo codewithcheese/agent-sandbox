@@ -161,7 +161,7 @@ describe('VaultState Trash/Restore (Phase 3)', () => {
 
     it('should return null for non-existent path', () => {
       const found = state.findTrashed('nonexistent/path.md');
-      expect(found).toBeNull();
+      expect(found).toBeUndefined();
     });
 
     it('should handle multiple trashed files with different paths', () => {

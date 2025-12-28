@@ -3,8 +3,8 @@ import { normalizePath } from "obsidian";
 import { basename, dirname } from "path-browserify";
 import matter from "front-matter";
 import type { VaultOverlay } from "./vault-overlay.svelte.ts";
-import { getText, getStat, isDirectory, isTrashed } from "$lib/utils/loro.ts";
-import { trashPath, overlayTmpPath } from "./tree-fs-adapter.ts";
+import type { TreeNode } from "./vault-state/tree-node.ts";
+import { getText, getStat, isDirectory, isTrashed, TRASH_FOLDER, TMP_FOLDER } from "$lib/utils/tree-node-utils.ts";
 
 export class MetadataCacheOverlay implements MetadataCache {
   constructor(
@@ -14,7 +14,7 @@ export class MetadataCacheOverlay implements MetadataCache {
 
   getFileCache(file: TFile): CachedMetadata | null {
     // Check if file has proposed changes
-    const proposedNode = this.vaultOverlay.proposedFS.findByPath(file.path);
+    const proposedNode = this.vaultOverlay.proposedDoc.findByPath(file.path);
 
     if (proposedNode && !isTrashed(proposedNode)) {
       // File exists in proposed state
@@ -50,8 +50,8 @@ export class MetadataCacheOverlay implements MetadataCache {
   ): TFile | null {
     const cleanLinkpath = this.cleanLinkpath(linkpath);
 
-    // Try exact path match first (O(1) via pathCache)
-    let proposedNode = this.vaultOverlay.proposedFS.findByPath(cleanLinkpath);
+    // Try exact path match first
+    let proposedNode = this.vaultOverlay.proposedDoc.findByPath(cleanLinkpath);
     if (
       proposedNode &&
       !isTrashed(proposedNode) &&
@@ -63,7 +63,7 @@ export class MetadataCacheOverlay implements MetadataCache {
     // Try with .md extension if no extension provided
     if (!cleanLinkpath.includes(".")) {
       const mdPath = `${cleanLinkpath}.md`;
-      proposedNode = this.vaultOverlay.proposedFS.findByPath(mdPath);
+      proposedNode = this.vaultOverlay.proposedDoc.findByPath(mdPath);
       if (
         proposedNode &&
         !isTrashed(proposedNode) &&
@@ -78,7 +78,7 @@ export class MetadataCacheOverlay implements MetadataCache {
       const sourceDir = dirname(sourcePath);
       const relativePath = normalizePath(`${sourceDir}/${cleanLinkpath}`);
 
-      proposedNode = this.vaultOverlay.proposedFS.findByPath(relativePath);
+      proposedNode = this.vaultOverlay.proposedDoc.findByPath(relativePath);
       if (
         proposedNode &&
         !isTrashed(proposedNode) &&
@@ -90,7 +90,7 @@ export class MetadataCacheOverlay implements MetadataCache {
       // Try relative path with .md extension
       if (!cleanLinkpath.includes(".")) {
         const relativeMdPath = `${relativePath}.md`;
-        proposedNode = this.vaultOverlay.proposedFS.findByPath(relativeMdPath);
+        proposedNode = this.vaultOverlay.proposedDoc.findByPath(relativeMdPath);
         if (
           proposedNode &&
           !isTrashed(proposedNode) &&
@@ -101,12 +101,12 @@ export class MetadataCacheOverlay implements MetadataCache {
       }
     }
 
-    // Basename search using path cache (much faster than tree traversal)
-    const basename = this.extractBasename(cleanLinkpath);
-    if (basename) {
-      const matchingPath = this.findPathByBasename(basename);
+    // Basename search using on-demand tree traversal
+    const targetBasename = this.extractBasename(cleanLinkpath);
+    if (targetBasename) {
+      const matchingPath = this.findPathByBasename(targetBasename);
       if (matchingPath) {
-        proposedNode = this.vaultOverlay.proposedFS.findByPath(matchingPath);
+        proposedNode = this.vaultOverlay.proposedDoc.findByPath(matchingPath);
         if (
           proposedNode &&
           !isTrashed(proposedNode) &&
@@ -145,22 +145,16 @@ export class MetadataCacheOverlay implements MetadataCache {
     return dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
   }
 
+  /**
+   * Find a path matching the target basename by traversing the tree on-demand.
+   * Returns the shortest matching path (deterministic resolution).
+   */
   private findPathByBasename(targetBasename: string): string | null {
-    // Access the validated path cache - this is O(n) but much faster than tree traversal
-    // since it's just iterating over a Map's keys (all in JavaScript, no WASM boundary)
-    const pathCache = this.vaultOverlay.proposedFS.getValidatedPathCache();
     const matchingPaths: string[] = [];
+    const root = this.vaultOverlay.proposedDoc.getNode("0");
 
-    for (const [path, _nodeId] of pathCache) {
-      // Skip trash and tmp paths
-      if (path.startsWith(trashPath) || path.startsWith(overlayTmpPath)) {
-        continue;
-      }
-
-      const pathBasename = this.extractBasename(path);
-      if (pathBasename === targetBasename) {
-        matchingPaths.push(path);
-      }
+    if (root) {
+      this.collectMatchingPaths(root, "", targetBasename, matchingPaths);
     }
 
     if (matchingPaths.length === 0) {
@@ -177,7 +171,33 @@ export class MetadataCacheOverlay implements MetadataCache {
     return matchingPaths[0];
   }
 
-  private createTFileFromProposed(path: string, node: any): TFile {
+  /**
+   * Recursively collect paths matching the target basename.
+   */
+  private collectMatchingPaths(
+    node: TreeNode,
+    parentPath: string,
+    targetBasename: string,
+    matchingPaths: string[],
+  ): void {
+    const name = node.data.name;
+    const path = parentPath ? `${parentPath}/${name}` : name;
+
+    // Skip root, trash, and tmp folders
+    if (path && !path.startsWith(TRASH_FOLDER) && !path.startsWith(TMP_FOLDER)) {
+      const pathBasename = this.extractBasename(path);
+      if (pathBasename === targetBasename) {
+        matchingPaths.push(path);
+      }
+    }
+
+    // Recurse into children
+    for (const child of node.children()) {
+      this.collectMatchingPaths(child, path, targetBasename, matchingPaths);
+    }
+  }
+
+  private createTFileFromProposed(path: string, node: TreeNode): TFile {
     const stat = getStat(node);
     return this.vaultOverlay.createTFile(path, stat);
   }
